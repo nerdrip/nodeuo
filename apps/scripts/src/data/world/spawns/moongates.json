@@ -1,0 +1,65 @@
+{
+  "_comment": "Public moongate network — one entry per facet. Mirrors ServUO `Scripts/Items/Functional/PublicMoongate.cs` (PMList). graphic IDs: BLUE=0x0F6C (3948, Trammel/Malas), RED=0x0DDA (3546, Felucca — kept here for reference; Felucca intentionally NOT populated on this shard per user decision 2026-05-18), TOKUNO=0x1FD4 (8148). Within-facet routing only (no cross-facet hopping). User decision: Trammel is the main-gameplay facet; Felucca exists in the map data but stays empty.",
+  "facets": [
+    {
+      "map": 1,
+      "graphic": 3948,
+      "_facetName": "Trammel",
+      "gates": [
+        { "name": "Moonglow",      "x": 4467, "y": 1283, "z":   5 },
+        { "name": "Britain",       "x": 1336, "y": 1997, "z":   5 },
+        { "name": "Jhelom",        "x": 1499, "y": 3771, "z":   5 },
+        { "name": "Yew",           "x":  771, "y":  752, "z":   5 },
+        { "name": "Minoc",         "x": 2701, "y":  692, "z":   5 },
+        { "name": "Trinsic",       "x": 1828, "y": 2948, "z": -20 },
+        { "name": "Skara Brae",    "x":  643, "y": 2067, "z":   5 },
+        { "name": "New Magincia",  "x": 3563, "y": 2139, "z":  20 },
+        { "name": "New Haven",     "x": 3450, "y": 2677, "z":  25 }
+      ]
+    },
+    {
+      "map": 2,
+      "graphic": 3948,
+      "_facetName": "Ilshenar",
+      "gates": [
+        { "name": "Compassion",    "x": 1215, "y":  467, "z": -13 },
+        { "name": "Honesty",       "x":  722, "y": 1366, "z": -60 },
+        { "name": "Honor",         "x":  744, "y":  724, "z": -28 },
+        { "name": "Humility",      "x":  281, "y": 1016, "z":   0 },
+        { "name": "Justice",       "x":  987, "y": 1011, "z": -32 },
+        { "name": "Sacrifice",     "x": 1174, "y": 1286, "z": -30 },
+        { "name": "Spirituality",  "x": 1532, "y": 1340, "z":  -3 },
+        { "name": "Valor",         "x":  528, "y":  216, "z": -45 },
+        { "name": "Chaos",         "x": 1721, "y":  218, "z":  96 }
+      ]
+    },
+    {
+      "map": 3,
+      "graphic": 3948,
+      "_facetName": "Malas",
+      "gates": [
+        { "name": "Luna",          "x": 1015, "y":  527, "z": -65 },
+        { "name": "Umbra",         "x": 1997, "y": 1386, "z": -85 }
+      ]
+    },
+    {
+      "map": 4,
+      "graphic": 8148,
+      "_facetName": "Tokuno",
+      "gates": [
+        { "name": "Isamu-Jima",    "x": 1169, "y":  998, "z":  41 },
+        { "name": "Makoto-Jima",   "x":  802, "y": 1204, "z":  25 },
+        { "name": "Homare-Jima",   "x":  270, "y":  628, "z":  15 }
+      ]
+    },
+    {
+      "map": 5,
+      "graphic": 3948,
+      "_facetName": "TerMur",
+      "gates": [
+        { "name": "Royal City",       "x":  850, "y": 3525, "z": -38 },
+        { "name": "Valley of Eodon",  "x":  719, "y": 1863, "z":  40 }
+      ]
+    }
+  ]
+}

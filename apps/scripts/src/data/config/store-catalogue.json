@@ -1,0 +1,331 @@
+[
+  {
+    "sku": "pet-fawn",
+    "name": "Fawn Pet",
+    "priceSovereign": 600,
+    "itemId": 8287,
+    "category": "pet"
+  },
+  {
+    "sku": "pet-fox",
+    "name": "Fox Pet",
+    "priceSovereign": 600,
+    "itemId": 8289,
+    "category": "pet"
+  },
+  {
+    "sku": "pet-piglet",
+    "name": "Piglet Pet",
+    "priceSovereign": 600,
+    "itemId": 8296,
+    "category": "pet"
+  },
+  {
+    "sku": "pet-eagle",
+    "name": "Eagle Pet",
+    "priceSovereign": 600,
+    "itemId": 8286,
+    "category": "pet"
+  },
+  {
+    "sku": "pet-bird-songbird",
+    "name": "Songbird Pet",
+    "priceSovereign": 400,
+    "itemId": 8285,
+    "category": "pet"
+  },
+  {
+    "sku": "pet-pixie",
+    "name": "Pixie Pet",
+    "priceSovereign": 800,
+    "itemId": 8313,
+    "category": "pet"
+  },
+  {
+    "sku": "mount-ethereal-horse",
+    "name": "Ethereal Horse",
+    "priceSovereign": 1500,
+    "itemId": 11679,
+    "category": "mount"
+  },
+  {
+    "sku": "mount-ethereal-llama",
+    "name": "Ethereal Llama",
+    "priceSovereign": 1500,
+    "itemId": 11680,
+    "category": "mount"
+  },
+  {
+    "sku": "mount-ethereal-ostard",
+    "name": "Ethereal Ostard",
+    "priceSovereign": 1500,
+    "itemId": 11682,
+    "category": "mount"
+  },
+  {
+    "sku": "mount-ethereal-ridgeback",
+    "name": "Ethereal Ridgeback",
+    "priceSovereign": 1800,
+    "itemId": 11683,
+    "category": "mount"
+  },
+  {
+    "sku": "mount-ethereal-unicorn",
+    "name": "Ethereal Unicorn",
+    "priceSovereign": 2200,
+    "itemId": 11684,
+    "category": "mount"
+  },
+  {
+    "sku": "mount-ethereal-kirin",
+    "name": "Ethereal Kirin",
+    "priceSovereign": 2500,
+    "itemId": 11685,
+    "category": "mount"
+  },
+  {
+    "sku": "mount-ethereal-hiryu",
+    "name": "Ethereal Hiryu",
+    "priceSovereign": 2800,
+    "itemId": 11686,
+    "category": "mount"
+  },
+  {
+    "sku": "mount-ethereal-reptile",
+    "name": "Ethereal Swamp Dragon",
+    "priceSovereign": 2800,
+    "itemId": 11687,
+    "category": "mount"
+  },
+  {
+    "sku": "mount-ethereal-cu-sidhe",
+    "name": "Ethereal Cu Sidhe",
+    "priceSovereign": 3000,
+    "itemId": 11689,
+    "category": "mount"
+  },
+  {
+    "sku": "mount-ethereal-beetle",
+    "name": "Ethereal Beetle",
+    "priceSovereign": 1700,
+    "itemId": 11688,
+    "category": "mount"
+  },
+  {
+    "sku": "deco-treasure-chest-fake",
+    "name": "Faux Treasure Chest",
+    "priceSovereign": 300,
+    "itemId": 2475,
+    "category": "house-deco"
+  },
+  {
+    "sku": "deco-marble-fountain",
+    "name": "Marble Fountain",
+    "priceSovereign": 1200,
+    "itemId": 4650,
+    "category": "house-deco"
+  },
+  {
+    "sku": "deco-yule-tree",
+    "name": "Yule Tree (Permanent)",
+    "priceSovereign": 800,
+    "itemId": 3275,
+    "category": "house-deco"
+  },
+  {
+    "sku": "deco-paragon-chest",
+    "name": "Paragon Chest",
+    "priceSovereign": 1500,
+    "itemId": 3651,
+    "category": "house-deco"
+  },
+  {
+    "sku": "deco-soulforge",
+    "name": "Personal Soulforge",
+    "priceSovereign": 3000,
+    "itemId": 17015,
+    "category": "house-deco"
+  },
+  {
+    "sku": "deco-trapped-chest",
+    "name": "Mimic Chest",
+    "priceSovereign": 800,
+    "itemId": 3651,
+    "category": "house-deco"
+  },
+  {
+    "sku": "cosmetic-hair-dye",
+    "name": "Hair Dye Bottle",
+    "priceSovereign": 150,
+    "itemId": 3839,
+    "category": "cosmetic"
+  },
+  {
+    "sku": "cosmetic-skin-dye",
+    "name": "Skin Dye",
+    "priceSovereign": 300,
+    "itemId": 3617,
+    "category": "cosmetic"
+  },
+  {
+    "sku": "cosmetic-tattoo-token",
+    "name": "Tattoo Token",
+    "priceSovereign": 400,
+    "itemId": 5360,
+    "category": "cosmetic"
+  },
+  {
+    "sku": "cosmetic-beard-style",
+    "name": "Beard Style Voucher",
+    "priceSovereign": 200,
+    "itemId": 5360,
+    "category": "cosmetic"
+  },
+  {
+    "sku": "util-soulstone-fragment",
+    "name": "Soulstone Fragment",
+    "priceSovereign": 1000,
+    "itemId": 10899,
+    "category": "utility"
+  },
+  {
+    "sku": "util-soulstone-full",
+    "name": "Full Soulstone",
+    "priceSovereign": 3500,
+    "itemId": 10900,
+    "category": "utility"
+  },
+  {
+    "sku": "util-vault-key",
+    "name": "Bank Vault Key",
+    "priceSovereign": 500,
+    "itemId": 4112,
+    "category": "utility"
+  },
+  {
+    "sku": "util-house-teleporter",
+    "name": "House Teleporter Pad",
+    "priceSovereign": 600,
+    "itemId": 6173,
+    "category": "utility"
+  },
+  {
+    "sku": "util-house-add-storage",
+    "name": "House Storage Upgrade",
+    "priceSovereign": 2500,
+    "itemId": 5360,
+    "category": "utility"
+  },
+  {
+    "sku": "util-personal-bless",
+    "name": "Personal Bless Deed",
+    "priceSovereign": 400,
+    "itemId": 5360,
+    "category": "utility"
+  },
+  {
+    "sku": "util-character-transfer",
+    "name": "Character Transfer Token",
+    "priceSovereign": 5000,
+    "itemId": 5360,
+    "category": "utility"
+  },
+  {
+    "sku": "token-character-slot",
+    "name": "Additional Character Slot",
+    "priceSovereign": 2000,
+    "itemId": 5360,
+    "category": "character-token"
+  },
+  {
+    "sku": "token-rename-deed",
+    "name": "Rename Deed",
+    "priceSovereign": 600,
+    "itemId": 5360,
+    "category": "character-token"
+  },
+  {
+    "sku": "token-power-hour",
+    "name": "Power Hour Scroll",
+    "priceSovereign": 300,
+    "itemId": 5360,
+    "category": "character-token"
+  },
+  {
+    "sku": "token-skill-cap-+5",
+    "name": "+5 Skill Cap Token",
+    "priceSovereign": 2500,
+    "itemId": 5360,
+    "category": "character-token"
+  },
+  {
+    "sku": "token-stat-cap-+5",
+    "name": "+5 Stat Cap Token",
+    "priceSovereign": 2500,
+    "itemId": 5360,
+    "category": "character-token"
+  },
+  {
+    "sku": "token-expansion-ml",
+    "name": "Mondain's Legacy Token",
+    "priceSovereign": 1500,
+    "itemId": 5360,
+    "category": "expansion-token"
+  },
+  {
+    "sku": "token-expansion-sa",
+    "name": "Stygian Abyss Token",
+    "priceSovereign": 1500,
+    "itemId": 5360,
+    "category": "expansion-token"
+  },
+  {
+    "sku": "token-expansion-hs",
+    "name": "High Seas Token",
+    "priceSovereign": 1200,
+    "itemId": 5360,
+    "category": "expansion-token"
+  },
+  {
+    "sku": "token-expansion-tol",
+    "name": "Time of Legends Token",
+    "priceSovereign": 1800,
+    "itemId": 5360,
+    "category": "expansion-token"
+  },
+  {
+    "sku": "token-expansion-eodon",
+    "name": "Eodon Pioneer Token",
+    "priceSovereign": 2000,
+    "itemId": 5360,
+    "category": "expansion-token"
+  },
+  {
+    "sku": "misc-vendor-recall-rune",
+    "name": "Vendor Recall Rune Booklet",
+    "priceSovereign": 500,
+    "itemId": 8901,
+    "category": "utility"
+  },
+  {
+    "sku": "misc-paragon-spawn",
+    "name": "Paragon Spawn Token",
+    "priceSovereign": 1500,
+    "itemId": 5360,
+    "category": "utility"
+  },
+  {
+    "sku": "misc-mannequin-deed",
+    "name": "Mannequin Deed",
+    "priceSovereign": 800,
+    "itemId": 5360,
+    "category": "utility"
+  },
+  {
+    "sku": "misc-bag-of-sending",
+    "name": "Bag of Sending",
+    "priceSovereign": 300,
+    "itemId": 6867,
+    "category": "utility"
+  }
+]

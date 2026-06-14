@@ -1,0 +1,14 @@
+{
+  "_comment": "Tokuno Sky Garden — Makoto-Jima bonsai courtyard. Hex literals converted to decimal.",
+  "center":              { "x": 800, "y": 1213, "z": 25, "map": 3 },
+  "harvestIntervalMs":   86400000,
+  "turnInRatio":         5,
+  "bonsaiSpecies": [
+    { "key": "sakura-bonsai", "name": "Sakura Bonsai", "itemId": 10460, "hue":  539, "fame": 100 },
+    { "key": "pine-bonsai",   "name": "Pine Bonsai",   "itemId": 10460, "hue":   89, "fame": 100 },
+    { "key": "maple-bonsai",  "name": "Maple Bonsai",  "itemId": 10460, "hue":   33, "fame": 100 },
+    { "key": "cherry-bonsai", "name": "Cherry Bonsai", "itemId": 10460, "hue":   68, "fame": 200 },
+    { "key": "cedar-bonsai",  "name": "Cedar Bonsai",  "itemId": 10460, "hue": 1150, "fame": 250 },
+    { "key": "jade-bonsai",   "name": "Jade Bonsai",   "itemId": 10460, "hue": 1153, "fame": 500 }
+  ]
+}

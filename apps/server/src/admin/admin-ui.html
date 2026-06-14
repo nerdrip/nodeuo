@@ -1,0 +1,1047 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>UO-Node Admin</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0;
+    font: 13px/1.45 'Consolas', 'Cascadia Mono', monospace;
+    color: #d8c89a;
+    background: #1a1410;
+  }
+  header {
+    display: flex; align-items: center;
+    background: linear-gradient(180deg, #2b1e0e 0%, #1a1410 100%);
+    border-bottom: 2px solid #7a5a20;
+    padding: 8px 16px; gap: 18px;
+  }
+  header h1 { font-size: 16px; margin: 0; letter-spacing: 4px; color: #ffd070; }
+  header .stat { font-size: 11px; opacity: .8; }
+  header .stat b { color: #ffd070; }
+  nav {
+    background: #20180e;
+    border-bottom: 1px solid #4a3818;
+    display: flex; padding: 0;
+  }
+  nav button {
+    background: transparent; border: 0; color: #9a8a60;
+    padding: 8px 18px; cursor: pointer; font: inherit;
+    border-bottom: 2px solid transparent;
+  }
+  nav button:hover { color: #ffd070; }
+  nav button.active { color: #ffd070; border-bottom-color: #ffd070; }
+  main { padding: 16px; min-height: calc(100vh - 96px); }
+  .card {
+    background: #20180e; border: 1px solid #4a3818;
+    padding: 12px; margin-bottom: 12px; border-radius: 4px;
+  }
+  .card h2 { margin: 0 0 8px 0; font-size: 13px; color: #ffd070; letter-spacing: 2px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { text-align: left; padding: 4px 8px; border-bottom: 1px solid #3a2c14; }
+  th { color: #ffd070; font-weight: normal; cursor: pointer; user-select: none; }
+  tr:hover td { background: #2a1f10; }
+  button {
+    background: #3a2c14; color: #ffd070; border: 1px solid #7a5a20;
+    padding: 4px 10px; cursor: pointer; font: inherit; border-radius: 2px;
+  }
+  button:hover { background: #4a3818; }
+  button.danger { color: #ff6060; border-color: #803030; }
+  button.primary { background: #5a3a18; }
+  input, select, textarea {
+    background: #14100a; color: #d8c89a; border: 1px solid #4a3818;
+    padding: 4px 8px; font: inherit; border-radius: 2px;
+  }
+  input[type="text"], input[type="number"], input[type="password"] { width: 200px; }
+  textarea { width: 100%; min-height: 400px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }
+  .pill {
+    display: inline-block; padding: 1px 6px; border-radius: 8px;
+    font-size: 10px; border: 1px solid currentColor;
+  }
+  .pill.online { color: #80ff80; }
+  .pill.banned { color: #ff6060; }
+  .pill.admin  { color: #ffaa20; }
+  .pill.gm     { color: #80c0ff; }
+  .pill.seer   { color: #c080ff; }
+  .pill.counselor  { color: #80ffff; }
+  .pill.counsellor { color: #80ffff; }
+  .stats-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+  }
+  .stat-tile {
+    background: #2a1f10; border: 1px solid #4a3818;
+    padding: 10px; text-align: center; border-radius: 4px;
+  }
+  .stat-tile .v { font-size: 22px; color: #ffd070; }
+  .stat-tile .k { font-size: 10px; opacity: .7; letter-spacing: 1px; }
+
+  /* Script editor split */
+  .script-split { display: grid; grid-template-columns: 320px 1fr; gap: 10px; height: calc(100vh - 200px); }
+  .script-tree {
+    background: #14100a; border: 1px solid #4a3818;
+    overflow: auto; padding: 8px; font-size: 11px;
+  }
+  .script-tree .item { padding: 2px 4px; cursor: pointer; }
+  .script-tree .item:hover { background: #2a1f10; }
+  .script-tree .item.active { background: #4a3818; color: #ffd070; }
+  .script-tree .dir { color: #80c0ff; }
+  .script-tree .file { color: #d8c89a; }
+  .script-pane { display: flex; flex-direction: column; gap: 6px; }
+  .script-pane textarea {
+    flex: 1; min-height: 0;
+    font: 12px/1.4 'Consolas', monospace; tab-size: 2;
+    resize: none;
+  }
+
+  /* Modal */
+  .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex;
+              align-items: center; justify-content: center; z-index: 100; }
+  .modal { background: #20180e; border: 2px solid #7a5a20; padding: 18px;
+           min-width: 320px; max-width: 600px; border-radius: 4px; }
+  .modal h3 { margin: 0 0 12px; color: #ffd070; }
+
+  /* Mobile preview block */
+  .preview {
+    background: #14100a; border: 1px solid #4a3818;
+    padding: 8px; font-size: 11px;
+  }
+  .preview .kv { display: grid; grid-template-columns: 80px 1fr; gap: 2px 8px; }
+  .preview .kv b { color: #ffd070; font-weight: normal; }
+  .scroll-h { max-height: 320px; overflow: auto; }
+
+  details summary { cursor: pointer; padding: 4px 0; color: #ffd070; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>UO·NODE · ADMIN</h1>
+  <div class="stat">shard: <b id="hd-shard">…</b></div>
+  <div class="stat">uptime: <b id="hd-up">…</b></div>
+  <div class="stat">mobs: <b id="hd-mobs">…</b></div>
+  <div class="stat">items: <b id="hd-items">…</b></div>
+  <div class="stat">online: <b id="hd-online">…</b></div>
+  <div class="stat">mem: <b id="hd-mem">…</b> MB</div>
+  <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+    <span class="stat" id="hd-who" style="opacity:.8">…</span>
+    <button onclick="refreshDashboard()">⟳ refresh</button>
+    <button onclick="logout()" class="danger">logout</button>
+  </div>
+</header>
+
+<nav id="tabs">
+  <button data-tab="dashboard" class="active">Dashboard</button>
+  <button data-tab="accounts">Accounts</button>
+  <button data-tab="characters">Characters</button>
+  <button data-tab="items">Items</button>
+  <button data-tab="scripts">Scripts</button>
+  <button data-tab="data">Data (raw)</button>
+  <button data-tab="data-editor" style="color:#80ff80">🌳 Data Editor</button>
+  <button data-tab="spawners">Spawners</button>
+  <button data-tab="logs">Logs</button>
+  <button data-tab="world">World</button>
+  <button data-tab="isoeditor" style="color:#80ff80">🗺 Iso Editor</button>
+</nav>
+
+<main id="main"></main>
+
+<div id="modal-host"></div>
+
+<script>
+'use strict';
+
+// ---------------------------- HTTP helpers ---------------------------------
+// Cookie-based session — `uo_admin` set by POST /api/auth/login. We don't
+// touch headers manually; the browser ships the cookie via `credentials:
+// 'same-origin'`. A 401 means the session expired → bounce to /login.
+async function api(method, url, body) {
+  const init = { method, headers: {}, credentials: 'same-origin' };
+  if (body) {
+    init.headers['content-type'] = 'application/json';
+    init.body = JSON.stringify(body);
+  }
+  const r = await fetch(url, init);
+  if (r.status === 401) { location.href = '/login'; throw new Error('unauthorized'); }
+  if (!r.ok) {
+    let msg = `HTTP ${r.status}`;
+    try { const j = await r.json(); msg = j.error || j.reason || msg; } catch { /* ignore */ }
+    throw new Error(msg);
+  }
+  return r.json();
+}
+async function logout() {
+  try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }); }
+  finally { location.href = '/login'; }
+}
+window.logout = logout;
+
+// ---------------------------- Tabs ----------------------------------------
+const tabs = {};
+function registerTab(name, fn) { tabs[name] = fn; }
+function activate(name) {
+  for (const b of document.querySelectorAll('nav button'))
+    b.classList.toggle('active', b.dataset.tab === name);
+  document.getElementById('main').innerHTML = '';
+  tabs[name]?.();
+  location.hash = name;
+}
+document.querySelectorAll('nav button').forEach((b) =>
+  b.addEventListener('click', () => activate(b.dataset.tab)));
+
+// ---------------------------- Dashboard -----------------------------------
+async function refreshDashboard() {
+  try {
+    const [s, me] = await Promise.all([
+      api('GET', '/api/world/stats'),
+      api('GET', '/api/auth/me').catch(() => null),
+    ]);
+    document.getElementById('hd-shard').textContent  = s.shard;
+    document.getElementById('hd-up').textContent     = formatUptime(s.uptime);
+    document.getElementById('hd-mobs').textContent   = s.mobiles;
+    document.getElementById('hd-items').textContent  = s.items;
+    document.getElementById('hd-online').textContent = s.onlinePlayers;
+    document.getElementById('hd-mem').textContent    = s.memoryMB;
+    if (me) {
+      const cnt = (me.characters || []).length;
+      document.getElementById('hd-who').textContent =
+        `▣ ${me.account} (${me.accessLevel}, ${cnt} char${cnt === 1 ? '' : 's'})`;
+    }
+  } catch { /* ignore */ }
+}
+function formatUptime(s) {
+  s = s | 0;
+  const d = Math.floor(s / 86400); s -= d * 86400;
+  const h = Math.floor(s / 3600);  s -= h * 3600;
+  const m = Math.floor(s / 60);
+  return `${d}d ${h}h ${m}m`;
+}
+
+registerTab('dashboard', async () => {
+  const s = await api('GET', '/api/world/stats');
+  document.getElementById('main').innerHTML = `
+    <div class="card">
+      <h2>Shard overview</h2>
+      <div class="stats-grid">
+        <div class="stat-tile"><div class="v">${s.mobiles}</div><div class="k">MOBILES</div></div>
+        <div class="stat-tile"><div class="v">${s.items}</div><div class="k">ITEMS</div></div>
+        <div class="stat-tile"><div class="v">${s.onlinePlayers}</div><div class="k">ONLINE</div></div>
+        <div class="stat-tile"><div class="v">${s.accounts}</div><div class="k">ACCOUNTS</div></div>
+        <div class="stat-tile"><div class="v">${s.scripts}</div><div class="k">SCRIPTS</div></div>
+        <div class="stat-tile"><div class="v">${s.memoryMB}M</div><div class="k">RSS</div></div>
+        <div class="stat-tile"><div class="v">${formatUptime(s.uptime)}</div><div class="k">UPTIME</div></div>
+        <div class="stat-tile"><div class="v">${s.nodeVersion}</div><div class="k">NODE</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Quick actions</h2>
+      <div class="row">
+        <button class="primary" onclick="doSave()">💾 Save world</button>
+        <button onclick="doReload()">↻ Reload scripts</button>
+        <button onclick="doBroadcast()">📢 Broadcast…</button>
+      </div>
+    </div>
+  `;
+});
+
+async function doSave() {
+  try {
+    const r = await api('POST', '/api/world/save');
+    alert(`saved: ${r.bytes ?? 0} bytes in ${r.ms ?? 0} ms`);
+  } catch (e) { alert('save failed: ' + e.message); }
+}
+async function doReload() {
+  try {
+    const r = await api('POST', '/api/scripts/reload');
+    alert(`scripts reloaded (${r.loaded} loaded in ${r.ms} ms)`);
+  } catch (e) { alert('reload failed: ' + e.message); }
+}
+async function doBroadcast() {
+  const text = prompt('Broadcast text to every online player:');
+  if (!text) return;
+  try {
+    const r = await api('POST', '/api/world/broadcast', { text });
+    alert(`sent to ${r.sentTo} players`);
+  } catch (e) { alert('broadcast failed: ' + e.message); }
+}
+
+// ---------------------------- Accounts ------------------------------------
+registerTab('accounts', async () => {
+  const data = await api('GET', '/api/accounts');
+  const rows = data.accounts.map((a) => `
+    <tr>
+      <td>${esc(a.username)}</td>
+      <td><span class="pill ${a.accessLevel?.toLowerCase()}">${esc(a.accessLevel)}</span></td>
+      <td>${a.banned ? '<span class="pill banned">BANNED</span>' : '✓'}</td>
+      <td>${a.characters}</td>
+      <td>${a.created?.slice(0, 10) ?? ''}</td>
+      <td>${a.lastLogin?.slice(0, 16)?.replace('T', ' ') ?? '—'}</td>
+      <td>
+        <button onclick="openAccount('${escJS(a.username)}')">view</button>
+        <button onclick="editAccount('${escJS(a.username)}', '${escJS(a.accessLevel)}', ${a.banned ? 'true' : 'false'})">edit</button>
+        <button class="danger" onclick="deleteAccount('${escJS(a.username)}')">del</button>
+      </td>
+    </tr>
+  `).join('');
+  document.getElementById('main').innerHTML = `
+    <div class="card">
+      <h2>Accounts (${data.count})</h2>
+      <table>
+        <thead><tr><th>Username</th><th>Level</th><th>Status</th><th>Chars</th><th>Created</th><th>Last login</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
+});
+
+async function openAccount(username) {
+  const a = await api('GET', `/api/accounts/${encodeURIComponent(username)}`);
+  const chars = (a.characters ?? []).map((c, i) => c ? `
+    <details>
+      <summary>Slot ${i}: ${esc(c.live?.name ?? c.name ?? '?')} ${c.live?.online ? '<span class="pill online">ONLINE</span>' : ''}</summary>
+      <div class="preview">${renderMobileKV(c.live)}</div>
+    </details>
+  ` : '').join('');
+  showModal(`Account: ${esc(username)}`, `
+    <div class="row"><b>Access:</b> ${esc(a.accessLevel)}  <b>Banned:</b> ${a.banned ? 'yes' : 'no'}</div>
+    <div class="row"><b>Created:</b> ${esc(a.created ?? '?')}</div>
+    <div class="row"><b>Last login:</b> ${esc(a.lastLogin ?? '?')}</div>
+    <h3>Characters</h3>
+    ${chars || '<i>no characters</i>'}
+  `);
+}
+
+async function editAccount(username, level, banned) {
+  // ServUO AccessLevel ladder (low to high): Player, Counselor, Seer,
+  // GM, Admin. The PATCH endpoint accepts the string verbatim.
+  const newLevel = prompt(
+    `accessLevel for ${username}\n` +
+    `(Player / Counselor / Seer / GM / Admin):`, level);
+  if (!newLevel) return;
+  const valid = ['Player', 'Counselor', 'Counsellor', 'Seer', 'GM', 'GameMaster', 'Admin', 'Administrator'];
+  if (!valid.includes(newLevel)) {
+    alert(`Invalid access level. Valid: ${valid.join(', ')}`);
+    return;
+  }
+  const banAns = confirm(`Banned? (currently ${banned})\nClick OK to BAN, Cancel to UNBAN`);
+  try {
+    await api('PATCH', `/api/accounts/${encodeURIComponent(username)}`, {
+      accessLevel: newLevel, banned: banAns,
+    });
+    activate('accounts');
+  } catch (e) { alert('edit failed: ' + e.message); }
+}
+
+async function deleteAccount(username) {
+  if (!confirm(`Permanently delete account "${username}"?`)) return;
+  try {
+    await api('DELETE', `/api/accounts/${encodeURIComponent(username)}`);
+    activate('accounts');
+  } catch (e) { alert('delete failed: ' + e.message); }
+}
+
+// ---------------------------- Characters / mobiles ------------------------
+let mobsKind = 'players';     // 'players' | 'npcs' | 'all'
+registerTab('characters', async () => {
+  document.getElementById('main').innerHTML = `
+    <div class="card">
+      <h2>Characters / mobiles</h2>
+      <div class="row" style="border-bottom:1px solid #4a3818;padding-bottom:6px">
+        <button data-kind="players" class="kindbtn primary">👤 Players</button>
+        <button data-kind="vendors" class="kindbtn">🛒 Vendors</button>
+        <button data-kind="npcs"    class="kindbtn">🐺 Monsters</button>
+        <button data-kind="all"     class="kindbtn">All</button>
+        <span id="m-count" style="margin-left:auto;opacity:.6"></span>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <input id="m-filter" placeholder="filter by name or 0xSerial" />
+        <button onclick="loadMobiles()">search</button>
+      </div>
+      <div id="mobs-result"></div>
+    </div>
+    <div class="card" id="mob-detail" style="display:none"></div>
+  `;
+  document.querySelectorAll('.kindbtn').forEach((b) => b.addEventListener('click', () => {
+    mobsKind = b.dataset.kind;
+    document.querySelectorAll('.kindbtn').forEach((x) => x.classList.toggle('primary', x === b));
+    loadMobiles();
+  }));
+  loadMobiles();
+});
+async function loadMobiles() {
+  const f = document.getElementById('m-filter').value;
+  // server `players=1` returns only those with mob.client OR mob.isPlayer.
+  // For NPC view we ask for everything and filter client-side.
+  const p = mobsKind === 'players' ? '1' : '';
+  const r = await api('GET', `/api/mobiles?filter=${encodeURIComponent(f)}&players=${p}&limit=500`);
+  if (mobsKind === 'vendors') {
+    // Civic NPCs / shopkeepers — anything tagged with vendorKind by
+    // npcs/vendor.js. Excludes monsters and free-roaming creatures so
+    // the "where's my banker?" lookup actually shows just bankers,
+    // healers, animal trainers, etc.
+    r.mobiles = r.mobiles.filter((m) => !!m.vendorKind);
+  } else if (mobsKind === 'npcs') {
+    // Monsters / wild creatures — non-player, non-vendor mobs.
+    r.mobiles = r.mobiles.filter((m) => !m.online && !m.isPlayer && !m.vendorKind);
+  }
+  const rows = r.mobiles.map((m) => `
+    <tr>
+      <td>${m.serial}</td>
+      <td>${esc(m.name ?? '?')}</td>
+      <td>${m.body}</td>
+      <td>${m.x},${m.y},${m.z}</td>
+      <td>${m.hp}/${m.hpMax}</td>
+      <td>${m.online ? '<span class="pill online">ONLINE</span>' : ''}</td>
+      <td>
+        <button onclick="viewMob('${m.serial}')">view</button>
+        <button onclick="tpMyselfHere('${m.serial}')" title="Teleport YOUR character to this mob">tp here</button>
+        ${m.online ? `<button class="danger" onclick="kickMob('${m.serial}')">kick</button>` : ''}
+      </td>
+    </tr>
+  `).join('');
+  document.getElementById('mobs-result').innerHTML = `
+    <table>
+      <thead><tr><th>Serial</th><th>Name</th><th>Body</th><th>Pos</th><th>HP</th><th></th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+  const cnt = document.getElementById('m-count');
+  if (cnt) cnt.textContent = `${r.mobiles.length} ${mobsKind}`;
+  // Remember "last selected mobile" — used by the items tab as the default
+  // teleport target. Pick the first online player on each refresh so the
+  // typical "tp my admin character to that item" flow doesn't ask every
+  // time. User can override via the prompt.
+  const firstOnline = r.mobiles.find((m) => m.online);
+  if (firstOnline) localStorage.setItem('uo-admin-tp-mob', firstOnline.serial);
+}
+async function viewMob(serial) {
+  let m;
+  try { m = await api('GET', `/api/mobiles/${serial}`); }
+  catch (e) { alert('view failed: ' + e.message); return; }
+  if (m?.error) { alert('view failed: ' + m.error); return; }
+  // Defensive defaults — when the API returns a partial payload (e.g. an
+  // offline NPC with no equipped/backpack arrays) the .map() calls used
+  // to throw, leaving the panel apparently inert ("view nie dziala").
+  m.equipped         = m.equipped         ?? [];
+  m.backpackContents = m.backpackContents ?? [];
+  const eq = m.equipped.map((e) => `<li>L${e.layer}: ${esc(e.name ?? '0x'+(e.itemId|0).toString(16))}</li>`).join('');
+  const pack = m.backpackContents.map((it) => `<li>${esc(it.name ?? '0x'+(it.itemId|0).toString(16))} ×${it.amount ?? 1}</li>`).join('');
+  localStorage.setItem('uo-admin-tp-mob', m.serial);
+  const panel = document.getElementById('mob-detail');
+  if (!panel) { alert('mob-detail panel missing'); return; }
+  panel.style.display = '';
+  panel.innerHTML = `
+    <h2>${esc(m.name ?? '?')} (${m.serial})  <button class="small" onclick="(async()=>{const r=await api('GET','/api/mobiles/'+'${m.serial}');alert(JSON.stringify(r,null,2));})()">raw</button></h2>
+    <div style="display:grid;grid-template-columns:280px 1fr;gap:14px;align-items:start">
+      <div>
+        <div style="background:#000;border:1px solid #4a3818;padding:4px;text-align:center">
+          <img alt="paperdoll" src="/api/mobiles/${m.serial}/paperdoll" style="image-rendering:pixelated;max-width:100%"
+               onerror="this.replaceWith(Object.assign(document.createElement('div'),{textContent:'paperdoll unavailable',style:'opacity:.6;padding:30px'}))" />
+        </div>
+        <div style="margin-top:6px">
+          <button class="small" onclick="setTpTarget('${m.serial}')">use as tp target</button>
+          ${m.online ? `<button class="small danger" onclick="kickMob('${m.serial}')">kick</button>` : ''}
+        </div>
+      </div>
+      <div>
+        <div class="preview">${renderMobileKV(m)}</div>
+        <h3>Equipped (${m.equipped.length})</h3>
+        <ul class="scroll-h">${eq || '<i>none</i>'}</ul>
+        <h3>Backpack (${m.backpackContents.length})</h3>
+        <ul class="scroll-h">${pack || '<i>empty</i>'}</ul>
+      </div>
+    </div>
+  `;
+}
+function setTpTarget(serial) {
+  localStorage.setItem('uo-admin-tp-mob', serial);
+  flashToast(`tp target = ${serial}`);
+}
+window.setTpTarget = setTpTarget;
+/** Teleport the LOGGED-IN ADMIN's character to the position of any
+ *  other mobile (a mob in the world). One click, no prompt. Goes
+ *  through the same /api/me/teleport pipeline as item/spawner tp. */
+async function tpMyselfHere(targetMobSerial) {
+  // We don't have a "to mob" mode in /api/me/teleport — derive coords
+  // by reading the mob's current position via /api/mobiles/:serial.
+  try {
+    const m = await api('GET', `/api/mobiles/${targetMobSerial}`);
+    if (m.error) { alert('lookup failed: ' + m.error); return; }
+    await tpMe({ x: m.x, y: m.y, z: m.z, map: m.map });
+  } catch (e) { alert('tp failed: ' + e.message); }
+}
+async function kickMob(serial) {
+  showModal(`Kick mobile ${serial}?`, 'They will be disconnected immediately.', [
+    { label: 'Kick', danger: true, action: async () => {
+        try { await api('POST', `/api/mobiles/${serial}/kick`); loadMobiles(); }
+        catch (e) { alert('kick failed: ' + e.message); }
+      } },
+    { label: 'Cancel', action: () => {} },
+  ]);
+}
+function renderMobileKV(m) {
+  if (!m) return '<i>offline</i>';
+  return `<div class="kv">
+    <b>Body</b><div>${m.body} hue ${m.hue}</div>
+    <b>Pos</b><div>${m.x},${m.y},${m.z} (map ${m.map})</div>
+    <b>HP</b><div>${m.hp}/${m.hpMax}</div>
+    <b>Mana</b><div>${m.mana ?? 0}/${m.manaMax ?? 0}</div>
+    <b>Stam</b><div>${m.stam ?? 0}/${m.stamMax ?? 0}</div>
+    <b>Stats</b><div>str ${m.str ?? 0}, dex ${m.dex ?? 0}, int ${m.int ?? 0}</div>
+    <b>Gold</b><div>${m.gold ?? 0}</div>
+    <b>Account</b><div>${esc(m.accountName ?? '—')}</div>
+  </div>`;
+}
+
+// ---------------------------- Items ---------------------------------------
+registerTab('items', async () => {
+  document.getElementById('main').innerHTML = `
+    <div class="card">
+      <h2>Items</h2>
+      <div class="row">
+        <input id="i-filter" placeholder="filter by name / 0xItemId / 0xSerial" />
+        <label><input type="checkbox" id="i-ground" /> only on ground</label>
+        <button onclick="loadItems()">search</button>
+      </div>
+      <div id="items-result"></div>
+    </div>
+  `;
+  loadItems();
+});
+async function loadItems() {
+  const f = document.getElementById('i-filter').value;
+  const g = document.getElementById('i-ground').checked ? '1' : '';
+  const r = await api('GET', `/api/items?filter=${encodeURIComponent(f)}&ground=${g}`);
+  const rows = r.items.map((it) => `
+    <tr>
+      <td>${it.serial}</td>
+      <td>0x${it.itemId.toString(16)}</td>
+      <td>${esc(it.name ?? '?')}</td>
+      <td>${it.amount ?? 1}</td>
+      <td>${it.parent ?? `${it.x},${it.y},${it.z}`}</td>
+      <td>
+        <button onclick="tpToItem('${it.serial}')">tp here</button>
+        <button class="danger" onclick="deleteItem('${it.serial}')">del</button>
+      </td>
+    </tr>
+  `).join('');
+  document.getElementById('items-result').innerHTML = `
+    <div style="margin:6px 0;opacity:.7">Showing ${r.items.length} of ${r.count} —
+      "tp here" defaults to last-clicked online player (set via Characters tab),
+      override per-click in the prompt.</div>
+    <table>
+      <thead><tr><th>Serial</th><th>ItemId</th><th>Name</th><th>Amount</th><th>Where</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+async function deleteItem(serial) {
+  if (!confirm('Delete item ' + serial + '?')) return;
+  try { await api('DELETE', `/api/items/${serial}`); loadItems(); }
+  catch (e) { alert('failed: ' + e.message); }
+}
+
+/** Teleport the LOGGED-IN ADMIN's character to an item. Server picks
+ *  the character from the auth account; if there's more than one slot
+ *  the server returns `needsPick:true` + the list, and we show a tiny
+ *  modal so the admin chooses which character to send. No coordinates,
+ *  no mobile-serial prompt — pure "send me there" flow. */
+async function tpToItem(itemSerial) {
+  await tpMe({ itemSerial });
+}
+async function tpToSpawner(id) {
+  await tpMe({ spawnerId: id });
+}
+async function tpMe(payload, slot) {
+  const body = slot != null ? { ...payload, slot } : payload;
+  try {
+    const r = await api('POST', '/api/me/teleport', body);
+    if (r.error)     { alert('tp failed: ' + r.error); return; }
+    if (r.needsPick) { showCharacterPicker(r.characters, payload); return; }
+    flashToast(`tp [${r.character}] → ${r.x},${r.y},${r.z} (map ${r.map})`);
+  } catch (e) { alert('tp failed: ' + e.message); }
+}
+function showCharacterPicker(chars, originalPayload) {
+  const buttons = chars.map((c) => `
+    <button class="primary" style="width:100%;text-align:left;margin:4px 0"
+            onclick="closeModal(); tpMe(${JSON.stringify(originalPayload).replace(/"/g, '&quot;')}, ${c.slot})">
+      Slot ${c.slot} — ${esc(c.name ?? '?')} ${c.online ? '<span class=\"pill online\">ONLINE</span>' : ''}
+    </button>
+  `).join('');
+  showModal('Pick character to teleport', `
+    <div style="opacity:.7;font-size:11px;margin-bottom:8px">Your account has ${chars.length} characters. Pick one:</div>
+    ${buttons}
+  `);
+}
+
+/** Tiny ephemeral toast — no modal, no prompt. */
+function flashToast(text) {
+  let el = document.getElementById('uo-toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'uo-toast';
+    el.style.cssText =
+      'position:fixed;bottom:16px;right:16px;background:#3a2c14;color:#ffd070;'
+      + 'border:1px solid #7a5a20;padding:8px 14px;border-radius:4px;z-index:200;'
+      + 'font:12px Consolas,monospace;';
+    document.body.appendChild(el);
+  }
+  el.textContent = text;
+  el.style.display = '';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.style.display = 'none'; }, 2500);
+}
+window.flashToast = flashToast;
+
+// ---------------------------- Scripts (file editor) -----------------------
+let currentScriptPath = null;
+registerTab('scripts', async () => {
+  const data = await api('GET', '/api/scripts');
+  document.getElementById('main').innerHTML = `
+    <div class="card">
+      <div class="row" style="margin-bottom:6px">
+        <button class="primary" onclick="newScript()">+ new file</button>
+        <button onclick="saveScript()">💾 save (Ctrl+S)</button>
+        <button onclick="reloadScripts()">↻ reload runtime</button>
+        <span style="margin-left:auto;opacity:.6">root: ${esc(data.root)}</span>
+      </div>
+      <div class="script-split">
+        <div class="script-tree" id="s-tree"></div>
+        <div class="script-pane">
+          <div id="s-status" style="font-size:11px;opacity:.7">click a file in the tree to open</div>
+          <textarea id="s-editor" spellcheck="false"
+            placeholder="// pick a file from the tree on the left to edit"></textarea>
+        </div>
+      </div>
+    </div>
+  `;
+  document.getElementById('s-tree').innerHTML = renderTree(data.tree);
+  document.getElementById('s-editor').addEventListener('keydown', (e) => {
+    if (e.ctrlKey && (e.key === 's' || e.key === 'S')) { e.preventDefault(); saveScript(); }
+  });
+});
+function renderTree(nodes, depth = 0) {
+  return nodes.map((n) => {
+    const indent = '  '.repeat(depth);
+    if (n.type === 'dir') {
+      return `<div class="item dir" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'':'none'">${indent}▸ ${esc(n.name)}/</div>
+              <div>${renderTree(n.children, depth + 1)}</div>`;
+    }
+    return `<div class="item file" data-path="${esc(n.path)}" onclick="openScript('${esc(n.path)}', this)">${indent}${esc(n.name)}</div>`;
+  }).join('');
+}
+async function openScript(path, el) {
+  currentScriptPath = path;
+  const r = await api('GET', `/api/scripts/file?path=${encodeURIComponent(path)}`);
+  if (r.error) { alert(r.error); return; }
+  document.getElementById('s-editor').value = r.content;
+  document.getElementById('s-status').textContent =
+    `${r.path} — ${r.size} bytes — modified ${new Date(r.mtime).toISOString()}`;
+  document.querySelectorAll('.script-tree .item').forEach((e) => e.classList.remove('active'));
+  el?.classList?.add('active');
+}
+async function saveScript() {
+  if (!currentScriptPath) { alert('no file open'); return; }
+  const content = document.getElementById('s-editor').value;
+  try {
+    const r = await api('PUT', `/api/scripts/file?path=${encodeURIComponent(currentScriptPath)}`, { content });
+    document.getElementById('s-status').textContent = `${r.path} — saved ${r.size} bytes`;
+  } catch (e) { alert('save failed: ' + e.message); }
+}
+async function newScript() {
+  const path = prompt('New file path (relative to scripts/src/, e.g. items/my-script.js):');
+  if (!path) return;
+  try {
+    await api('PUT', `/api/scripts/file?path=${encodeURIComponent(path)}`, { content: '// new script\n' });
+    activate('scripts');
+  } catch (e) { alert('failed: ' + e.message); }
+}
+async function reloadScripts() { await doReload(); }
+
+// ---------------------------- Data (JSON editor) -------------------------
+// One-pane editor for every .json under apps/scripts/src/data/. Reads
+// from `/api/data/files` for the tree, `/api/data/file?rel=...` for
+// content, POST `/api/data/file` to save. Save can optionally trigger
+// a full script reload (`?reload=1`) so the change goes live without
+// touching .js files (since the hot-watcher only catches .js).
+let currentDataPath = null;
+let dataReloadOnSave = true;
+registerTab('data', async () => {
+  const data = await api('GET', '/api/data/files');
+  document.getElementById('main').innerHTML = `
+    <div class="card">
+      <div class="row" style="margin-bottom:6px">
+        <button class="primary" onclick="saveDataFile()">💾 save (Ctrl+S)</button>
+        <button onclick="reloadDataFile()">↻ reload this file's script</button>
+        <button onclick="doReload()">↻ reload ALL scripts</button>
+        <label style="margin-left:8px;font-size:11px;display:flex;align-items:center;gap:4px">
+          <input type="checkbox" id="d-reload-cb" ${dataReloadOnSave ? 'checked' : ''}
+                 onchange="dataReloadOnSave = this.checked" />
+          auto-reload on save
+        </label>
+        <span style="margin-left:auto;opacity:.6">root: ${esc(data.root)}</span>
+      </div>
+      <div class="script-split">
+        <div class="script-tree" id="d-tree"></div>
+        <div class="script-pane">
+          <div id="d-status" style="font-size:11px;opacity:.7">click a file in the tree to open</div>
+          <textarea id="d-editor" spellcheck="false"
+            placeholder="// pick a JSON file from the tree on the left to edit"></textarea>
+        </div>
+      </div>
+    </div>
+  `;
+  // The file list is flat (rel paths like "config/npcs.json"); group by
+  // first segment for a tree-ish view.
+  document.getElementById('d-tree').innerHTML = renderDataTree(data.files);
+  document.getElementById('d-editor').addEventListener('keydown', (e) => {
+    if (e.ctrlKey && (e.key === 's' || e.key === 'S')) { e.preventDefault(); saveDataFile(); }
+  });
+});
+function renderDataTree(files) {
+  // Group by the first path segment (config / world / world/spawns / etc.)
+  const byDir = {};
+  for (const f of files) {
+    const parts = f.rel.split('/');
+    const dir = parts.length > 1 ? parts.slice(0, -1).join('/') : '(root)';
+    (byDir[dir] = byDir[dir] ?? []).push(f);
+  }
+  const dirs = Object.keys(byDir).sort();
+  return dirs.map((dir) => {
+    const items = byDir[dir].map((f) => {
+      const name = f.rel.split('/').pop();
+      const kb   = (f.size / 1024).toFixed(1);
+      return `<div class="item file" data-rel="${esc(f.rel)}"
+                   onclick="openDataFile('${esc(f.rel)}', this)">  ${esc(name)}
+                <span style="opacity:.5;font-size:10px">  ${kb}kb</span></div>`;
+    }).join('');
+    return `<div class="item dir">▾ ${esc(dir)}/</div>${items}`;
+  }).join('');
+}
+async function openDataFile(rel, el) {
+  currentDataPath = rel;
+  const r = await api('GET', `/api/data/file?rel=${encodeURIComponent(rel)}`);
+  if (r.error) { alert(r.error); return; }
+  document.getElementById('d-editor').value = r.content;
+  document.getElementById('d-status').textContent = `${rel} — ${r.content.length} bytes`;
+  document.querySelectorAll('#d-tree .item').forEach((e) => e.classList.remove('active'));
+  el?.classList?.add('active');
+}
+async function saveDataFile() {
+  if (!currentDataPath) { alert('no file open'); return; }
+  const content = document.getElementById('d-editor').value;
+  try {
+    const r = await api('POST', '/api/data/file', {
+      rel: currentDataPath, content, reload: dataReloadOnSave,
+    });
+    if (r.error) throw new Error(r.error);
+    const tail = r.reloaded ? ` · scripts reloaded (${r.reloaded.loaded} files, ${r.reloaded.ms}ms)` : '';
+    document.getElementById('d-status').textContent =
+      `${currentDataPath} — saved ${r.bytes} bytes${tail}`;
+  } catch (e) { alert('save failed: ' + e.message); }
+}
+async function reloadDataFile() {
+  // Heuristic: each data JSON has one canonical loader script. Map
+  // here keeps the surgical reload path (just that script) instead of
+  // the slower full-runtime reload.
+  const map = {
+    'config/npcs.json':              'data.js',
+    'world/regional-npcs.json':      'spawns/regional-npcs.js',
+    'world/spawns/champions.json':   'spawns/champions.js',
+    'world/spawns/moongates.json':   'spawns/moongates.js',
+    'world/spawns/despise-pillars.json':       'spawns/despise-pillars.js',
+    'world/spawns/doom-gauntlet.json':         'spawns/doom-gauntlet.js',
+    'world/spawns/aetheric-sanctuary.json':    'spawns/aetheric-sanctuary.js',
+    'world/spawns/dungeon-revamp-bosses.json': 'spawns/dungeon-revamp-bosses.js',
+    'world/spawns/random-encounters.json':     'spawns/random-encounters.js',
+    'world/spawns/storyteller-tales.json':     'spawns/storyteller.js',
+    'world/spawns/tokuno-sky-garden.json':     'spawns/tokuno-sky-garden.js',
+    'world/spawns/magincia-bazaar.json':       'spawns/magincia-bazaar-seed.js',
+  };
+  const target = currentDataPath && map[currentDataPath];
+  if (!target) {
+    // Unknown mapping → fall back to full reload so the operator's edit
+    // still goes live.
+    await doReload();
+    return;
+  }
+  try {
+    const r = await api('POST', '/api/scripts/reload-one', { rel: target });
+    if (!r.ok) throw new Error(r.error || 'reload failed');
+    document.getElementById('d-status').textContent =
+      `${currentDataPath} — reloaded ${target} (${r.ms}ms)`;
+  } catch (e) { alert('reload failed: ' + e.message); }
+}
+
+// ---------------------------- Spawners ------------------------------------
+async function deleteSpawner(id) {
+  if (!confirm(`Delete spawner "${id}"? Active mobs survive; only the spawn-group is removed.`)) return;
+  await api('DELETE', `/api/spawners/${encodeURIComponent(id)}`);
+  document.querySelector('[data-tab="spawners"]')?.click();
+}
+
+async function saveSpawner(formId, existingId) {
+  const form = document.getElementById(formId);
+  if (!form) return;
+  const data = Object.fromEntries(new FormData(form));
+  const payload = {
+    id: existingId || data.id,
+    map: parseInt(data.map, 10) || 1,
+    rect: {
+      x1: parseInt(data.x1, 10) | 0,
+      y1: parseInt(data.y1, 10) | 0,
+      x2: parseInt(data.x2, 10) | 0,
+      y2: parseInt(data.y2, 10) | 0,
+    },
+    kinds: String(data.kinds || '').split(',').map((s) => s.trim()).filter(Boolean),
+    maxCount: parseInt(data.maxCount, 10) || 5,
+    respawnMs: [
+      parseInt(data.respawnLo, 10) || 30000,
+      parseInt(data.respawnHi, 10) || 120000,
+    ],
+    proximityRange: parseInt(data.proximityRange, 10) || 0,
+    homeRange: parseInt(data.homeRange, 10) || 0,
+  };
+  const res = await api('POST', '/api/spawners', payload);
+  if (res?.error) { alert('save failed: ' + res.error); return; }
+  document.querySelector('[data-tab="spawners"]')?.click();
+}
+
+function spawnerForm(formId, existing) {
+  const e = existing ?? {};
+  return `
+    <form id="${formId}" onsubmit="return false" style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;font-size:11px;margin-top:8px">
+      ${existing ? '' : `<label>ID<input name="id" required style="width:100%" placeholder="custom-spawner-1"></label><div></div>`}
+      <label>Map<select name="map">
+        <option value="1" ${e.map===1?'selected':''}>1 Trammel</option>
+        <option value="0" ${e.map===0?'selected':''}>0 Felucca</option>
+        <option value="2" ${e.map===2?'selected':''}>2 Ilshenar</option>
+        <option value="3" ${e.map===3?'selected':''}>3 Malas</option>
+        <option value="4" ${e.map===4?'selected':''}>4 Tokuno</option>
+        <option value="5" ${e.map===5?'selected':''}>5 TerMur</option>
+      </select></label>
+      <label>Max count<input name="maxCount" type="number" value="${e.maxCount ?? 5}" min="1" max="50"></label>
+      <label>X1<input name="x1" type="number" value="${e.rect?.x1 ?? 0}"></label>
+      <label>Y1<input name="y1" type="number" value="${e.rect?.y1 ?? 0}"></label>
+      <label>X2<input name="x2" type="number" value="${e.rect?.x2 ?? 0}"></label>
+      <label>Y2<input name="y2" type="number" value="${e.rect?.y2 ?? 0}"></label>
+      <label style="grid-column:span 2">Kinds (comma-separated)<input name="kinds" value="${esc((e.kinds ?? []).map((k) => Array.isArray(k) ? k.join(':') : k).join(', '))}" placeholder="rat, scorpion, ettin:2"></label>
+      <label>Respawn lo (ms)<input name="respawnLo" type="number" value="${e.respawnMs?.[0] ?? 30000}"></label>
+      <label>Respawn hi (ms)<input name="respawnHi" type="number" value="${e.respawnMs?.[1] ?? 120000}"></label>
+      <label>Proximity range<input name="proximityRange" type="number" value="${e.proximityRange ?? 0}"></label>
+      <label>Home range<input name="homeRange" type="number" value="${e.homeRange ?? 5}"></label>
+      <div style="grid-column:span 2;display:flex;gap:6px">
+        <button class="primary" onclick="saveSpawner('${formId}', ${existing ? `'${esc(existing.id)}'` : 'null'})">${existing ? 'Save' : 'Create'}</button>
+      </div>
+    </form>`;
+}
+
+function toggleEditor(id) {
+  const el = document.getElementById('edit-' + id);
+  if (!el) return;
+  el.style.display = (el.style.display === 'none' || !el.style.display) ? 'block' : 'none';
+}
+
+registerTab('spawners', async () => {
+  const r = await api('GET', '/api/spawners').catch(() => ({ spawners: [], count: 0 }));
+  const rows = (r.spawners ?? []).map((s) => `
+    <tr><td>${esc(s.id)}</td><td>${s.map}</td>
+        <td>${s.rect ? `${s.rect.x1},${s.rect.y1}–${s.rect.x2},${s.rect.y2}` : '?'}</td>
+        <td>${s.center ? `${s.center.x},${s.center.y}` : '—'}</td>
+        <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis">${esc(s.kinds?.map?.((k)=>Array.isArray(k)?k.join(':'):k).join(', ') ?? '')}</td>
+        <td>${s.active ?? 0}/${s.maxCount ?? '?'}</td>
+        <td style="white-space:nowrap">
+          <button onclick="tpToSpawner('${esc(s.id)}')">tp</button>
+          <button onclick="toggleEditor('${esc(s.id)}')">edit</button>
+          <button class="danger" onclick="deleteSpawner('${esc(s.id)}')">×</button>
+        </td>
+    </tr>
+    <tr id="edit-${esc(s.id)}" style="display:none"><td colspan="7" style="background:#1a1208">${spawnerForm('spform-' + esc(s.id), s)}</td></tr>
+  `).join('');
+  document.getElementById('main').innerHTML = `
+    <div class="card">
+      <h2>Spawners (${r.count ?? 0})</h2>
+      <div style="opacity:.6;font-size:11px;margin-bottom:6px">
+        "tp" centres the last-selected character. "edit" opens an inline editor; "×" removes the spawn-group (active mobs survive). Use the iso editor's spawner overlay to drag-create a new rect; the map's <code>/api/locations</code> + this listing share the same coordinate space.
+      </div>
+      <table><thead><tr><th>ID</th><th>Map</th><th>Rect</th><th>Center</th><th>Kinds</th><th>Active/Max</th><th></th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="7"><i>no spawners</i></td></tr>'}</tbody></table>
+      <h3 style="margin-top:14px">Create new spawner</h3>
+      ${spawnerForm('spform-new', null)}
+    </div>
+  `;
+});
+// `tpToSpawner` is defined earlier (next to tpToItem) — both go through
+// `tpMe()` which uses the logged-in admin's character. This stub just
+// keeps the old export name in case anything still references it.
+
+// ---------------------------- Logs ----------------------------------------
+let logTimer = null;
+registerTab('logs', async () => {
+  document.getElementById('main').innerHTML = `
+    <div class="card">
+      <h2>Server log (last 200 lines)</h2>
+      <pre id="log-pre" style="background:#14100a;padding:8px;font-size:11px;max-height:600px;overflow:auto;color:#a89870"></pre>
+    </div>
+  `;
+  const pre = document.getElementById('log-pre');
+  const refresh = async () => {
+    try {
+      const r = await api('GET', '/api/logs');
+      pre.textContent = (r.lines ?? [])
+        .map((l) => `${new Date(l.ts).toISOString().slice(11, 19)}  ${l.line}`)
+        .join('\n');
+      pre.scrollTop = pre.scrollHeight;
+    } catch { /* ignore */ }
+  };
+  refresh();
+  if (logTimer) clearInterval(logTimer);
+  logTimer = setInterval(refresh, 2000);
+});
+
+// ---------------------------- World tab -----------------------------------
+registerTab('world', async () => {
+  document.getElementById('main').innerHTML = `
+    <div class="card">
+      <h2>World ops</h2>
+      <div class="row" style="flex-direction:column;align-items:flex-start;gap:14px">
+        <div>
+          <button class="primary" onclick="doSave()">💾 Save world now</button>
+          <span style="opacity:.7;margin-left:10px">Force an immediate persistence pass.</span>
+        </div>
+        <div>
+          <button onclick="doReload()">↻ Reload all scripts</button>
+          <span style="opacity:.7;margin-left:10px">Re-imports apps/scripts/src/**/*.js, runs disposers + re-init.</span>
+        </div>
+        <div>
+          <button onclick="doBroadcast()">📢 Broadcast message</button>
+          <span style="opacity:.7;margin-left:10px">Send a system message to every online player.</span>
+        </div>
+      </div>
+    </div>
+    <div class="card" style="border-color:#803030">
+      <h2 style="color:#ff8060">Generated content</h2>
+      <div class="row" style="flex-direction:column;align-items:flex-start;gap:14px">
+        <div>
+          <button onclick="doCreateWorld()">🌍 Create world</button>
+          <span style="opacity:.7;margin-left:10px">Run [createworld — decorations + signs + doors + teleporters + moongates + xmlspawners + civic NPCs. Idempotent: refuses to re-run unless wiped first.</span>
+        </div>
+        <div>
+          <button onclick="doRecreateWorld()">♻ Recreate world</button>
+          <span style="opacity:.7;margin-left:10px">Wipe + repopulate generated content in one step.</span>
+        </div>
+        <div>
+          <button class="danger" onclick="doWipeWorld()">🗑 WIPE world</button>
+          <span style="opacity:.7;margin-left:10px">Delete every NPC + generated item + spawner registration. Player characters + accounts survive. <b>Confirms first.</b></span>
+        </div>
+      </div>
+    </div>
+  `;
+});
+
+async function doCreateWorld() {
+  const r = await api('POST', '/api/world/cmd', { command: 'createworld' });
+  showModal('CreateWorld', `<pre>${esc(JSON.stringify(r, null, 2))}</pre>`);
+}
+async function doRecreateWorld() {
+  if (!confirm('Wipe + repopulate every NPC, item, spawner. Players + accounts safe. Continue?')) return;
+  // routes.js gates destructive verbs behind `body.confirm === '<cmd>-yes'`
+  // (admin audit #8 defence-in-depth — Origin alone isn't enough if a
+  // misconfigured proxy strips headers). Without this token the API
+  // returned "destructive command requires confirm token" and the
+  // browser-side confirm() dialog was the only thing the operator saw.
+  const r = await api('POST', '/api/world/cmd',
+    { command: 'recreateworld', confirm: 'recreateworld-yes' });
+  showModal('RecreateWorld', `<pre>${esc(JSON.stringify(r, null, 2))}</pre>`);
+}
+async function doWipeWorld() {
+  if (!confirm('IRREVERSIBLE: delete every NPC, ground item, spawner. Player characters + accounts + houses safe. Continue?')) return;
+  if (!confirm('Really wipe? This cannot be undone in-session (saved to disk after wipe).')) return;
+  const r = await api('POST', '/api/world/cmd',
+    { command: 'wipeworld', confirm: 'wipeworld-yes' });
+  showModal('WipeWorld', `<pre>${esc(JSON.stringify(r, null, 2))}</pre>`);
+}
+
+// Full-screen iso editor — visual paint of terrain + statics in an
+// isometric view. Rendered by /editor (separate page) so it can take
+// the whole viewport and own keyboard input. The tab here just
+// embeds an iframe and exposes a "pop out" link.
+registerTab('isoeditor', async () => {
+  document.getElementById('main').innerHTML = `
+    <div class="card" style="padding:0;margin-bottom:0;height:calc(100vh - 96px)">
+      <div style="padding:6px 10px;border-bottom:1px solid #4a3818;display:flex;align-items:center;gap:10px">
+        <b style="color:#ffd070">Iso World Editor</b>
+        <span style="opacity:.6;font-size:11px">renders terrain + statics in isometric; free-fly camera, paint land, place items, walk around</span>
+        <span style="flex:1"></span>
+        <a href="/editor" target="_blank" rel="noopener" style="color:#80c0ff;text-decoration:none">↗ pop out (new tab)</a>
+      </div>
+      <iframe src="/editor" style="width:100%;height:calc(100% - 36px);border:0;background:#050403"></iframe>
+    </div>
+  `;
+});
+
+// Tree-view JSON editor for the apps/scripts/src/data catalog. Same
+// embed-or-pop pattern as the iso editor — the heavy lifting lives in
+// /data-editor.html so it can own its own keyboard shortcuts (Ctrl+S /
+// Ctrl+F / Ctrl+Shift+E) without fighting the admin panel. The legacy
+// "Data" tab above stays as a raw textarea fallback for power users
+// who want to bulk-paste a fresh blob.
+registerTab('data-editor', async () => {
+  document.getElementById('main').innerHTML = `
+    <div class="card" style="padding:0;margin-bottom:0;height:calc(100vh - 96px)">
+      <div style="padding:6px 10px;border-bottom:1px solid #4a3818;display:flex;align-items:center;gap:10px">
+        <b style="color:#ffd070">🌳 Data Editor (visual)</b>
+        <span style="opacity:.6;font-size:11px">tree-view JSON editor for apps/scripts/src/data/* (items, monsters, recipes, spawners, regions, decorations, …)</span>
+        <span style="flex:1"></span>
+        <a href="/data-editor" target="_blank" rel="noopener" style="color:#80c0ff;text-decoration:none">↗ pop out (new tab)</a>
+      </div>
+      <iframe src="/data-editor" style="width:100%;height:calc(100% - 36px);border:0;background:#0a0805"></iframe>
+    </div>
+  `;
+});
+
+
+// ---------------------------- Modal ---------------------------------------
+function showModal(title, html) {
+  document.getElementById('modal-host').innerHTML = `
+    <div class="modal-bg" onclick="if(event.target===this)closeModal()">
+      <div class="modal">
+        <h3>${esc(title)}</h3>
+        ${html}
+        <div style="text-align:right;margin-top:12px">
+          <button onclick="closeModal()">close</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+function closeModal() { document.getElementById('modal-host').innerHTML = ''; }
+
+// ---------------------------- Util ----------------------------------------
+function esc(s) { return String(s ?? '').replace(/[<>&"']/g, (c) => ({
+  '<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'
+}[c])); }
+// Admin audit #1 — JS-string escape for use inside onclick="...".
+// HTML decodes attribute value BEFORE the JS parser runs, so plain
+// HTML-encoding `'` to `&#39;` does NOT close the JS string. Use
+// backslash escapes that survive the HTML decode.
+function escJS(s) {
+  return String(s ?? '')
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/</g, '\\x3C');
+}
+
+// ---------------------------- Boot ----------------------------------------
+const initialTab = (location.hash || '#dashboard').slice(1);
+activate(tabs[initialTab] ? initialTab : 'dashboard');
+setInterval(refreshDashboard, 5000);
+refreshDashboard();
+</script>
+</body>
+</html>

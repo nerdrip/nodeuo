@@ -1,0 +1,18 @@
+[
+  { "tag": "barako-feather-charm",  "itemId": 4230, "hue": 2083, "label": "Barako Feather Charm" },
+  { "tag": "barako-totem",          "itemId": 7961, "hue": 2085, "label": "Barako Tribal Totem" },
+  { "tag": "sakkhra-coil-ring",     "itemId": 4234, "hue": 2120, "label": "Sakkhra Coil Ring" },
+  { "tag": "sakkhra-fang-dagger",   "itemId": 3922, "hue": 2120, "label": "Sakkhra Fang Dagger" },
+  { "tag": "urali-survey-rod",      "itemId": 3721, "hue": 1161, "label": "Urali Survey Rod" },
+  { "tag": "kurak-stone-club",      "itemId": 5044, "hue": 1830, "label": "Kurak Stone Club" },
+  { "tag": "kurak-warband-banner",  "itemId": 5544, "hue": 1830, "label": "Kurak Warband Banner" },
+  { "tag": "tiger-pelt-headdress",  "itemId": 5915, "hue": 33,   "label": "Tiger Pelt Headdress" },
+  { "tag": "carved-tribal-spear",   "itemId": 3938, "hue": 33,   "label": "Carved Tribal Spear" },
+  { "tag": "lesser-cure-flask",     "itemId": 3850, "hue": 68,   "label": "Lesser Cure Flask" },
+  { "tag": "jukari-endurance-band", "itemId": 4232, "hue": 1175, "label": "Jukari Endurance Band" },
+  { "tag": "kahn-poison-vial",      "itemId": 3851, "hue": 33,   "label": "Kahn Poison Vial" },
+  { "tag": "myrmidex-mandible",     "itemId": 4256, "hue": 51,   "label": "Myrmidex Mandible Fragment" },
+  { "tag": "queen-mandible-greater","itemId": 4257, "hue": 53,   "label": "Greater Queen Mandible" },
+  { "tag": "lure-of-vanquished",    "itemId": 4236, "hue": 53,   "label": "Lure of Vanquished Foes" },
+  { "tag": "pillar-of-strength",    "itemId": 4632, "hue": 2085, "label": "Pillar of Strength" }
+]

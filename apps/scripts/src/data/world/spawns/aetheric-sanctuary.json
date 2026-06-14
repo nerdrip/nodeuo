@@ -1,0 +1,41 @@
+{
+  "_comment": "Aetheric Citadel + Sanctuary boss encounters. region is a regex *source*; runtime compiles via new RegExp(src, 'i').",
+  "encounters": [
+    {
+      "name": "aetheric",
+      "region": "Aetheric",
+      "boss": { "kind": "aetheric-lord", "hp": 18000, "fame": 17500 },
+      "waves": [
+        { "kinds": ["air-elemental", "storm-elemental"], "count": 6 },
+        { "kinds": ["lich", "lich-lord"], "count": 4 }
+      ],
+      "spawn":   { "x": 830, "y": 1240, "z": 0, "map": 5 },
+      "bossPos": { "x": 840, "y": 1240, "z": 0, "map": 5 },
+      "minorArtifacts": [
+        { "name": "Boomstick",                   "itemId": 5077, "hue": 1150 },
+        { "name": "Faerie Fire",                 "itemId": 5061, "hue": 1280 },
+        { "name": "Resilient Bracer",            "itemId": 4234, "hue": 1150 },
+        { "name": "Animated Legs of the Insane", "itemId": 5422, "hue": 1102 }
+      ],
+      "major": { "name": "Aetheric Lord's Crown", "itemId": 5132, "hue": 1161 }
+    },
+    {
+      "name": "sanctuary",
+      "region": "Sanctuary",
+      "boss": { "kind": "sanctuary-warden", "hp": 14000, "fame": 14000 },
+      "waves": [
+        { "kinds": ["reaper", "corporeal"],       "count": 5 },
+        { "kinds": ["centaur", "wisp", "satyr"],  "count": 4 }
+      ],
+      "spawn":   { "x": 6175, "y": 195, "z": 0, "map": 2 },
+      "bossPos": { "x": 6185, "y": 195, "z": 0, "map": 2 },
+      "minorArtifacts": [
+        { "name": "Heartwood Bowstring", "itemId": 9922, "hue": 89 },
+        { "name": "Bloom of Spring",     "itemId": 5442, "hue": 1150 },
+        { "name": "Sanctuary Cloak",     "itemId": 7939, "hue": 89 },
+        { "name": "Druid's Acorn",       "itemId": 3857, "hue": 68 }
+      ],
+      "major": { "name": "Crown of the Forest", "itemId": 5134, "hue": 89 }
+    }
+  ]
+}

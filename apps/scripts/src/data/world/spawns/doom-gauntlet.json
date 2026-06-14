@@ -1,0 +1,31 @@
+{
+  "_comment": "Doom Gauntlet — altar coords + 10 gauntlet boss keys + 12 doom artifacts.",
+  "darkAltar":   { "x": 2351, "y": 1255, "z": 0, "map": 1 },
+  "darkFather":  { "x": 2350, "y": 1240, "z": 0, "map": 1 },
+  "gauntletKeys": [
+    { "keyId": 1,  "bossKind": "arch-daemon",     "name": "Brain of the Patriarch", "hue": 71,   "itemId": 7408 },
+    { "keyId": 2,  "bossKind": "balron",          "name": "Daemon Blood",           "hue": 33,   "itemId": 5420 },
+    { "keyId": 3,  "bossKind": "daemon-knight",   "name": "Iron Maiden",            "hue": 68,   "itemId": 7026 },
+    { "keyId": 4,  "bossKind": "devourer",        "name": "Sea Tentacle",           "hue": 1417, "itemId": 2545 },
+    { "keyId": 5,  "bossKind": "efreet",          "name": "Flask of Sulphurous Air","hue": 33,   "itemId": 3854 },
+    { "keyId": 6,  "bossKind": "fan-dancer",      "name": "Fan",                    "hue": 1150, "itemId": 10145 },
+    { "keyId": 7,  "bossKind": "mummy",           "name": "Mummified Hand",         "hue": 71,   "itemId": 5140 },
+    { "keyId": 8,  "bossKind": "silver-serpent",  "name": "Silver Serpent Statue",  "hue": 1153, "itemId": 4157 },
+    { "keyId": 9,  "bossKind": "skeletal-dragon", "name": "Bone Pile",              "hue": 1150, "itemId": 7026 },
+    { "keyId": 10, "bossKind": "succubus",        "name": "Charm of the Succubus",  "hue": 1102, "itemId": 4230 }
+  ],
+  "doomArtifacts": [
+    { "name": "Ornament of the Magician",     "itemId": 4230,  "hue": 1150 },
+    { "name": "The Inquisitor's Resolution",  "itemId": 5139,  "hue": 1150 },
+    { "name": "The Beserker's Maul",          "itemId": 5179,  "hue": 1150 },
+    { "name": "Staff of Power",               "itemId": 5112,  "hue": 1150 },
+    { "name": "Voice of the Fallen King",     "itemId": 5112,  "hue": 1150 },
+    { "name": "Vesper's Bow",                 "itemId": 9922,  "hue": 1150 },
+    { "name": "Ring of the Vile",             "itemId": 4234,  "hue": 1150 },
+    { "name": "Shadow Lord's Robe",           "itemId": 7939,  "hue": 1161 },
+    { "name": "Spirit of the Totem",          "itemId": 5440,  "hue": 1150 },
+    { "name": "Tunic of Fire",                "itemId": 5068,  "hue": 71 },
+    { "name": "Crown of the Lost",            "itemId": 5134,  "hue": 1150 },
+    { "name": "The Dragon Slayer",            "itemId": 5042,  "hue": 1150, "slayer": "Dragon" }
+  ]
+}

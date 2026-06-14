@@ -1,0 +1,39 @@
+{
+  "_comment": "Random wilderness encounter pool. region tag matches classifyRegion(); weight biases pickEncounter selection.",
+  "pollMs": 30000,
+  "encounterChance": 0.04,
+  "cooldownMs": 600000,
+  "regionTags": ["wilderness", "forest", "graveyard"],
+  "encounters": [
+    {
+      "name": "bandits", "region": "wilderness", "weight": 4,
+      "mobs": [ { "kind": "brigand", "count": 3 } ],
+      "speech": "\"Stand and deliver!\" a band of brigands leaps from cover."
+    },
+    {
+      "name": "wolves", "region": "forest", "weight": 3,
+      "mobs": [ { "kind": "wolf", "count": 4 } ],
+      "speech": "A pack of wolves emerges from the undergrowth, hungry eyes glinting."
+    },
+    {
+      "name": "wisp", "region": "forest", "weight": 2,
+      "mobs": [ { "kind": "wisp", "count": 1 } ],
+      "speech": "A wisp dances at the edge of your sight — does it beckon, or warn?"
+    },
+    {
+      "name": "lich", "region": "graveyard", "weight": 2,
+      "mobs": [ { "kind": "lich", "count": 1 }, { "kind": "skeleton", "count": 2 } ],
+      "speech": "A bony figure rises from the earth, accompanied by skeletal minions."
+    },
+    {
+      "name": "orcs", "region": "wilderness", "weight": 3,
+      "mobs": [ { "kind": "orc", "count": 2 }, { "kind": "orc-captain", "count": 1 } ],
+      "speech": "An orc raiding party crests the hill, weapons drawn."
+    },
+    {
+      "name": "merchant", "region": "wilderness", "weight": 1,
+      "mobs": [ { "kind": "healer", "count": 1 } ],
+      "speech": "A wandering merchant tips their hat and gestures to their pack of wares."
+    }
+  ]
+}

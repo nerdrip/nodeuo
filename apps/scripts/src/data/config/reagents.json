@@ -1,0 +1,15 @@
+{
+  "reagent-black-pearl": { "itemId": 3962, "name": "Black Pearl" },
+  "reagent-blood-moss":  { "itemId": 3963, "name": "Blood Moss" },
+  "reagent-garlic":      { "itemId": 3972, "name": "Garlic" },
+  "reagent-ginseng":     { "itemId": 3973, "name": "Ginseng" },
+  "reagent-mandrake": { "itemId": 3974, "name": "Mandrake Root" },
+  "reagent-nightshade":  { "itemId": 3976, "name": "Nightshade" },
+  "reagent-spider-silk": { "itemId": 3980, "name": "Spider Silk" },
+  "reagent-sulfurous-ash": { "itemId": 3981, "name": "Sulfurous Ash" },
+  "reagent-bat-wing":     { "itemId": 3982, "name": "Bat Wing" },
+  "reagent-grave-dust":   { "itemId": 3983, "name": "Grave Dust" },
+  "reagent-daemon-blood": { "itemId": 3984, "name": "Daemon Blood" },
+  "reagent-nox-crystal":  { "itemId": 3985, "name": "Nox Crystal" },
+  "reagent-pig-iron":     { "itemId": 3986, "name": "Pig Iron" }
+}

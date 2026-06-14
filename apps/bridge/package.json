@@ -1,0 +1,17 @@
+{
+  "name": "@uo/bridge",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/main.js",
+  "scripts": {
+    "start": "node ./src/main.js",
+    "start:debug": "node ./src/main.js --debug",
+    "dev": "node --watch ./src/main.js",
+    "dev:debug": "node --watch ./src/main.js --debug"
+  },
+  "dependencies": {
+    "@uo/protocol": "workspace:*",
+    "ws": "^8.21.0"
+  }
+}

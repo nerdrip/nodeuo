@@ -1,0 +1,28 @@
+{
+  "pulseMs": 5000,
+  "auraRadius": 6,
+  "pillars": [
+    {
+      "tag": "_pillarOfLight",
+      "alignment": "good",
+      "name": "Pillar of Light",
+      "hue": 89,
+      "x": 5180, "y": 595, "z": 0, "map": 1,
+      "effects": [
+        { "name": "despise-blessed", "durationMsAddPulse": 500,
+          "regenHp": 2, "regenMana": 2, "regenStam": 2 }
+      ]
+    },
+    {
+      "tag": "_pillarOfDespair",
+      "alignment": "evil",
+      "name": "Pillar of Despair",
+      "hue": 33,
+      "x": 5310, "y": 720, "z": 0, "map": 1,
+      "effects": [
+        { "name": "despise-cursed", "durationMsAddPulse": 500,
+          "damageBonus": 0.10, "ssi": 5 }
+      ]
+    }
+  ]
+}

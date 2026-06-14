@@ -1,0 +1,3489 @@
+[
+  {
+    "class": "AemaethOneQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1075325,
+    "complete": 1075326,
+    "objectives": [
+      {
+        "kind": "DeliverObjective",
+        "type": "BasinOfCrystalClearWater",
+        "label": "basin of crystal clear water",
+        "qty": 1
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "AemaethTwoQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1075331,
+    "complete": 1075332,
+    "objectives": [
+      {
+        "kind": "DeliverObjective",
+        "type": "BasinOfCrystalClearWater",
+        "label": "basin of crystal clear water",
+        "qty": 1
+      }
+    ],
+    "rewards": [
+      {
+        "type": "MirrorOfPurification",
+        "qty": 1075329
+      }
+    ]
+  },
+  {
+    "class": "ALittleSomething",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1113775,
+    "complete": 1113776,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "BrilliantAmber",
+        "label": "Brilliant Amber",
+        "qty": 1
+      }
+    ],
+    "rewards": [
+      {
+        "type": "MeagerImbuingBag",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "class": "ATangledWeb",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1095036,
+    "complete": null,
+    "objectives": [
+      {
+        "kind": "BloodCreaturesObjective",
+        "type": "IBloodCreature",
+        "label": "blood creatures",
+        "qty": 12
+      }
+    ],
+    "rewards": [
+      {
+        "type": "LargeTreasureBag",
+        "qty": 1072706
+      }
+    ]
+  },
+  {
+    "class": "BadCompany",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1095026,
+    "complete": 1095030,
+    "objectives": [
+      {
+        "kind": "SlayObjective",
+        "type": "GreenGoblin",
+        "label": "GreenGoblin",
+        "qty": 10
+      }
+    ],
+    "rewards": [
+      {
+        "type": "JaacarBox",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "class": "WieldingTheSonicBladeQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1115700,
+    "complete": 1115701,
+    "objectives": [],
+    "rewards": [
+      {
+        "type": "BookOfMasteries",
+        "qty": 1028794
+      }
+    ]
+  },
+  {
+    "class": "TheBeaconOfHarmonyQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1115680,
+    "complete": 1115681,
+    "objectives": [],
+    "rewards": [
+      {
+        "type": "BookOfMasteries",
+        "qty": 1028794
+      }
+    ]
+  },
+  {
+    "class": "IndoctrinationOfABattleRouserQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1115660,
+    "complete": 1115661,
+    "objectives": [],
+    "rewards": [
+      {
+        "type": "BookOfMasteries",
+        "qty": 1028794
+      }
+    ]
+  },
+  {
+    "class": "LostAndFoundQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1072591,
+    "complete": 1074580,
+    "objectives": [
+      {
+        "kind": "DeliverObjective",
+        "type": "BatteredBucket",
+        "label": "battered bucket",
+        "qty": 1
+      }
+    ],
+    "rewards": [
+      {
+        "type": "TrinketBag",
+        "qty": 1072341
+      }
+    ]
+  },
+  {
+    "class": "MistakenIdentityQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1074605,
+    "complete": 1074607,
+    "objectives": [
+      {
+        "kind": "DeliverObjective",
+        "type": "TuitionReimbursementForm",
+        "label": "tuition reimbursement form",
+        "qty": 1
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "YouScratchMyBackQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1074616,
+    "complete": 1074617,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "UnicornRibs",
+        "label": "unicorn ribs",
+        "qty": 1
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "KirinBrains",
+        "label": "ki-rin brains",
+        "qty": 2
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "PixieLeg",
+        "label": "pixie legs",
+        "qty": 5
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "FoolingAernyaQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1074621,
+    "complete": 1074622,
+    "objectives": [
+      {
+        "kind": "DeliverObjective",
+        "type": "SignedTuitionReimbursementForm",
+        "label": "signed tuition reimbursement form",
+        "qty": 1
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "NotQuiteThatEasyQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1074627,
+    "complete": 1074628,
+    "objectives": [
+      {
+        "kind": "DeliverObjective",
+        "type": "SignedTuitionReimbursementForm",
+        "label": "signed tuition reimbursement form",
+        "qty": 1
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "ConvinceMeQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1074632,
+    "complete": 1074633,
+    "objectives": [
+      {
+        "kind": "SlayObjective",
+        "type": "RedDeath",
+        "label": "red death",
+        "qty": 1
+      },
+      {
+        "kind": "SlayObjective",
+        "type": "GoreFiend",
+        "label": "gore fiends",
+        "qty": 10
+      },
+      {
+        "kind": "SlayObjective",
+        "type": "RottingCorpse",
+        "label": "rotting corpses",
+        "qty": 8
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "TuitionReimbursementQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1074637,
+    "complete": 1074638,
+    "objectives": [
+      {
+        "kind": "DeliverObjective",
+        "type": "CompletedTuitionReimbursementForm",
+        "label": "completed tuition reimbursement form",
+        "qty": 1
+      }
+    ],
+    "rewards": [
+      {
+        "type": "RewardBox",
+        "qty": 1072584
+      }
+    ]
+  },
+  {
+    "class": "VilePoisonQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1074968,
+    "complete": 1074991,
+    "objectives": [
+      {
+        "kind": "DeliverObjective",
+        "type": "TaintedTreeSample",
+        "label": "tainted tree sample",
+        "qty": 1
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "RockAndHardPlaceQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1074969,
+    "complete": 1074992,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "Granite",
+        "label": "rocks",
+        "qty": 4
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "BlueDiamond",
+        "label": "blue diamonds",
+        "qty": 2
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "SympatheticMagicQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1074970,
+    "complete": 1074993,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "BarkFragment",
+        "label": "bark",
+        "qty": 10
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "AlreadyDeadQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1074971,
+    "complete": 1074994,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "Bone",
+        "label": "workable samples",
+        "qty": 10
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "EurekaQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1074972,
+    "complete": 1074995,
+    "objectives": [
+      {
+        "kind": "DeliverObjective",
+        "type": "SealedNotesForJamal",
+        "label": "sealed notes for jamal",
+        "qty": 1
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "SubContractingQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1074973,
+    "complete": 1074996,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "SamplesOfCorruptedWater",
+        "label": "samples of corrupted water",
+        "qty": 3
+      }
+    ],
+    "rewards": [
+      {
+        "type": "LargeTreasureBag",
+        "qty": 1072706
+      }
+    ]
+  },
+  {
+    "class": "CommunityServiceMuseumQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1075720,
+    "complete": 1075721,
+    "objectives": [
+      {
+        "kind": "CollectionsObtainObjective",
+        "type": "ShepherdsCrookOfHumility",
+        "label": "Shepherd's Crook of Humility",
+        "qty": 1
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "CommunityServiceZooQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1075726,
+    "complete": 1075727,
+    "objectives": [
+      {
+        "kind": "CollectionsObtainObjective",
+        "type": "ForTheLifeOfBritanniaSash",
+        "label": "Life of Britannia Sash",
+        "qty": 1
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "CommunityServiceLibraryQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1075732,
+    "complete": 1075733,
+    "objectives": [
+      {
+        "kind": "CollectionsObtainObjective",
+        "type": "SpecialPrintingOfVirtue",
+        "label": "Special Painint of 'Virtue' Book",
+        "qty": 1
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "WhosMostHumbleQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1075738,
+    "complete": 1075782,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "IronChain",
+        "label": "Iron Chain",
+        "qty": 1
+      }
+    ],
+    "rewards": [
+      {
+        "type": "GoldShield",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "class": "DisciplineQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1072773,
+    "complete": null,
+    "objectives": [
+      {
+        "kind": "SlayObjective",
+        "type": "Rat",
+        "label": "rats",
+        "qty": 50
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "NeedsOfTheManySanctuaryQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1072775,
+    "complete": 1074110,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "Cotton",
+        "label": "bale of cotton",
+        "qty": 10
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "MakingContributionSanctuaryQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1072776,
+    "complete": 1074152,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "Board",
+        "label": "boards",
+        "qty": 250
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "SuppliesForSanctuaryQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1072777,
+    "complete": 1074158,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "SackFlour",
+        "label": "sack of flour",
+        "qty": 1
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "JarHoney",
+        "label": "jar of honey",
+        "qty": 10
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "FishSteak",
+        "label": "fish steak",
+        "qty": 20
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "TheHumanBlightQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1072778,
+    "complete": 1074160,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "SeveredHumanEars",
+        "label": "severed human ears",
+        "qty": 30
+      }
+    ],
+    "rewards": [
+      {
+        "type": "ArcaneCircleScroll",
+        "qty": 1071026
+      },
+      {
+        "type": "GiftOfRenewalScroll",
+        "qty": 1071027
+      },
+      {
+        "type": "SpellweavingBook",
+        "qty": 1031600
+      }
+    ]
+  },
+  {
+    "class": "DoughtyWarriorsQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1075383,
+    "complete": 1075384,
+    "objectives": [
+      {
+        "kind": "SlayObjective",
+        "type": "Mongbat",
+        "label": "Mongbats",
+        "qty": 10
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "DoughtyWarriors2Quest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1075408,
+    "complete": 1075409,
+    "objectives": [
+      {
+        "kind": "SlayObjective",
+        "type": "Imp",
+        "label": "Imps",
+        "qty": 10
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "DoughtyWarriors3Quest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1075414,
+    "complete": 1075415,
+    "objectives": [
+      {
+        "kind": "SlayObjective",
+        "type": "Daemon",
+        "label": "Daemons",
+        "qty": 10
+      }
+    ],
+    "rewards": [
+      {
+        "type": "SashOfMight",
+        "qty": 1075412
+      }
+    ]
+  },
+  {
+    "class": "TheJoysOfLifeQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1072834,
+    "complete": 1074177,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "AriellesBauble",
+        "label": "arielle's baubles",
+        "qty": 3
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "CaretakerOfTheLandQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1072814,
+    "complete": 1074175,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "SosariaSap",
+        "label": "sap of sosaria",
+        "qty": 1
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "SeasonsQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1072811,
+    "complete": 1074174,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "RawFishSteak",
+        "label": "raw fish steaks",
+        "qty": 20
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "TheBalanceOfNatureQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1072831,
+    "complete": null,
+    "objectives": [
+      {
+        "kind": "SlayObjective",
+        "type": "TimberWolf",
+        "label": "timber wolves",
+        "qty": 15
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "EndingtheThreat",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1095016,
+    "complete": 1095017,
+    "objectives": [
+      {
+        "kind": "SlayObjective",
+        "type": "GrayGoblin",
+        "label": "Gray Goblin",
+        "qty": 10
+      }
+    ],
+    "rewards": [
+      {
+        "type": "LargeTreasureBag",
+        "qty": 1072706
+      }
+    ]
+  },
+  {
+    "class": "TheZealotryOfZipactriotlQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1156754,
+    "complete": 1156755,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "StasisChamberPowerCore",
+        "label": "Stasis Chamber Power Core",
+        "qty": 1
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "StasisChamberActivator",
+        "label": "Stasis Chamber Activator",
+        "qty": 1
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "StasisChamberRegulator",
+        "label": "Stasis Chamber Regulator",
+        "qty": 1
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "StasisChamberStator",
+        "label": "Stasis Chamber Stator",
+        "qty": 1
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "DestructionOfZipactriotlQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1156761,
+    "complete": 1156762,
+    "objectives": [
+      {
+        "kind": "SlayObjective",
+        "type": "Zipactriotl",
+        "label": "Zipactriotl",
+        "qty": 1
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "HiddenTreasuresQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1156803,
+    "complete": 1156805,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "PerfectEmerald",
+        "label": "Perfect Emerald",
+        "qty": 1
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "WhitePearl",
+        "label": "White Pearl",
+        "qty": 1
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "BrilliantAmber",
+        "label": "Brilliant Amber",
+        "qty": 1
+      }
+    ],
+    "rewards": [
+      {
+        "type": "HiddenTreasuresTreasureMap",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "class": "TheSaltySeaQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1156813,
+    "complete": 1156814,
+    "objectives": [
+      {
+        "kind": "SlayObjective",
+        "type": "WaterElemental",
+        "label": "Water Elemental",
+        "qty": 10
+      },
+      {
+        "kind": "SlayObjective",
+        "type": "SeaSerpent",
+        "label": "Sea Serpent",
+        "qty": 10
+      },
+      {
+        "kind": "SlayObjective",
+        "type": "DeepSeaSerpent",
+        "label": "Deep Sea Serpent",
+        "qty": 10
+      },
+      {
+        "kind": "SlayObjective",
+        "type": "Kraken",
+        "label": "Kraken",
+        "qty": 5
+      }
+    ],
+    "rewards": [
+      {
+        "type": "SaltySeaMIB",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "class": "ATinkersTaskQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1156818,
+    "complete": 1156819,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "IronIngot",
+        "label": "Iron Ingot",
+        "qty": 500
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "Gears",
+        "label": "Gears",
+        "qty": 25
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "PowerCrystal",
+        "label": "Power Crystal",
+        "qty": 5
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "ClockworkAssembly",
+        "label": "Clockwork assembly",
+        "qty": 2
+      }
+    ],
+    "rewards": [
+      {
+        "type": "StasisChamberStator",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "class": "ExterminatingTheInfestationQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1156768,
+    "complete": 1156769,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "BottledMyrmidexPheromone",
+        "label": "Bottled Myrmidex Pheromone",
+        "qty": 1
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "BottleOfConcentratedInsecticide",
+        "label": "Bottle of Concentrated Insecticide",
+        "qty": 1
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "MyrmidexPopulationReport",
+        "label": "Myrmidex Population Report",
+        "qty": 1
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "InsecticideAndRegicideQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1156773,
+    "complete": 1156774,
+    "objectives": [
+      {
+        "kind": "SlayObjective",
+        "type": "MyrmidexQueen",
+        "label": "Myrmidex Queen",
+        "qty": 1
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "PestControlQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1156788,
+    "complete": 1156789,
+    "objectives": [
+      {
+        "kind": "SlayObjective",
+        "type": "MyrmidexLarvae",
+        "label": "Myrmidex Larvae",
+        "qty": 20
+      },
+      {
+        "kind": "SlayObjective",
+        "type": "MyrmidexDrone",
+        "label": "Myrmidex Drone",
+        "qty": 15
+      },
+      {
+        "kind": "SlayObjective",
+        "type": "MyrmidexWarrior",
+        "label": "Myrmidex Warrior",
+        "qty": 10
+      }
+    ],
+    "rewards": [
+      {
+        "type": "MyrmidexPopulationReport",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "class": "GettingEvenQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1156797,
+    "complete": 1156798,
+    "objectives": [
+      {
+        "kind": "InternalObjective",
+        "type": "ChucklesLuck",
+        "label": null,
+        "qty": null
+      },
+      {
+        "kind": "InternalObjective",
+        "type": "HiMiddleLow",
+        "label": null,
+        "qty": null
+      },
+      {
+        "kind": "InternalObjective",
+        "type": "DiceRider",
+        "label": null,
+        "qty": null
+      }
+    ],
+    "rewards": [
+      {
+        "type": "BottleOfConcentratedInsecticide",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "class": "OfVorpalsAndLettacesTheGardnerQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1156783,
+    "complete": 1156784,
+    "objectives": [
+      {
+        "kind": "SlayObjective",
+        "type": "VorpalBunny",
+        "label": "Vorpal Bunny",
+        "qty": 1
+      }
+    ],
+    "rewards": [
+      {
+        "type": "BottledMyrmidexPheromone",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "class": "TimeIsOfTheEssenceQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1156461,
+    "complete": 1156462,
+    "objectives": [
+      {
+        "kind": "DeliverObjective",
+        "type": "KingBlackthornOrders",
+        "label": "Orders from King Blackthorn to Sir Geoffrey",
+        "qty": 1
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "UnitingTheTribesQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1156518,
+    "complete": 1156519,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "MosaicOfHeluzz",
+        "label": "Trust of the Sakkhra Tribe",
+        "qty": 1
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "TotemOfFabozz",
+        "label": "Trust of the Urali Tribe",
+        "qty": 1
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "FiresOfKukuzz",
+        "label": "Trust of the Jukari Tribe",
+        "qty": 1
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "SkullOfMotazz",
+        "label": "Trust of the Kurak Tribe",
+        "qty": 1
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "SkullOfAphazz",
+        "label": "Trust of the Barako Tribe",
+        "qty": 1
+      }
+    ],
+    "rewards": [
+      {
+        "type": "UniqueTreasureBag",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "class": "TheGreatHuntQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1156531,
+    "complete": 1156557,
+    "objectives": [
+      {
+        "kind": "SlayObjective",
+        "type": "TRex",
+        "label": "Slay the Tyrannosaurus Rex",
+        "qty": 1
+      }
+    ],
+    "rewards": [
+      {
+        "type": "MosaicOfHeluzz",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "class": "EmptyNestQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1156536,
+    "complete": 1156537,
+    "objectives": [],
+    "rewards": [
+      {
+        "type": "TotemOfFabozz",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "class": "TheGreatVolcanoQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1156540,
+    "complete": 1156541,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "LavaStone",
+        "label": "Recover 5 lava rocks from the Caldera of the Great Volcano",
+        "qty": 5
+      }
+    ],
+    "rewards": [
+      {
+        "type": "FiresOfKukuzz",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "class": "PrideOfTheAmbushQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1156545,
+    "complete": 1156546,
+    "objectives": [],
+    "rewards": [
+      {
+        "type": "SkullOfMotazz",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "class": "TheGreatApeQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1156548,
+    "complete": 1156549,
+    "objectives": [
+      {
+        "kind": "SlayObjective",
+        "type": "GreatApe",
+        "label": "Defeat the Great Ape",
+        "qty": 1
+      }
+    ],
+    "rewards": [
+      {
+        "type": "SkullOfAphazz",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "class": "EscortToYewQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1072289,
+    "complete": null,
+    "objectives": [],
+    "rewards": [
+      {
+        "type": "Gold",
+        "qty": 500
+      }
+    ]
+  },
+  {
+    "class": "EscortToVesperQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1072290,
+    "complete": null,
+    "objectives": [],
+    "rewards": [
+      {
+        "type": "Gold",
+        "qty": 500
+      }
+    ]
+  },
+  {
+    "class": "EscortToTrinsicQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1072291,
+    "complete": null,
+    "objectives": [],
+    "rewards": [
+      {
+        "type": "Gold",
+        "qty": 500
+      }
+    ]
+  },
+  {
+    "class": "EscortToSkaraQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1072292,
+    "complete": null,
+    "objectives": [],
+    "rewards": [
+      {
+        "type": "Gold",
+        "qty": 500
+      }
+    ]
+  },
+  {
+    "class": "EscortToSerpentsHoldQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1072293,
+    "complete": null,
+    "objectives": [],
+    "rewards": [
+      {
+        "type": "Gold",
+        "qty": 500
+      }
+    ]
+  },
+  {
+    "class": "EscortToNujelmQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1072294,
+    "complete": null,
+    "objectives": [],
+    "rewards": [
+      {
+        "type": "Gold",
+        "qty": 500
+      }
+    ]
+  },
+  {
+    "class": "EscortToMoonglowQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1072295,
+    "complete": null,
+    "objectives": [],
+    "rewards": [
+      {
+        "type": "Gold",
+        "qty": 500
+      }
+    ]
+  },
+  {
+    "class": "EscortToMinocQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1072296,
+    "complete": null,
+    "objectives": [],
+    "rewards": [
+      {
+        "type": "Gold",
+        "qty": 500
+      }
+    ]
+  },
+  {
+    "class": "EscortToMaginciaQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1072297,
+    "complete": null,
+    "objectives": [],
+    "rewards": [
+      {
+        "type": "Gold",
+        "qty": 500
+      }
+    ]
+  },
+  {
+    "class": "EscortToJhelomQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1072298,
+    "complete": null,
+    "objectives": [],
+    "rewards": [
+      {
+        "type": "Gold",
+        "qty": 500
+      }
+    ]
+  },
+  {
+    "class": "EscortToCoveQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1072299,
+    "complete": null,
+    "objectives": [],
+    "rewards": [
+      {
+        "type": "Gold",
+        "qty": 500
+      }
+    ]
+  },
+  {
+    "class": "EscortToBritainQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1072300,
+    "complete": null,
+    "objectives": [],
+    "rewards": [
+      {
+        "type": "Gold",
+        "qty": 500
+      }
+    ]
+  },
+  {
+    "class": "EscortToDugan",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1095007,
+    "complete": 1095008,
+    "objectives": [],
+    "rewards": [
+      {
+        "type": "TalismanofGoblinSlaying",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "class": "FriendsOfTheLibraryQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1072722,
+    "complete": 1073985,
+    "objectives": [
+      {
+        "kind": "DeliverObjective",
+        "type": "LibraryApplication",
+        "label": "friends of the library application",
+        "qty": 1
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "BureaucraticDelayQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1072726,
+    "complete": 1073986,
+    "objectives": [
+      {
+        "kind": "DeliverObjective",
+        "type": "SealingWaxOrder",
+        "label": "sealing wax order",
+        "qty": 1
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "TheSecretIngredientQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1072729,
+    "complete": 1073987,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "SpeckledPoisonSac",
+        "label": "speckled poison sacs",
+        "qty": 5
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "SpecialDeliveryQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1072747,
+    "complete": 1073988,
+    "objectives": [
+      {
+        "kind": "DeliverObjective",
+        "type": "OfficialSealingWax",
+        "label": "sealing wax",
+        "qty": 1
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "AccessToTheStacksQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1072751,
+    "complete": 1074811,
+    "objectives": [
+      {
+        "kind": "DeliverObjective",
+        "type": "NotarizedApplication",
+        "label": "notarized application",
+        "qty": 1
+      }
+    ],
+    "rewards": [
+      {
+        "type": "FriendOfTheLibraryToken",
+        "qty": 1072749
+      }
+    ]
+  },
+  {
+    "class": "GatheringOfEvidence",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1150319,
+    "complete": 1150320,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "VoidCrystalOfCorruptedArcaneEssence",
+        "label": "Void Crystal of Corrupted Arcane Essence",
+        "qty": 1
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "VoidCrystalOfCorruptedSpiritualEssence",
+        "label": "Void Crystal of Corrupted Spiritual Essence",
+        "qty": 1
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "VoidCrystalOfCorruptedMysticalEssence",
+        "label": "Void Crystal of Corrupted Mystical Essence",
+        "qty": 1
+      }
+    ],
+    "rewards": [
+      {
+        "type": "ResonantShieldOfVengeance",
+        "qty": 1
+      },
+      {
+        "type": "WindOfCorruption",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "class": "GatheringProof",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1150319,
+    "complete": 1150320,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "VoidCrystalOfCorruptedArcaneEssence",
+        "label": "Void Crystal of Corrupted Arcane Essence",
+        "qty": 1
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "VoidCrystalOfCorruptedSpiritualEssence",
+        "label": "Void Crystal of Corrupted Spiritual Essence",
+        "qty": 1
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "VoidCrystalOfCorruptedMysticalEssence",
+        "label": "Void Crystal of Corrupted Mystical Essence",
+        "qty": 1
+      }
+    ],
+    "rewards": [
+      {
+        "type": "ResonantShieldOfVengeanceHuman",
+        "qty": 1
+      },
+      {
+        "type": "WindOfCorruptionHuman",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "class": "WarriorsOfTheGemkeeperQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1074540,
+    "complete": 1074542,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "MapFragment",
+        "label": "fragment of a map",
+        "qty": 1
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "CloseEnoughQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1074548,
+    "complete": 1074549,
+    "objectives": [
+      {
+        "kind": "DeliverObjective",
+        "type": "MapFragment",
+        "label": "fragment of a map",
+        "qty": 1
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "TakingTheBullByTheHornsQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1074555,
+    "complete": 1074556,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "GamanHorns",
+        "label": "gaman horns",
+        "qty": 20
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "EmissaryToTheMinotaurQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1074828,
+    "complete": 1074829,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "MinotaurArtifact",
+        "label": "minotaur artifacts",
+        "qty": 3
+      }
+    ],
+    "rewards": [
+      {
+        "type": "RewardBox",
+        "qty": 1072584
+      }
+    ]
+  },
+  {
+    "class": "GhostOfCovetousQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1075290,
+    "complete": 1075291,
+    "objectives": [
+      {
+        "kind": "DeliverObjective",
+        "type": "SpiritBottle",
+        "label": "spirit bottle",
+        "qty": 1
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "SaveHisDadQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1075341,
+    "complete": 1075342,
+    "objectives": [
+      {
+        "kind": "DeliverObjective",
+        "type": "DreadSpiderSilk",
+        "label": "dread spider silk",
+        "qty": 1
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "FathersGratitudeQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1075347,
+    "complete": 1075348,
+    "objectives": [
+      {
+        "kind": "DeliverObjective",
+        "type": "AlchemistsBandage",
+        "label": "alchemist's bandage",
+        "qty": 1
+      }
+    ],
+    "rewards": [
+      {
+        "type": "AndrosGratitude",
+        "qty": 1075345
+      }
+    ]
+  },
+  {
+    "class": "HonestBeggarQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1075396,
+    "complete": 1075397,
+    "objectives": [
+      {
+        "kind": "DeliverObjective",
+        "type": "ReginasRing",
+        "label": "regina's ring",
+        "qty": 1
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "ReginasThanksQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1075402,
+    "complete": 1075403,
+    "objectives": [
+      {
+        "kind": "DeliverObjective",
+        "type": "ReginasLetter",
+        "label": "regina's letter",
+        "qty": 1
+      }
+    ],
+    "rewards": [
+      {
+        "type": "TransparentHeart",
+        "qty": 1075400
+      }
+    ]
+  },
+  {
+    "class": "HonorOfDeBoorsQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1075420,
+    "complete": 1075421,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "Diamond",
+        "label": "Diamonds",
+        "qty": 10
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "Ruby",
+        "label": "Rubies",
+        "qty": 10
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "Emerald",
+        "label": "Emeralds",
+        "qty": 10
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "JackTheVillainQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1075426,
+    "complete": 1075427,
+    "objectives": [
+      {
+        "kind": "DeliverObjective",
+        "type": "BagOfJewels",
+        "label": "Bag of Jewels",
+        "qty": 1
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "SavedHonorQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1075432,
+    "complete": 1075433,
+    "objectives": [
+      {
+        "kind": "DeliverObjective",
+        "type": "DeBoorShield",
+        "label": "Ancestral Shield",
+        "qty": 1
+      }
+    ],
+    "rewards": [
+      {
+        "type": "GobletOfCelebration",
+        "qty": 1075309
+      }
+    ]
+  },
+  {
+    "class": "IngenuityQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1074509,
+    "complete": 1074510,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "PowerCrystal",
+        "label": "power crystals",
+        "qty": 10
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "HeaveHoQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1074522,
+    "complete": 1074523,
+    "objectives": [
+      {
+        "kind": "DeliverObjective",
+        "type": "CrateForSledge",
+        "label": "crates for Sledge",
+        "qty": 5
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "ResponsibilityQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1074526,
+    "complete": null,
+    "objectives": [],
+    "rewards": [
+      {
+        "type": "TrinketBag",
+        "qty": 1072341
+      }
+    ]
+  },
+  {
+    "class": "AllSeasonAdventurerQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1074529,
+    "complete": 1074530,
+    "objectives": [
+      {
+        "kind": "SlayObjective",
+        "type": "Efreet",
+        "label": "efreets",
+        "qty": 5
+      },
+      {
+        "kind": "SlayObjective",
+        "type": "IceFiend",
+        "label": "ice fiends",
+        "qty": 5
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "JourneyToTheAthenaeumIsleQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1150931,
+    "complete": 1150903,
+    "objectives": [],
+    "rewards": [
+      {
+        "type": "ChronicleOfTheGargoyleQueen1",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "class": "KnowledgeoftheSoulforge",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1112547,
+    "complete": 1112527,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "EnchantedEssence",
+        "label": "Enchanted Essence",
+        "qty": 50
+      }
+    ],
+    "rewards": [
+      {
+        "type": "ScrollBox",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "class": "PerfectTimingQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1112877,
+    "complete": 1112878,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "CompletedClockworkAssembly",
+        "label": "Completed Clockwork Assembly",
+        "qty": 1
+      }
+    ],
+    "rewards": [
+      {
+        "type": "MechanicalLifeManual",
+        "qty": 1112874
+      },
+      {
+        "type": "SuteksDirtyGear",
+        "qty": 1115722
+      }
+    ]
+  },
+  {
+    "class": "MaraudersQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1072688,
+    "complete": null,
+    "objectives": [
+      {
+        "kind": "SlayObjective",
+        "type": "Ogre",
+        "label": "ogres",
+        "qty": 10
+      }
+    ],
+    "rewards": [
+      {
+        "type": "TreasureBag",
+        "qty": 1072583
+      }
+    ]
+  },
+  {
+    "class": "TheBrainsOfTheOperationQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1072709,
+    "complete": null,
+    "objectives": [
+      {
+        "kind": "SlayObjective",
+        "type": "OgreLord",
+        "label": "ogre lords",
+        "qty": 10
+      }
+    ],
+    "rewards": [
+      {
+        "type": "LargeTreasureBag",
+        "qty": 1072706
+      }
+    ]
+  },
+  {
+    "class": "TheBrawnQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1072712,
+    "complete": null,
+    "objectives": [
+      {
+        "kind": "SlayObjective",
+        "type": "Cyclops",
+        "label": "cyclops",
+        "qty": 6
+      }
+    ],
+    "rewards": [
+      {
+        "type": "LargeTreasureBag",
+        "qty": 1072706
+      }
+    ]
+  },
+  {
+    "class": "TheBiggerTheyAreQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1072715,
+    "complete": null,
+    "objectives": [
+      {
+        "kind": "SlayObjective",
+        "type": "Titan",
+        "label": "titans",
+        "qty": 3
+      }
+    ],
+    "rewards": [
+      {
+        "type": "LargeTreasureBag",
+        "qty": 1072706
+      }
+    ]
+  },
+  {
+    "class": "MasteringtheSoulforge",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1112550,
+    "complete": 1112551,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "RelicFragment",
+        "label": "Relic Fragments",
+        "qty": 50
+      }
+    ],
+    "rewards": [
+      {
+        "type": "ScrollBox2",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "class": "Missing",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1094953,
+    "complete": 1094956,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "ArielHavenWritofMembership",
+        "label": "Ariel Haven Writ of Membership",
+        "qty": 4
+      }
+    ],
+    "rewards": [
+      {
+        "type": "CandlewoodTorch",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "class": "MougGuurMustDieQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1072572,
+    "complete": 1072573,
+    "objectives": [
+      {
+        "kind": "SlayObjective",
+        "type": "MougGuur",
+        "label": "moug-guur",
+        "qty": 1
+      }
+    ],
+    "rewards": [
+      {
+        "type": "TreasureBag",
+        "qty": 1072583
+      }
+    ]
+  },
+  {
+    "class": "LeaderOfThePackQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1072576,
+    "complete": 1072577,
+    "objectives": [
+      {
+        "kind": "SlayObjective",
+        "type": "Chiikkaha",
+        "label": "chiikkaha",
+        "qty": 1
+      }
+    ],
+    "rewards": [
+      {
+        "type": "TreasureBag",
+        "qty": 1072583
+      }
+    ]
+  },
+  {
+    "class": "SayonaraSzavetraQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1072581,
+    "complete": 1072582,
+    "objectives": [
+      {
+        "kind": "SlayObjective",
+        "type": "Szavetra",
+        "label": "szavetra",
+        "qty": 1
+      }
+    ],
+    "rewards": [
+      {
+        "type": "RewardBox",
+        "qty": 1072584
+      }
+    ]
+  },
+  {
+    "class": "MysticsJourneyQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1112565,
+    "complete": 1112566,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "DragonBlood",
+        "label": "Dragon's Blood",
+        "qty": 100
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "DaemonBone",
+        "label": "Daemon Bone",
+        "qty": 100
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "PeptaQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1071183,
+    "complete": 1072272,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "FreshGinger",
+        "label": "Fresh Ginger",
+        "qty": 1
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "TribalBerry",
+        "label": "Tribal Berries",
+        "qty": 2
+      }
+    ],
+    "rewards": [
+      {
+        "type": "SatietyCure",
+        "qty": 1080542
+      }
+    ]
+  },
+  {
+    "class": "SpringCleaningQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1072685,
+    "complete": 1075384,
+    "objectives": [
+      {
+        "kind": "SlayObjective",
+        "type": "Ratman",
+        "label": "Ratmen",
+        "qty": 15
+      }
+    ],
+    "rewards": [
+      {
+        "type": "TrinketBag",
+        "qty": 1072341
+      }
+    ]
+  },
+  {
+    "class": "CowardsQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1072685,
+    "complete": 1075409,
+    "objectives": [
+      {
+        "kind": "SlayObjective",
+        "type": "RatmanArcher",
+        "label": "Ratmen Archers",
+        "qty": 10
+      }
+    ],
+    "rewards": [
+      {
+        "type": "TrinketBag",
+        "qty": 1072341
+      }
+    ]
+  },
+  {
+    "class": "TokenOfLoveQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1072700,
+    "complete": 1074582,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "StolenRing",
+        "label": "A ring engraved: 'Beloved Ciala'",
+        "qty": 1
+      }
+    ],
+    "rewards": [
+      {
+        "type": "TreasureBag",
+        "qty": 1072583
+      }
+    ]
+  },
+  {
+    "class": "SecretsoftheSoulforge",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1112547,
+    "complete": 1112524,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "MagicalResidue",
+        "label": "Magical Residue",
+        "qty": 50
+      }
+    ],
+    "rewards": [
+      {
+        "type": "ScrollBox3",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "class": "PatienceQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1072774,
+    "complete": 1074166,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "MiniatureMushroom",
+        "label": "miniature mushrooms",
+        "qty": 20
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "NeedsOfManyHeartwoodQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1072775,
+    "complete": 1074110,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "Cotton",
+        "label": "bale of cotton",
+        "qty": 10
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "NeedsOfManyPartHeartwoodQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1072776,
+    "complete": 1074152,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "Board",
+        "label": "boards",
+        "qty": 250
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "MakingContributionHeartwoodQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1072777,
+    "complete": 1074158,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "SackFlour",
+        "label": "sack of flour",
+        "qty": 1
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "JarHoney",
+        "label": "jar of honey",
+        "qty": 10
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "FishSteak",
+        "label": "fish steak",
+        "qty": 20
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "UnnaturalCreationsQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1072779,
+    "complete": 1074167,
+    "objectives": [
+      {
+        "kind": "SlayObjective",
+        "type": "ExodusOverseer",
+        "label": "exodus overseers",
+        "qty": 5
+      },
+      {
+        "kind": "SlayObjective",
+        "type": "ExodusMinion",
+        "label": "exodus minions",
+        "qty": 2
+      }
+    ],
+    "rewards": [
+      {
+        "type": "ArcaneCircleScroll",
+        "qty": 1071026
+      },
+      {
+        "type": "GiftOfRenewalScroll",
+        "qty": 1071027
+      },
+      {
+        "type": "SpellweavingBook",
+        "qty": 1031600
+      }
+    ]
+  },
+  {
+    "class": "FirendOfTheFeyQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1074290,
+    "complete": 1074292,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "Beads",
+        "label": "beads",
+        "qty": 1
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "JarHoney",
+        "label": "jar of honey",
+        "qty": 1
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "TokenOfFriendshipQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1074315,
+    "complete": 1074319,
+    "objectives": [
+      {
+        "kind": "DeliverObjective",
+        "type": "GiftForArielle",
+        "label": "gift for Arielle",
+        "qty": 1
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "AllianceQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1074316,
+    "complete": 1074320,
+    "objectives": [
+      {
+        "kind": "SlayObjective",
+        "type": "Reaper",
+        "label": "reapers",
+        "qty": 20
+      }
+    ],
+    "rewards": [
+      {
+        "type": "SummonFeyScroll",
+        "qty": 1071032
+      }
+    ]
+  },
+  {
+    "class": "FiendishFriendsQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1074289,
+    "complete": null,
+    "objectives": [
+      {
+        "kind": "SlayObjective",
+        "type": "Imp",
+        "label": "imps",
+        "qty": 50
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "CrackingTheWhipQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1074317,
+    "complete": 1074321,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "StoutWhip",
+        "label": "stout whip",
+        "qty": 1
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "IronWillQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1074318,
+    "complete": null,
+    "objectives": [
+      {
+        "kind": "SlayObjective",
+        "type": "ArcaneDaemon",
+        "label": "arcane daemon",
+        "qty": 1
+      }
+    ],
+    "rewards": [
+      {
+        "type": "SummonFiendScroll",
+        "qty": 1071033
+      }
+    ]
+  },
+  {
+    "class": "ScalesOfADreamSerpentQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1151125,
+    "complete": 1151126,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "DreamSerpentScale",
+        "label": "Dream Serpent Scales",
+        "qty": 1
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "TearsOfASoulbinderQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1151133,
+    "complete": 1151134,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "SoulbinderTear",
+        "label": "Soulbinders Tears",
+        "qty": 1
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "PristineCrystalLotusQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1151137,
+    "complete": 1151138,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "PristineCrystalLotus",
+        "label": "Pristine Crystal Lotus",
+        "qty": 1
+      }
+    ],
+    "rewards": [
+      {
+        "type": "ChronicleOfTheGargoyleQueen2",
+        "qty": 1151164
+      },
+      {
+        "type": "TerMurSnowglobe",
+        "qty": 1151172
+      }
+    ]
+  },
+  {
+    "class": "CatchMeIfYouCanQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1151147,
+    "complete": 1151148,
+    "objectives": [],
+    "rewards": [
+      {
+        "type": "DreamSerpentScale",
+        "qty": 1151167
+      }
+    ]
+  },
+  {
+    "class": "FilthyLifeStealersQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1151157,
+    "complete": 1151158,
+    "objectives": [
+      {
+        "kind": "SlayObjective",
+        "type": "Lifestealer",
+        "label": "Life Stealers",
+        "qty": 10
+      }
+    ],
+    "rewards": [
+      {
+        "type": "SoulbinderTear",
+        "qty": 1151170
+      }
+    ]
+  },
+  {
+    "class": "TheAncientWorldQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1074539,
+    "complete": 1074542,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "MapFragment",
+        "label": "fragment of a map",
+        "qty": 1
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "TheGoldenHornQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1074547,
+    "complete": 1074549,
+    "objectives": [
+      {
+        "kind": "DeliverObjective",
+        "type": "MapFragment",
+        "label": "fragment of a map",
+        "qty": 1
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "BullishQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1074555,
+    "complete": 1074556,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "GamanHorns",
+        "label": "gaman horns",
+        "qty": 20
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "LostCivilizationQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1074828,
+    "complete": 1074829,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "MinotaurArtifact",
+        "label": "minotaur artifacts",
+        "qty": 3
+      }
+    ],
+    "rewards": [
+      {
+        "type": "RewardBox",
+        "qty": 1072584
+      }
+    ]
+  },
+  {
+    "class": "BouraBouraQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1112800,
+    "complete": 1112801,
+    "objectives": [
+      {
+        "kind": "SlayObjective",
+        "type": "LowlandBoura",
+        "label": "Lowland Boura's",
+        "qty": 15
+      },
+      {
+        "kind": "SlayObjective",
+        "type": "RuddyBoura",
+        "label": "Ruddy Boura's",
+        "qty": 20
+      }
+    ],
+    "rewards": [
+      {
+        "type": "DustyAdventurersBackpack",
+        "qty": 1113189
+      }
+    ]
+  },
+  {
+    "class": "RaptorliciousQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1112805,
+    "complete": 1112806,
+    "objectives": [
+      {
+        "kind": "SlayObjective",
+        "type": "Raptor",
+        "label": "Raptor's",
+        "qty": 20
+      }
+    ],
+    "rewards": [
+      {
+        "type": "DustyAdventurersBackpack",
+        "qty": 1113189
+      }
+    ]
+  },
+  {
+    "class": "TheSlithWarsQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1112809,
+    "complete": 1112810,
+    "objectives": [
+      {
+        "kind": "SlayObjective",
+        "type": "Slith",
+        "label": "Slith's",
+        "qty": 20
+      }
+    ],
+    "rewards": [
+      {
+        "type": "DustyAdventurersBackpack",
+        "qty": 1113189
+      }
+    ]
+  },
+  {
+    "class": "BouraBouraAndMoreBouraQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1112825,
+    "complete": 1112826,
+    "objectives": [
+      {
+        "kind": "SlayObjective",
+        "type": "HighPlainsBoura",
+        "label": "High Plains Boura",
+        "qty": 20
+      }
+    ],
+    "rewards": [
+      {
+        "type": "DustyExplorersBackpack",
+        "qty": 1113190
+      }
+    ]
+  },
+  {
+    "class": "RevengeOfTheSlithQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1112829,
+    "complete": 1112830,
+    "objectives": [
+      {
+        "kind": "SlayObjective",
+        "type": "ToxicSlith",
+        "label": "Toxic Slith's",
+        "qty": 20
+      }
+    ],
+    "rewards": [
+      {
+        "type": "DustyExplorersBackpack",
+        "qty": 1113190
+      }
+    ]
+  },
+  {
+    "class": "WeveGotAnAntProblemQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1112833,
+    "complete": 1112834,
+    "objectives": [
+      {
+        "kind": "SlayObjective",
+        "type": "FireAnt",
+        "label": "Fire Ant's",
+        "qty": 20
+      }
+    ],
+    "rewards": [
+      {
+        "type": "DustyExplorersBackpack",
+        "qty": 1113190
+      }
+    ]
+  },
+  {
+    "class": "AmbushingTheAmbushersQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1112837,
+    "complete": 1112838,
+    "objectives": [
+      {
+        "kind": "SlayObjective",
+        "type": "KepetchAmbusher",
+        "label": "Kepetch Ambusher's",
+        "qty": 20
+      }
+    ],
+    "rewards": [
+      {
+        "type": "DustyExplorersBackpack",
+        "qty": 1113190
+      }
+    ]
+  },
+  {
+    "class": "ItMakesMeSickQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1112841,
+    "complete": 1112842,
+    "objectives": [
+      {
+        "kind": "SlayObjective",
+        "type": "PutridUndeadGargoyle",
+        "label": "Putrid Undead Gargoyle's",
+        "qty": 20
+      }
+    ],
+    "rewards": [
+      {
+        "type": "DustyHuntersBackpack",
+        "qty": 1113191
+      }
+    ]
+  },
+  {
+    "class": "ItsAMadMadWorldQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1112845,
+    "complete": 1112846,
+    "objectives": [
+      {
+        "kind": "SlayObjective",
+        "type": "MaddeningHorror",
+        "label": "Maddening Horror's",
+        "qty": 20
+      }
+    ],
+    "rewards": [
+      {
+        "type": "DustyHuntersBackpack",
+        "qty": 1113191
+      }
+    ]
+  },
+  {
+    "class": "TheDreamersQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1112849,
+    "complete": 1112850,
+    "objectives": [
+      {
+        "kind": "SlayObjective",
+        "type": "DreamWraith",
+        "label": "Dream Wraith's",
+        "qty": 20
+      }
+    ],
+    "rewards": [
+      {
+        "type": "DustyHuntersBackpack",
+        "qty": 1113191
+      }
+    ]
+  },
+  {
+    "class": "AllThatGlitters",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1112950,
+    "complete": 1112951,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "CongealedSlugAcid",
+        "label": "Congealed Slug Acid",
+        "qty": 5
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "PileofInspectedGoldIngots",
+        "label": "Pile of Inspected Gold Ingots",
+        "qty": 1
+      }
+    ],
+    "rewards": [
+      {
+        "type": "ElixirofGoldConversion",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "class": "TastyTreats",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1112946,
+    "complete": 1112947,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "BouraSkin",
+        "label": "BouraSkin",
+        "qty": 5
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "Dough",
+        "label": "Dough",
+        "qty": 1
+      }
+    ],
+    "rewards": [
+      {
+        "type": "TastyTreat",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "class": "MetalHead",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1112954,
+    "complete": 1112955,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "UndamagedIronBeetleScale",
+        "label": "Undamaged IronBeetle Scale",
+        "qty": 10
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "PileofInspectedDullCopperIngots",
+        "label": "Pile of Inspected DullCopper Ingots",
+        "qty": 1
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "PileofInspectedShadowIronIngots",
+        "label": "Pile of Inspected ShadowIron Ingots",
+        "qty": 1
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "PileofInspectedCopperIngots",
+        "label": "Pile of Inspected Copper Ingots",
+        "qty": 1
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "PileofInspectedBronzeIngots",
+        "label": "Pile of Inspected Bronze Ingots",
+        "qty": 1
+      }
+    ],
+    "rewards": [
+      {
+        "type": "ElixirofMetalConversion",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "class": "PinkistheNewBlack",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1112958,
+    "complete": 1112959,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "SearedFireAntGoo",
+        "label": "Seared Fire Ant Goo",
+        "qty": 5
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "PileofInspectedAgapiteIngots",
+        "label": "Pile of Inspected Agapite Ingots",
+        "qty": 1
+      }
+    ],
+    "rewards": [
+      {
+        "type": "ElixirofAgapiteConversion",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "class": "DabblingontheDarkSide",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1112965,
+    "complete": 1112966,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "BouraSkin",
+        "label": "BouraSkin",
+        "qty": 5
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "FairyDragonWing",
+        "label": "Fairy Dragon Wings",
+        "qty": 10
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "Dough",
+        "label": "Dough",
+        "qty": 1
+      }
+    ],
+    "rewards": [
+      {
+        "type": "DeliciouslyTastyTreat",
+        "qty": 2
+      }
+    ]
+  },
+  {
+    "class": "TheBrainyAlchemist",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1112969,
+    "complete": 1112970,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "ArcaneGem",
+        "label": "Arcane Gem",
+        "qty": 1
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "UndeadGargHorn",
+        "label": "Undamaged Undead Gargoyle Horns",
+        "qty": 10
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "InspectedKegofTotalRefreshment",
+        "label": "Inspected Keg of Total Refreshment",
+        "qty": 1
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "InspectedKegofGreaterPoison",
+        "label": "Inspected Keg of Greater Poison",
+        "qty": 1
+      }
+    ],
+    "rewards": [
+      {
+        "type": "InfusedAlchemistsGem",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "class": "ArmorUp",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1112973,
+    "complete": 1112974,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "BouraSkin",
+        "label": "BouraSkin",
+        "qty": 5
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "LeatherWolfSkin",
+        "label": "Leather Wolf Skin",
+        "qty": 10
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "UndamagedIronBeetleScale",
+        "label": "Undamaged IronBeetle Scale",
+        "qty": 10
+      }
+    ],
+    "rewards": [
+      {
+        "type": "VialofArmorEssence",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "class": "ToTurnBaseMetalIntoVerite",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1112977,
+    "complete": 1112978,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "UndeadGargoyleMedallions",
+        "label": "Undead Gargoyle Medallions",
+        "qty": 5
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "PileofInspectedVeriteIngots",
+        "label": "Pile of Inspected Verite Ingots",
+        "qty": 1
+      }
+    ],
+    "rewards": [
+      {
+        "type": "ElixirofVeriteConversion",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "class": "PureValorite",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1112985,
+    "complete": 1112986,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "InfusedGlassStave",
+        "label": "Infused Glass Stave",
+        "qty": 5
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "PileofInspectedValoriteIngots",
+        "label": "Pile of Inspected Valorite Ingots",
+        "qty": 1
+      }
+    ],
+    "rewards": [
+      {
+        "type": "ElixirofValoriteConversion",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "class": "TheForbiddenFruit",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1112980,
+    "complete": 1112982,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "BouraSkin",
+        "label": "BouraSkin",
+        "qty": 5
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "TreefellowWood",
+        "label": "TreefellowWood",
+        "qty": 10
+      },
+      {
+        "kind": "ObtainObjective",
+        "type": "Dough",
+        "label": "Dough",
+        "qty": 1
+      }
+    ],
+    "rewards": [
+      {
+        "type": "IrresistiblyTastyTreat",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "class": "UnfadingMemoriesOneQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1075359,
+    "complete": 1075360,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "PrismaticAmber",
+        "label": "prismatic amber",
+        "qty": 1
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "UnfadingMemoriesTwoQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1075371,
+    "complete": 1075372,
+    "objectives": [
+      {
+        "kind": "DeliverObjective",
+        "type": "PortraitOfTheBride",
+        "label": "portrait of the bride",
+        "qty": 1
+      }
+    ],
+    "rewards": []
+  },
+  {
+    "class": "UnfadingMemoriesThreeQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1075377,
+    "complete": 1075378,
+    "objectives": [
+      {
+        "kind": "DeliverObjective",
+        "type": "BridesLetter",
+        "label": "brides letter",
+        "qty": 1
+      }
+    ],
+    "rewards": [
+      {
+        "type": "Bleach",
+        "qty": 1075375
+      }
+    ]
+  },
+  {
+    "class": "UntanglingTheWebQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1095054,
+    "complete": 1095057,
+    "objectives": [
+      {
+        "kind": "AcidCreaturesObjective",
+        "type": "IAcidCreature",
+        "label": "acid creatures",
+        "qty": 12
+      }
+    ],
+    "rewards": [
+      {
+        "type": "AcidPopper",
+        "qty": 1095058
+      }
+    ]
+  },
+  {
+    "class": "GreenWithEnvyQuest",
+    "base": "BaseQuest",
+    "title": null,
+    "description": null,
+    "refuse": null,
+    "uncomplete": 1095122,
+    "complete": 1095123,
+    "objectives": [
+      {
+        "kind": "ObtainObjective",
+        "type": "EyeOfNavrey",
+        "label": "eye of Navrey",
+        "qty": 1
+      }
+    ],
+    "rewards": [
+      {
+        "type": "RewardBox",
+        "qty": 1072584
+      }
+    ]
+  }
+]

@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <meta name="theme-color" content="#07090c" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Ultima Online — Web Client</title>
+    <!-- Preload only JSON manifests that the JS boot path fetches
+         immediately. Image atlases are warmed with prefetch instead:
+         Pixi may consume them after the load event or through its own
+         loader, and hard image preload makes Chrome spam "preloaded but
+         not used" warnings in the console. -->
+    <link rel="preload" as="fetch" crossorigin="anonymous" href="/assets/hues.json" />
+    <link rel="preload" as="fetch" crossorigin="anonymous" href="/assets/tiledata.json" />
+    <link rel="prefetch" as="image" href="/assets/hues.png" />
+    <link rel="prefetch" as="image" href="/assets/cursors-atlas.png" />
+    <link rel="prefetch" as="image" href="/assets/fonts.png" />
+    <link rel="prefetch" as="image" href="/assets/gump-atlas-000.png" />
+    <link rel="prefetch" as="image" href="/assets/land-atlas-00.png" />
+    <!-- DNS / connection prewarm for the WS endpoint (same origin in
+         production but explicit hint speeds up cross-origin proxies). -->
+    <link rel="preconnect" href="/" />
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #07090c;
+        --fg: #d8c890;
+        --panel: rgba(0, 0, 0, 0.78);
+        --border: #5c4a1f;
+        --accent: #d8c890;
+      }
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: 'Lucida Console', 'Consolas', monospace;
+        overflow: hidden;
+      }
+      #app {
+        position: fixed;
+        inset: 0;
+      }
+      canvas {
+        display: block;
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
+      }
+      #dom-ui {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 10;
+      }
+      #dom-ui > * { pointer-events: auto; }
+
+      .uo-panel {
+        background: var(--panel);
+        border: 2px solid var(--border);
+        border-radius: 4px;
+        padding: 16px;
+        color: var(--fg);
+        box-shadow: 0 0 24px #000;
+      }
+      .uo-panel h1 { margin: 0 0 12px; font-size: 14px; letter-spacing: 2px; }
+      .uo-panel label { display: block; font-size: 11px; margin-top: 8px; }
+      .uo-panel input, .uo-panel select {
+        width: 100%;
+        background: #0c0d0a;
+        color: var(--fg);
+        border: 1px solid var(--border);
+        padding: 6px 8px;
+        font-family: inherit;
+        font-size: 12px;
+        box-sizing: border-box;
+      }
+      .uo-panel input:focus, .uo-panel select:focus {
+        outline: 1px solid var(--accent);
+      }
+      .uo-panel button {
+        background: #1a160c;
+        color: var(--fg);
+        border: 1px solid var(--border);
+        padding: 8px 14px;
+        font-family: inherit;
+        font-size: 12px;
+        cursor: pointer;
+        margin-top: 12px;
+      }
+      .uo-panel button:hover { background: #2a230f; }
+      .uo-panel button:disabled { opacity: 0.5; cursor: default; }
+      .uo-panel .row { display: flex; gap: 8px; }
+      .uo-panel .row > * { flex: 1; }
+
+      .uo-status {
+        position: fixed;
+        bottom: 8px;
+        left: 8px;
+        font-size: 11px;
+        color: #8c7a40;
+        opacity: 0.8;
+      }
+      /* Touch device UI tweaks — fingers need bigger tap targets and
+         the system long-press text-selection / context menu fights
+         with our own long-press → RMB synthesis. Disable both via
+         CSS so taps pass through cleanly. */
+      @media (pointer: coarse) {
+        .uo-panel input, .uo-panel select, .uo-panel button {
+          font-size: 14px;
+          padding: 10px 12px;
+          min-height: 44px;     /* iOS HIG minimum tappable height */
+        }
+        .uo-panel button { padding: 12px 18px; }
+        body, #app, #dom-ui {
+          -webkit-touch-callout: none;
+          -webkit-user-select: none;
+          user-select: none;
+          -webkit-tap-highlight-color: transparent;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="dom-ui"></div>
+    <div class="uo-status" id="status">connecting…</div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

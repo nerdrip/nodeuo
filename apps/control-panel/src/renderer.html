@@ -1,0 +1,1049 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>UO-Node Control Panel</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0;
+    font: 13px/1.45 'Consolas', 'Cascadia Mono', monospace;
+    color: #d8c89a;
+    background: #1a1410;
+    height: 100vh; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+
+  /* ---- HEADER (compact title + external link buttons) ---- */
+  header {
+    background: linear-gradient(180deg, #2b1e0e 0%, #1a1410 100%);
+    border-bottom: 2px solid #7a5a20;
+    padding: 6px 16px; display: flex; align-items: center; gap: 16px;
+    flex: 0 0 auto;
+  }
+  header h1 { margin: 0; font-size: 13px; letter-spacing: 4px; color: #ffd070; }
+  header .links { margin-left: auto; }
+  header .links a {
+    color: #80c0ff; text-decoration: none; margin-left: 12px; font-size: 11px;
+  }
+  header .links a:hover { color: #ffd070; }
+
+  /* ---- TOP TOOLBAR (service start buttons, big + obvious) ---- */
+  .toolbar {
+    flex: 0 0 auto;
+    background: #20180e;
+    border-bottom: 1px solid #4a3818;
+    padding: 10px 12px;
+    display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+  }
+  .toolbar .grp {
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 10px 4px 8px; border-radius: 4px;
+    background: #14100a; border: 1px solid #3a2c14;
+  }
+  .toolbar .grp .grp-name {
+    font-size: 10px; letter-spacing: 1px; color: #9a7a35;
+    margin-right: 6px;
+    min-width: 52px;
+  }
+  .toolbar .grp .grp-btns { display: inline-flex; gap: 4px; }
+  .ext-prog {
+    margin-left: 8px; font-size: 10px; color: #b0e080;
+    max-width: 220px; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .svc-btn {
+    background: #3a2c14; color: #ffd070; border: 1px solid #7a5a20;
+    padding: 6px 12px; cursor: pointer; font: inherit; border-radius: 3px;
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; min-height: 30px;
+  }
+  .svc-btn:hover { background: #4a3818; }
+  .svc-btn:disabled { opacity: .55; cursor: default; }
+  .svc-btn.running { background: #2a3a1a; border-color: #5a8030; color: #b0e080; }
+  .svc-btn.running::before { content: '●'; color: #80ff80; margin-right: 2px; }
+  .svc-btn .info-tip {
+    display: none; position: absolute;
+    background: #14100a; border: 1px solid #7a5a20;
+    padding: 6px 8px; max-width: 280px; font-size: 10px; opacity: .9;
+    border-radius: 3px; margin-top: 32px; z-index: 10;
+  }
+  .svc-btn:hover .info-tip { display: block; }
+  .tcp-toggle {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 8px; margin-left: 6px;
+    background: #14100a; border: 1px solid #4a3818;
+    border-radius: 3px; cursor: pointer; user-select: none;
+    color: #b89860; font-size: 11px;
+  }
+  .tcp-toggle:hover { color: #ffd070; border-color: #7a5a20; }
+  .tcp-toggle input { margin: 0; cursor: pointer; }
+
+  /* ---- MIDDLE — tabs + log pane ---- */
+  .middle {
+    flex: 1; display: flex; flex-direction: column;
+    background: #0e0a06; min-height: 0;
+  }
+  .tabs {
+    flex: 0 0 auto;
+    display: flex; background: #20180e;
+    border-bottom: 1px solid #4a3818;
+    padding: 0 8px; flex-wrap: wrap; min-height: 32px;
+  }
+  .tab {
+    background: transparent; border: 0; color: #9a8a60;
+    padding: 8px 6px 8px 12px; cursor: pointer; font: inherit;
+    border-bottom: 2px solid transparent; font-size: 12px;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .tab:hover { color: #ffd070; }
+  .tab.active { color: #ffd070; border-bottom-color: #ffd070; }
+  .tabs-row {
+    display: flex; align-items: stretch;
+    background: #20180e; border-bottom: 1px solid #4a3818;
+  }
+  .tabs-row .tabs { flex: 1; min-width: 0; border-bottom: 0; padding: 0 8px; }
+  .tab-actions {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 0 8px; border-left: 1px solid #3a2c14;
+  }
+  .tab-action {
+    background: #2a1f10; color: #d8c89a; border: 1px solid #4a3818;
+    padding: 2px 8px; cursor: pointer; font: inherit; border-radius: 3px;
+    font-size: 14px; line-height: 1; min-width: 26px; min-height: 22px;
+  }
+  .tab-action:hover { background: #3a2c14; color: #ffd070; }
+  .tab-action:disabled { opacity: .35; cursor: default; }
+  .tab .badge {
+    display: inline-block; min-width: 6px; height: 6px;
+    border-radius: 50%; background: #80ff80;
+  }
+  .tab .close-x {
+    color: #806040; font-size: 14px; line-height: 1; padding: 0 4px;
+    border-radius: 3px; margin-left: 4px;
+  }
+  .tab .close-x:hover { background: #803030; color: #fff; }
+  .pane {
+    flex: 1; overflow: auto; padding: 8px 12px;
+    background: #0e0a06; font: 12px/1.4 'Consolas', monospace;
+    white-space: pre-wrap; word-break: break-all; overflow-wrap: anywhere;
+    color: #a89870; min-width: 0;
+  }
+  .pane .err { color: #ff8060; }
+  .pane.welcome { color: #ad9a6a; }
+  .pane.welcome b { color: #ffd070; }
+
+  /* ---- BOTTOM SETTINGS PANEL — collapsible ---- */
+  .settings-bar {
+    flex: 0 0 auto;
+    background: #20180e;
+    border-top: 1px solid #4a3818;
+    max-height: 50vh; overflow: auto;
+    transition: max-height .2s ease;
+  }
+  .settings-bar.collapsed { max-height: 32px; overflow: hidden; }
+  .settings-toggle {
+    background: #2a1f10; border: 0; border-bottom: 1px solid #4a3818;
+    width: 100%; padding: 6px 12px; cursor: pointer;
+    color: #ffd070; font: inherit; text-align: left;
+    display: flex; align-items: center; gap: 8px;
+    letter-spacing: 2px; font-size: 11px;
+  }
+  .settings-toggle:hover { background: #3a2c14; }
+  .settings-toggle .arrow { transition: transform .2s; }
+  .settings-bar.collapsed .settings-toggle .arrow { transform: rotate(-90deg); }
+  .settings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 6px 16px; padding: 12px 16px;
+    max-width: 1200px; margin: 0 auto;
+  }
+  .settings-row {
+    display: grid; grid-template-columns: 130px 1fr;
+    align-items: center; gap: 8px;
+  }
+  .settings-row label { color: #ffd070; font-size: 11px; }
+  .settings-row input {
+    background: #14100a; color: #d8c89a; border: 1px solid #4a3818;
+    padding: 4px 8px; font: inherit; min-width: 0;
+  }
+  .settings-buttons {
+    grid-column: 1 / -1;
+    display: flex; gap: 8px; padding-top: 8px;
+    border-top: 1px solid #3a2c14;
+  }
+
+  /* ---- generic buttons ---- */
+  button {
+    background: #3a2c14; color: #ffd070; border: 1px solid #7a5a20;
+    padding: 4px 10px; cursor: pointer; font: inherit; border-radius: 2px;
+    white-space: nowrap;
+  }
+  button:hover { background: #4a3818; }
+  button.danger { color: #ff8060; border-color: #803030; }
+
+  /* ---- confirm dialog ---- */
+  .modal-bg {
+    position: fixed; inset: 0; background: rgba(0,0,0,.6);
+    display: flex; align-items: center; justify-content: center; z-index: 100;
+  }
+  .modal {
+    background: #20180e; border: 2px solid #7a5a20; padding: 20px;
+    min-width: 340px; max-width: 480px; border-radius: 4px;
+  }
+  .modal h3 { margin: 0 0 12px; color: #ffd070; }
+  .modal .actions { margin-top: 16px; display: flex; gap: 8px; justify-content: flex-end; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>UO·NODE · CONTROL</h1>
+  <div class="links">
+    <a href="#" onclick="uo.openUrl('http://localhost:5173')">browser client ↗</a>
+    <a href="#" onclick="uo.openUrl('http://127.0.0.1:2596/')">admin panel ↗</a>
+    <button class="danger" onclick="confirmStopAll()" style="margin-left:14px">STOP ALL</button>
+  </div>
+</header>
+
+<!-- TOP TOOLBAR — every service is a single click. Click again on a running
+     service = no-op (the visible ● indicator + log tab handle stop).
+     Buttons are grouped by `service.group` (server / admin / client /
+     assets) with vertical dividers between groups. The bridge group
+     was removed — its only consumer (browser → external TCP shard) is
+     now opt-in via the Client toolbar's TCP checkbox. -->
+<div class="toolbar" id="toolbar">
+  <!-- Each runnable group has its own TCP toggle so the user opts in
+       per click, not globally. Server + Admin start the SAME shard
+       process (admin just adds env to enable the HTTP panel) so their
+       toggles inject UO_TCP_PORT identically. The Client toggle has
+       different semantics: it auto-starts the bridge-out service so
+       the browser can talk to a raw-TCP UO shard (replaces the
+       removed BRIDGE group). All three toggles persist to
+       localStorage independently. -->
+  <div class="grp">
+    <span class="grp-name">SERVER</span>
+    <span id="grp-server" class="grp-btns"></span>
+    <label class="tcp-toggle" title="Open raw-TCP listener for ClassicUO/Razor/OSI clients alongside the WS port. Off by default — browser play doesn't need it.">
+      <input type="checkbox" id="tcp-enable-server" />
+      <span>TCP <span class="tcp-port-label">2594</span></span>
+    </label>
+    <!-- Admin server is part of the SERVER module (apps/server/src/admin/);
+         it shares the same Node process as the game server (just adds env
+         vars to enable the HTTP panel on :2596). Co-starting it from the
+         CLIENT group used to be the default but that was nonsense — the
+         admin panel needs the server, not Vite. Toggle defaults ON so the
+         common dev workflow ("Server + Admin together") is one click. -->
+    <label class="tcp-toggle" title="Run the admin HTTP panel inside the same server process (:2596). Defaults ON — the admin server is part of @uo/server, not @uo/client.">
+      <input type="checkbox" id="costart-admin-with-server" />
+      <span>+ Admin</span>
+    </label>
+  </div>
+  <div class="grp">
+    <span class="grp-name">CLIENT</span>
+    <span id="grp-client" class="grp-btns"></span>
+    <label class="tcp-toggle" title="Auto-start the WS↔TCP bridge alongside Vite so the browser client can connect to a raw-TCP UO shard (ServUO/RunUO/OSI) via ws://localhost:2595/bridge?target=host:port. Replaces the old Bridge button group.">
+      <input type="checkbox" id="tcp-enable-client" />
+      <span>TCP bridge</span>
+    </label>
+  </div>
+  <div class="grp"><span class="grp-name">ASSETS</span>
+    <span id="grp-assets" class="grp-btns"></span>
+    <!-- Audit rev.4 — opt-in ServUO content refresh. Default extract
+         pass covers only the UO_SRC → assets pipeline (~21 steps);
+         tick this checkbox to also rebuild the committed data files
+         in apps/scripts/src/data/*.json from templates/ServUO/ —
+         decoration / xmlspawner / servuo-bosses / -functional /
+         -items / -monsters / -recipes / -vendors / -quests /
+         -artifacts / -magic-gen / -item-types. Only needed after
+         pulling a fresh ServUO checkout. -->
+    <label class="tcp-toggle" title="Also refresh ServUO-derived JSON data files (decoration, xmlspawner, bosses, items, monsters, etc.) — slower, only useful after a templates/ServUO checkout bump.">
+      <input type="checkbox" id="extract-servuo" />
+      <span>ServUO data</span>
+    </label>
+    <label class="tcp-toggle" title="After Extract finishes, generate .ktx2 Basis atlases next to the PNG fallback files. Requires Khronos toktx in PATH or KTX2_TOKTX in Settings.">
+      <input type="checkbox" id="extract-ktx2" />
+      <span>KTX2 after extract</span>
+    </label>
+    <!-- Live progress for the extractor — updates from per-step log lines. -->
+    <span id="extract-progress" class="ext-prog"></span>
+  </div>
+  <div class="grp"><span class="grp-name">TOOLS</span>
+    <span id="grp-tools" class="grp-btns"></span>
+  </div>
+  <div class="grp"><span class="grp-name">PROJECT</span>
+    <span id="grp-deps" class="grp-btns"></span>
+  </div>
+</div>
+
+<!-- MIDDLE — tabs + log pane (Android Studio look) -->
+<div class="middle">
+  <div class="tabs-row">
+    <div class="tabs" id="tabs"></div>
+    <!-- Per-tab actions: restart the service backing the active tab,
+         and copy the visible log lines to the clipboard. Both buttons
+         look up the currently active tab's id and do the right thing
+         (virtual tabs without a process disable Restart). -->
+    <div class="tab-actions">
+      <button id="tab-restart" title="Stop and start the service backing this tab" class="tab-action">↻</button>
+      <button id="tab-copy"    title="Copy this tab's log lines to the clipboard" class="tab-action">⧉</button>
+    </div>
+  </div>
+  <div class="pane welcome" id="pane">
+welcome — pick a service from the top toolbar to start it.
+
+<b>Layout</b>
+  • TOP    : start buttons (one per service)
+  • MIDDLE : log streams in tabs, one per running service
+             — close (×) a tab to stop that service
+  • BOTTOM : settings (collapsible). Defaults are pre-filled
+             from the .bat scripts; override + save persists
+             to localStorage and is injected into spawned procs
+
+<b>Available services</b>
+  • Server (WS)                 — pure browser play (port 2593).
+                                  Run this when you DON'T want the admin
+                                  panel (e.g. testing pure gameplay).
+  • Browser Client (Vite)       — http://localhost:5173
+                                  Co-starts admin server by default
+                                  (CLIENT · "+ Admin" toggle, default ON).
+                                  Admin accounts that log in to the game
+                                  tab see a top-right "⚙ Admin Panel"
+                                  pill that opens :2596 in a new tab.
+                                  Untick "+ Admin" for thin Vite-only.
+  • Extract assets (one-shot)   — UO mul/uop → apps/client/public/assets
+                                  (hues/tiledata/art/gumps/cursors/fonts/
+                                  music/sounds/radarcol/texmaps/map/
+                                  statics/anim/animdata/multi/cliloc/
+                                  housedata/lights/verdata/professions/
+                                  speeches). 21 stałych kroków. Tick
+                                  "+ ServUO" checkbox aby dodatkowo
+                                  odświeżyć apps/scripts/src/data/*.json
+                                  z templates/ServUO/ (decoration,
+                                  xmlspawner, bosses, items, monsters,
+                                  recipes, vendors, quests, artifacts,
+                                  magic-gen, item-types). "KTX2 after extract"
+                                  generuje Basis/KTX2 atlasy obok PNG fallback.
+  • Tools                       — Install KTX2 Tool pobiera Khronos
+                                  KTX-Software (`toktx`) dla kompresji atlasow.
+  • Project                     — Install Project Deps = pnpm install.
+                                  Update Project Deps = pnpm update -r, czyli refresh
+                                  lockfile/deps wedlug package.json ranges.
+
+<b>Toggles (per group)</b>
+  • SERVER  · TCP 2594   — opt-in raw-TCP listener for ClassicUO/Razor/OSI
+  • CLIENT  · + Admin    — co-start the admin server when launching
+                           Browser Client (default ON). Untick if you
+                           only want Vite without the server attached.
+  • CLIENT  · TCP bridge — auto-starts the WS↔TCP bridge so the browser
+                          can connect to a raw-TCP shard via
+                          ws://localhost:2595/bridge?target=host:port
+  </div>
+</div>
+
+<!-- BOTTOM — collapsible settings drawer -->
+<div class="settings-bar" id="settings-bar">
+  <button class="settings-toggle" onclick="toggleSettings()">
+    <span class="arrow">▾</span>
+    <span>SETTINGS &nbsp;·&nbsp; defaults from tools/bats/*.bat &nbsp;·&nbsp; per-field localStorage override</span>
+    <span style="margin-left:auto;font-size:10px;opacity:.5" id="settings-status"></span>
+  </button>
+  <div class="settings-grid">
+    <div class="settings-row"><label>UO_SRC</label><input id="env-UO_SRC" /></div>
+    <div class="settings-row"><label>Server host</label><input id="env-UO_HOST" /></div>
+    <div class="settings-row"><label>Server port</label><input id="env-UO_PORT" /></div>
+    <!-- TCP port intentionally NOT in this drawer — it's controlled by
+         the toolbar "TCP" checkbox so it can never be silently injected
+         from a stale settings value. The default 2594 is used when the
+         box is checked. -->
+    <div class="settings-row"><label>Admin host</label><input id="env-UO_ADMIN_HOST" /></div>
+    <div class="settings-row"><label>Admin port</label><input id="env-UO_ADMIN_PORT" /></div>
+    <div class="settings-row"><label>Admin user</label><input id="env-UO_ADMIN_USER" /></div>
+    <div class="settings-row"><label>Admin password</label><input id="env-UO_ADMIN_PASS" /></div>
+    <div class="settings-row"><label>Bridge port</label><input id="env-UO_BRIDGE_PORT" /></div>
+    <div class="settings-row"><label>Bridge target</label><input id="env-UO_BRIDGE_DEFAULT" placeholder="host:port (lock bridge)" /></div>
+    <div class="settings-row"><label>Shard name</label><input id="env-UO_SHARD_NAME" /></div>
+    <div class="settings-row"><label>KTX2 toktx</label><input id="env-KTX2_TOKTX" placeholder="optional path to toktx.exe" /></div>
+    <div class="settings-buttons">
+      <button onclick="saveSettings()">save</button>
+      <button onclick="resetSettings()">reset to defaults</button>
+    </div>
+  </div>
+</div>
+
+<div id="modal-host"></div>
+
+<script>
+'use strict';
+
+const LOG_MAX_LINES = 4000;
+const tabs = {};            // id → { btn, pane, lines, hot }
+let activeTab = null;
+let DEFAULTS = {};
+let SERVICES_INFO = {};
+
+function el(html) {
+  const t = document.createElement('template');
+  t.innerHTML = html.trim();
+  return t.content.firstChild;
+}
+function esc(s) { return String(s ?? '').replace(/[<>&"']/g, (c) => ({
+  '<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'
+}[c])); }
+
+async function init() {
+  DEFAULTS = await uo.defaults();
+  const services = await uo.listServices();
+  SERVICES_INFO = services;
+  for (const [id, s] of Object.entries(services)) {
+    // Hidden services (e.g. bridge-out, auto-started by the Client TCP
+    // toggle) participate in IPC but don't get a button.
+    if (s.hidden) continue;
+    // Per-service `group` field (server/admin/client/assets) routes
+    // the button into the right toolbar bucket. Skip silently if the
+    // group div was removed from the toolbar (e.g. the bridge group
+    // got dropped) — the service stays startable via IPC.
+    const group = document.getElementById('grp-' + (s.group ?? 'server'));
+    if (!group) continue;
+    const btn = el(`
+      <button class="svc-btn ${s.running ? 'running' : ''}" data-id="${id}" title="${esc(s.info)}">
+        ${esc(s.label)}
+      </button>
+    `);
+    btn.addEventListener('click', () => onServiceClick(id));
+    group.appendChild(btn);
+  }
+  loadSettings();
+  initTcpToggle();
+}
+
+// TCP toggle persistence — three independent checkboxes (server / admin /
+// client), each keyed under `uo-tcp-enable-<group>`. They survive launcher
+// restarts so an operator who's running native UO clients doesn't have to
+// re-tick on every boot. Independence is intentional: server vs admin are
+// mutually exclusive (one or the other), so a single shared flag would
+// either be ambiguous ("which one is it for?") or get out of sync after a
+// process restart. The CLIENT toggle has different semantics — it
+// auto-starts the bridge-out service (see onServiceClick) so the browser
+// can talk to a raw-TCP shard.
+// ADMIN dropped — its toolbar button + TCP toggle were removed after the
+// "+ Admin" co-start on the CLIENT group replaced the standalone admin
+// workflow. The server-side raw-TCP listener is still toggleable via the
+// SERVER TCP checkbox; co-started admin inherits the server's env.
+const TCP_GROUPS = ['server', 'client'];
+// Admin co-start toggle defaults to ON: the most common dev workflow is
+// "click Client → I want both Vite + admin server on :2596" so an admin
+// account can switch between game tab and admin panel tab. Operators who
+// only want a thin Vite (e.g. testing on an external shard via TCP
+// bridge) untick once and the choice persists.
+const COSTART_ADMIN_KEY = 'uo-costart-admin-with-server';
+function initTcpToggle() {
+  // Sync every TCP-port label with the actual default port.
+  if (DEFAULTS.UO_TCP_PORT) {
+    for (const lbl of document.querySelectorAll('.tcp-port-label')) {
+      lbl.textContent = DEFAULTS.UO_TCP_PORT;
+    }
+  }
+  for (const grp of TCP_GROUPS) {
+    const cb = document.getElementById('tcp-enable-' + grp);
+    if (!cb) continue;
+    const key = 'uo-tcp-enable-' + grp;
+    cb.checked = localStorage.getItem(key) === '1';
+    cb.addEventListener('change', () => {
+      localStorage.setItem(key, cb.checked ? '1' : '0');
+    });
+  }
+  // Audit rev.4 — "+ ServUO" checkbox on the ASSETS Extract row.
+  // Persists in localStorage; default off (extractor's hot path is
+  // UO_SRC → assets, ServUO content is opt-in).
+  const servuoCb = document.getElementById('extract-servuo');
+  if (servuoCb) {
+    servuoCb.checked = localStorage.getItem('uo-extract-servuo') === '1';
+    servuoCb.addEventListener('change', () => {
+      localStorage.setItem('uo-extract-servuo', servuoCb.checked ? '1' : '0');
+    });
+  }
+  const ktx2Cb = document.getElementById('extract-ktx2');
+  if (ktx2Cb) {
+    ktx2Cb.checked = localStorage.getItem('uo-extract-ktx2') === '1';
+    ktx2Cb.addEventListener('change', () => {
+      localStorage.setItem('uo-extract-ktx2', ktx2Cb.checked ? '1' : '0');
+    });
+  }
+  // Admin co-start toggle — same persistence shape, but DEFAULTS TO ON
+  // when no value is stored yet (vs the TCP toggles which default to
+  // off). Lives in the SERVER group: when checked, clicking Server (WS)
+  // routes the spawn to the `admin` service variant (same pnpm cmd
+  // plus admin env vars).
+  const costart = document.getElementById('costart-admin-with-server');
+  if (costart) {
+    const stored = localStorage.getItem(COSTART_ADMIN_KEY);
+    costart.checked = stored == null ? true : stored === '1';
+    costart.addEventListener('change', () => {
+      localStorage.setItem(COSTART_ADMIN_KEY, costart.checked ? '1' : '0');
+    });
+  }
+}
+
+function refreshButtonStates() {
+  uo.listServices().then((services) => {
+    SERVICES_INFO = services;
+    // Apply BTN_STATE_ALIASES so admin → server is reflected on the
+    // SERVER button when "+ Admin" co-start was used. Without this the
+    // listServices() round-trip would clobber the green state the
+    // onState handler had applied (admin.running=true, server.running
+    // =false from the main process viewpoint).
+    const aliased = { ...services };
+    for (const [src, dst] of Object.entries(BTN_STATE_ALIASES ?? {})) {
+      if (services[src]?.running && aliased[dst]) {
+        aliased[dst] = { ...aliased[dst], running: true };
+      }
+    }
+    for (const [id, s] of Object.entries(aliased)) {
+      const btn = document.querySelector(`.svc-btn[data-id="${id}"]`);
+      if (btn) btn.classList.toggle('running', !!s.running);
+    }
+  });
+}
+
+function buildServiceOptions(id) {
+  const opts = {};
+  if (id !== 'extract') return opts;
+  const extraArgs = [];
+  if (document.getElementById('extract-servuo')?.checked) extraArgs.push('--include-servuo');
+  if (document.getElementById('extract-ktx2')?.checked) extraArgs.push('--ktx2');
+  if (extraArgs.length) opts.extraArgs = extraArgs;
+  return opts;
+}
+
+async function onServiceClick(id) {
+  // Re-clicking a running service does nothing — closing its tab is the
+  // canonical "stop" gesture (Marcin: "zamykanie zakladek = zamkniecie
+  // servera"). This avoids the "I clicked Server twice and now it died"
+  // surprise common in launcher UIs.
+  const svc = SERVICES_INFO[id];
+  if (svc?.running) {
+    selectTab(id); return;
+  }
+  ensureTab(id);
+  selectTab(id);
+  document.getElementById('pane').classList.remove('welcome');
+  // Wipe whatever log lines this tab carried over from the previous
+  // run. Marcin: "jak startujesz server to czysc zakladki" — stale
+  // logs from a prior crashed session were stacking on top of the
+  // fresh boot stream and made debugging the current launch noisy.
+  // Server/admin starts also clear the virtual Bridge tab since it
+  // tees off the same process.
+  clearTabLog(id);
+  if (id === 'server' || id === 'admin') clearTabLog(SERVER_TCP_TAB_ID);
+  // CLIENT path honours the "+ Admin" toggle: when unticked, pass
+  // `skipCoStart: ['admin']` so main.cjs's co-start loop omits it and
+  // we get Vite only. The default-on tick keeps the canonical workflow
+  // (admin + client together → in-game "Open Admin Panel" pill works).
+  const opts = {};
+  // SERVER + "+ Admin" toggle: when ON, route to the `admin` variant of
+  // the same `@uo/server` process (adds UO_ADMIN_HOST/PORT/USER/PASS env
+  // vars so the HTTP admin panel binds on :2596 alongside the game
+  // server). Admin lives in apps/server/src/admin/ — it's part of the
+  // server module, so the toggle belongs in the SERVER group.
+  let effectiveId = id;
+  if (id === 'server') {
+    const costartCb = document.getElementById('costart-admin-with-server');
+    const want = !!costartCb?.checked;
+    {
+      const t = ensureTab(id);
+      const ln = `[launcher] "+ Admin" toggle = ${want ? 'ON (server + admin panel)' : 'OFF (game server only)'}\n`;
+      t.lines.push({ text: ln, err: false });
+      if (activeTab === id) {
+        document.getElementById('pane').appendChild(document.createTextNode(ln));
+      }
+    }
+    if (want) {
+      // Swap the spawn target onto the `admin` service entry (same
+      // pnpm cmd plus admin env). Logs route to the `admin` tab so
+      // close the just-created `server` tab and bring up an `admin`
+      // one instead — otherwise the operator sees an empty `server`
+      // tab plus the live admin process logs elsewhere.
+      effectiveId = 'admin';
+      ensureTab('admin');
+      selectTab('admin');
+    }
+  }
+  Object.assign(opts, buildServiceOptions(id));
+  await uo.startService(effectiveId, readEnvOverride(id), opts);
+  // CLIENT TCP toggle → start the browser-bridge (ws→external tcp
+  // proxy). Tab labeled "Client TCP Bridge" to distinguish from the
+  // virtual server-side "Bridge" tab below.
+  if (id === 'client' && document.getElementById('tcp-enable-client')?.checked) {
+    if (!SERVICES_INFO['bridge-out']?.running) {
+      await uo.startService('bridge-out', {});
+      ensureTab('bridge-out');
+    }
+  }
+  // SERVER / ADMIN TCP toggle → pre-create the virtual "Bridge" tab so
+  // the operator sees it immediately, before any CUO/Razor client has
+  // connected. Without this the tab only popped up on the first TCP
+  // line of log, which made it look like the feature wasn't running.
+  if ((id === 'server' || id === 'admin')) {
+    const cb = document.getElementById('tcp-enable-' + id);
+    if (cb?.checked) {
+      if (!SERVICES_INFO[SERVER_TCP_TAB_ID]) {
+        SERVICES_INFO[SERVER_TCP_TAB_ID] = {
+          label: SERVER_TCP_TAB_LABEL, running: true, hidden: true, group: 'server',
+        };
+      }
+      ensureTab(SERVER_TCP_TAB_ID);
+    }
+  }
+  setTimeout(refreshButtonStates, 300);
+}
+
+// ---------------------------- Tabs ----------------------------------------
+
+function ensureTab(id) {
+  if (tabs[id]) return tabs[id];
+  const label = SERVICES_INFO[id]?.label ?? id;
+  const wrap = el(`<div class="tab" data-tab="${id}"></div>`);
+  const labelEl = el(`<span class="tab-label">${esc(label)}</span>`);
+  const closeEl = el(`<span class="close-x" title="Stop ${esc(label)}">×</span>`);
+  wrap.appendChild(labelEl);
+  wrap.appendChild(closeEl);
+  wrap.addEventListener('click', (e) => {
+    if (e.target === closeEl) { e.stopPropagation(); confirmCloseTab(id); }
+    else selectTab(id);
+  });
+  document.getElementById('tabs').appendChild(wrap);
+  tabs[id] = { btn: wrap, label: labelEl, lines: [], hot: false };
+  return tabs[id];
+}
+
+function confirmCloseTab(id) {
+  // Virtual tabs (Server TCP log mirror) have no process behind them
+  // — closing just removes the panel; no stopService call.
+  if (id === SERVER_TCP_TAB_ID) { closeTab(id); return; }
+  const svc = SERVICES_INFO[id];
+  const isRunning = !!svc?.running;
+  if (!isRunning) { closeTab(id); return; }
+  showModal(`Close "${SERVICES_INFO[id]?.label ?? id}" tab?`, `
+    Closing this tab will <b>STOP</b> the running service. The log will be discarded.
+    <br/><br/>Continue?
+  `, [
+    { label: 'Stop & close', danger: true, action: async () => {
+        await uo.stopService(id);
+        closeTab(id);
+        setTimeout(refreshButtonStates, 300);
+      } },
+    { label: 'Cancel', action: closeModal },
+  ]);
+}
+
+function closeTab(id) {
+  const t = tabs[id];
+  if (!t) return;
+  t.btn.remove();
+  delete tabs[id];
+  if (activeTab === id) {
+    const remaining = Object.keys(tabs);
+    if (remaining.length) selectTab(remaining[remaining.length - 1]);
+    else {
+      activeTab = null;
+      document.getElementById('pane').classList.add('welcome');
+      document.getElementById('pane').innerHTML = 'all tabs closed — pick a service from the top toolbar.';
+    }
+  }
+}
+
+function selectTab(id) {
+  ensureTab(id);
+  activeTab = id;
+  for (const [tid, t] of Object.entries(tabs)) {
+    t.btn.classList.toggle('active', tid === id);
+    if (tid === id) {
+      t.hot = false;
+      const dot = t.btn.querySelector('.badge');
+      if (dot) dot.remove();
+    }
+  }
+  renderPane(id);
+  // Restart button only enables for tabs that map to a real spawned
+  // service. The virtual Bridge tab and the "all tabs closed"
+  // sentinel disable it so the user doesn't try to restart nothing.
+  const restartBtn = document.getElementById('tab-restart');
+  const copyBtn    = document.getElementById('tab-copy');
+  const isVirtual  = id === SERVER_TCP_TAB_ID;
+  const hasService = !isVirtual && !!SERVICES_INFO[id];
+  if (restartBtn) restartBtn.disabled = !hasService;
+  if (copyBtn)    copyBtn.disabled    = !tabs[id]?.lines?.length;
+}
+
+/** Stop + re-start the service backing the active tab. Useful when
+ *  you need the server to pick up a code change without clicking
+ *  Stop and then the toolbar button again. */
+async function restartActiveTab() {
+  if (!activeTab) return;
+  const id = activeTab;
+  if (id === SERVER_TCP_TAB_ID) return;             // virtual tab — no process
+  const svc = SERVICES_INFO[id];
+  if (!svc) return;
+  try { await uo.stopService(id); } catch { /* ignore */ }
+  // Brief pause so taskkill has time to release ports before respawn.
+  await new Promise((r) => setTimeout(r, 400));
+  // Wipe the pane before the fresh process starts spitting lines so
+  // the operator's not staring at the previous run's stack trace
+  // mingled with the new boot log.
+  clearTabLog(id);
+  if (id === 'server' || id === 'admin') clearTabLog(SERVER_TCP_TAB_ID);
+  // Restart for the server/admin tab honours the same "+ Admin" toggle
+  // as the toolbar click — when ticked we restart the admin variant of
+  // the @uo/server process.
+  const opts = {};
+  let effectiveId = id;
+  if (id === 'server') {
+    const costartCb = document.getElementById('costart-admin-with-server');
+    if (costartCb?.checked) effectiveId = 'admin';
+  }
+  Object.assign(opts, buildServiceOptions(id));
+  try { await uo.startService(effectiveId, readEnvOverride(id), opts); } catch (e) {
+    console.error('[restart] failed', e);
+  }
+  setTimeout(refreshButtonStates, 300);
+}
+
+/** Wipe a tab's buffered log lines + its hot-tab badge + the visible
+ *  pane DOM if the tab is currently active. Safe to call for ids that
+ *  never had a tab created (no-op). */
+function clearTabLog(id) {
+  const t = tabs[id];
+  if (!t) return;
+  t.lines.length = 0;
+  t.hot = false;
+  const badge = t.btn?.querySelector?.('.badge');
+  if (badge) badge.remove();
+  if (activeTab === id) {
+    const pane = document.getElementById('pane');
+    if (pane) pane.textContent = '';
+  }
+}
+
+/** Copy the active tab's log lines to the clipboard as plain text. */
+async function copyActiveTabLogs() {
+  if (!activeTab) return;
+  const t = tabs[activeTab];
+  if (!t || !t.lines?.length) return;
+  const text = t.lines.map((l) => l.text).join('');
+  try {
+    await navigator.clipboard.writeText(text);
+    const btn = document.getElementById('tab-copy');
+    if (btn) {
+      const old = btn.textContent;
+      btn.textContent = '✓';
+      setTimeout(() => { btn.textContent = old; }, 900);
+    }
+  } catch (e) {
+    console.error('[copy] failed', e);
+  }
+}
+
+document.getElementById('tab-restart').addEventListener('click', restartActiveTab);
+document.getElementById('tab-copy').addEventListener('click', copyActiveTabLogs);
+
+function renderPane(id) {
+  const pane = document.getElementById('pane');
+  pane.classList.remove('welcome');
+  if (!tabs[id]) { pane.textContent = ''; return; }
+  pane.innerHTML = tabs[id].lines
+    .map((l) => l.err ? `<span class="err">${esc(l.text)}</span>` : esc(l.text))
+    .join('');
+  pane.scrollTop = pane.scrollHeight;
+}
+
+function confirmStopAll() {
+  showModal('Stop EVERY running service?', 'All started services will be terminated. Logs are kept.', [
+    { label: 'Stop all', danger: true, action: () => uo.stopAll() },
+    { label: 'Cancel', action: () => {} },
+  ]);
+}
+window.confirmStopAll = confirmStopAll;
+
+/** "Port already in use" detector — surfaces a one-click "kill stray" toast. */
+function maybeOfferPortKill(text) {
+  const m = /Port (\d+) is already in use/.exec(String(text));
+  if (!m) return;
+  const port = m[1];
+  showModal('Port ' + port + ' is in use', `
+    Another process (probably a leftover from a previous run) is holding port ${port}.
+    Click "Kill" to force-stop whatever is listening there, then re-start the service.
+  `, [
+    { label: `Kill stray on :${port}`, danger: true, action: () => uo.killPort(Number(port)) },
+    { label: 'Cancel', action: () => {} },
+  ]);
+}
+
+uo.onLog(({ id, text, err }) => {
+  // Server TCP tee — when the server tab emits a line that came from
+  // its in-process raw-TCP listener (any of the `[tcp#N] ...` per-
+  // connection logs, or the `[uo-node] TCP listening ...` boot log),
+  // mirror it into a virtual "Server TCP" tab so the operator has a
+  // dedicated view of what desktop UO clients (CUO/Razor/OSI) are
+  // sending. Marcin: "chcę żeby zakładka bridge to był ten server tcp
+  // żeby widzieć co klient wysyła do naszego servera przez port tcp".
+  // The virtual tab is created on demand by `_teeServerTcp` and shares
+  // the same line buffer / hot-tab badge machinery as a real service.
+  if ((id === 'server' || id === 'admin') &&
+      /(^\[tcp#\d+\]|^\[uo-node\] TCP\b|^\[net#tcp-?\w*\d+\]|^\[uo-node\] WS port|^\[uo-node\]   first \d+B)/m.test(text) &&
+      _tcpToggleEnabled(id)) {
+    _teeServerTcp(text, err);
+  }
+  const t = ensureTab(id);
+  t.lines.push({ text, err });
+  if (err && /Port \d+ is already in use/.test(text)) maybeOfferPortKill(text);
+  while (t.lines.length > LOG_MAX_LINES) t.lines.shift();
+  if (activeTab === id) {
+    const pane = document.getElementById('pane');
+    const span = err
+      ? el(`<span class="err">${esc(text)}</span>`)
+      : document.createTextNode(text);
+    pane.appendChild(span);
+    pane.scrollTop = pane.scrollHeight;
+  } else if (!t.hot) {
+    t.hot = true;
+    if (!t.btn.querySelector('.badge')) {
+      const badge = el('<span class="badge"></span>');
+      t.label.before(badge);
+    }
+  }
+  // Live extract progress in the toolbar — every line that contains a
+  // step tag (`[hues]`, `[anim]`, etc.) updates the green progress
+  // chip so the user sees movement during a long extract instead of
+  // staring at an idle button. Cleared when the process exits.
+  if (id === 'extract' || id === 'ktx2') {
+    const lines = String(text).split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    if (lines.length) {
+      const last = lines[lines.length - 1];
+      const chip = document.getElementById('extract-progress');
+      if (chip) chip.textContent = last.length > 80 ? last.slice(0, 80) + '…' : last;
+      if (/exited code=/.test(text)) {
+        setTimeout(() => { if (chip) chip.textContent = ''; }, 5000);
+      }
+    }
+  }
+});
+
+/** Push a server-TCP-tagged line into the virtual "Server TCP" tab.
+ *  This isn't a real service — it has no process behind it, no start
+ *  button, no port binding. We just hijack the standard tab machinery
+ *  (ensureTab + lines buffer + DOM render) so the operator gets a
+ *  dedicated panel for the in-process TCP listener's chatter. */
+// Virtual tab id + label. User keeps calling this "Bridge" colloquially
+// — it's the only TCP-traffic view they ever see for the server. The
+// browser-bridge process (which connects browser WS → external TCP
+// shard) uses a distinct label ("Client TCP Bridge") so they never
+// collide on screen even when both happen to be running.
+const SERVER_TCP_TAB_ID = '__server_tcp__';
+const SERVER_TCP_TAB_LABEL = 'Bridge';
+/** True only when the operator actually enabled the TCP toggle for the
+ *  given service group. Without this, WS-port diagnostic lines (which
+ *  fire even with TCP off) created an empty Bridge tab — Marcin wanted
+ *  it suppressed when there's no real TCP listener behind it. */
+function _tcpToggleEnabled(id) {
+  const cb = document.getElementById('tcp-enable-' + id);
+  return !!(cb && cb.checked);
+}
+function _teeServerTcp(text, err) {
+  // Lazy-register a SERVICES_INFO entry so ensureTab picks up the label.
+  if (!SERVICES_INFO[SERVER_TCP_TAB_ID]) {
+    SERVICES_INFO[SERVER_TCP_TAB_ID] = { label: SERVER_TCP_TAB_LABEL, running: true, hidden: true, group: 'server' };
+  }
+  const t = ensureTab(SERVER_TCP_TAB_ID);
+  t.lines.push({ text, err });
+  while (t.lines.length > LOG_MAX_LINES) t.lines.shift();
+  if (activeTab === SERVER_TCP_TAB_ID) {
+    const pane = document.getElementById('pane');
+    const span = err
+      ? el(`<span class="err">${esc(text)}</span>`)
+      : document.createTextNode(text);
+    pane.appendChild(span);
+    pane.scrollTop = pane.scrollHeight;
+  } else if (!t.hot) {
+    t.hot = true;
+    if (!t.btn.querySelector('.badge')) {
+      const badge = el('<span class="badge"></span>');
+      t.label.before(badge);
+    }
+  }
+}
+
+// When "+ Admin" co-start is on, clicking the SERVER button spawns the
+// `admin` service variant (see onServiceClick). The admin service has
+// no toolbar button of its own (deliberately — the toggle replaced the
+// standalone admin workflow), so without an alias the SERVER button
+// would never turn green. Map admin → server for visual state purposes
+// so the operator gets the expected feedback.
+const BTN_STATE_ALIASES = { admin: 'server' };
+
+uo.onState(({ id, running }) => {
+  const visualId = BTN_STATE_ALIASES[id] ?? id;
+  const btn = document.querySelector(`.svc-btn[data-id="${visualId}"]`);
+  if (btn) btn.classList.toggle('running', !!running);
+  if (SERVICES_INFO[id]) SERVICES_INFO[id].running = !!running;
+  // Mirror the running flag onto the visual-alias entry too so
+  // refreshButtonStates() (and isRunning checks in tab handlers) keep
+  // matching what the user sees on the toolbar.
+  if (visualId !== id && SERVICES_INFO[visualId]) {
+    SERVICES_INFO[visualId].running = !!running;
+  }
+});
+
+// ---------------------------- Settings ------------------------------------
+
+// UO_TCP_PORT is deliberately absent — the toolbar "TCP" checkbox is the
+// single source of truth for whether the raw-TCP listener starts. Adding
+// it to the drawer would re-create the bug Marcin reported (port 2594
+// appearing despite no explicit opt-in) because loadSettings() pre-fills
+// inputs from DEFAULTS and readEnvOverride() unconditionally forwards
+// non-empty values to the spawned child.
+const SETTINGS_FIELDS = [
+  'UO_SRC', 'UO_HOST', 'UO_PORT',
+  'UO_ADMIN_HOST', 'UO_ADMIN_PORT', 'UO_ADMIN_USER', 'UO_ADMIN_PASS',
+  'UO_BRIDGE_PORT', 'UO_BRIDGE_DEFAULT', 'UO_SHARD_NAME', 'KTX2_TOKTX',
+];
+
+// Per-service-group field allowlist. Without this, the settings drawer
+// auto-fills DEFAULTS for every field (UO_ADMIN_PASS=admin, etc.) and
+// readEnvOverride blasted ALL of them to every spawn — so clicking
+// "Server (WS)" actually started the server WITH the admin panel
+// because UO_ADMIN_PASS leaked through (server's main.js gates on
+// `if (process.env.UO_ADMIN_PASS || UO_ADMIN_PORT)`). Marcin: "odpalam
+// server bez admina, a i tak admin startuje". The fix gates which
+// settings fields a given service group sees:
+//   server  → core network only (no admin password)
+//   admin   → core network + admin auth
+//   client  → none (Vite ignores all UO_* anyway)
+//   assets  → UO_SRC + optional toktx path for KTX2 conversion
+//   bridge-out → bridge fields only
+const SERVICE_FIELD_WHITELIST = {
+  server:  ['UO_SRC', 'UO_HOST', 'UO_PORT', 'UO_SHARD_NAME'],
+  admin:   ['UO_SRC', 'UO_HOST', 'UO_PORT', 'UO_SHARD_NAME',
+            'UO_ADMIN_HOST', 'UO_ADMIN_PORT', 'UO_ADMIN_USER', 'UO_ADMIN_PASS'],
+  client:  [],
+  extract: ['UO_SRC', 'KTX2_TOKTX'],
+  ktx2:    ['KTX2_TOKTX'],
+  assets:  ['UO_SRC', 'KTX2_TOKTX'],
+  tools:   ['KTX2_TOKTX'],
+  deps:    [],
+  bridge:  ['UO_BRIDGE_PORT', 'UO_BRIDGE_DEFAULT'],
+};
+
+function readEnvOverride(serviceId) {
+  const env = {};
+  const svc = SERVICES_INFO[serviceId];
+  const allowed = SERVICE_FIELD_WHITELIST[serviceId] ?? SERVICE_FIELD_WHITELIST[svc?.group] ?? [];
+  for (const k of allowed) {
+    const v = document.getElementById('env-' + k)?.value?.trim();
+    if (v) env[k] = v;
+  }
+  // Per-button TCP opt-in. Server / Admin clicks honour their own
+  // checkbox state; everything else (Client, Extract, hidden bridge)
+  // ignores it — Client TCP is wired through onServiceClick, not the
+  // env var.
+  if (svc?.group === 'server' || svc?.group === 'admin') {
+    const cb = document.getElementById('tcp-enable-' + svc.group);
+    if (cb?.checked) {
+      env.UO_TCP_PORT = DEFAULTS.UO_TCP_PORT || '2594';
+      // Verbose packet logging so the Server TCP virtual tab gets the
+      // per-packet `[net#tcpN] << 0xXX (NB) stage=...` chatter — gives
+      // the operator full visibility into what desktop UO clients send
+      // / receive over the legacy TCP listener. Off by default to keep
+      // the WS-only path quiet.
+      env.UO_LOG_PACKETS = '1';
+    }
+  }
+  return env;
+}
+function applySettings(values) {
+  for (const k of SETTINGS_FIELDS) {
+    const el2 = document.getElementById('env-' + k);
+    if (!el2) continue;
+    el2.value = values[k] ?? '';
+    el2.placeholder = `default: ${DEFAULTS[k] ?? ''}`;
+  }
+}
+function loadSettings() {
+  const values = {};
+  for (const k of SETTINGS_FIELDS) {
+    values[k] = localStorage.getItem('uo-' + k) ?? DEFAULTS[k] ?? '';
+  }
+  applySettings(values);
+}
+function saveSettings() {
+  for (const k of SETTINGS_FIELDS) {
+    const v = document.getElementById('env-' + k)?.value ?? '';
+    if (v) localStorage.setItem('uo-' + k, v);
+    else   localStorage.removeItem('uo-' + k);
+  }
+  flashSettings('saved');
+}
+function resetSettings() {
+  for (const k of SETTINGS_FIELDS) localStorage.removeItem('uo-' + k);
+  applySettings(DEFAULTS);
+  flashSettings('reset to defaults');
+}
+function flashSettings(t) {
+  const s = document.getElementById('settings-status');
+  s.textContent = t;
+  setTimeout(() => { s.textContent = ''; }, 1500);
+}
+function toggleSettings() {
+  document.getElementById('settings-bar').classList.toggle('collapsed');
+}
+window.saveSettings = saveSettings;
+window.resetSettings = resetSettings;
+window.toggleSettings = toggleSettings;
+
+// Start collapsed by default — keeps the launcher clean unless the user
+// asks for the settings drawer.
+document.getElementById('settings-bar').classList.add('collapsed');
+
+// ---------------------------- Modal ---------------------------------------
+
+function showModal(title, html, actions) {
+  const list = actions ?? [{ label: 'OK' }];
+  const buttons = list
+    .map((a, i) => `<button data-i="${i}" class="${a.danger ? 'danger' : ''}">${esc(a.label)}</button>`)
+    .join('');
+  document.getElementById('modal-host').innerHTML = `
+    <div class="modal-bg" onclick="if(event.target===this)closeModal()">
+      <div class="modal">
+        <h3>${esc(title)}</h3>
+        <div>${html}</div>
+        <div class="actions">${buttons}</div>
+      </div>
+    </div>
+  `;
+  // Every action button auto-closes the modal AFTER its handler resolves
+  // unless the handler returns `false` (rare opt-out). Marcin reported the
+  // "Stop & close" button left the dialog hanging because the action
+  // never called closeModal — only Cancel did. Centralising the close
+  // here makes that mistake impossible.
+  const els = document.querySelectorAll('.modal .actions button');
+  els.forEach((b, i) => {
+    b.addEventListener('click', async () => {
+      b.disabled = true;
+      let keep = false;
+      try { keep = (await list[i]?.action?.()) === false; }
+      catch (e) { console.error('[modal] action threw', e); }
+      if (!keep) closeModal();
+    });
+  });
+}
+function closeModal() { document.getElementById('modal-host').innerHTML = ''; }
+window.closeModal = closeModal;
+
+// ---------------------------- Boot ----------------------------------------
+
+init().catch((e) => {
+  document.getElementById('pane').textContent = 'init failed: ' + e.message;
+});
+</script>
+</body>
+</html>

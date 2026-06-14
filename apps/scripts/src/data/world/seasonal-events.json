@@ -1,0 +1,9 @@
+[
+  { "id": "yule",         "startMD": [12, 18], "endMD": [ 1,  2], "title": "Yule Festival",     "message": "Festive snow blankets Britannia." },
+  { "id": "krampus",      "startMD": [12,  1], "endMD": [ 1,  7], "title": "Krampus Encounter", "message": "Krampus has returned to punish the naughty!" },
+  { "id": "easter",       "startMD": [ 3, 25], "endMD": [ 4, 10], "title": "Easter",            "message": "Easter baskets appear in town centers." },
+  { "id": "halloween",    "startMD": [10, 28], "endMD": [11,  2], "title": "Hallowed Eve",      "message": "Spirits walk the night during Hallowed Eve." },
+  { "id": "anniversary",  "startMD": [ 9, 24], "endMD": [10,  4], "title": "Shard Anniversary", "message": "Celebrate the shard's anniversary — claim your gift!" },
+  { "id": "love-day",     "startMD": [ 2, 10], "endMD": [ 2, 16], "title": "Love's Embrace",    "message": "Lovers stroll through Britannia under rose-petal skies." },
+  { "id": "harvest",      "startMD": [ 9,  1], "endMD": [ 9, 30], "title": "Harvest Festival",  "message": "Britannia's harvest is in full swing." }
+]

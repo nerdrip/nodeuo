@@ -1,0 +1,120 @@
+{
+  "banker": {
+    "decor": [
+      "tent-blue",
+      "campfire"
+    ],
+    "npcs": [
+      "banker",
+      "guard"
+    ],
+    "chestLoot": "pack.average"
+  },
+  "healer": {
+    "decor": [
+      "tent-white",
+      "campfire"
+    ],
+    "npcs": [
+      "wandering-healer",
+      "apprentice-healer"
+    ],
+    "chestLoot": "pack.poor"
+  },
+  "brigand": {
+    "decor": [
+      "tent-tattered",
+      "campfire"
+    ],
+    "npcs": [
+      "brigand",
+      "brigand",
+      "brigand",
+      "brigand"
+    ],
+    "chestLoot": "pack.rich"
+  },
+  "orc": {
+    "decor": [
+      "orc-banner",
+      "campfire"
+    ],
+    "npcs": [
+      "orc",
+      "orc",
+      "orc",
+      "orc-lord"
+    ],
+    "chestLoot": "pack.meager"
+  },
+  "gypsy": {
+    "decor": [
+      "tent-red",
+      "campfire"
+    ],
+    "npcs": [
+      "gypsy",
+      "gypsy",
+      "mystic"
+    ],
+    "chestLoot": "pack.average"
+  },
+  "farmer": {
+    "decor": [
+      "fence",
+      "campfire"
+    ],
+    "npcs": [
+      "farmer",
+      "chicken",
+      "chicken"
+    ],
+    "chestLoot": "pack.poor"
+  },
+  "fisherman": {
+    "decor": [
+      "fishing-net",
+      "campfire"
+    ],
+    "npcs": [
+      "fisherman"
+    ],
+    "chestLoot": "pack.poor"
+  },
+  "hunter": {
+    "decor": [
+      "tent-green",
+      "campfire"
+    ],
+    "npcs": [
+      "hunter",
+      "hunter",
+      "large-dog"
+    ],
+    "chestLoot": "pack.meager"
+  },
+  "pirate": {
+    "decor": [
+      "skull-marker",
+      "campfire"
+    ],
+    "npcs": [
+      "pirate",
+      "pirate",
+      "pirate-captain"
+    ],
+    "chestLoot": "pack.filthy-rich"
+  },
+  "ruined": {
+    "decor": [
+      "ruined-tent",
+      "cold-firepit"
+    ],
+    "npcs": [
+      "liche",
+      "skeleton",
+      "skeleton"
+    ],
+    "chestLoot": "pack.average"
+  }
+}

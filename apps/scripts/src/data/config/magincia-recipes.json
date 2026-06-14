@@ -1,0 +1,7 @@
+{
+  "recipes": {
+    "2459": { "input": "wine",   "output": 2503, "name": "distilled wine",  "buffStat": "int", "buffAmount": 5 },
+    "2463": { "input": "ale",    "output": 2504, "name": "distilled ale",   "buffStat": "str", "buffAmount": 5 },
+    "2503": { "input": "cider",  "output": 2505, "name": "distilled cider", "buffStat": "dex", "buffAmount": 5 }
+  }
+}

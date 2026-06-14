@@ -1,0 +1,1497 @@
+{
+  "uzeraan-turmoil": {
+    "title": "Uzeraan's Turmoil",
+    "expansion": "haven",
+    "giver": "uzeraan",
+    "region": "haven",
+    "intro": "Uzeraan: The plague has reached Haven. The crystal portals at the wharf have been corrupted — undead pour through. I need your help.",
+    "stages": [
+      { "id": 1, "title": "Cleanse the Wharf",
+        "objectives": [{ "kind": "slay", "target": "skeleton",   "count": 8 }],
+        "reward": { "gold": 100, "fame": 50 } },
+      { "id": 2, "title": "Pay Tithe at the Shrine",
+        "objectives": [{ "kind": "tithe", "amount": 100 }],
+        "reward": { "gold": 50, "items": ["holy-water-flask"] } },
+      { "id": 3, "title": "Gather Magic Scrolls",
+        "objectives": [{ "kind": "collect", "resource": "scroll-blank", "count": 10 }],
+        "reward": { "gold": 150 } },
+      { "id": 4, "title": "Recover the Corrupted Crystal",
+        "objectives": [{ "kind": "collect", "resource": "corrupted-crystal", "count": 1 }],
+        "reward": { "gold": 200, "items": ["minor-magic-scroll-bag"] } },
+      { "id": 5, "title": "Gather Fertile Dirt",
+        "objectives": [{ "kind": "collect", "resource": "reagent-fertile-dirt", "count": 8 }],
+        "reward": { "gold": 200 } },
+      { "id": 6, "title": "Collect Daemon Blood & Bone",
+        "objectives": [
+          { "kind": "collect", "resource": "reagent-daemon-blood", "count": 5 },
+          { "kind": "collect", "resource": "reagent-daemon-bone",  "count": 5 }
+        ],
+        "reward": { "gold": 300, "items": ["minor-healing-bag"] } },
+      { "id": 7, "title": "Talk to Sage Humbolt",
+        "objectives": [{ "kind": "talk", "npc": "sage-humbolt" }],
+        "reward": { "gold": 100 } },
+      { "id": 8, "title": "Slay the Plague Beast",
+        "objectives": [{ "kind": "slay", "target": "plague-beast", "count": 1 }],
+        "reward": { "gold": 500, "fame": 500, "items": ["uzeraans-knowledge-tome"] } }
+    ]
+  },
+  "dark-tides": {
+    "title": "Dark Tides",
+    "expansion": "mondains-legacy",
+    "giver": "necromancer-mardoth",
+    "region": "umbra",
+    "intro": "Mardoth: Death calls to you, fledgling. Walk the dark path — but first, prove your spine.",
+    "stages": [
+      { "id": 1, "title": "Slay the Restless Dead",
+        "objectives": [{ "kind": "slay", "target": "restless-corpse", "count": 5 }],
+        "reward": { "gold": 100 } },
+      { "id": 2, "title": "Gather Grave Dust",
+        "objectives": [{ "kind": "collect", "resource": "grave-dust", "count": 10 }],
+        "reward": { "gold": 150, "items": ["necro-spellbook-blank"] } },
+      { "id": 3, "title": "Embalm a Fresh Corpse",
+        "objectives": [{ "kind": "collect", "resource": "embalmed-corpse", "count": 1 }],
+        "reward": { "gold": 200 } },
+      { "id": 4, "title": "Brew the Blood of the Lich",
+        "objectives": [
+          { "kind": "collect", "resource": "reagent-bat-wing",   "count": 5 },
+          { "kind": "collect", "resource": "reagent-daemon-blood", "count": 3 }
+        ],
+        "reward": { "gold": 250, "items": ["necro-reagent-pouch"] } },
+      { "id": 5, "title": "Reanimate a Skeletal Servant",
+        "objectives": [{ "kind": "cast", "spell": "animate-dead", "count": 1 }],
+        "reward": { "gold": 200 } },
+      { "id": 6, "title": "Slay the Bone Magi",
+        "objectives": [{ "kind": "slay", "target": "bone-magi", "count": 3 }],
+        "reward": { "gold": 350, "items": ["dark-tides-medallion"] } },
+      { "id": 7, "title": "Speak with Morwyn the Lich",
+        "objectives": [{ "kind": "talk", "npc": "morwyn-the-lich" }],
+        "reward": { "gold": 500, "skill": { "id": 50, "amount": 50 }, "fame": 250 } }
+    ]
+  },
+  "emino-undertaking": {
+    "title": "Emino's Undertaking",
+    "expansion": "samurai-empire",
+    "giver": "emino",
+    "region": "zento",
+    "intro": "Emino: Honor is the spine of every samurai. Walk the path of Bushido — but the elders demand proof.",
+    "stages": [
+      { "id": 1, "title": "Train at the Dojo",
+        "objectives": [{ "kind": "visit", "region": "zento-dojo" }],
+        "reward": { "gold": 100 } },
+      { "id": 2, "title": "Slay the Yamandon",
+        "objectives": [{ "kind": "slay", "target": "yamandon", "count": 1 }],
+        "reward": { "gold": 500, "items": ["bushido-book-of-stances"] } },
+      { "id": 3, "title": "Speak with Daimyo Tao",
+        "objectives": [{ "kind": "talk", "npc": "daimyo-tao" }],
+        "reward": { "gold": 1000, "fame": 1000, "skill": { "id": 53, "amount": 50 } } }
+    ]
+  },
+  "haochis-trials": {
+    "title": "Haochi's Trials",
+    "expansion": "samurai-empire",
+    "giver": "daimyo-tao",
+    "region": "zento",
+    "intro": "Daimyo Tao: The seven ordeals of Haochi await any warrior who would claim the title of true samurai.",
+    "stages": [
+      { "id": 1, "title": "Trial of Sword",
+        "objectives": [{ "kind": "slay", "target": "duel-opponent", "count": 3 }],
+        "reward": { "gold": 300 } },
+      { "id": 2, "title": "Trial of Calligraphy",
+        "objectives": [{ "kind": "craft", "target": "tokuno-calligraphy-scroll", "count": 1 }],
+        "reward": { "gold": 200 } },
+      { "id": 3, "title": "Trial of Self-Mastery",
+        "objectives": [{ "kind": "special", "target": "meditate-2h" }],
+        "reward": { "gold": 200, "items": ["bushido-tome-of-mastery"] } },
+      { "id": 4, "title": "Trial of Compassion",
+        "objectives": [{ "kind": "escort", "fromRegion": "zento", "toRegion": "isamu-jima" }],
+        "reward": { "gold": 300, "fame": 250 } },
+      { "id": 5, "title": "Trial of Honor — Slay the Oni",
+        "objectives": [{ "kind": "slay", "target": "oni",        "count": 1 }],
+        "reward": { "gold": 500 } },
+      { "id": 6, "title": "Trial of Spirit — Confront the Yamandon",
+        "objectives": [{ "kind": "slay", "target": "yamandon",   "count": 1 }],
+        "reward": { "gold": 800, "items": ["haochi-honor-scroll"] } },
+      { "id": 7, "title": "Audience with the Emperor",
+        "objectives": [{ "kind": "talk", "npc": "emperor-of-tokuno" }],
+        "reward": { "gold": 2000, "fame": 2000, "items": ["mask-of-haochi"] } }
+    ]
+  },
+  "mad-scientist": {
+    "title": "Notes of the Mad Scientist",
+    "expansion": "stygian-abyss",
+    "giver": "dr-voltz",
+    "region": "ter-mur",
+    "intro": "Dr. Voltz: My research demands fresh specimens. Bring me what I ask, and I shall reward you. Don't ask why.",
+    "stages": [
+      { "id": 1, "title": "Bring Fresh Hide",
+        "objectives": [{ "kind": "collect", "resource": "fresh-hide", "count": 5 }],
+        "reward": { "gold": 200 } },
+      { "id": 2, "title": "Catch Lightning",
+        "objectives": [{ "kind": "collect", "resource": "lightning-bottle", "count": 3 }],
+        "reward": { "gold": 400, "items": ["voltz-shock-baton"] } },
+      { "id": 3, "title": "Final Specimen",
+        "objectives": [{ "kind": "slay", "target": "stitched-monstrosity", "count": 1 }],
+        "reward": { "gold": 1000, "fame": 500, "items": ["voltz-journal-volume-iii"] } }
+    ]
+  },
+  "witch-apprentice": {
+    "title": "The Witch's Apprentice",
+    "expansion": "mondains-legacy",
+    "giver": "old-witch-hilde",
+    "region": "heartwood",
+    "intro": "Old Witch Hilde: My apprentice flees, leaving me alone in the dark. Find them — or bring me the ingredients I need myself.",
+    "stages": [
+      { "id": 1, "title": "Gather Moondust",
+        "objectives": [{ "kind": "collect", "resource": "moondust", "count": 5 }],
+        "reward": { "gold": 200 } },
+      { "id": 2, "title": "Pick Cat's Tongue",
+        "objectives": [{ "kind": "collect", "resource": "cats-tongue-herb", "count": 5 }],
+        "reward": { "gold": 200 } },
+      { "id": 3, "title": "Confront the Apprentice",
+        "objectives": [{ "kind": "talk", "npc": "rogue-apprentice" }],
+        "reward": { "gold": 400 } },
+      { "id": 4, "title": "Return to Hilde",
+        "objectives": [{ "kind": "talk", "npc": "old-witch-hilde" }],
+        "reward": { "gold": 800, "fame": 500, "items": ["hildes-broom"] } }
+    ]
+  },
+  "collector": {
+    "title": "The Collector's Index",
+    "expansion": "mondains-legacy",
+    "giver": "antiquarian-linus",
+    "region": "moonglow",
+    "intro": "Antiquarian Linus: Rare items command rare prices. Bring me what I list, and I shall pay handsomely.",
+    "stages": [
+      { "id": 1, "title": "Dragon Teeth",
+        "objectives": [{ "kind": "collect", "resource": "dragon-tooth", "count": 3 }],
+        "reward": { "gold": 500 } },
+      { "id": 2, "title": "Wisp Essence",
+        "objectives": [{ "kind": "collect", "resource": "wisp-essence", "count": 1 }],
+        "reward": { "gold": 800 } },
+      { "id": 3, "title": "Kraken Ink",
+        "objectives": [{ "kind": "collect", "resource": "kraken-ink-vial", "count": 2 }],
+        "reward": { "gold": 1200 } },
+      { "id": 4, "title": "Daemon Horn",
+        "objectives": [{ "kind": "collect", "resource": "daemon-horn", "count": 1 }],
+        "reward": { "gold": 1500 } },
+      { "id": 5, "title": "Final Curio",
+        "objectives": [{ "kind": "collect", "resource": "ancient-britannian-coin", "count": 1 }],
+        "reward": { "gold": 3000, "fame": 1000, "items": ["linus-rare-coin-album"] } }
+    ]
+  },
+  "discovering-animal-training": {
+    "title": "Discovering Animal Training",
+    "expansion": "ml-tameables",
+    "giver": "sandra-of-trinsic",
+    "region": "trinsic",
+    "intro": "Sandra: Even the wildest beast may be tamed by patience. Begin with the simple — the snake and the dog.",
+    "stages": [
+      { "id": 1, "title": "Tame a Dog",
+        "objectives": [{ "kind": "special", "target": "tame-dog" }],
+        "reward": { "gold": 100, "skill": { "id": 36, "amount": 10 } } },
+      { "id": 2, "title": "Tame a Wolf",
+        "objectives": [{ "kind": "special", "target": "tame-wolf" }],
+        "reward": { "gold": 200, "skill": { "id": 36, "amount": 20 } } },
+      { "id": 3, "title": "Tame a Mountain Goat",
+        "objectives": [{ "kind": "special", "target": "tame-goat" }],
+        "reward": { "gold": 300 } },
+      { "id": 4, "title": "Tame a Polar Bear",
+        "objectives": [{ "kind": "special", "target": "tame-polar-bear" }],
+        "reward": { "gold": 500, "items": ["pet-bonding-deed-small"] } }
+    ]
+  },
+  "bard-mastery-1-sir-berran": {
+    "title": "Sir Berran's Mastery Test",
+    "expansion": "ml-bard-mastery",
+    "giver": "sir-berran",
+    "region": "britain",
+    "intro": "Sir Berran: A true bard moves the soul. Sing me a song that calms a beast, then return.",
+    "stages": [
+      { "id": 1, "title": "Pacify a Wild Beast",
+        "objectives": [{ "kind": "special", "target": "peacemaking-on-dragon" }],
+        "reward": { "gold": 500, "items": ["bard-discordance-tome"] } },
+      { "id": 2, "title": "Provoke a Daemon",
+        "objectives": [{ "kind": "special", "target": "provoke-daemon-on-balron" }],
+        "reward": { "gold": 1000, "fame": 500 } },
+      { "id": 3, "title": "Audience with Berran",
+        "objectives": [{ "kind": "talk", "npc": "sir-berran" }],
+        "reward": { "gold": 1500, "items": ["lute-of-the-master"], "mastery": { "school": "bard", "spell": "perseverance" } } }
+    ]
+  },
+  "bard-mastery-2-felean": {
+    "title": "Felean's Riddle of Sound",
+    "expansion": "ml-bard-mastery",
+    "giver": "felean",
+    "region": "trinsic",
+    "intro": "Felean: Three songs, three trials. Pass each and the Mastery of Despair shall be yours.",
+    "stages": [
+      { "id": 1, "title": "Inspire 3 Allies",
+        "objectives": [{ "kind": "special", "target": "inspire-in-party", "count": 3 }],
+        "reward": { "gold": 500 } },
+      { "id": 2, "title": "Strike Tribulation",
+        "objectives": [{ "kind": "special", "target": "tribulation-on-mob" }],
+        "reward": { "gold": 1000 } },
+      { "id": 3, "title": "Whisper of Despair",
+        "objectives": [{ "kind": "special", "target": "despair-on-tribulating" }],
+        "reward": { "gold": 2000, "items": ["mastery-stone-despair"], "mastery": { "school": "bard", "spell": "despair" } } }
+    ]
+  },
+  "bard-mastery-3-hareus": {
+    "title": "Hareus's Lullaby",
+    "expansion": "ml-bard-mastery",
+    "giver": "hareus",
+    "region": "yew",
+    "intro": "Hareus: The lullaby that pacifies the wildest beast — pass my tests, and it shall be yours.",
+    "stages": [
+      { "id": 1, "title": "Resilience in Combat",
+        "objectives": [{ "kind": "special", "target": "resilience-in-combat" }],
+        "reward": { "gold": 500 } },
+      { "id": 2, "title": "Invigorate Allies",
+        "objectives": [{ "kind": "special", "target": "invigorate-3-allies" }],
+        "reward": { "gold": 1000 } },
+      { "id": 3, "title": "Lull a Mob",
+        "objectives": [{ "kind": "special", "target": "whispering-on-boss" }],
+        "reward": { "gold": 2000, "items": ["mastery-stone-whispering"], "mastery": { "school": "bard", "spell": "whispering" } } }
+    ]
+  },
+  "solen-hive": {
+    "title": "Study of the Solen Hive",
+    "expansion": "lbr",
+    "giver": "scholar-of-solen",
+    "region": "solen-hive",
+    "intro": "Scholar: The Solen tribes wage war beneath our feet. Spy on them — but choose your side carefully.",
+    "stages": [
+      { "id": 1, "title": "Pick a Side: Red or Black",
+        "objectives": [{ "kind": "talk", "npc": "solen-matriarch-red" }],
+        "reward": { "gold": 200 } },
+      { "id": 2, "title": "Slay 8 Opposing Workers",
+        "objectives": [{ "kind": "slay", "target": "solen-opposing-worker", "count": 8 }],
+        "reward": { "gold": 400 } },
+      { "id": 3, "title": "Recover Hive Eggs",
+        "objectives": [{ "kind": "collect", "resource": "solen-hive-egg", "count": 3 }],
+        "reward": { "gold": 600, "items": ["solen-cocoa-pulp"] } }
+    ]
+  },
+  "the-ritual": {
+    "title": "The Ritual",
+    "expansion": "mondains-legacy",
+    "giver": "elder-celcamoine",
+    "region": "heartwood",
+    "intro": "Elder Celcamoine: The corruption spreads through the forest. We must perform the ritual — bring me the components.",
+    "stages": [
+      { "id": 1, "title": "Light of the Moon",
+        "objectives": [{ "kind": "collect", "resource": "moonbeam-essence", "count": 3 }],
+        "reward": { "gold": 500 } },
+      { "id": 2, "title": "Blessed Spring Water",
+        "objectives": [{ "kind": "collect", "resource": "blessed-spring-water", "count": 1 }],
+        "reward": { "gold": 500 } },
+      { "id": 3, "title": "Slay the Corrupt Treefellow",
+        "objectives": [{ "kind": "slay", "target": "corrupt-treefellow", "count": 1 }],
+        "reward": { "gold": 1500, "fame": 750, "items": ["celcamoine-charm"] } }
+    ]
+  },
+  "the-summoning": {
+    "title": "The Summoning",
+    "expansion": "mondains-legacy",
+    "giver": "elder-treefellow",
+    "region": "twisted-weald",
+    "intro": "Elder Treefellow: A great evil sleeps. To wake it, we need power — bring me the items I require.",
+    "stages": [
+      { "id": 1, "title": "Gather Soul Stones",
+        "objectives": [{ "kind": "collect", "resource": "soul-stone-shard", "count": 5 }],
+        "reward": { "gold": 800 } },
+      { "id": 2, "title": "Slay the Ethereal Warrior",
+        "objectives": [{ "kind": "slay", "target": "ethereal-warrior", "count": 1 }],
+        "reward": { "gold": 1500, "items": ["ethereal-warrior-crystal"] } }
+    ]
+  },
+  "the-exodus-encounter": {
+    "title": "The Exodus Encounter",
+    "expansion": "ml-doom",
+    "giver": "wandering-naturalist",
+    "region": "exodus-dungeon",
+    "intro": "Naturalist: A mechanical horror was once sealed in the depths of Ilshenar. Wake it — and end it.",
+    "stages": [
+      { "id": 1, "title": "Gather Mechanical Parts",
+        "objectives": [{ "kind": "collect", "resource": "exodus-component", "count": 6 }],
+        "reward": { "gold": 1500 } },
+      { "id": 2, "title": "Activate the Summoning Altar",
+        "objectives": [{ "kind": "use", "target": "exodus-summoning-altar", "count": 1 }],
+        "reward": { "gold": 800 } },
+      { "id": 3, "title": "Slay Exodus",
+        "objectives": [{ "kind": "slay", "target": "exodus", "count": 1 }],
+        "reward": { "gold": 25000, "fame": 5000, "items": ["exodus-core"] } }
+    ]
+  },
+  "terrible-hatchlings": {
+    "title": "Terrible Hatchlings",
+    "expansion": "ml-tameables",
+    "giver": "stable-master-merivin",
+    "region": "trinsic",
+    "intro": "Merivin: The lizardmen breed terribly fast. Clear out the hatchlings before they're full grown.",
+    "stages": [
+      { "id": 1, "title": "Slay 15 Hatchlings",
+        "objectives": [{ "kind": "slay", "target": "lizard-hatchling", "count": 15 }],
+        "reward": { "gold": 800, "fame": 250 } }
+    ]
+  },
+  "cloak-of-humility": {
+    "title": "Cloak of Humility",
+    "expansion": "ml-virtues",
+    "giver": "wanderer-of-virtues",
+    "region": "britain",
+    "intro": "Wanderer: Walk among the lowly. Without your robe of office, prove your humility — be a vagabond for a day.",
+    "stages": [
+      { "id": 1, "title": "Don a Beggar's Robe",
+        "objectives": [{ "kind": "use", "target": "beggars-robe", "count": 1 }],
+        "reward": { "gold": 50 } },
+      { "id": 2, "title": "Receive 5 Charities",
+        "objectives": [{ "kind": "special", "target": "receive-charity", "count": 5 }],
+        "reward": { "gold": 100 } },
+      { "id": 3, "title": "Visit the Trinsic Shrine of Humility",
+        "objectives": [{ "kind": "visit", "region": "shrine-of-humility" }],
+        "reward": { "gold": 500, "items": ["cloak-of-humility"], "virtue": "humility", "virtueAmount": 10 } }
+    ]
+  },
+  "sacred-quest": {
+    "title": "Sacred Quest of TerMur",
+    "expansion": "stygian-abyss",
+    "giver": "high-mage-apollo",
+    "region": "ter-mur",
+    "intro": "High Mage Apollo: Three trials stand between you and the Throne of the Stygian Dragon — Body, Mind, Spirit.",
+    "stages": [
+      { "id": 1, "title": "Trial of Body",
+        "objectives": [{ "kind": "slay", "target": "stygian-fiend", "count": 5 }],
+        "reward": { "gold": 500 } },
+      { "id": 2, "title": "Trial of Mind",
+        "objectives": [{ "kind": "use", "target": "trinity-stone-puzzle", "count": 1 }],
+        "reward": { "gold": 500 } },
+      { "id": 3, "title": "Trial of Spirit",
+        "objectives": [{ "kind": "talk", "npc": "trinity-keeper" }],
+        "reward": { "gold": 1000, "fame": 1000 } },
+      { "id": 4, "title": "Slay the Stygian Dragon",
+        "objectives": [{ "kind": "slay", "target": "stygian-dragon", "count": 1 }],
+        "reward": { "gold": 30000, "fame": 10000, "items": ["stygian-dragon-scale"] } }
+    ]
+  },
+  "exploring-the-deep": {
+    "title": "Exploring the Deep",
+    "expansion": "exploring-the-deep",
+    "giver": "salty-pete",
+    "region": "vesper",
+    "intro": "Salty Pete: The deep ocean holds wrecks and worse. Brave the waves with me, and the loot is yours.",
+    "stages": [
+      { "id": 1, "title": "Locate the Wreck",
+        "objectives": [{ "kind": "visit", "region": "wreck-of-the-marsh" }],
+        "reward": { "gold": 500 } },
+      { "id": 2, "title": "Slay 5 Pirate Spectres",
+        "objectives": [{ "kind": "slay", "target": "pirate-spectre", "count": 5 }],
+        "reward": { "gold": 1000 } },
+      { "id": 3, "title": "Recover the Captain's Diary",
+        "objectives": [{ "kind": "collect", "resource": "captains-diary", "count": 1 }],
+        "reward": { "gold": 1500, "items": ["explorers-spyglass"] } },
+      { "id": 4, "title": "Defeat Charybdis",
+        "objectives": [{ "kind": "slay", "target": "charybdis", "count": 1 }],
+        "reward": { "gold": 10000, "fame": 5000, "items": ["charybdis-pearl"] } }
+    ]
+  },
+  "tiered-quest-mining": {
+    "title": "Tiered Mining Quest",
+    "expansion": "ml-tiered",
+    "giver": "old-joh",
+    "region": "minoc",
+    "intro": "Old Joh: Mining grows easier with practice. Bring me ingots — the more, the better.",
+    "stages": [
+      { "id": 1, "title": "100 Iron Ingots",
+        "objectives": [{ "kind": "collect", "resource": "iron-ingot", "count": 100 }],
+        "reward": { "gold": 500, "skill": { "id": 46, "amount": 10 } } },
+      { "id": 2, "title": "100 Dull Copper",
+        "objectives": [{ "kind": "collect", "resource": "dull-copper-ingot", "count": 100 }],
+        "reward": { "gold": 1000 } },
+      { "id": 3, "title": "100 Valorite",
+        "objectives": [{ "kind": "collect", "resource": "valorite-ingot", "count": 100 }],
+        "reward": { "gold": 5000, "items": ["miners-prestige-pickaxe"] } }
+    ]
+  },
+  "tiered-quest-lumberjacking": {
+    "title": "Tiered Lumberjacking Quest",
+    "expansion": "ml-tiered",
+    "giver": "old-joh",
+    "region": "minoc",
+    "intro": "Joh: Cut me wood, lots of wood.",
+    "stages": [
+      { "id": 1, "title": "100 Oak Boards",
+        "objectives": [{ "kind": "collect", "resource": "oak-board", "count": 100 }],
+        "reward": { "gold": 500, "skill": { "id": 45, "amount": 10 } } },
+      { "id": 2, "title": "100 Yew Boards",
+        "objectives": [{ "kind": "collect", "resource": "yew-board", "count": 100 }],
+        "reward": { "gold": 1000 } },
+      { "id": 3, "title": "100 Bloodwood Boards",
+        "objectives": [{ "kind": "collect", "resource": "bloodwood-board", "count": 100 }],
+        "reward": { "gold": 5000, "items": ["lumberjacks-prestige-axe"] } }
+    ]
+  },
+  "tiered-quest-alchemy": {
+    "title": "Tiered Alchemy Quest",
+    "expansion": "ml-tiered",
+    "giver": "alchemist-mareyna",
+    "region": "moonglow",
+    "intro": "Mareyna: My shelves need restocking — brew me potions and you will be rewarded.",
+    "stages": [
+      { "id": 1, "title": "20 Lesser Heal Potions",
+        "objectives": [{ "kind": "collect", "resource": "lesser-heal-potion", "count": 20 }],
+        "reward": { "gold": 500, "skill": { "id": 1, "amount": 10 } } },
+      { "id": 2, "title": "20 Greater Cure Potions",
+        "objectives": [{ "kind": "collect", "resource": "greater-cure-potion", "count": 20 }],
+        "reward": { "gold": 1500 } },
+      { "id": 3, "title": "10 Explosion Potions",
+        "objectives": [{ "kind": "collect", "resource": "explosion-potion", "count": 10 }],
+        "reward": { "gold": 5000, "items": ["alchemists-prestige-mortar"] } }
+    ]
+  },
+  "tiered-quest-blacksmith": {
+    "title": "Tiered Blacksmithing Quest",
+    "expansion": "ml-tiered",
+    "giver": "blacksmith-balandar",
+    "region": "minoc",
+    "intro": "Balandar: Steel does not forge itself. Bring me arms and armour.",
+    "stages": [
+      { "id": 1, "title": "20 Daggers",
+        "objectives": [{ "kind": "collect", "resource": "dagger", "count": 20 }],
+        "reward": { "gold": 500, "skill": { "id": 8, "amount": 10 } } },
+      { "id": 2, "title": "10 Chainmail Tunics",
+        "objectives": [{ "kind": "collect", "resource": "chain-tunic", "count": 10 }],
+        "reward": { "gold": 1500 } },
+      { "id": 3, "title": "5 Plate Helms",
+        "objectives": [{ "kind": "collect", "resource": "plate-helm", "count": 5 }],
+        "reward": { "gold": 5000, "items": ["smiths-prestige-hammer"] } }
+    ]
+  },
+  "tiered-quest-carpentry": {
+    "title": "Tiered Carpentry Quest",
+    "expansion": "ml-tiered",
+    "giver": "carpenter-aluxer",
+    "region": "yew",
+    "intro": "Aluxer: The shipwrights need lumber-work — saw me planks and bows.",
+    "stages": [
+      { "id": 1, "title": "20 Wooden Bows",
+        "objectives": [{ "kind": "collect", "resource": "wooden-bow", "count": 20 }],
+        "reward": { "gold": 500, "skill": { "id": 12, "amount": 10 } } },
+      { "id": 2, "title": "10 Heavy Crossbows",
+        "objectives": [{ "kind": "collect", "resource": "heavy-crossbow", "count": 10 }],
+        "reward": { "gold": 1500 } },
+      { "id": 3, "title": "5 Yew Composite Bows",
+        "objectives": [{ "kind": "collect", "resource": "yew-composite-bow", "count": 5 }],
+        "reward": { "gold": 5000, "items": ["carpenters-prestige-saw"] } }
+    ]
+  },
+  "tiered-quest-tailoring": {
+    "title": "Tiered Tailoring Quest",
+    "expansion": "ml-tiered",
+    "giver": "tailor-corso",
+    "region": "vesper",
+    "intro": "Corso: My clientèle demands fine cloth. Stitch for me.",
+    "stages": [
+      { "id": 1, "title": "20 Leather Tunics",
+        "objectives": [{ "kind": "collect", "resource": "leather-tunic", "count": 20 }],
+        "reward": { "gold": 500, "skill": { "id": 35, "amount": 10 } } },
+      { "id": 2, "title": "10 Studded Leather Armor",
+        "objectives": [{ "kind": "collect", "resource": "studded-leather-tunic", "count": 10 }],
+        "reward": { "gold": 1500 } },
+      { "id": 3, "title": "5 Barbed Leather Tunics",
+        "objectives": [{ "kind": "collect", "resource": "barbed-leather-tunic", "count": 5 }],
+        "reward": { "gold": 5000, "items": ["tailors-prestige-needle"] } }
+    ]
+  },
+  "khaldun-nightmare": {
+    "title": "The Khaldun Nightmare",
+    "expansion": "the-second-age",
+    "giver": "haven-elder",
+    "region": "khaldun",
+    "intro": "Haven Elder: A nightmare stalks the lost city. Investigate the ruins of Khaldun and quiet whatever haunts them.",
+    "stages": [
+      { "id": 1, "title": "Enter the pit",
+        "objectives": [{ "kind": "visit", "region": "khaldun-pit" }],
+        "reward": { "gold": 200 } },
+      { "id": 2, "title": "Solve the chamber puzzle",
+        "objectives": [{ "kind": "use", "target": "puzzle-chest" }],
+        "reward": { "gold": 800, "skill": { "id": 49, "amount": 5 } } },
+      { "id": 3, "title": "Slay 5 phantasms",
+        "objectives": [{ "kind": "slay", "target": "phantasm", "count": 5 }],
+        "reward": { "gold": 2000, "fame": 1500 } },
+      { "id": 4, "title": "Confront the Lich Lord",
+        "objectives": [{ "kind": "slay", "target": "lich-lord", "count": 1 }],
+        "reward": { "gold": 8000, "fame": 6000, "items": ["khaldun-talisman", "ancient-relic-mask"] } }
+    ]
+  },
+  "naturalist-quest": {
+    "title": "The Naturalist's Catalogue",
+    "expansion": "third-dawn",
+    "giver": "naturalist-aldur",
+    "region": "yew",
+    "intro": "Aldur: I am cataloguing the beasts of Britannia. Bring me proof of three apex predators.",
+    "stages": [
+      { "id": 1, "title": "A great hart's antler",
+        "objectives": [{ "kind": "slay", "target": "great-hart", "count": 1 }],
+        "reward": { "gold": 400 } },
+      { "id": 2, "title": "A drake's scale",
+        "objectives": [{ "kind": "slay", "target": "drake", "count": 1 }],
+        "reward": { "gold": 800 } },
+      { "id": 3, "title": "An ancient wyrm's tooth",
+        "objectives": [{ "kind": "slay", "target": "ancient-wyrm", "count": 1 }],
+        "reward": { "gold": 3000, "fame": 4000, "items": ["naturalists-tome", "ranger-cloak"] } }
+    ]
+  },
+  "bedlam-corruption": {
+    "title": "Bedlam's Whisper",
+    "expansion": "mondains-legacy",
+    "giver": "bedlam-watcher",
+    "region": "bedlam",
+    "intro": "Watcher: Bedlam corrupts. Step into its halls and silence the source.",
+    "stages": [
+      { "id": 1, "title": "Enter Bedlam",
+        "objectives": [{ "kind": "visit", "region": "bedlam-prison" }],
+        "reward": { "gold": 500 } },
+      { "id": 2, "title": "Slay 10 inmates",
+        "objectives": [{ "kind": "slay", "target": "bedlam-inmate", "count": 10 }],
+        "reward": { "gold": 1500, "fame": 1500 } },
+      { "id": 3, "title": "Recover the Mad Mage's tome",
+        "objectives": [{ "kind": "collect", "resource": "mad-mage-tome", "count": 1 }],
+        "reward": { "gold": 2500, "skill": { "id": 26, "amount": 10 } } },
+      { "id": 4, "title": "Defeat the Warden of Bedlam",
+        "objectives": [{ "kind": "slay", "target": "warden-of-bedlam", "count": 1 }],
+        "reward": { "gold": 12000, "fame": 8000, "items": ["bedlams-pendant", "warden-key"] } }
+    ]
+  },
+  "tomb-of-kings": {
+    "title": "The Tomb of Kings",
+    "expansion": "stygian-abyss",
+    "giver": "tok-archivist",
+    "region": "tomb-of-kings",
+    "intro": "Archivist: The Tomb of Kings keeps the bones of the old houses. Honor the dead by clearing the wraiths who disturb them.",
+    "stages": [
+      { "id": 1, "title": "Pay respects at the first sarcophagus",
+        "objectives": [{ "kind": "visit", "region": "tok-mausoleum" }],
+        "reward": { "gold": 300 } },
+      { "id": 2, "title": "Slay 12 royal wraiths",
+        "objectives": [{ "kind": "slay", "target": "royal-wraith", "count": 12 }],
+        "reward": { "gold": 1500, "fame": 1200 } },
+      { "id": 3, "title": "Recover the King's Seal",
+        "objectives": [{ "kind": "collect", "resource": "kings-seal", "count": 1 }],
+        "reward": { "gold": 3000 } },
+      { "id": 4, "title": "Defeat the Boura King",
+        "objectives": [{ "kind": "slay", "target": "boura-king", "count": 1 }],
+        "reward": { "gold": 10000, "fame": 7000, "items": ["royal-signet-ring", "kings-burial-mask"] } }
+    ]
+  },
+  "underworld-experimental-room": {
+    "title": "The Experimental Room",
+    "expansion": "stygian-abyss",
+    "giver": "underworld-scholar",
+    "region": "underworld",
+    "intro": "Scholar: Beneath the Stygian Abyss, mages of old experimented on the boundaries of reality. Investigate the chamber, but do not break what you cannot mend.",
+    "stages": [
+      { "id": 1, "title": "Locate the chamber",
+        "objectives": [{ "kind": "visit", "region": "experimental-room" }],
+        "reward": { "gold": 500 } },
+      { "id": 2, "title": "Slay 8 unstable constructs",
+        "objectives": [{ "kind": "slay", "target": "experimental-construct", "count": 8 }],
+        "reward": { "gold": 1500, "fame": 1000 } },
+      { "id": 3, "title": "Recover the journal",
+        "objectives": [{ "kind": "collect", "resource": "experimental-journal", "count": 1 }],
+        "reward": { "gold": 3000, "items": ["experimental-tome"] } }
+    ]
+  },
+  "underworld-maze-of-death": {
+    "title": "The Maze of Death",
+    "expansion": "stygian-abyss",
+    "giver": "underworld-guide",
+    "region": "underworld",
+    "intro": "Guide: The Maze of Death has claimed many. Run its corridors and reach the end.",
+    "stages": [
+      { "id": 1, "title": "Enter the maze",
+        "objectives": [{ "kind": "visit", "region": "maze-of-death" }],
+        "reward": { "gold": 400 } },
+      { "id": 2, "title": "Slay 10 minotaur scouts",
+        "objectives": [{ "kind": "slay", "target": "minotaur-scout", "count": 10 }],
+        "reward": { "gold": 1500, "fame": 1000 } },
+      { "id": 3, "title": "Defeat the Maze Warden",
+        "objectives": [{ "kind": "slay", "target": "maze-warden", "count": 1 }],
+        "reward": { "gold": 5000, "fame": 4000, "items": ["maze-warden-trophy"] } }
+    ]
+  },
+  "underworld-navreys-lair": {
+    "title": "Navrey's Lair",
+    "expansion": "stygian-abyss",
+    "giver": "underworld-druid",
+    "region": "underworld",
+    "intro": "Druid: Navrey, queen of spiders, weaves her web beneath the Abyss. Burn the web before it spreads.",
+    "stages": [
+      { "id": 1, "title": "Reach the lair",
+        "objectives": [{ "kind": "visit", "region": "navreys-lair" }],
+        "reward": { "gold": 600 } },
+      { "id": 2, "title": "Slay 12 spiderlings",
+        "objectives": [{ "kind": "slay", "target": "navrey-spiderling", "count": 12 }],
+        "reward": { "gold": 1800, "fame": 1500 } },
+      { "id": 3, "title": "Vanquish Navrey Night-Eyes",
+        "objectives": [{ "kind": "slay", "target": "navrey-night-eyes", "count": 1 }],
+        "reward": { "gold": 12000, "fame": 8000, "items": ["spider-queen-fang", "navreys-crown"] } }
+    ]
+  },
+  "underworld-puzzle-room": {
+    "title": "The Puzzle Room",
+    "expansion": "stygian-abyss",
+    "giver": "underworld-scholar",
+    "region": "underworld",
+    "intro": "Scholar: Below Navrey lies a chamber of riddles. Solve the puzzle, claim the reward.",
+    "stages": [
+      { "id": 1, "title": "Find the puzzle chamber",
+        "objectives": [{ "kind": "visit", "region": "underworld-puzzle" }],
+        "reward": { "gold": 400 } },
+      { "id": 2, "title": "Activate the four levers in order",
+        "objectives": [{ "kind": "use", "target": "puzzle-lever", "count": 4 }],
+        "reward": { "gold": 2500, "items": ["riddle-stone"] } },
+      { "id": 3, "title": "Open the chest",
+        "objectives": [{ "kind": "use", "target": "puzzle-chest", "count": 1 }],
+        "reward": { "gold": 6000, "fame": 3000, "items": ["scholars-medal"] } }
+    ]
+  },
+  "tiered-quest-provisioning": {
+    "title": "Tiered Provisioning Quest",
+    "expansion": "ml-tiered",
+    "giver": "provisioner-jonath",
+    "region": "britain",
+    "intro": "Jonath: Bring me supplies — torches, bandages, the basics adventurers need.",
+    "stages": [
+      { "id": 1, "title": "100 Bandages",
+        "objectives": [{ "kind": "collect", "resource": "bandage", "count": 100 }],
+        "reward": { "gold": 300, "skill": { "id": 18, "amount": 10 } } },
+      { "id": 2, "title": "50 Torches",
+        "objectives": [{ "kind": "collect", "resource": "torch", "count": 50 }],
+        "reward": { "gold": 800 } },
+      { "id": 3, "title": "30 Reagent Bags",
+        "objectives": [{ "kind": "collect", "resource": "reagent-bag", "count": 30 }],
+        "reward": { "gold": 3000, "items": ["provisioners-prestige-pack"] } }
+    ]
+  },
+
+  "heritage-elf": {
+    "title": "Heritage: Path of the Elves",
+    "expansion": "mondains-legacy",
+    "giver": "elder-syrini",
+    "region": "heartwood",
+    "intro": "Syrini: Your spirit has the cadence of our kin. Pass the trials, and the world will name you Elf.",
+    "stages": [
+      { "id": 1, "title": "Speak with the Heartwood Elder",
+        "objectives": [{ "kind": "talk", "npc": "elder-syrini" }],
+        "reward": { "gold": 200 } },
+      { "id": 2, "title": "Gather essence from the forest",
+        "objectives": [
+          { "kind": "collect", "resource": "moonflower", "count": 5 },
+          { "kind": "collect", "resource": "silverleaf", "count": 3 }
+        ],
+        "reward": { "gold": 500 } },
+      { "id": 3, "title": "Cleanse a corrupted dryad",
+        "objectives": [{ "kind": "slay", "target": "corrupted-dryad", "count": 1 }],
+        "reward": { "gold": 800 } },
+      { "id": 4, "title": "Receive the rites",
+        "objectives": [{ "kind": "talk", "npc": "elder-syrini" }],
+        "reward": { "gold": 1000, "items": ["heritage-token-elf"], "race": "elf" } }
+    ]
+  },
+  "heritage-human": {
+    "title": "Heritage: Reaffirm the Crown",
+    "expansion": "mondains-legacy",
+    "giver": "lord-blackthorne",
+    "region": "britain",
+    "intro": "Blackthorne: To stand in Britannia's name is to know its struggles. Walk among the people and prove your loyalty.",
+    "stages": [
+      { "id": 1, "title": "Visit four cardinal towns",
+        "objectives": [
+          { "kind": "visit", "region": "trinsic" },
+          { "kind": "visit", "region": "yew" },
+          { "kind": "visit", "region": "minoc" },
+          { "kind": "visit", "region": "skara-brae" }
+        ],
+        "reward": { "gold": 500 } },
+      { "id": 2, "title": "Defend Lord British's name",
+        "objectives": [{ "kind": "slay", "target": "brigand", "count": 12 }],
+        "reward": { "gold": 800, "fame": 500 } },
+      { "id": 3, "title": "Renew your oath",
+        "objectives": [{ "kind": "talk", "npc": "lord-blackthorne" }],
+        "reward": { "gold": 1000, "items": ["heritage-token-human"], "race": "human" } }
+    ]
+  },
+  "heritage-gargoyle": {
+    "title": "Heritage: The Gargish Way",
+    "expansion": "stygian-abyss",
+    "giver": "queen-zhah",
+    "region": "ter-mur",
+    "intro": "Zhah: We Gargoyles guard the Abyss. To bear our wings, you must drink from our cup of sorrow and our cup of stone.",
+    "stages": [
+      { "id": 1, "title": "Walk the Royal City",
+        "objectives": [{ "kind": "visit", "region": "royal-city" }],
+        "reward": { "gold": 400 } },
+      { "id": 2, "title": "Recover the Gargish Medallions",
+        "objectives": [{ "kind": "collect", "resource": "gargish-medallion", "count": 4 }],
+        "reward": { "gold": 800 } },
+      { "id": 3, "title": "Slay an undead gargoyle abomination",
+        "objectives": [{ "kind": "slay", "target": "putrid-undead-gargoyle", "count": 1 }],
+        "reward": { "gold": 1200 } },
+      { "id": 4, "title": "Receive the Queen's blessing",
+        "objectives": [{ "kind": "talk", "npc": "queen-zhah" }],
+        "reward": { "gold": 1500, "items": ["heritage-token-gargoyle"], "race": "gargoyle" } }
+    ]
+  },
+
+  "knowledge-of-the-soulforge": {
+    "title": "Knowledge of the Soulforge",
+    "expansion": "stygian-abyss",
+    "giver": "imbuer-aurvidlem",
+    "region": "royal-city",
+    "intro": "Aurvidlem: Before you wield the soulforge, you must understand its origins. Gather the introductory texts.",
+    "stages": [
+      { "id": 1, "title": "Read the Imbuing Primer",
+        "objectives": [{ "kind": "collect", "resource": "imbuing-primer", "count": 1 }],
+        "reward": { "gold": 400, "skill": { "id": 57, "amount": 30 } } },
+      { "id": 2, "title": "Inspect a Soulforge",
+        "objectives": [{ "kind": "use", "target": "soulforge", "count": 1 }],
+        "reward": { "gold": 600 } },
+      { "id": 3, "title": "Demonstrate your knowledge",
+        "objectives": [{ "kind": "talk", "npc": "imbuer-aurvidlem" }],
+        "reward": { "gold": 1000, "skill": { "id": 57, "amount": 50 }, "items": ["imbuers-pouch"] } }
+    ]
+  },
+  "mastering-the-soulforge": {
+    "title": "Mastering the Soulforge",
+    "expansion": "stygian-abyss",
+    "giver": "imbuer-aurvidlem",
+    "region": "royal-city",
+    "intro": "Aurvidlem: Practice imbuing on prepared materials. Bring me three imbued items of escalating difficulty.",
+    "stages": [
+      { "id": 1, "title": "Imbue a tier-1 attribute (cap ≤25)",
+        "objectives": [{ "kind": "imbue", "target": "any-tier-1", "count": 3 }],
+        "reward": { "gold": 800, "skill": { "id": 57, "amount": 40 } } },
+      { "id": 2, "title": "Imbue a tier-2 attribute (cap 30–60)",
+        "objectives": [{ "kind": "imbue", "target": "any-tier-2", "count": 3 }],
+        "reward": { "gold": 1500, "skill": { "id": 57, "amount": 40 } } },
+      { "id": 3, "title": "Imbue a tier-3 attribute (cap ≥65)",
+        "objectives": [{ "kind": "imbue", "target": "any-tier-3", "count": 2 }],
+        "reward": { "gold": 3000, "items": ["forged-metal-of-artifacts"], "skill": { "id": 57, "amount": 50 } } }
+    ]
+  },
+  "secrets-of-the-soulforge": {
+    "title": "Secrets of the Soulforge",
+    "expansion": "stygian-abyss",
+    "giver": "imbuer-aurvidlem",
+    "region": "royal-city",
+    "intro": "Aurvidlem: The deepest knowledge is bought in blood. Slay the relic guardians of the Abyss and reforge their essence.",
+    "stages": [
+      { "id": 1, "title": "Slay 5 Imbuers' bane creatures",
+        "objectives": [{ "kind": "slay", "target": "exodus-overseer", "count": 5 }],
+        "reward": { "gold": 1200 } },
+      { "id": 2, "title": "Collect 10 essence residues",
+        "objectives": [{ "kind": "collect", "resource": "essence-residue", "count": 10 }],
+        "reward": { "gold": 2000 } },
+      { "id": 3, "title": "Forge an artifact-tier item",
+        "objectives": [{ "kind": "imbue", "target": "artifact-tier", "count": 1 }],
+        "reward": { "gold": 5000, "skill": { "id": 57, "amount": 80 }, "items": ["soulforge-cap-token"] } }
+    ]
+  },
+
+  "moug-gurr-must-die": {
+    "title": "Moug-Gurr Must Die",
+    "expansion": "stygian-abyss",
+    "giver": "captain-irvyn",
+    "region": "ter-mur",
+    "intro": "Irvyn: The ettin chief Moug-Gurr leads raids out of the deep tunnels. Find him and end his rampage.",
+    "stages": [
+      { "id": 1, "title": "Track Moug-Gurr's warband",
+        "objectives": [{ "kind": "slay", "target": "ettin", "count": 4 }],
+        "reward": { "gold": 800 } },
+      { "id": 2, "title": "Slay Moug-Gurr",
+        "objectives": [{ "kind": "slay", "target": "moug-guur", "count": 1 }],
+        "reward": { "gold": 3000, "fame": 1500, "items": ["moug-gurrs-fang"] } }
+    ]
+  },
+  "marauders": {
+    "title": "Marauders",
+    "expansion": "stygian-abyss",
+    "giver": "captain-irvyn",
+    "region": "ter-mur",
+    "intro": "Irvyn: A band of marauders has overrun the Sanctuary mines. Clear them out before they reach the Royal City.",
+    "stages": [
+      { "id": 1, "title": "Eliminate the scouts",
+        "objectives": [{ "kind": "slay", "target": "marauder-scout", "count": 8 }],
+        "reward": { "gold": 600 } },
+      { "id": 2, "title": "Break the warband",
+        "objectives": [{ "kind": "slay", "target": "marauder", "count": 15 }],
+        "reward": { "gold": 1500, "fame": 1200 } },
+      { "id": 3, "title": "Slay the marauder warlord",
+        "objectives": [{ "kind": "slay", "target": "marauder-warlord", "count": 1 }],
+        "reward": { "gold": 4000, "items": ["marauder-warlord-banner"] } }
+    ]
+  },
+  "blighted-grove": {
+    "title": "The Blighted Grove",
+    "expansion": "stygian-abyss",
+    "giver": "druid-ralan",
+    "region": "blighted-grove",
+    "intro": "Ralan: A poison creeps through the grove. Slay the corrupted before they bloom into something far worse.",
+    "stages": [
+      { "id": 1, "title": "Find the grove",
+        "objectives": [{ "kind": "visit", "region": "blighted-grove" }],
+        "reward": { "gold": 500 } },
+      { "id": 2, "title": "Slay 6 corrupted creatures",
+        "objectives": [{ "kind": "slay", "target": "corrupted-creature", "count": 6 }],
+        "reward": { "gold": 1200 } },
+      { "id": 3, "title": "Confront the Bog Thing",
+        "objectives": [{ "kind": "slay", "target": "bog-thing", "count": 1 }],
+        "reward": { "gold": 4500, "items": ["grove-tender-amulet"] } }
+    ]
+  },
+  "ghost-of-covetous": {
+    "title": "The Ghost of Covetous",
+    "expansion": "stygian-abyss",
+    "giver": "miner-pelos",
+    "region": "covetous",
+    "intro": "Pelos: My brother died in Covetous and his shade wanders the tunnels. Bring me proof of his rest.",
+    "stages": [
+      { "id": 1, "title": "Reach the lower levels",
+        "objectives": [{ "kind": "visit", "region": "covetous-deep" }],
+        "reward": { "gold": 400 } },
+      { "id": 2, "title": "Lay the ghost to rest",
+        "objectives": [{ "kind": "slay", "target": "wandering-shade", "count": 1 }],
+        "reward": { "gold": 1500, "items": ["brothers-locket"] } }
+    ]
+  },
+
+  "honest-beggar": {
+    "title": "The Honest Beggar",
+    "expansion": "uo",
+    "giver": "honest-beggar",
+    "region": "britain",
+    "intro": "Beggar: I am hungry, kind stranger. Spare what you can — and I shall remember your kindness.",
+    "virtue": "compassion",
+    "stages": [
+      { "id": 1, "title": "Give 50 gold to the beggar",
+        "objectives": [{ "kind": "give", "target": "honest-beggar", "resource": "gold", "count": 50 }],
+        "reward": { "gold": 0, "virtue": { "compassion": 50 } } },
+      { "id": 2, "title": "Listen to the beggar's tale",
+        "objectives": [{ "kind": "talk", "npc": "honest-beggar" }],
+        "reward": { "gold": 300, "fame": 100, "virtue": { "compassion": 100 } } }
+    ]
+  },
+  "friends-of-the-library": {
+    "title": "Friends of the Library",
+    "expansion": "uo",
+    "giver": "librarian",
+    "region": "britain",
+    "intro": "Librarian: Our collection is incomplete. If you can recover four lost volumes, the city will be grateful.",
+    "stages": [
+      { "id": 1, "title": "Recover four lost tomes",
+        "objectives": [{ "kind": "collect", "resource": "lost-tome", "count": 4 }],
+        "reward": { "gold": 1500, "fame": 500 } },
+      { "id": 2, "title": "Catalogue them with the librarian",
+        "objectives": [{ "kind": "talk", "npc": "librarian" }],
+        "reward": { "gold": 1000, "items": ["library-patron-medal"] } }
+    ]
+  },
+  "gemkeepers": {
+    "title": "Gemkeepers",
+    "expansion": "ml",
+    "giver": "jeweler-mira",
+    "region": "minoc",
+    "intro": "Mira: We need polished gems to keep up with Royal City demand. Bring me a chest of mixed gems and you'll be paid handsomely.",
+    "stages": [
+      { "id": 1, "title": "Collect 50 gems",
+        "objectives": [{ "kind": "collect", "resource": "any-gem", "count": 50 }],
+        "reward": { "gold": 2000 } },
+      { "id": 2, "title": "Deliver to the jeweler",
+        "objectives": [{ "kind": "talk", "npc": "jeweler-mira" }],
+        "reward": { "gold": 1500, "items": ["jewelers-loupe"], "skill": { "id": 13, "amount": 20 } } }
+    ]
+  },
+  "aemaeth": {
+    "title": "Aemaeth's Charge",
+    "expansion": "ml",
+    "giver": "aemaeth",
+    "region": "heartwood",
+    "intro": "Aemaeth: The roots of the World Tree have been corrupted by Mondain's lingering shadow. Cleanse them, and I will teach you a song of binding.",
+    "stages": [
+      { "id": 1, "title": "Cleanse 5 corrupted roots",
+        "objectives": [{ "kind": "slay", "target": "corrupted-root", "count": 5 }],
+        "reward": { "gold": 1200 } },
+      { "id": 2, "title": "Recover the Heartroot Crystal",
+        "objectives": [{ "kind": "collect", "resource": "heartroot-crystal", "count": 1 }],
+        "reward": { "gold": 1800 } },
+      { "id": 3, "title": "Return to Aemaeth",
+        "objectives": [{ "kind": "talk", "npc": "aemaeth" }],
+        "reward": { "gold": 2500, "items": ["aemaeth-pendant"] } }
+    ]
+  },
+  "vernix": {
+    "title": "Vernix the Defiler",
+    "expansion": "uo",
+    "giver": "lady-helena",
+    "region": "yew",
+    "intro": "Helena: A killer named Vernix struck down my husband. I want him brought to justice — or to the next world, your choice.",
+    "stages": [
+      { "id": 1, "title": "Track Vernix to the swamp",
+        "objectives": [{ "kind": "visit", "region": "yew-swamp" }],
+        "reward": { "gold": 500 } },
+      { "id": 2, "title": "Defeat Vernix",
+        "objectives": [{ "kind": "slay", "target": "vernix-the-defiler", "count": 1 }],
+        "reward": { "gold": 3000, "fame": 1500, "items": ["helenas-token-of-thanks"] } }
+    ]
+  },
+
+  "ambitious-solen-queen": {
+    "title": "The Ambitious Solen Queen",
+    "expansion": "uo",
+    "giver": "solen-infiltrator",
+    "region": "solen-hive",
+    "intro": "Solen Infiltrator: Our matriarch grows too cautious. Help us elevate a more aggressive queen, and the hive will reward you.",
+    "stages": [
+      { "id": 1, "title": "Bring 20 zoogi fungus",
+        "objectives": [{ "kind": "collect", "resource": "zoogi-fungus", "count": 20 }],
+        "reward": { "gold": 600 } },
+      { "id": 2, "title": "Slay 5 loyal solen warriors",
+        "objectives": [{ "kind": "slay", "target": "solen-warrior", "count": 5 }],
+        "reward": { "gold": 1200 } },
+      { "id": 3, "title": "Speak to the Ambitious Queen",
+        "objectives": [{ "kind": "talk", "npc": "ambitious-solen-queen" }],
+        "reward": { "gold": 2000, "items": ["ambitious-queen-pheromones"] } }
+    ]
+  },
+  "study-of-the-solen-hive": {
+    "title": "Study of the Solen Hive",
+    "expansion": "uo",
+    "giver": "naturalist-tellen",
+    "region": "britain",
+    "intro": "Tellen: We know little of the solen society. Bring me samples and observation notes — for science.",
+    "stages": [
+      { "id": 1, "title": "Observe the hive entrance",
+        "objectives": [{ "kind": "visit", "region": "solen-hive" }],
+        "reward": { "gold": 400 } },
+      { "id": 2, "title": "Collect 5 solen worker shells",
+        "objectives": [{ "kind": "collect", "resource": "solen-shell", "count": 5 }],
+        "reward": { "gold": 800 } },
+      { "id": 3, "title": "Report to Tellen",
+        "objectives": [{ "kind": "talk", "npc": "naturalist-tellen" }],
+        "reward": { "gold": 1500, "skill": { "id": 2, "amount": 20 }, "items": ["solen-field-notes"] } }
+    ]
+  },
+
+  "spellweaving-quest": {
+    "title": "Initiation: Spellweaving",
+    "expansion": "ml",
+    "giver": "elder-arielle",
+    "region": "heartwood",
+    "intro": "Arielle: Spellweaving is the breath of the trees — to learn it, you must first stand at the Arcane Circle.",
+    "stages": [
+      { "id": 1, "title": "Find an Arcane Circle",
+        "objectives": [{ "kind": "use", "target": "arcane-circle", "count": 1 }],
+        "reward": { "gold": 400, "skill": { "id": 55, "amount": 30 } } },
+      { "id": 2, "title": "Initiate at the Circle",
+        "objectives": [{ "kind": "talk", "npc": "elder-arielle" }],
+        "reward": { "gold": 800, "items": ["spellweaving-spellbook"], "skill": { "id": 55, "amount": 50 } } }
+    ]
+  },
+  "ratmen-sanctuary": {
+    "title": "Ratmen Sanctuary",
+    "expansion": "ml",
+    "giver": "scout-derrick",
+    "region": "sanctuary",
+    "intro": "Derrick: The ratmen have built a sanctuary in the mountains. Clear it before they organise a war party.",
+    "stages": [
+      { "id": 1, "title": "Slay 20 ratmen",
+        "objectives": [{ "kind": "slay", "target": "ratman", "count": 20 }],
+        "reward": { "gold": 1200 } },
+      { "id": 2, "title": "Slay the Ratman Chief",
+        "objectives": [{ "kind": "slay", "target": "ratman-chief", "count": 1 }],
+        "reward": { "gold": 3000, "items": ["ratman-totem"] } }
+    ]
+  },
+
+  "a-tangled-web": {
+    "title": "A Tangled Web",
+    "expansion": "uo",
+    "giver": "detective-falor",
+    "region": "trinsic",
+    "intro": "Falor: Three witnesses, three stories, one murder. Help me untangle the truth.",
+    "stages": [
+      { "id": 1, "title": "Interview the witnesses",
+        "objectives": [{ "kind": "talk", "npc": "witness-anna" }, { "kind": "talk", "npc": "witness-borric" }, { "kind": "talk", "npc": "witness-cyrus" }],
+        "reward": { "gold": 400 } },
+      { "id": 2, "title": "Report to Falor",
+        "objectives": [{ "kind": "talk", "npc": "detective-falor" }],
+        "reward": { "gold": 1200, "items": ["detective-badge"] } }
+    ]
+  },
+  "a-little-something": {
+    "title": "A Little Something",
+    "expansion": "uo",
+    "giver": "old-uniche",
+    "region": "britain",
+    "intro": "Uniche: Just need a little something… bring me an apple? I'd be eternally grateful.",
+    "stages": [
+      { "id": 1, "title": "Bring an apple",
+        "objectives": [{ "kind": "collect", "resource": "apple", "count": 1 }],
+        "reward": { "gold": 50, "virtue": { "compassion": 25 } } }
+    ]
+  },
+  "discipline": {
+    "title": "Discipline",
+    "expansion": "ml",
+    "giver": "sensei-haru",
+    "region": "zento",
+    "intro": "Haru: Strength without discipline is folly. Train under me, and prove your patience.",
+    "stages": [
+      { "id": 1, "title": "Train at the training dummy 10 times",
+        "objectives": [{ "kind": "use", "target": "training-dummy", "count": 10 }],
+        "reward": { "gold": 300, "skill": { "id": 41, "amount": 15 } } },
+      { "id": 2, "title": "Spar with Sensei Haru",
+        "objectives": [{ "kind": "talk", "npc": "sensei-haru" }],
+        "reward": { "gold": 800, "items": ["disciples-band"] } }
+    ]
+  },
+  "doughty-warriors": {
+    "title": "Doughty Warriors",
+    "expansion": "uo",
+    "giver": "commander-glannan",
+    "region": "serpents-hold",
+    "intro": "Glannan: Prove your mettle in the arena — three duels, no defeat.",
+    "stages": [
+      { "id": 1, "title": "Win three sparring matches",
+        "objectives": [{ "kind": "slay", "target": "arena-dummy", "count": 3 }],
+        "reward": { "gold": 1000, "items": ["doughty-medal"] } }
+    ]
+  },
+  "ending-the-threat": {
+    "title": "Ending the Threat",
+    "expansion": "uo",
+    "giver": "captain-norris",
+    "region": "vesper",
+    "intro": "Norris: An orc warband has been raiding the Vesper road. Cull them.",
+    "stages": [
+      { "id": 1, "title": "Slay 15 orcs",
+        "objectives": [{ "kind": "slay", "target": "orc", "count": 15 }],
+        "reward": { "gold": 800 } },
+      { "id": 2, "title": "Slay the orc lord",
+        "objectives": [{ "kind": "slay", "target": "orc-lord", "count": 1 }],
+        "reward": { "gold": 2200, "fame": 800 } }
+    ]
+  },
+  "gathering-evidence": {
+    "title": "Gathering of Evidence",
+    "expansion": "uo",
+    "giver": "judge-derric",
+    "region": "yew",
+    "intro": "Derric: A thief plagues the courthouse — gather evidence of his crimes before sentencing.",
+    "stages": [
+      { "id": 1, "title": "Collect 3 pieces of evidence",
+        "objectives": [{ "kind": "collect", "resource": "evidence-fragment", "count": 3 }],
+        "reward": { "gold": 600 } },
+      { "id": 2, "title": "Present at court",
+        "objectives": [{ "kind": "talk", "npc": "judge-derric" }],
+        "reward": { "gold": 1200, "items": ["scales-of-justice-pin"] } }
+    ]
+  },
+  "journey-to-athenaeum": {
+    "title": "Journey to the Athenaeum",
+    "expansion": "ml",
+    "giver": "scholar-illvan",
+    "region": "heartwood",
+    "intro": "Illvan: The lost Athenaeum holds wisdom from the First Age. Travel its halls and bring me a relic.",
+    "stages": [
+      { "id": 1, "title": "Reach the Athenaeum",
+        "objectives": [{ "kind": "visit", "region": "athenaeum-isle" }],
+        "reward": { "gold": 1000 } },
+      { "id": 2, "title": "Recover a relic",
+        "objectives": [{ "kind": "collect", "resource": "athenaeum-relic", "count": 1 }],
+        "reward": { "gold": 2500, "items": ["scholars-quill"], "skill": { "id": 4, "amount": 30 } } }
+    ]
+  },
+  "bad-company": {
+    "title": "Bad Company",
+    "expansion": "stygian-abyss",
+    "giver": "captain-irvyn",
+    "region": "ter-mur",
+    "intro": "Irvyn: Watch out — slith and gargoyle reavers travel in packs. Bring me four pairs of slith ears.",
+    "stages": [
+      { "id": 1, "title": "Collect slith ears",
+        "objectives": [{ "kind": "collect", "resource": "slith-ear", "count": 4 }],
+        "reward": { "gold": 1200, "fame": 400 } }
+    ]
+  },
+  "battered-bucket": {
+    "title": "The Battered Bucket",
+    "expansion": "uo",
+    "giver": "farmer-tess",
+    "region": "britain-farmlands",
+    "intro": "Tess: My bucket's gone missing. Take this new one to the well-keeper, would you?",
+    "stages": [
+      { "id": 1, "title": "Deliver the bucket",
+        "objectives": [{ "kind": "deliver", "npc": "well-keeper", "target": "bucket" }],
+        "reward": { "gold": 200, "virtue": { "compassion": 10 } } }
+    ]
+  },
+  "honor-of-deboors": {
+    "title": "Honor of the de Boors Quest",
+    "expansion": "uo",
+    "giver": "lord-de-boors",
+    "region": "trinsic",
+    "intro": "de Boors: My family's sword was lost at the battle of Trinsic Pass. Recover it — and our honor.",
+    "stages": [
+      { "id": 1, "title": "Search Trinsic Pass",
+        "objectives": [{ "kind": "visit", "region": "trinsic-pass" }],
+        "reward": { "gold": 400 } },
+      { "id": 2, "title": "Recover the de Boors sword",
+        "objectives": [{ "kind": "collect", "resource": "de-boors-sword", "count": 1 }],
+        "reward": { "gold": 2500, "fame": 1000, "items": ["de-boors-emblem"] } }
+    ]
+  },
+  "missing-person": {
+    "title": "Missing Person",
+    "expansion": "uo",
+    "giver": "magistrate-walen",
+    "region": "moonglow",
+    "intro": "Walen: A scholar has gone missing in the Lyceum library. Find him — or his remains.",
+    "stages": [
+      { "id": 1, "title": "Investigate the Lyceum",
+        "objectives": [{ "kind": "visit", "region": "moonglow-lyceum" }],
+        "reward": { "gold": 400 } },
+      { "id": 2, "title": "Locate the missing scholar",
+        "objectives": [{ "kind": "talk", "npc": "missing-scholar" }],
+        "reward": { "gold": 1500, "fame": 500 } }
+    ]
+  },
+  "ortlem": {
+    "title": "Ortlem the Hermit",
+    "expansion": "uo",
+    "giver": "ortlem",
+    "region": "ilshenar",
+    "intro": "Ortlem: An old man's burden is heavy. Spare me a bit of food and I'll share my tale.",
+    "stages": [
+      { "id": 1, "title": "Bring 5 loaves of bread",
+        "objectives": [{ "kind": "collect", "resource": "bread-loaf", "count": 5 }],
+        "reward": { "gold": 250 } },
+      { "id": 2, "title": "Listen to his story",
+        "objectives": [{ "kind": "talk", "npc": "ortlem" }],
+        "reward": { "gold": 600, "virtue": { "compassion": 30 } } }
+    ]
+  },
+  "pepta": {
+    "title": "Pepta's Plea",
+    "expansion": "uo",
+    "giver": "pepta",
+    "region": "britain",
+    "intro": "Pepta: A swarm of giant rats has taken my cellar. Will you clear them?",
+    "stages": [
+      { "id": 1, "title": "Slay 8 giant rats",
+        "objectives": [{ "kind": "slay", "target": "giant-rat", "count": 8 }],
+        "reward": { "gold": 300 } }
+    ]
+  },
+  "summon-fey-quest": {
+    "title": "Summon Fey",
+    "expansion": "ml",
+    "giver": "arcanist-elenor",
+    "region": "heartwood",
+    "intro": "Elenor: Before you may bind a fey, you must convince one to befriend you. Travel to the Fey Glade and prove yourself worthy.",
+    "stages": [
+      { "id": 1, "title": "Slay 5 wisps",
+        "objectives": [{ "kind": "slay", "target": "wisp", "count": 5 }],
+        "reward": { "gold": 600 } },
+      { "id": 2, "title": "Speak to the Fey Queen",
+        "objectives": [{ "kind": "talk", "npc": "fey-queen" }],
+        "reward": { "gold": 1500, "items": ["summon-fey-scroll"] } }
+    ]
+  },
+  "summon-fiend-quest": {
+    "title": "Summon Fiend",
+    "expansion": "ml",
+    "giver": "necromancer-mardoth",
+    "region": "umbra",
+    "intro": "Mardoth: Fiends respect strength. Slay daemons to earn their attention — then bind one to your will.",
+    "stages": [
+      { "id": 1, "title": "Slay 5 daemons",
+        "objectives": [{ "kind": "slay", "target": "daemon", "count": 5 }],
+        "reward": { "gold": 1500 } },
+      { "id": 2, "title": "Speak with Mardoth",
+        "objectives": [{ "kind": "talk", "npc": "necromancer-mardoth" }],
+        "reward": { "gold": 2000, "items": ["summon-fiend-scroll"] } }
+    ]
+  },
+  "the-ancient-world": {
+    "title": "The Ancient World",
+    "expansion": "uo",
+    "giver": "antiquarian-rorvik",
+    "region": "moonglow",
+    "intro": "Rorvik: I study the world before Britannia. Bring me ancient artifacts — every piece tells a story.",
+    "stages": [
+      { "id": 1, "title": "Recover 3 ancient artifacts",
+        "objectives": [{ "kind": "collect", "resource": "ancient-artifact", "count": 3 }],
+        "reward": { "gold": 1500, "fame": 500 } },
+      { "id": 2, "title": "Catalogue with Rorvik",
+        "objectives": [{ "kind": "talk", "npc": "antiquarian-rorvik" }],
+        "reward": { "gold": 2000, "items": ["antiquarian-monocle"], "skill": { "id": 4, "amount": 25 } } }
+    ]
+  },
+  "treefellow-wood": {
+    "title": "Treefellow Wood",
+    "expansion": "ml",
+    "giver": "treefellow-irwin",
+    "region": "heartwood",
+    "intro": "Irwin: The wood spirits cry. Plant five saplings to honor the fallen and the forest will repay you.",
+    "stages": [
+      { "id": 1, "title": "Plant 5 saplings",
+        "objectives": [{ "kind": "use", "target": "sapling", "count": 5 }],
+        "reward": { "gold": 1000, "items": ["treefellow-acorn"], "virtue": { "spirituality": 50 } } }
+    ]
+  },
+  "unfading-memories": {
+    "title": "Unfading Memories",
+    "expansion": "uo",
+    "giver": "widow-elara",
+    "region": "skara-brae",
+    "intro": "Elara: My husband's locket — lost when bandits raided our home. Please return it to me.",
+    "stages": [
+      { "id": 1, "title": "Recover the locket",
+        "objectives": [{ "kind": "collect", "resource": "elaras-locket", "count": 1 }],
+        "reward": { "gold": 1200, "fame": 400, "virtue": { "compassion": 50 } } }
+    ]
+  },
+  "unusual-goods": {
+    "title": "Unusual Goods",
+    "expansion": "uo",
+    "giver": "trader-juvarian",
+    "region": "buccaneers-den",
+    "intro": "Juvarian: I'm a buyer of unusual goods — bring me five 'unusual' items from anywhere and I'll pay handsomely.",
+    "stages": [
+      { "id": 1, "title": "Bring 5 unusual items",
+        "objectives": [{ "kind": "collect", "resource": "unusual-item", "count": 5 }],
+        "reward": { "gold": 2500, "items": ["traders-token"] } }
+    ]
+  },
+  "pile-of-inspected-valorite": {
+    "title": "Pile of Inspected Valorite Ingots",
+    "expansion": "uo",
+    "giver": "blacksmith-evrard",
+    "region": "minoc",
+    "intro": "Evrard: Bring me valorite ingots already inspected and certified, and I'll forge you something rare.",
+    "stages": [
+      { "id": 1, "title": "Bring 25 valorite ingots",
+        "objectives": [{ "kind": "collect", "resource": "valorite-ingot", "count": 25 }],
+        "reward": { "gold": 5000, "items": ["valorite-runic-hammer"] } }
+    ]
+  },
+  "pile-of-inspected-verite": {
+    "title": "Pile of Inspected Verite Ingots",
+    "expansion": "uo",
+    "giver": "blacksmith-evrard",
+    "region": "minoc",
+    "intro": "Evrard: Verite ingots are scarcer than valorite. Bring me 25 and I'll forge you a runic.",
+    "stages": [
+      { "id": 1, "title": "Bring 25 verite ingots",
+        "objectives": [{ "kind": "collect", "resource": "verite-ingot", "count": 25 }],
+        "reward": { "gold": 3500, "items": ["verite-runic-hammer"] } }
+    ]
+  },
+  "bard-mastery-4": {
+    "title": "Bard Mastery — Final Trial",
+    "expansion": "ml",
+    "giver": "bard-master-velinde",
+    "region": "heartwood",
+    "intro": "Velinde: You have proven competence with Sir Berran, Felean, and Hareus. Now stand before me, and play the final song.",
+    "stages": [
+      { "id": 1, "title": "Bring proof of three completed bard mastery chains",
+        "objectives": [
+          { "kind": "talk", "npc": "bard-master-velinde" }
+        ],
+        "reward": { "gold": 5000, "skill": { "id": 30, "amount": 40 }, "items": ["bard-mastery-token"] } }
+    ]
+  },
+  "valley-of-one": {
+    "title": "Valley of One",
+    "expansion": "time-of-legends",
+    "giver": "hawkwind",
+    "region": "skara-brae",
+    "intro": "Hawkwind: Time tilts strangely. The mage Anjur opens a path back to Eodon — and the tribes there are at war.",
+    "stages": [
+      { "id": 1, "title": "Time Is of the Essence — speak with Professor Rafkin",
+        "objectives": [{ "kind": "talk", "npc": "professor-rafkin" }],
+        "reward": { "gold": 500, "fame": 200 } },
+      { "id": 2, "title": "Uniting the Tribes — visit all 9 Eodon settlements",
+        "objectives": [
+          { "kind": "visit", "region": "eodon-jukari" },
+          { "kind": "visit", "region": "eodon-kurak" },
+          { "kind": "visit", "region": "eodon-barako" },
+          { "kind": "visit", "region": "eodon-sakkhra" }
+        ],
+        "reward": { "gold": 4000, "fame": 3500, "items": ["eodon-title-deed"] } }
+    ]
+  },
+  "myrmidex-alliance": {
+    "title": "Myrmidex Alliance",
+    "expansion": "time-of-legends",
+    "giver": "zipactriotl",
+    "region": "eodon-myrmidex",
+    "intro": "Zipactriotl: Side with the swarm. Crush the tribes that defile our hive.",
+    "stages": [
+      { "id": 1, "title": "The Zealotry of Zipactriotl — slay 20 tribal warriors",
+        "objectives": [{ "kind": "slay", "target": "eodon-tribesman", "count": 20 }],
+        "reward": { "gold": 1500, "fame": 1000 } },
+      { "id": 2, "title": "Destruction of Zipactriotl — defeat the Tribal Warlord",
+        "objectives": [{ "kind": "slay", "target": "eodon-warlord", "count": 1 }],
+        "reward": { "gold": 6000, "fame": 5000, "items": ["myrmidex-shield"] } }
+    ]
+  },
+  "eodonian-alliance": {
+    "title": "Eodonian Alliance",
+    "expansion": "time-of-legends",
+    "giver": "ehecatotl",
+    "region": "eodon-village",
+    "intro": "Ehecatotl: Help us repel the Myrmidex. The hive must fall before our crops are devoured.",
+    "stages": [
+      { "id": 1, "title": "Exterminating the Infestation — slay 25 Myrmidex drones",
+        "objectives": [{ "kind": "slay", "target": "myrmidex-drone", "count": 25 }],
+        "reward": { "gold": 1500, "fame": 1200 } },
+      { "id": 2, "title": "Insecticide and Regicide — defeat the Myrmidex Queen",
+        "objectives": [{ "kind": "slay", "target": "myrmidex-queen", "count": 1 }],
+        "reward": { "gold": 6000, "fame": 5000, "items": ["eodonian-banner"] } }
+    ]
+  },
+  "laifem-the-weaver": {
+    "title": "Laifem the Weaver",
+    "expansion": "ml",
+    "giver": "laifem-the-weaver",
+    "region": "heartwood",
+    "intro": "Laifem: Spin me a tale of sheep. I weave, but cloth needs wool — and friendship needs sharing.",
+    "stages": [
+      { "id": 1, "title": "Shearing Knowledge — bring 10 sheep wool",
+        "objectives": [{ "kind": "collect", "resource": "wool", "count": 10 }],
+        "reward": { "gold": 300, "fame": 100 } },
+      { "id": 2, "title": "Weaving Friendships — bring 5 bolts of cloth",
+        "objectives": [{ "kind": "collect", "resource": "cloth", "count": 5 }],
+        "reward": { "gold": 400, "items": ["bolt-of-cloth"] } },
+      { "id": 3, "title": "New Spin — bring 1 dyed spider silk",
+        "objectives": [{ "kind": "collect", "resource": "spider-silk-dyed", "count": 1 }],
+        "reward": { "gold": 800, "items": ["weavers-shawl"] } }
+    ]
+  },
+  "paladins-of-trinsic": {
+    "title": "Paladins of Trinsic",
+    "expansion": "ml",
+    "giver": "dupre",
+    "region": "trinsic",
+    "intro": "Sir Dupre: The Brotherhood of Trinsic remembers. Walk the Path of Honor, and we shall enroll you.",
+    "stages": [
+      { "id": 1, "title": "Paladins of Trinsic — slay 10 brigands",
+        "objectives": [{ "kind": "slay", "target": "brigand", "count": 10 }],
+        "reward": { "gold": 500, "fame": 300, "karma": 300 } },
+      { "id": 2, "title": "Paladins of Trinsic II — slay the brigand captain",
+        "objectives": [{ "kind": "slay", "target": "brigand-captain", "count": 1 }],
+        "reward": { "gold": 1500, "fame": 1500, "karma": 1500, "items": ["paladin-sash"] } }
+    ]
+  },
+  "flint-the-quartermaster": {
+    "title": "Flint the Quartermaster",
+    "expansion": "ml",
+    "giver": "flint-the-quartermaster",
+    "region": "vesper",
+    "intro": "Flint: Thieves emptied my reading. The library at Trinsic has copies — fetch one.",
+    "stages": [
+      { "id": 1, "title": "Thieves Be Afoot — slay 5 thieves",
+        "objectives": [{ "kind": "slay", "target": "rogue", "count": 5 }],
+        "reward": { "gold": 300 } },
+      { "id": 2, "title": "Bibliophile — recover the stolen tome",
+        "objectives": [{ "kind": "collect", "resource": "flints-tome", "count": 1 }],
+        "reward": { "gold": 800, "items": ["quartermasters-ledger"] } }
+    ]
+  },
+  "righting-wrong": {
+    "title": "Righting Wrong",
+    "expansion": "town-crier",
+    "giver": "royal-guard-captain",
+    "region": "wrong",
+    "intro": "The Royal Britannian Guard needs adventurers at Dungeon Wrong. Inquire at the Court of Truth, thin the prison creatures, defeat Fezzik, then escape with proof of the fallen guard.",
+    "stages": [
+      { "id": 1, "title": "Inquire at the Court of Truth",
+        "objectives": [{ "kind": "visit", "region": "court-of-truth" }],
+        "reward": { "fame": 500, "karma": 500 } },
+      { "id": 2, "title": "Thin out the creatures in Wrong",
+        "objectives": [
+          { "kind": "slay", "target": "lizardman-defender", "count": 5 },
+          { "kind": "slay", "target": "lizardman-squatter", "count": 5 },
+          { "kind": "slay", "target": "cave-troll-wrong", "count": 5 },
+          { "kind": "slay", "target": "hungry-ogre", "count": 5 }
+        ],
+        "reward": { "gold": 1500, "fame": 1500, "karma": 1500 } },
+      { "id": 3, "title": "Slay Fezzik the Ogre Cook",
+        "objectives": [{ "kind": "slay", "target": "fezzik", "count": 1 }],
+        "reward": { "gold": 2500, "fame": 2500, "karma": 2500 } },
+      { "id": 4, "title": "Find the fallen guard and escape Wrong",
+        "objectives": [{ "kind": "visit", "region": "wrong-prison-exit" }],
+        "reward": { "gold": 4000, "fame": 5000, "karma": 5000, "items": ["righting-wrong-title-deed"] } }
+    ]
+  },
+  "righting-wrong-renowned": {
+    "title": "Righting Wrong (Renowned)",
+    "expansion": "ml",
+    "giver": "darius-renowned",
+    "region": "heartwood",
+    "intro": "Darius: The renowned beasts grow bolder. Each must fall — slay one of each, then return.",
+    "stages": [
+      { "id": 1, "title": "Righting Wrong II — slay a renowned forest creature",
+        "objectives": [{ "kind": "slay", "target": "renowned-forest-creature", "count": 1 }],
+        "reward": { "gold": 1500, "fame": 1500 } },
+      { "id": 2, "title": "Righting Wrong III — slay a renowned mountain creature",
+        "objectives": [{ "kind": "slay", "target": "renowned-mountain-creature", "count": 1 }],
+        "reward": { "gold": 2000, "fame": 2000 } },
+      { "id": 3, "title": "Righting Wrong IV — slay a renowned dungeon dweller",
+        "objectives": [{ "kind": "slay", "target": "renowned-dungeon-dweller", "count": 1 }],
+        "reward": { "gold": 4000, "fame": 4000, "items": ["renowned-slayer-talisman"] } }
+    ]
+  },
+  "professional-bounty": {
+    "title": "Professional Bounty",
+    "expansion": "high-seas",
+    "giver": "bounty-master-bartlett",
+    "region": "buccaneers-den",
+    "intro": "Bartlett: The deepwater is plagued with sea creatures. Bring me 10 bounty marks and you'll have your purse.",
+    "stages": [
+      { "id": 1, "title": "Slay 5 sea serpents",
+        "objectives": [{ "kind": "slay", "target": "sea-serpent", "count": 5 }],
+        "reward": { "gold": 800, "fame": 500 } },
+      { "id": 2, "title": "Slay 5 deep sea creatures",
+        "objectives": [{ "kind": "slay", "target": "deep-sea-creature", "count": 5 }],
+        "reward": { "gold": 1500, "fame": 1000, "items": ["bounty-ticket"] } },
+      { "id": 3, "title": "Cash 10 bounty tickets with Bartlett",
+        "objectives": [{ "kind": "collect", "resource": "bounty-ticket", "count": 10 }],
+        "reward": { "gold": 5000, "items": ["captains-spyglass"] } }
+    ]
+  },
+  "professional-fisher": {
+    "title": "Professional Fisher",
+    "expansion": "high-seas",
+    "giver": "fishmonger-quinn",
+    "region": "skara-brae",
+    "intro": "Quinn: I'm cataloguing the rare fish of the realm. Bring me one of each, and I'll reward you with a master fisher's reel.",
+    "stages": [
+      { "id": 1, "title": "Catch 3 lobsters and 3 crabs",
+        "objectives": [
+          { "kind": "collect", "resource": "lobster", "count": 3 },
+          { "kind": "collect", "resource": "crab",    "count": 3 }
+        ],
+        "reward": { "gold": 600, "items": ["fishing-pole-blessed"] } },
+      { "id": 2, "title": "Catch 5 rare fish (SOS-pool exclusive)",
+        "objectives": [{ "kind": "collect", "resource": "rare-fish", "count": 5 }],
+        "reward": { "gold": 2000, "items": ["fishermans-reel"] } },
+      { "id": 3, "title": "Catch a Kraken trophy",
+        "objectives": [{ "kind": "slay", "target": "kraken", "count": 1 }],
+        "reward": { "gold": 5000, "fame": 3000, "items": ["kraken-trophy"] } }
+    ]
+  }
+}

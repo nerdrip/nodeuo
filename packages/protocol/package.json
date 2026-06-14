@@ -1,0 +1,21 @@
+{
+  "name": "@uo/protocol",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./buffer": "./src/buffer.js",
+    "./huffman": "./src/huffman.js",
+    "./opcodes": "./src/opcodes.js",
+    "./packets": "./src/packets/index.js"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.9"
+  }
+}

@@ -1,0 +1,8912 @@
+{
+  "alchemist-table-east": {
+    "servuoClasses": [
+      "AlchemistTableEastAddon",
+      "AlchemistTableEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 12407
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 12408
+      }
+    ]
+  },
+  "alchemist-table-south": {
+    "servuoClasses": [
+      "AlchemistTableSouthAddon",
+      "AlchemistTableSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 12409
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 12410
+      }
+    ]
+  },
+  "ankh-of-sacrifice": {
+    "name": "Ankh of Sacrifice",
+    "script": "ankh-of-sacrifice",
+    "labelNumber": 1027772,
+    "servuoClasses": [
+      "AnkhOfSacrificeComponent",
+      "AnkhOfSacrificeAddon",
+      "AnkhOfSacrificeDeed",
+      "LockKarmaEntry",
+      "AnkhResurrectGump"
+    ],
+    "deed": {
+      "labelNumber": 1080397,
+      "blessed": true,
+      "servuoClass": "AnkhOfSacrificeDeed",
+      "servuoClasses": [
+        "AnkhOfSacrificeDeed",
+        "AnkhOfSacrificeAddon",
+        "AnkhOfSacrificeComponent",
+        "LockKarmaEntry",
+        "AnkhResurrectGump"
+      ]
+    },
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 7576
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 7575
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 7382
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 7380
+      },
+      {
+        "dx": 2,
+        "dy": 0,
+        "id": 7376
+      },
+      {
+        "dx": 2,
+        "dy": 1,
+        "id": 7374
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 7773
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 7772
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 7378
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 7384
+      },
+      {
+        "dx": 0,
+        "dy": 2,
+        "id": 7373
+      },
+      {
+        "dx": 1,
+        "dy": 2,
+        "id": 7374
+      }
+    ]
+  },
+  "anvil-east": {
+    "servuoClasses": [
+      "AnvilEastAddon",
+      "AnvilEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4015
+      }
+    ]
+  },
+  "anvil-south": {
+    "servuoClasses": [
+      "AnvilSouthAddon",
+      "AnvilSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4016
+      }
+    ]
+  },
+  "apple-trunk": {
+    "servuoClasses": [
+      "AppleTrunkAddon",
+      "AppleTrunkDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3480
+      }
+    ]
+  },
+  "arcane-book-shelf-addon-east": {
+    "servuoClasses": [
+      "ArcaneBookShelfAddonEast",
+      "ArcaneBookShelfDeedEast",
+      "ArcaneBookshelfEastAddon",
+      "ArcaneBookshelfEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 12423
+      }
+    ]
+  },
+  "arcane-bookshelf-east": {
+    "servuoClasses": [
+      "ArcaneBookShelfAddonEast",
+      "ArcaneBookShelfDeedEast",
+      "ArcaneBookshelfEastAddon",
+      "ArcaneBookshelfEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 12420
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 12421
+      }
+    ]
+  },
+  "arcane-book-shelf-addon-south": {
+    "servuoClasses": [
+      "ArcaneBookShelfAddonSouth",
+      "ArcaneBookShelfDeedSouth",
+      "ArcaneBookshelfSouthAddon",
+      "ArcaneBookshelfSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 12421
+      }
+    ]
+  },
+  "arcane-bookshelf-south": {
+    "servuoClasses": [
+      "ArcaneBookShelfAddonSouth",
+      "ArcaneBookShelfDeedSouth",
+      "ArcaneBookshelfSouthAddon",
+      "ArcaneBookshelfSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 12423
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 12422
+      }
+    ]
+  },
+  "arcane-circle": {
+    "servuoClasses": [
+      "ArcaneCircleAddon",
+      "ArcaneCircleDeed"
+    ],
+    "components": [
+      {
+        "dx": -1,
+        "dy": -1,
+        "id": 12419
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 12416
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 12418
+      },
+      {
+        "dx": 1,
+        "dy": -1,
+        "id": 12417
+      },
+      {
+        "dx": -1,
+        "dy": 1,
+        "id": 12413
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 12415
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 12414
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 12412
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 12411
+      }
+    ]
+  },
+  "arcanist-statue-east": {
+    "servuoClasses": [
+      "ArcanistStatueEastAddon",
+      "ArcanistStatueEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 11534
+      }
+    ]
+  },
+  "arcanist-statue-south": {
+    "servuoClasses": [
+      "ArcanistStatueSouthAddon",
+      "ArcanistStatueSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 11535
+      }
+    ]
+  },
+  "awesome-disturbing-portrait": {
+    "name": "Disturbing portrait",
+    "script": "awesome-disturbing-portrait",
+    "labelNumber": 1074479,
+    "servuoClasses": [
+      "AwesomeDisturbingPortraitComponent",
+      "AwesomeDisturbingPortraitAddon",
+      "AwesomeDisturbingPortraitDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10845
+      }
+    ]
+  },
+  "ballot-box": {
+    "servuoClasses": [
+      "BallotBox",
+      "BallotBoxAddon",
+      "BallotBoxDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2472
+      }
+    ]
+  },
+  "brown-bear-rug-east": {
+    "servuoClasses": [
+      "BrownBearRugEastAddon",
+      "BrownBearRugEastDeed",
+      "BrownBearRugSouthAddon",
+      "BrownBearRugSouthDeed",
+      "PolarBearRugEastAddon",
+      "PolarBearRugEastDeed",
+      "PolarBearRugSouthAddon",
+      "PolarBearRugSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 7744
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 7745
+      },
+      {
+        "dx": 1,
+        "dy": -1,
+        "id": 7746
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 7747
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 7748
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 7749
+      },
+      {
+        "dx": -1,
+        "dy": 1,
+        "id": 7750
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 7751
+      },
+      {
+        "dx": -1,
+        "dy": -1,
+        "id": 7752
+      }
+    ]
+  },
+  "brown-bear-rug-south": {
+    "servuoClasses": [
+      "BrownBearRugEastAddon",
+      "BrownBearRugEastDeed",
+      "BrownBearRugSouthAddon",
+      "BrownBearRugSouthDeed",
+      "PolarBearRugEastAddon",
+      "PolarBearRugEastDeed",
+      "PolarBearRugSouthAddon",
+      "PolarBearRugSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 7734
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 7735
+      },
+      {
+        "dx": -1,
+        "dy": 1,
+        "id": 7736
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 7737
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 7738
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 7739
+      },
+      {
+        "dx": 1,
+        "dy": -1,
+        "id": 7740
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 7741
+      },
+      {
+        "dx": -1,
+        "dy": -1,
+        "id": 7742
+      }
+    ]
+  },
+  "polar-bear-rug-east": {
+    "servuoClasses": [
+      "BrownBearRugEastAddon",
+      "BrownBearRugEastDeed",
+      "BrownBearRugSouthAddon",
+      "BrownBearRugSouthDeed",
+      "PolarBearRugEastAddon",
+      "PolarBearRugEastDeed",
+      "PolarBearRugSouthAddon",
+      "PolarBearRugSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 7763
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 7764
+      },
+      {
+        "dx": 1,
+        "dy": -1,
+        "id": 7765
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 7766
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 7767
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 7768
+      },
+      {
+        "dx": -1,
+        "dy": 1,
+        "id": 7769
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 7770
+      },
+      {
+        "dx": -1,
+        "dy": -1,
+        "id": 7771
+      }
+    ]
+  },
+  "polar-bear-rug-south": {
+    "servuoClasses": [
+      "BrownBearRugEastAddon",
+      "BrownBearRugEastDeed",
+      "BrownBearRugSouthAddon",
+      "BrownBearRugSouthDeed",
+      "PolarBearRugEastAddon",
+      "PolarBearRugEastDeed",
+      "PolarBearRugSouthAddon",
+      "PolarBearRugSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 7753
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 7754
+      },
+      {
+        "dx": -1,
+        "dy": 1,
+        "id": 7755
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 7756
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 7757
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 7758
+      },
+      {
+        "dx": 1,
+        "dy": -1,
+        "id": 7759
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 7760
+      },
+      {
+        "dx": -1,
+        "dy": -1,
+        "id": 7761
+      }
+    ]
+  },
+  "bed-of-nails": {
+    "name": "Bed of Nails",
+    "script": "bed-of-nails",
+    "labelNumber": 1074801,
+    "servuoClasses": [
+      "BedOfNailsComponent",
+      "BedOfNailsAddon",
+      "BedOfNailsDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10881
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 10882
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10889
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 10890
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10881
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 10882
+      }
+    ]
+  },
+  "contest-mini-house": {
+    "name": "Contest Mini House",
+    "labelNumber": 1062692,
+    "miniHouseType": "MalasMountainPass",
+    "isRewardItem": true,
+    "servuoClass": "ContestMiniHouse",
+    "servuoClasses": [
+      "ContestMiniHouse",
+      "ContestMiniHouseDeed",
+      "MiniHouseAddon",
+      "MiniHouseDeed",
+      "MiniHouseInfo",
+      "MiniHouseAddonComponent",
+      "IRewardItem"
+    ],
+    "components": [
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 8982,
+        "servuoClass": "MiniHouseAddonComponent"
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 8981,
+        "servuoClass": "MiniHouseAddonComponent"
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 8980,
+        "servuoClass": "MiniHouseAddonComponent"
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 8979,
+        "servuoClass": "MiniHouseAddonComponent"
+      }
+    ]
+  },
+  "contest-mini-house-church-at-night": {
+    "name": "Contest 2004 Mini House",
+    "labelNumber": 1072215,
+    "miniHouseType": "ChurchAtNight",
+    "isRewardItem": true,
+    "servuoClass": "ContestMiniHouse",
+    "servuoClasses": [
+      "ContestMiniHouse",
+      "ContestMiniHouseDeed",
+      "MiniHouseAddon",
+      "MiniHouseDeed",
+      "MiniHouseInfo",
+      "MiniHouseAddonComponent",
+      "IRewardItem"
+    ],
+    "components": [
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 8984,
+        "servuoClass": "MiniHouseAddonComponent"
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 8983,
+        "servuoClass": "MiniHouseAddonComponent"
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 8985,
+        "servuoClass": "MiniHouseAddonComponent"
+      }
+    ]
+  },
+  "blue-decorative-rug": {
+    "servuoClasses": [
+      "BlueDecorativeRugAddon",
+      "BlueDecorativeRugDeed"
+    ],
+    "components": [
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 2770
+      },
+      {
+        "dx": -1,
+        "dy": -1,
+        "id": 2771
+      },
+      {
+        "dx": -1,
+        "dy": 1,
+        "id": 2772
+      },
+      {
+        "dx": 1,
+        "dy": -1,
+        "id": 2773
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 2774
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 2775
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 2776
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 2777
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2769
+      }
+    ]
+  },
+  "blue-fancy-rug": {
+    "servuoClasses": [
+      "BlueFancyRugAddon",
+      "BlueFancyRugDeed"
+    ],
+    "components": [
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 2754
+      },
+      {
+        "dx": -1,
+        "dy": -1,
+        "id": 2755
+      },
+      {
+        "dx": -1,
+        "dy": 1,
+        "id": 2756
+      },
+      {
+        "dx": 1,
+        "dy": -1,
+        "id": 2757
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 2806
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 2807
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 2808
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 2809
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2810
+      }
+    ]
+  },
+  "blue-marble-fireplace-south": {
+    "servuoClasses": [
+      "BlueMarbleFireplaceAddon",
+      "BlueMarbleFireplaceDeed"
+    ],
+    "components": [
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 39510
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 39509
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 39508
+      }
+    ]
+  },
+  "blue-marble-fireplace-east": {
+    "servuoClasses": [
+      "BlueMarbleFireplaceAddon",
+      "BlueMarbleFireplaceDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 39507
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 39506
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 39505
+      }
+    ]
+  },
+  "blue-plain-rug": {
+    "servuoClasses": [
+      "BluePlainRugAddon",
+      "BluePlainRugDeed"
+    ],
+    "components": [
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 2754
+      },
+      {
+        "dx": -1,
+        "dy": -1,
+        "id": 2755
+      },
+      {
+        "dx": -1,
+        "dy": 1,
+        "id": 2756
+      },
+      {
+        "dx": 1,
+        "dy": -1,
+        "id": 2757
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 2806
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 2807
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 2808
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 2809
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2752
+      }
+    ]
+  },
+  "bone-couch": {
+    "servuoClasses": [
+      "BoneCouchComponent",
+      "BoneCouchAddon",
+      "BoneCouchDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10842
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 10843
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10880
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 10879
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10842
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 10843
+      }
+    ]
+  },
+  "bone-table": {
+    "servuoClasses": [
+      "BoneTableAddon",
+      "BoneTableDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10844
+      }
+    ]
+  },
+  "bone-throne": {
+    "servuoClasses": [
+      "BoneThroneComponent",
+      "BoneThroneAddon",
+      "BoneThroneDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10840
+      }
+    ]
+  },
+  "broken-armoire": {
+    "servuoClasses": [
+      "BrokenArmoireComponent",
+      "BrokenArmoireAddon",
+      "BrokenArmoireDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3090
+      }
+    ]
+  },
+  "broken-bed": {
+    "servuoClasses": [
+      "BrokenBedAddon",
+      "BrokenBedDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 6293
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 6292
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 6295
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 6294
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 6297
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 6296
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 6299
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 6298
+      }
+    ]
+  },
+  "broken-bookcase": {
+    "servuoClasses": [
+      "BrokenBookcaseComponent",
+      "BrokenBookcaseAddon",
+      "BrokenBookcaseDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3092
+      }
+    ]
+  },
+  "broken-chest-of-drawers": {
+    "servuoClasses": [
+      "BrokenChestOfDrawersComponent",
+      "BrokenChestOfDrawersAddon",
+      "BrokenChestOfDrawersDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3108
+      }
+    ]
+  },
+  "broken-covered-chair": {
+    "servuoClasses": [
+      "BrokenCoveredChairComponent",
+      "BrokenCoveredChairAddon",
+      "BrokenCoveredChairDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3095
+      }
+    ]
+  },
+  "broken-fallen-chair": {
+    "servuoClasses": [
+      "BrokenFallenChairComponent",
+      "BrokenFallenChairAddon",
+      "BrokenFallenChairDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3097
+      }
+    ]
+  },
+  "broken-vanity": {
+    "servuoClasses": [
+      "BrokenVanityAddon",
+      "BrokenVanityDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3104
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 3105
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3106
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 3107
+      }
+    ]
+  },
+  "buffet-table-south": {
+    "servuoClasses": [
+      "BuffetTableAddon",
+      "BuffetTableDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 40269
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 40270
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 40271
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 40272
+      },
+      {
+        "dx": 2,
+        "dy": 0,
+        "id": 40273
+      },
+      {
+        "dx": 2,
+        "dy": 1,
+        "id": 40274
+      },
+      {
+        "dx": -2,
+        "dy": 0,
+        "id": 40265
+      },
+      {
+        "dx": -2,
+        "dy": 1,
+        "id": 40266
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 40267
+      },
+      {
+        "dx": -1,
+        "dy": 1,
+        "id": 40268
+      }
+    ]
+  },
+  "buffet-table-east": {
+    "servuoClasses": [
+      "BuffetTableAddon",
+      "BuffetTableDeed"
+    ],
+    "components": [
+      {
+        "dx": 1,
+        "dy": 2,
+        "id": 40264
+      },
+      {
+        "dx": 0,
+        "dy": 2,
+        "id": 40263
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 40262
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 40261
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 40260
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 40259
+      },
+      {
+        "dx": 1,
+        "dy": -1,
+        "id": 40258
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 40257
+      },
+      {
+        "dx": 1,
+        "dy": -2,
+        "id": 40256
+      },
+      {
+        "dx": 0,
+        "dy": -2,
+        "id": 40255
+      }
+    ]
+  },
+  "cannon": {
+    "servuoClasses": [
+      "Cannon",
+      "CannonComponent"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3725
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 3724
+      },
+      {
+        "dx": 0,
+        "dy": 2,
+        "id": 3723
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3734
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 3733
+      },
+      {
+        "dx": -2,
+        "dy": 0,
+        "id": 3732
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3729
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 3730
+      },
+      {
+        "dx": 0,
+        "dy": -2,
+        "id": 3731
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3726
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 3727
+      },
+      {
+        "dx": 2,
+        "dy": 0,
+        "id": 3728
+      }
+    ]
+  },
+  "cinnamon-fancy-rug": {
+    "servuoClasses": [
+      "CinnamonFancyRugAddon",
+      "CinnamonFancyRugDeed"
+    ],
+    "components": [
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 2787
+      },
+      {
+        "dx": -1,
+        "dy": -1,
+        "id": 2788
+      },
+      {
+        "dx": -1,
+        "dy": 1,
+        "id": 2789
+      },
+      {
+        "dx": 1,
+        "dy": -1,
+        "id": 2790
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 2791
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 2792
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 2793
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 2794
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2795
+      }
+    ]
+  },
+  "codex-of-virtue": {
+    "servuoClasses": [
+      "CodexOfVirtueAddon",
+      "CodexOfVirtueDeed"
+    ],
+    "components": [
+      {
+        "dx": 3,
+        "dy": 3,
+        "id": 16637
+      },
+      {
+        "dx": 2,
+        "dy": 3,
+        "id": 16636
+      },
+      {
+        "dx": 1,
+        "dy": 3,
+        "id": 16635
+      },
+      {
+        "dx": 0,
+        "dy": 3,
+        "id": 16634
+      },
+      {
+        "dx": -1,
+        "dy": 3,
+        "id": 16633
+      },
+      {
+        "dx": -2,
+        "dy": 3,
+        "id": 16632
+      },
+      {
+        "dx": 3,
+        "dy": 2,
+        "id": 16631
+      },
+      {
+        "dx": 2,
+        "dy": 2,
+        "id": 16630
+      },
+      {
+        "dx": 1,
+        "dy": 2,
+        "id": 16629
+      },
+      {
+        "dx": 0,
+        "dy": 2,
+        "id": 16628
+      },
+      {
+        "dx": -1,
+        "dy": 2,
+        "id": 16627
+      },
+      {
+        "dx": -2,
+        "dy": 2,
+        "id": 16626
+      },
+      {
+        "dx": 3,
+        "dy": 1,
+        "id": 16625
+      },
+      {
+        "dx": 2,
+        "dy": 1,
+        "id": 16624
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 16623
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 16622
+      },
+      {
+        "dx": -1,
+        "dy": 1,
+        "id": 16621
+      },
+      {
+        "dx": -2,
+        "dy": 1,
+        "id": 16620
+      },
+      {
+        "dx": 3,
+        "dy": 0,
+        "id": 16619
+      },
+      {
+        "dx": 2,
+        "dy": 0,
+        "id": 16618
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 16617
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 16616
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 16615
+      },
+      {
+        "dx": -2,
+        "dy": 0,
+        "id": 16614
+      },
+      {
+        "dx": 3,
+        "dy": -1,
+        "id": 16613
+      },
+      {
+        "dx": 2,
+        "dy": -1,
+        "id": 16612
+      },
+      {
+        "dx": 1,
+        "dy": -1,
+        "id": 16611
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 16610
+      },
+      {
+        "dx": -1,
+        "dy": -1,
+        "id": 16609
+      },
+      {
+        "dx": -2,
+        "dy": -1,
+        "id": 16608
+      },
+      {
+        "dx": 3,
+        "dy": -2,
+        "id": 16607
+      },
+      {
+        "dx": 2,
+        "dy": -2,
+        "id": 16606
+      },
+      {
+        "dx": 1,
+        "dy": -2,
+        "id": 16605
+      },
+      {
+        "dx": 0,
+        "dy": -2,
+        "id": 16604
+      },
+      {
+        "dx": -1,
+        "dy": -2,
+        "id": 16603
+      },
+      {
+        "dx": -2,
+        "dy": -2,
+        "id": 16602
+      }
+    ]
+  },
+  "fletching-station": {
+    "servuoClasses": [
+      "FletchingStation",
+      "FletchingStationDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 39982
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 40004
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 39992
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 40003
+      }
+    ]
+  },
+  "sewing-machine": {
+    "servuoClasses": [
+      "SewingMachine",
+      "SewingMachineDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 39496
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 39498
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 39497
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 39498
+      }
+    ]
+  },
+  "smithing-press": {
+    "servuoClasses": [
+      "SmithingPress",
+      "SmithingPressDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 39592
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 39569
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 39593
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 39569
+      }
+    ]
+  },
+  "spinning-lathe": {
+    "servuoClasses": [
+      "SpinningLathe",
+      "SpinningLatheDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 39962
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 40006
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 39972
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 40007
+      }
+    ]
+  },
+  "writing-desk": {
+    "servuoClasses": [
+      "WritingDesk",
+      "WritingDeskDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 40938
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 40953
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 40945
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 40952
+      }
+    ]
+  },
+  "creepy-portrait": {
+    "servuoClasses": [
+      "CreepyPortraitComponent",
+      "CreepyPortraitAddon",
+      "CreepyPortraitDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10857
+      }
+    ]
+  },
+  "crystal-altar": {
+    "servuoClasses": [
+      "CrystalAltarAddon",
+      "CrystalAltarDeed"
+    ],
+    "components": [
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 13826
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 13828
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 15778
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 13827
+      }
+    ]
+  },
+  "crystal-beggar-statue-south": {
+    "servuoClasses": [
+      "CrystalBeggarStatueAddon",
+      "CrystalBeggarStatueDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 13816
+      }
+    ]
+  },
+  "crystal-beggar-statue-east": {
+    "servuoClasses": [
+      "CrystalBeggarStatueAddon",
+      "CrystalBeggarStatueDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 13817
+      }
+    ]
+  },
+  "crystal-brazier": {
+    "servuoClasses": [
+      "CrystalBrazierAddon",
+      "CrystalBrazierDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 13807
+      }
+    ]
+  },
+  "crystal-bull-statue-south": {
+    "servuoClasses": [
+      "CrystalBullStatueAddon",
+      "CrystalBullStatueDeed"
+    ],
+    "components": [
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 13824
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 13825
+      }
+    ]
+  },
+  "crystal-bull-statue-east": {
+    "servuoClasses": [
+      "CrystalBullStatueAddon",
+      "CrystalBullStatueDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 13822
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 13823
+      }
+    ]
+  },
+  "crystal-runner-statue-south": {
+    "servuoClasses": [
+      "CrystalRunnerStatueAddon",
+      "CrystalRunnerStatueDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 13821
+      }
+    ]
+  },
+  "crystal-runner-statue-east": {
+    "servuoClasses": [
+      "CrystalRunnerStatueAddon",
+      "CrystalRunnerStatueDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 13820
+      }
+    ]
+  },
+  "crystal-supplicant-statue-south": {
+    "servuoClasses": [
+      "CrystalSupplicantStatueAddon",
+      "CrystalSupplicantStatueDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 13819
+      }
+    ]
+  },
+  "crystal-supplicant-statue-east": {
+    "servuoClasses": [
+      "CrystalSupplicantStatueAddon",
+      "CrystalSupplicantStatueDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 13818
+      }
+    ]
+  },
+  "crystal-table-south": {
+    "servuoClasses": [
+      "CrystalTableAddon",
+      "CrystalTableDeed"
+    ],
+    "components": [
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 13831
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 13832
+      }
+    ]
+  },
+  "crystal-table-east": {
+    "servuoClasses": [
+      "CrystalTableAddon",
+      "CrystalTableDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 13829
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 13830
+      }
+    ]
+  },
+  "crystal-throne-south": {
+    "servuoClasses": [
+      "CrystalThroneAddon",
+      "CrystalThroneDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 13805
+      }
+    ]
+  },
+  "crystal-throne-east": {
+    "servuoClasses": [
+      "CrystalThroneAddon",
+      "CrystalThroneDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 13806
+      }
+    ]
+  },
+  "curtains": {
+    "servuoClasses": [
+      "CurtainsComponent",
+      "CurtainsAddon",
+      "CurtainsDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 15774
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 15788
+      },
+      {
+        "dx": 0,
+        "dy": 2,
+        "id": 15776
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 15775
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 15772
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 15773
+      },
+      {
+        "dx": 2,
+        "dy": 0,
+        "id": 15777
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 15787
+      }
+    ]
+  },
+  "dart-board-east": {
+    "servuoClasses": [
+      "DartBoard",
+      "DartBoardEastAddon",
+      "DartBoardEastDeed",
+      "DartBoardSouthAddon",
+      "DartBoardSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 7727
+      }
+    ]
+  },
+  "dart-board-south": {
+    "servuoClasses": [
+      "DartBoard",
+      "DartBoardEastAddon",
+      "DartBoardEastDeed",
+      "DartBoardSouthAddon",
+      "DartBoardSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 7726
+      }
+    ]
+  },
+  "distillery-east": {
+    "servuoClasses": [
+      "DistilleryEastAddon",
+      "DistilleryEastAddonDeed",
+      "DistillerySouthAddon",
+      "DistillerySouthAddonDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 15802
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 15803
+      }
+    ]
+  },
+  "distillery-south": {
+    "servuoClasses": [
+      "DistilleryEastAddon",
+      "DistilleryEastAddonDeed",
+      "DistillerySouthAddon",
+      "DistillerySouthAddonDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 15800
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 15801
+      }
+    ]
+  },
+  "disturbing-portrait": {
+    "servuoClasses": [
+      "DisturbingPortraitComponent",
+      "DisturbingPortraitAddon",
+      "DisturbingPortraitDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10845
+      }
+    ]
+  },
+  "elven-bed-east": {
+    "servuoClasses": [
+      "ElvenBedEastAddon",
+      "ElvenBedEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 12365
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 12364
+      }
+    ]
+  },
+  "elven-bed-south": {
+    "servuoClasses": [
+      "ElvenBedSouthAddon",
+      "ElvenBedSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 12368
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 12369
+      }
+    ]
+  },
+  "elven-dresser-addon-east": {
+    "servuoClasses": [
+      "ElvenDresserAddonEast",
+      "ElvenDresserDeedEast",
+      "ElvenDresserEastAddon",
+      "ElvenDresserEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 12515
+      }
+    ]
+  },
+  "elven-dresser-east": {
+    "servuoClasses": [
+      "ElvenDresserAddonEast",
+      "ElvenDresserDeedEast",
+      "ElvenDresserEastAddon",
+      "ElvenDresserEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 12516
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 12515
+      }
+    ]
+  },
+  "elven-dresser-addon-south": {
+    "servuoClasses": [
+      "ElvenDresserAddonSouth",
+      "ElvenDresserDeedSouth",
+      "ElvenDresserSouthAddon",
+      "ElvenDresserSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 12517
+      }
+    ]
+  },
+  "elven-dresser-south": {
+    "servuoClasses": [
+      "ElvenDresserAddonSouth",
+      "ElvenDresserDeedSouth",
+      "ElvenDresserSouthAddon",
+      "ElvenDresserSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 12517
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 12518
+      }
+    ]
+  },
+  "elven-forge": {
+    "servuoClasses": [
+      "ElvenForgeAddon",
+      "ElvenForgeDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 11736
+      }
+    ]
+  },
+  "elven-loveseat-east": {
+    "servuoClasses": [
+      "ElvenLoveseatEastAddon",
+      "ElvenLoveseatEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 12425
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 12424
+      }
+    ]
+  },
+  "elven-loveseat-south": {
+    "servuoClasses": [
+      "ElvenLoveseatSouthAddon",
+      "ElvenLoveseatSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 12426
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 12427
+      }
+    ]
+  },
+  "elven-spinningwheel-east": {
+    "servuoClasses": [
+      "ElvenSpinningwheelEastAddon",
+      "ElvenSpinningwheelEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 11837
+      }
+    ]
+  },
+  "elven-spinningwheel-south": {
+    "servuoClasses": [
+      "ElvenSpinningwheelSouthAddon",
+      "ElvenSpinningwheelSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 11839
+      }
+    ]
+  },
+  "elven-stove-east": {
+    "servuoClasses": [
+      "ElvenStoveEastAddon",
+      "ElvenStoveEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 11739
+      }
+    ]
+  },
+  "elven-stove-south": {
+    "servuoClasses": [
+      "ElvenStoveSouthAddon",
+      "ElvenStoveSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 11740
+      }
+    ]
+  },
+  "elven-wash-basin-east": {
+    "servuoClasses": [
+      "ElvenWashBasinEastAddon",
+      "ElvenWashBasinEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 12511
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 12512
+      }
+    ]
+  },
+  "elven-wash-basin-east-addon-with-drawer": {
+    "servuoClasses": [
+      "ElvenWashBasinEastAddonWithDrawer",
+      "ElvenWashBasinEastWithDrawerDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 12511
+      }
+    ]
+  },
+  "elven-wash-basin-south": {
+    "servuoClasses": [
+      "ElvenWashBasinSouthAddon",
+      "ElvenWashBasinSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 12513
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 12514
+      }
+    ]
+  },
+  "elven-wash-basin-south-addon-with-drawer": {
+    "servuoClasses": [
+      "ElvenWashBasinSouthAddonWithDrawer",
+      "ElvenWashBasinSouthWithDrawerDeed"
+    ],
+    "components": [
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 12513
+      }
+    ]
+  },
+  "enchanted-granite-cart-south": {
+    "name": "Enchanted Granite Cart",
+    "labelNumber": 1159422,
+    "isRewardItem": true,
+    "servuoClasses": [
+      "EnchantedGraniteCartComponent",
+      "EnchantedGraniteCartAddon",
+      "EnchantedGraniteCartAddonDeed",
+      "IRewardItem",
+      "IRewardOption"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 42315,
+        "script": "enchanted-granite-cart",
+        "labelNumber": 1126338,
+        "servuoClass": "EnchantedGraniteCartComponent",
+        "graniteRewardCount": 0
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 42317
+      }
+    ]
+  },
+  "enchanted-granite-cart-east": {
+    "name": "Enchanted Granite Cart",
+    "labelNumber": 1159422,
+    "isRewardItem": true,
+    "servuoClasses": [
+      "EnchantedGraniteCartComponent",
+      "EnchantedGraniteCartAddon",
+      "EnchantedGraniteCartAddonDeed",
+      "IRewardItem",
+      "IRewardOption"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 42314,
+        "script": "enchanted-granite-cart",
+        "labelNumber": 1126338,
+        "servuoClass": "EnchantedGraniteCartComponent",
+        "graniteRewardCount": 0
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 42316
+      }
+    ]
+  },
+  "fancy-couch-east": {
+    "servuoClasses": [
+      "FancyCouchEastAddon",
+      "FancyCouchEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 19596
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19594
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 19595
+      }
+    ]
+  },
+  "fancy-couch-north": {
+    "servuoClasses": [
+      "FancyCouchNorthAddon",
+      "FancyCouchNorthDeed"
+    ],
+    "components": [
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 40034
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 40033
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 40032
+      }
+    ]
+  },
+  "fancy-couch-south": {
+    "servuoClasses": [
+      "FancyCouchSouthAddon",
+      "FancyCouchSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19597
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 19598
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 19599
+      }
+    ]
+  },
+  "fancy-couch-west": {
+    "servuoClasses": [
+      "FancyCouchWestAddon",
+      "FancyCouchWestDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 40031
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 40030
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 40029
+      }
+    ]
+  },
+  "fancy-elven-table-east": {
+    "servuoClasses": [
+      "FancyElvenTableEastAddon",
+      "FancyElvenTableEastDeed"
+    ],
+    "components": [
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 12436
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 12435
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 12434
+      }
+    ]
+  },
+  "fancy-elven-table-south": {
+    "servuoClasses": [
+      "FancyElvenTableSouthAddon",
+      "FancyElvenTableSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 12437
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 12438
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 12439
+      }
+    ]
+  },
+  "fancy-loveseat-east": {
+    "servuoClasses": [
+      "FancyLoveseatEastAddon",
+      "FancyLoveseatEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19592
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 19593
+      }
+    ]
+  },
+  "fancy-loveseat-north": {
+    "servuoClasses": [
+      "FancyLoveseatNorthAddon",
+      "FancyLoveseatNorthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 40026
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 40025
+      }
+    ]
+  },
+  "fancy-loveseat-south": {
+    "servuoClasses": [
+      "FancyLoveseatSouthAddon",
+      "FancyLoveseatSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19591
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 19590
+      }
+    ]
+  },
+  "fancy-loveseat-west": {
+    "servuoClasses": [
+      "FancyLoveseatWestAddon",
+      "FancyLoveseatWestDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 40024
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 40023
+      }
+    ]
+  },
+  "fancy-wooden-shelf-east": {
+    "servuoClasses": [
+      "FancyWoodenShelfEastAddon",
+      "FancyWoodenShelfEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19513
+      }
+    ]
+  },
+  "fancy-wooden-shelf-south": {
+    "servuoClasses": [
+      "FancyWoodenShelfSouthAddon",
+      "FancyWoodenShelfSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19512
+      }
+    ]
+  },
+  "fire-column": {
+    "servuoClasses": [
+      "FireColumnAddon"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 933
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 933,
+        "dz": 5
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 933,
+        "dz": 10
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 933,
+        "dz": 15
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 6587,
+        "dz": 21
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 6571,
+        "dz": 23
+      },
+      {
+        "dx": -2,
+        "dy": 0,
+        "id": 4651
+      },
+      {
+        "dx": 0,
+        "dy": -2,
+        "id": 4654
+      },
+      {
+        "dx": -1,
+        "dy": 1,
+        "id": 4653
+      },
+      {
+        "dx": 1,
+        "dy": -1,
+        "id": 4655
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 4653
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 4650
+      },
+      {
+        "dx": 2,
+        "dy": -1,
+        "id": 4651
+      },
+      {
+        "dx": 0,
+        "dy": 2,
+        "id": 4651
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 4654
+      }
+    ]
+  },
+  "light-flower-tapestry-east": {
+    "servuoClasses": [
+      "LightFlowerTapestryEastAddon",
+      "LightFlowerTapestryEastDeed",
+      "LightFlowerTapestrySouthAddon",
+      "LightFlowerTapestrySouthDeed",
+      "DarkFlowerTapestryEastAddon",
+      "DarkFlowerTapestryEastDeed",
+      "DarkFlowerTapestrySouthAddon",
+      "DarkFlowerTapestrySouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4060
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 4059
+      }
+    ]
+  },
+  "light-flower-tapestry-south": {
+    "servuoClasses": [
+      "LightFlowerTapestryEastAddon",
+      "LightFlowerTapestryEastDeed",
+      "LightFlowerTapestrySouthAddon",
+      "LightFlowerTapestrySouthDeed",
+      "DarkFlowerTapestryEastAddon",
+      "DarkFlowerTapestryEastDeed",
+      "DarkFlowerTapestrySouthAddon",
+      "DarkFlowerTapestrySouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4057
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 4058
+      }
+    ]
+  },
+  "dark-flower-tapestry-east": {
+    "servuoClasses": [
+      "LightFlowerTapestryEastAddon",
+      "LightFlowerTapestryEastDeed",
+      "LightFlowerTapestrySouthAddon",
+      "LightFlowerTapestrySouthDeed",
+      "DarkFlowerTapestryEastAddon",
+      "DarkFlowerTapestryEastDeed",
+      "DarkFlowerTapestrySouthAddon",
+      "DarkFlowerTapestrySouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4064
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 4063
+      }
+    ]
+  },
+  "dark-flower-tapestry-south": {
+    "servuoClasses": [
+      "LightFlowerTapestryEastAddon",
+      "LightFlowerTapestryEastDeed",
+      "LightFlowerTapestrySouthAddon",
+      "LightFlowerTapestrySouthDeed",
+      "DarkFlowerTapestryEastAddon",
+      "DarkFlowerTapestryEastDeed",
+      "DarkFlowerTapestrySouthAddon",
+      "DarkFlowerTapestrySouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4061
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 4062
+      }
+    ]
+  },
+  "formal-dining-table-south": {
+    "servuoClasses": [
+      "FormalDiningTableAddon",
+      "FormalDiningTableDeed"
+    ],
+    "components": [
+      {
+        "dx": 3,
+        "dy": 1,
+        "id": 40318
+      },
+      {
+        "dx": 3,
+        "dy": 0,
+        "id": 40317
+      },
+      {
+        "dx": 2,
+        "dy": 1,
+        "id": 40316
+      },
+      {
+        "dx": 2,
+        "dy": 0,
+        "id": 40315
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 40314
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 40313
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 40312
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 40311
+      },
+      {
+        "dx": -1,
+        "dy": 1,
+        "id": 40310
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 40309
+      },
+      {
+        "dx": -2,
+        "dy": 1,
+        "id": 40308
+      },
+      {
+        "dx": -2,
+        "dy": 0,
+        "id": 40307
+      }
+    ]
+  },
+  "formal-dining-table-east": {
+    "servuoClasses": [
+      "FormalDiningTableAddon",
+      "FormalDiningTableDeed"
+    ],
+    "components": [
+      {
+        "dx": 1,
+        "dy": 3,
+        "id": 40306
+      },
+      {
+        "dx": 0,
+        "dy": 3,
+        "id": 40305
+      },
+      {
+        "dx": 1,
+        "dy": 2,
+        "id": 40304
+      },
+      {
+        "dx": 0,
+        "dy": 2,
+        "id": 40303
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 40302
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 40301
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 40300
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 40299
+      },
+      {
+        "dx": 1,
+        "dy": -1,
+        "id": 40298
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 40297
+      },
+      {
+        "dx": 0,
+        "dy": -2,
+        "id": 40295
+      },
+      {
+        "dx": 1,
+        "dy": -2,
+        "id": 40296
+      }
+    ]
+  },
+  "gadgetry-table-south": {
+    "servuoClasses": [
+      "GadgetryTableComponent",
+      "GadgetryTableAddon",
+      "GadgetryTableAddonDeed",
+      "GadgetryTableGolem"
+    ],
+    "components": [
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 20372
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 20362
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 20352
+      },
+      {
+        "dx": -1,
+        "dy": 1,
+        "id": 19687
+      }
+    ]
+  },
+  "gadgetry-table-east": {
+    "servuoClasses": [
+      "GadgetryTableComponent",
+      "GadgetryTableAddon",
+      "GadgetryTableAddonDeed",
+      "GadgetryTableGolem"
+    ],
+    "components": [
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 19692
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 20382
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 20392
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 20402
+      }
+    ]
+  },
+  "gargish-cot-east": {
+    "servuoClasses": [
+      "GargishCotEastAddon",
+      "GargishCotEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 16398
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 16399
+      }
+    ]
+  },
+  "gargish-cot-south": {
+    "servuoClasses": [
+      "GargishCotSouthAddon",
+      "GargishCotSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 16397
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 16396
+      }
+    ]
+  },
+  "gargish-couch-east": {
+    "servuoClasses": [
+      "GargishCouchEastAddon",
+      "GargishCouchEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 16426
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 16425
+      }
+    ]
+  },
+  "gargish-couch-south": {
+    "servuoClasses": [
+      "GargishCouchSouthAddon",
+      "GargishCouchSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 16423
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 16424
+      }
+    ]
+  },
+  "gargish-long-table-east": {
+    "servuoClasses": [
+      "GargishLongTableEastAddon",
+      "GargishLongTableEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 16434
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 16433
+      }
+    ]
+  },
+  "gargish-long-table-south": {
+    "servuoClasses": [
+      "GargishLongTableSouthAddon",
+      "GargishLongTableSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 16431
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 16432
+      }
+    ]
+  },
+  "gold-marble-fireplace-south": {
+    "servuoClasses": [
+      "GoldMarbleFireplaceAddon",
+      "GoldMarbleFireplaceDeed"
+    ],
+    "components": [
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 39504
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 39503
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 39502
+      }
+    ]
+  },
+  "gold-marble-fireplace-east": {
+    "servuoClasses": [
+      "GoldMarbleFireplaceAddon",
+      "GoldMarbleFireplaceDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 39501
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 39500
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 39499
+      }
+    ]
+  },
+  "golden-decorative-rug": {
+    "servuoClasses": [
+      "GoldenDecorativeRugAddon",
+      "GoldenDecorativeRugDeed"
+    ],
+    "components": [
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 2779
+      },
+      {
+        "dx": -1,
+        "dy": -1,
+        "id": 2780
+      },
+      {
+        "dx": -1,
+        "dy": 1,
+        "id": 2781
+      },
+      {
+        "dx": 1,
+        "dy": -1,
+        "id": 2782
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 2783
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 2784
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 2785
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 2786
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2778
+      }
+    ]
+  },
+  "goza-mat-east": {
+    "servuoClasses": [
+      "GozaMatEastAddon",
+      "GozaMatEastDeed",
+      "GozaMatSouthAddon",
+      "GozaMatSouthDeed",
+      "SquareGozaMatEastAddon",
+      "SquareGozaMatEastDeed",
+      "SquareGozaMatSouthAddon",
+      "SquareGozaMatSouthDeed",
+      "BrocadeGozaMatEastAddon",
+      "BrocadeGozaMatEastDeed",
+      "BrocadeGozaMatSouthAddon",
+      "BrocadeGozaMatSouthDeed",
+      "BrocadeSquareGozaMatEastAddon",
+      "BrocadeSquareGozaMatEastDeed",
+      "BrocadeSquareGozaMatSouthAddon",
+      "BrocadeSquareGozaMatSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 10404
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10405
+      }
+    ]
+  },
+  "goza-mat-south": {
+    "servuoClasses": [
+      "GozaMatEastAddon",
+      "GozaMatEastDeed",
+      "GozaMatSouthAddon",
+      "GozaMatSouthDeed",
+      "SquareGozaMatEastAddon",
+      "SquareGozaMatEastDeed",
+      "SquareGozaMatSouthAddon",
+      "SquareGozaMatSouthDeed",
+      "BrocadeGozaMatEastAddon",
+      "BrocadeGozaMatEastDeed",
+      "BrocadeGozaMatSouthAddon",
+      "BrocadeGozaMatSouthDeed",
+      "BrocadeSquareGozaMatEastAddon",
+      "BrocadeSquareGozaMatEastDeed",
+      "BrocadeSquareGozaMatSouthAddon",
+      "BrocadeSquareGozaMatSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 10406
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10407
+      }
+    ]
+  },
+  "square-goza-mat-east": {
+    "servuoClasses": [
+      "GozaMatEastAddon",
+      "GozaMatEastDeed",
+      "GozaMatSouthAddon",
+      "GozaMatSouthDeed",
+      "SquareGozaMatEastAddon",
+      "SquareGozaMatEastDeed",
+      "SquareGozaMatSouthAddon",
+      "SquareGozaMatSouthDeed",
+      "BrocadeGozaMatEastAddon",
+      "BrocadeGozaMatEastDeed",
+      "BrocadeGozaMatSouthAddon",
+      "BrocadeGozaMatSouthDeed",
+      "BrocadeSquareGozaMatEastAddon",
+      "BrocadeSquareGozaMatEastDeed",
+      "BrocadeSquareGozaMatSouthAddon",
+      "BrocadeSquareGozaMatSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10408
+      }
+    ]
+  },
+  "square-goza-mat-south": {
+    "servuoClasses": [
+      "GozaMatEastAddon",
+      "GozaMatEastDeed",
+      "GozaMatSouthAddon",
+      "GozaMatSouthDeed",
+      "SquareGozaMatEastAddon",
+      "SquareGozaMatEastDeed",
+      "SquareGozaMatSouthAddon",
+      "SquareGozaMatSouthDeed",
+      "BrocadeGozaMatEastAddon",
+      "BrocadeGozaMatEastDeed",
+      "BrocadeGozaMatSouthAddon",
+      "BrocadeGozaMatSouthDeed",
+      "BrocadeSquareGozaMatEastAddon",
+      "BrocadeSquareGozaMatEastDeed",
+      "BrocadeSquareGozaMatSouthAddon",
+      "BrocadeSquareGozaMatSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10409
+      }
+    ]
+  },
+  "brocade-goza-mat-east": {
+    "servuoClasses": [
+      "GozaMatEastAddon",
+      "GozaMatEastDeed",
+      "GozaMatSouthAddon",
+      "GozaMatSouthDeed",
+      "SquareGozaMatEastAddon",
+      "SquareGozaMatEastDeed",
+      "SquareGozaMatSouthAddon",
+      "SquareGozaMatSouthDeed",
+      "BrocadeGozaMatEastAddon",
+      "BrocadeGozaMatEastDeed",
+      "BrocadeGozaMatSouthAddon",
+      "BrocadeGozaMatSouthDeed",
+      "BrocadeSquareGozaMatEastAddon",
+      "BrocadeSquareGozaMatEastDeed",
+      "BrocadeSquareGozaMatSouthAddon",
+      "BrocadeSquareGozaMatSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10411
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 10410
+      }
+    ]
+  },
+  "brocade-goza-mat-south": {
+    "servuoClasses": [
+      "GozaMatEastAddon",
+      "GozaMatEastDeed",
+      "GozaMatSouthAddon",
+      "GozaMatSouthDeed",
+      "SquareGozaMatEastAddon",
+      "SquareGozaMatEastDeed",
+      "SquareGozaMatSouthAddon",
+      "SquareGozaMatSouthDeed",
+      "BrocadeGozaMatEastAddon",
+      "BrocadeGozaMatEastDeed",
+      "BrocadeGozaMatSouthAddon",
+      "BrocadeGozaMatSouthDeed",
+      "BrocadeSquareGozaMatEastAddon",
+      "BrocadeSquareGozaMatEastDeed",
+      "BrocadeSquareGozaMatSouthAddon",
+      "BrocadeSquareGozaMatSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10413
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 10412
+      }
+    ]
+  },
+  "brocade-square-goza-mat-east": {
+    "servuoClasses": [
+      "GozaMatEastAddon",
+      "GozaMatEastDeed",
+      "GozaMatSouthAddon",
+      "GozaMatSouthDeed",
+      "SquareGozaMatEastAddon",
+      "SquareGozaMatEastDeed",
+      "SquareGozaMatSouthAddon",
+      "SquareGozaMatSouthDeed",
+      "BrocadeGozaMatEastAddon",
+      "BrocadeGozaMatEastDeed",
+      "BrocadeGozaMatSouthAddon",
+      "BrocadeGozaMatSouthDeed",
+      "BrocadeSquareGozaMatEastAddon",
+      "BrocadeSquareGozaMatEastDeed",
+      "BrocadeSquareGozaMatSouthAddon",
+      "BrocadeSquareGozaMatSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10414
+      }
+    ]
+  },
+  "brocade-square-goza-mat-south": {
+    "servuoClasses": [
+      "GozaMatEastAddon",
+      "GozaMatEastDeed",
+      "GozaMatSouthAddon",
+      "GozaMatSouthDeed",
+      "SquareGozaMatEastAddon",
+      "SquareGozaMatEastDeed",
+      "SquareGozaMatSouthAddon",
+      "SquareGozaMatSouthDeed",
+      "BrocadeGozaMatEastAddon",
+      "BrocadeGozaMatEastDeed",
+      "BrocadeGozaMatSouthAddon",
+      "BrocadeGozaMatSouthDeed",
+      "BrocadeSquareGozaMatEastAddon",
+      "BrocadeSquareGozaMatEastDeed",
+      "BrocadeSquareGozaMatSouthAddon",
+      "BrocadeSquareGozaMatSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10415
+      }
+    ]
+  },
+  "gray-brick-fireplace-east": {
+    "servuoClasses": [
+      "GrayBrickFireplaceEastAddon",
+      "GrayBrickFireplaceEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2365
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 2359
+      }
+    ]
+  },
+  "gray-brick-fireplace-south": {
+    "servuoClasses": [
+      "GrayBrickFireplaceSouthAddon",
+      "GrayBrickFireplaceSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 2379
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2373
+      }
+    ]
+  },
+  "green-marble-fireplace-south": {
+    "servuoClasses": [
+      "GreenMarbleFireplaceAddon",
+      "GreenMarbleFireplaceDeed"
+    ],
+    "components": [
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 39516
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 39515
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 39514
+      }
+    ]
+  },
+  "green-marble-fireplace-east": {
+    "servuoClasses": [
+      "GreenMarbleFireplaceAddon",
+      "GreenMarbleFireplaceDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 39513
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 39512
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 39511
+      }
+    ]
+  },
+  "guillotine": {
+    "servuoClasses": [
+      "GuillotineComponent",
+      "GuillotineAddon",
+      "GuillotineDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4702
+      }
+    ]
+  },
+  "hanging-axes": {
+    "servuoClasses": [
+      "HangingAxesAddon",
+      "HangingAxesDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5482
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 5483
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5480
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 5481
+      }
+    ]
+  },
+  "hanging-swords": {
+    "servuoClasses": [
+      "HangingSwordsAddon",
+      "HangingSwordsDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5478
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 5479
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5476
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 5477
+      }
+    ]
+  },
+  "harpsichord-south": {
+    "servuoClasses": [
+      "HarpsichordRoll",
+      "HarpsichordAddon",
+      "HarpsichordAddonDeed"
+    ],
+    "components": [
+      {
+        "dx": 2,
+        "dy": 0,
+        "id": 25539
+      },
+      {
+        "dx": 2,
+        "dy": 1,
+        "id": 25540
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 25545
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 25543
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 25541
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 25542
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 25544
+      }
+    ]
+  },
+  "harpsichord-east": {
+    "servuoClasses": [
+      "HarpsichordRoll",
+      "HarpsichordAddon",
+      "HarpsichordAddonDeed"
+    ],
+    "components": [
+      {
+        "dx": 1,
+        "dy": 2,
+        "id": 25532
+      },
+      {
+        "dx": 0,
+        "dy": 2,
+        "id": 25533
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 25538
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 25537
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 25536
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 25535
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 25534
+      }
+    ]
+  },
+  "haunter-mirror": {
+    "servuoClasses": [
+      "HaunterMirrorComponent",
+      "HaunterMirrorAddon",
+      "HauntedMirrorDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10875
+      }
+    ]
+  },
+  "house-ladder": {
+    "servuoClasses": [
+      "HouseLadderAddon",
+      "HouseLadderDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 15794
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 16168,
+        "dz": 28
+      },
+      {
+        "dx": 0,
+        "dy": 2,
+        "id": 15796,
+        "dz": 20
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 15795
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 16168,
+        "dz": 28
+      },
+      {
+        "dx": 2,
+        "dy": 0,
+        "id": 15797,
+        "dz": 20
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 12255
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 16168,
+        "dz": 28
+      },
+      {
+        "dx": 0,
+        "dy": -2,
+        "id": 15798,
+        "dz": 20
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 12254
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 16168,
+        "dz": 28
+      },
+      {
+        "dx": -2,
+        "dy": 0,
+        "id": 15799,
+        "dz": 20
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 15794
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 15795
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 12255
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 12254
+      }
+    ]
+  },
+  "iron-maiden": {
+    "servuoClasses": [
+      "IronMaidenAddon",
+      "IronMaidenDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4681
+      }
+    ]
+  },
+  "jack-o-lantern": {
+    "servuoClasses": [
+      "JackOLantern"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5703
+      }
+    ]
+  },
+  "jolly-holiday-tree": {
+    "servuoClasses": [
+      "JollyHolidayTreeAddon",
+      "JollyHolidayTreeDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 42192
+      }
+    ]
+  },
+  "koi-pond": {
+    "servuoClasses": [
+      "KoiPondAddon",
+      "KoiPondDeed"
+    ],
+    "components": [
+      {
+        "dx": 3,
+        "dy": 0,
+        "id": 41037,
+        "dz": 1
+      },
+      {
+        "dx": 3,
+        "dy": 0,
+        "id": 41038,
+        "dz": 1
+      },
+      {
+        "dx": 3,
+        "dy": -2,
+        "id": 41035,
+        "dz": 1
+      },
+      {
+        "dx": 3,
+        "dy": -1,
+        "id": 41036,
+        "dz": 1
+      },
+      {
+        "dx": 3,
+        "dy": 1,
+        "id": 41038,
+        "dz": 1
+      },
+      {
+        "dx": 3,
+        "dy": 3,
+        "id": 41016,
+        "dz": 1
+      },
+      {
+        "dx": 3,
+        "dy": 2,
+        "id": 41039,
+        "dz": 1
+      },
+      {
+        "dx": -3,
+        "dy": 1,
+        "id": 41024
+      },
+      {
+        "dx": -3,
+        "dy": 3,
+        "id": 41022,
+        "dz": 1
+      },
+      {
+        "dx": -2,
+        "dy": 3,
+        "id": 41021,
+        "dz": 1
+      },
+      {
+        "dx": -1,
+        "dy": 3,
+        "id": 41020,
+        "dz": 1
+      },
+      {
+        "dx": 0,
+        "dy": 3,
+        "id": 41019,
+        "dz": 1
+      },
+      {
+        "dx": -3,
+        "dy": 0,
+        "id": 41025,
+        "dz": 1
+      },
+      {
+        "dx": 1,
+        "dy": 3,
+        "id": 41018,
+        "dz": 1
+      },
+      {
+        "dx": 1,
+        "dy": -3,
+        "id": 41032,
+        "dz": 1
+      },
+      {
+        "dx": 0,
+        "dy": -3,
+        "id": 41031,
+        "dz": 1
+      },
+      {
+        "dx": -3,
+        "dy": -1,
+        "id": 41026,
+        "dz": 1
+      },
+      {
+        "dx": -3,
+        "dy": -2,
+        "id": 41027,
+        "dz": 1
+      },
+      {
+        "dx": -2,
+        "dy": -3,
+        "id": 41029,
+        "dz": 1
+      },
+      {
+        "dx": -1,
+        "dy": -3,
+        "id": 41030,
+        "dz": 1
+      },
+      {
+        "dx": 2,
+        "dy": 3,
+        "id": 41017,
+        "dz": 1
+      },
+      {
+        "dx": 2,
+        "dy": 2,
+        "id": 41040,
+        "dz": 1
+      },
+      {
+        "dx": 2,
+        "dy": -1,
+        "id": 41004
+      },
+      {
+        "dx": 2,
+        "dy": 2,
+        "id": 40977
+      },
+      {
+        "dx": 2,
+        "dy": 1,
+        "id": 41006
+      },
+      {
+        "dx": 2,
+        "dy": 0,
+        "id": 41005
+      },
+      {
+        "dx": 1,
+        "dy": -2,
+        "id": 41001
+      },
+      {
+        "dx": -1,
+        "dy": -2,
+        "id": 41000
+      },
+      {
+        "dx": 0,
+        "dy": -2,
+        "id": 40999
+      },
+      {
+        "dx": -2,
+        "dy": -1,
+        "id": 40998
+      },
+      {
+        "dx": -2,
+        "dy": 0,
+        "id": 40997
+      },
+      {
+        "dx": -2,
+        "dy": 1,
+        "id": 40996
+      },
+      {
+        "dx": -2,
+        "dy": 2,
+        "id": 40995
+      },
+      {
+        "dx": -1,
+        "dy": 2,
+        "id": 40994
+      },
+      {
+        "dx": 0,
+        "dy": 2,
+        "id": 40993
+      },
+      {
+        "dx": 1,
+        "dy": 2,
+        "id": 40992
+      },
+      {
+        "dx": 2,
+        "dy": 2,
+        "id": 41007,
+        "dz": 1
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 40980
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 40978
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 40984
+      },
+      {
+        "dx": 1,
+        "dy": -1,
+        "id": 40983
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 40982
+      },
+      {
+        "dx": -1,
+        "dy": -1,
+        "id": 40981
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 40980
+      },
+      {
+        "dx": -1,
+        "dy": 1,
+        "id": 40979
+      },
+      {
+        "dx": 1,
+        "dy": -1,
+        "id": 40978
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 40977
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 40985,
+        "dz": 1
+      }
+    ]
+  },
+  "large-bed-east": {
+    "servuoClasses": [
+      "LargeBedEastAddon",
+      "LargeBedEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2685
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 2684
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 2681
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 2680
+      }
+    ]
+  },
+  "large-bed-south": {
+    "servuoClasses": [
+      "LargeBedSouthAddon",
+      "LargeBedSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2691
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 2687
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 2690
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 2686
+      }
+    ]
+  },
+  "large-fishing-net": {
+    "servuoClasses": [
+      "LargeFishingNetComponent",
+      "LargeFishingNetAddon",
+      "LargeFishingNetDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 15758
+      }
+    ]
+  },
+  "large-forge-east": {
+    "servuoClasses": [
+      "LargeForgeEastAddon",
+      "LargeForgeEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 6534
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 6538
+      },
+      {
+        "dx": 0,
+        "dy": 2,
+        "id": 6550
+      },
+      {
+        "dx": 0,
+        "dy": 3,
+        "id": 6546
+      }
+    ]
+  },
+  "large-forge-south": {
+    "servuoClasses": [
+      "LargeForgeSouthAddon",
+      "LargeForgeSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 6522
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 6526
+      },
+      {
+        "dx": 2,
+        "dy": 0,
+        "id": 6562
+      },
+      {
+        "dx": 3,
+        "dy": 0,
+        "id": 6558
+      }
+    ]
+  },
+  "large-gargoyle-bed-east": {
+    "servuoClasses": [
+      "LargeGargoyleBedEastAddon",
+      "LargeGargoyleBedEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 16409
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 16412
+      },
+      {
+        "dx": 0,
+        "dy": 2,
+        "id": 16415
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 16410
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 16413
+      },
+      {
+        "dx": 1,
+        "dy": 2,
+        "id": 16416
+      },
+      {
+        "dx": 2,
+        "dy": 0,
+        "id": 16411
+      },
+      {
+        "dx": 2,
+        "dy": 1,
+        "id": 16414
+      },
+      {
+        "dx": 2,
+        "dy": 2,
+        "id": 16417
+      }
+    ]
+  },
+  "large-gargoyle-bed-south": {
+    "servuoClasses": [
+      "LargeGargoyleBedSouthAddon",
+      "LargeGargoyleBedSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 16400
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 16403
+      },
+      {
+        "dx": 0,
+        "dy": 2,
+        "id": 16406
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 16401
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 16404
+      },
+      {
+        "dx": 1,
+        "dy": 2,
+        "id": 16407
+      },
+      {
+        "dx": 2,
+        "dy": 0,
+        "id": 16402
+      },
+      {
+        "dx": 2,
+        "dy": 1,
+        "id": 16405
+      },
+      {
+        "dx": 2,
+        "dy": 2,
+        "id": 16408
+      }
+    ]
+  },
+  "large-stone-table-east": {
+    "servuoClasses": [
+      "LargeStoneTableEastAddon",
+      "LargeStoneTableEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4610
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 4611
+      },
+      {
+        "dx": 0,
+        "dy": 2,
+        "id": 4609
+      }
+    ]
+  },
+  "large-stone-table-south": {
+    "servuoClasses": [
+      "LargeStoneTableSouthAddon",
+      "LargeStoneTableSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4613
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 4614
+      },
+      {
+        "dx": 2,
+        "dy": 0,
+        "id": 4612
+      }
+    ]
+  },
+  "lighthouse": {
+    "servuoClasses": [
+      "LighthouseAddon",
+      "LighthouseAddonDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 18212
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 18223
+      }
+    ]
+  },
+  "long-metal-table-east": {
+    "servuoClasses": [
+      "LongMetalTableEastAddon",
+      "LongMetalTableEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19655
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 19654
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 19650
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 19651
+      },
+      {
+        "dx": 1,
+        "dy": -1,
+        "id": 19652
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 19653
+      }
+    ]
+  },
+  "long-metal-table-south": {
+    "servuoClasses": [
+      "LongMetalTableSouthAddon",
+      "LongMetalTableSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": -1,
+        "dy": 1,
+        "id": 19649
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 19645
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19646
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 19648
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 19644
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 19647
+      }
+    ]
+  },
+  "long-table-east": {
+    "servuoClasses": [
+      "LongTableEastAddon",
+      "LongTableEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 16433
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 16434
+      }
+    ]
+  },
+  "long-table-south": {
+    "servuoClasses": [
+      "LongTableSouthAddon",
+      "LongTableSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 16431
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 16432
+      }
+    ]
+  },
+  "long-wooden-table-east": {
+    "servuoClasses": [
+      "LongWoodenTableEastAddon",
+      "LongWoodenTableEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 1,
+        "dy": -1,
+        "id": 19667
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 19670
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19671
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 19666
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 19669
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 19668
+      }
+    ]
+  },
+  "long-wooden-table-south": {
+    "servuoClasses": [
+      "LongWoodenTableSouthAddon",
+      "LongWoodenTableSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 19660
+      },
+      {
+        "dx": -1,
+        "dy": 1,
+        "id": 19665
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19662
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 19661
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 19664
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 19663
+      }
+    ]
+  },
+  "loom-east": {
+    "servuoClasses": [
+      "LoomEastAddon",
+      "LoomEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4192
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 4191
+      }
+    ]
+  },
+  "loom-south": {
+    "servuoClasses": [
+      "LoomSouthAddon",
+      "LoomSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4193
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 4194
+      }
+    ]
+  },
+  "medium-stone-table-east": {
+    "servuoClasses": [
+      "MediumStoneTableEastAddon",
+      "MediumStoneTableEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4610
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 4609
+      }
+    ]
+  },
+  "medium-stone-table-south": {
+    "servuoClasses": [
+      "MediumStoneTableSouthAddon",
+      "MediumStoneTableSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4613
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 4612
+      }
+    ]
+  },
+  "metal-table-east": {
+    "servuoClasses": [
+      "MetalTableEastAddon",
+      "MetalTableEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19642
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 19641
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 19643
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 19640
+      }
+    ]
+  },
+  "metal-table-south": {
+    "servuoClasses": [
+      "MetalTableSouthAddon",
+      "MetalTableSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19636
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 19639
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 19637
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 19638
+      }
+    ]
+  },
+  "mini-soul-forge": {
+    "servuoClasses": [
+      "MiniSoulForge",
+      "MiniSoulForgeDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 17607
+      }
+    ]
+  },
+  "mining-cart": {
+    "servuoClasses": [
+      "MiningCart",
+      "MiningCartDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 6787
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 6786
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 6790
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 6792
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 6791
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 6795
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 6787
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 6786
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 6790
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3884,
+        "dz": 6
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3869,
+        "dz": 5
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3883,
+        "dz": 2
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3873,
+        "dz": 1
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3874,
+        "dz": 4
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3887,
+        "dz": 5
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3878,
+        "dz": 6
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3879,
+        "dz": 3
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3881
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 6792
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 6791
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 6795
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3886,
+        "dz": 6
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3858,
+        "dz": 3
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3881,
+        "dz": 1
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3876,
+        "dz": 5
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3873,
+        "dz": 1
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3883,
+        "dz": 3
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3887,
+        "dz": 4
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3875,
+        "dz": 3
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3879,
+        "dz": 3
+      }
+    ]
+  },
+  "minotaur-statue": {
+    "servuoClasses": [
+      "MinotaurStatue",
+      "MinotaurStatueDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 12396
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 12397
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 12398
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 12404
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 12405
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 12406
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 12402
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 12403
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 12399
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 12400
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 12401
+      }
+    ]
+  },
+  "mounted-pixie-blue": {
+    "servuoClasses": [
+      "MountedPixieBlueComponent",
+      "MountedPixieBlueAddon",
+      "MountedPixieBlueDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10869
+      }
+    ]
+  },
+  "mounted-pixie-green": {
+    "servuoClasses": [
+      "MountedPixieGreenComponent",
+      "MountedPixieGreenAddon",
+      "MountedPixieGreenDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10865
+      }
+    ]
+  },
+  "mounted-pixie-lime": {
+    "servuoClasses": [
+      "MountedPixieLimeComponent",
+      "MountedPixieLimeAddon",
+      "MountedPixieLimeDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10871
+      }
+    ]
+  },
+  "mounted-pixie-orange": {
+    "servuoClasses": [
+      "MountedPixieOrangeComponent",
+      "MountedPixieOrangeAddon",
+      "MountedPixieOrangeDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10867
+      }
+    ]
+  },
+  "mounted-pixie-white": {
+    "servuoClasses": [
+      "MountedPixieWhiteComponent",
+      "MountedPixieWhiteAddon",
+      "MountedPixieWhiteDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10873
+      }
+    ]
+  },
+  "nexus": {
+    "servuoClasses": [
+      "NexusComponent",
+      "NexusAddon",
+      "NexusAddonDeed"
+    ],
+    "components": [
+      {
+        "dx": -1,
+        "dy": 1,
+        "id": 19324
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19326
+      },
+      {
+        "dx": 1,
+        "dy": 2,
+        "id": 19319
+      },
+      {
+        "dx": 2,
+        "dy": 1,
+        "id": 19321
+      },
+      {
+        "dx": 1,
+        "dy": 2,
+        "id": 19319
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 19323
+      },
+      {
+        "dx": 1,
+        "dy": -1,
+        "id": 19327
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 19316
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 19322
+      },
+      {
+        "dx": 2,
+        "dy": 2,
+        "id": 19320
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 19325
+      },
+      {
+        "dx": 0,
+        "dy": 2,
+        "id": 19318
+      },
+      {
+        "dx": -1,
+        "dy": 2,
+        "id": 19317
+      }
+    ]
+  },
+  "ornate-elven-chest-east": {
+    "servuoClasses": [
+      "OrnateElvenChestEastAddon",
+      "OrnateElvenChestEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 12443
+      }
+    ]
+  },
+  "ornate-elven-chest-south": {
+    "servuoClasses": [
+      "OrnateElvenChestSouthAddon",
+      "OrnateElvenChestSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 12441
+      }
+    ]
+  },
+  "ornate-elven-table-east": {
+    "servuoClasses": [
+      "OrnateElvenTableEastAddon",
+      "OrnateElvenTableEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 12431
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 12432
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 12433
+      }
+    ]
+  },
+  "ornate-elven-table-south": {
+    "servuoClasses": [
+      "OrnateElvenTableSouthAddon",
+      "OrnateElvenTableSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 12430
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 12429
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 12428
+      }
+    ]
+  },
+  "parrot-perch": {
+    "servuoClasses": [
+      "ParrotPerchAddon",
+      "ParrotPerchAddonDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 12214
+      }
+    ]
+  },
+  "peach-trunk": {
+    "servuoClasses": [
+      "PeachTrunkAddon",
+      "PeachTrunkDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3484
+      }
+    ]
+  },
+  "pentagram": {
+    "servuoClasses": [
+      "PentagramAddon",
+      "PentagramDeed"
+    ],
+    "components": [
+      {
+        "dx": -1,
+        "dy": -1,
+        "id": 4071
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 4072
+      },
+      {
+        "dx": 1,
+        "dy": -1,
+        "id": 4075
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 4070
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4074
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 4078
+      },
+      {
+        "dx": -1,
+        "dy": 1,
+        "id": 4073
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 4076
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 4077
+      }
+    ]
+  },
+  "pickpocket-dip-east": {
+    "servuoClasses": [
+      "PickpocketDip",
+      "PickpocketDipEastAddon",
+      "PickpocketDipEastDeed",
+      "PickpocketDipSouthAddon",
+      "PickpocketDipSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 7875
+      }
+    ]
+  },
+  "pickpocket-dip-south": {
+    "servuoClasses": [
+      "PickpocketDip",
+      "PickpocketDipEastAddon",
+      "PickpocketDipEastDeed",
+      "PickpocketDipSouthAddon",
+      "PickpocketDipSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 7872
+      }
+    ]
+  },
+  "pink-fancy-rug": {
+    "servuoClasses": [
+      "PinkFancyRugAddon",
+      "PinkFancyRugDeed"
+    ],
+    "components": [
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 2798
+      },
+      {
+        "dx": -1,
+        "dy": -1,
+        "id": 2799
+      },
+      {
+        "dx": -1,
+        "dy": 1,
+        "id": 2800
+      },
+      {
+        "dx": 1,
+        "dy": -1,
+        "id": 2801
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 2802
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 2803
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 2804
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 2805
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2796
+      }
+    ]
+  },
+  "plain-wooden-shelf-east": {
+    "servuoClasses": [
+      "PlainWoodenShelfEastAddon",
+      "PlainWoodenShelfEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19515
+      }
+    ]
+  },
+  "plain-wooden-shelf-south": {
+    "servuoClasses": [
+      "PlainWoodenShelfSouthAddon",
+      "PlainWoodenShelfSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19514
+      }
+    ]
+  },
+  "plant-tapestry-east": {
+    "servuoClasses": [
+      "PlantTapestryEastAddon",
+      "PlantTapestryEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19615
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 19614
+      }
+    ]
+  },
+  "plant-tapestry-south": {
+    "servuoClasses": [
+      "PlantTapestrySouthAddon",
+      "PlantTapestrySouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19612
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 19613
+      }
+    ]
+  },
+  "plush-loveseat-east": {
+    "servuoClasses": [
+      "PlushLoveseatEastAddon",
+      "PlushLoveseatEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19588
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 19589
+      }
+    ]
+  },
+  "plush-loveseat-south": {
+    "servuoClasses": [
+      "PlushLoveseatSouthAddon",
+      "PlushLoveseatSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19587
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 19586
+      }
+    ]
+  },
+  "pyramid": {
+    "servuoClasses": [
+      "PyramidAddon"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 1006,
+        "dz": 5
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 1007,
+        "dz": 5
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 1008,
+        "dz": 5
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 1009,
+        "dz": 5
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 1010,
+        "dz": 5
+      }
+    ]
+  },
+  "red-plain-rug": {
+    "servuoClasses": [
+      "RedPlainRugAddon",
+      "RedPlainRugDeed"
+    ],
+    "components": [
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 2761
+      },
+      {
+        "dx": -1,
+        "dy": -1,
+        "id": 2762
+      },
+      {
+        "dx": -1,
+        "dy": 1,
+        "id": 2763
+      },
+      {
+        "dx": 1,
+        "dy": -1,
+        "id": 2764
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 2765
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 2766
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 2767
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 2768
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2758
+      }
+    ]
+  },
+  "rejuvination-ankh-west": {
+    "servuoClasses": [
+      "RejuvinationAddonComponent",
+      "BaseRejuvinationAnkh",
+      "RejuvinationAnkhWest",
+      "RejuvinationAnkhNorth"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 2
+      }
+    ]
+  },
+  "rejuvination-ankh-north": {
+    "servuoClasses": [
+      "RejuvinationAddonComponent",
+      "BaseRejuvinationAnkh",
+      "RejuvinationAnkhWest",
+      "RejuvinationAnkhNorth"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 5
+      }
+    ]
+  },
+  "repair-bench-south": {
+    "servuoClasses": [
+      "RepairBenchComponent",
+      "RepairBenchAddon",
+      "RepairBenchDeed",
+      "RepairBenchDefinition",
+      "ConfirmRemoveGump",
+      "RepairBenchGump"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 41592
+      }
+    ]
+  },
+  "repair-bench-east": {
+    "servuoClasses": [
+      "RepairBenchComponent",
+      "RepairBenchAddon",
+      "RepairBenchDeed",
+      "RepairBenchDefinition",
+      "ConfirmRemoveGump",
+      "RepairBenchGump"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 41599
+      }
+    ]
+  },
+  "ritual-table": {
+    "servuoClasses": [
+      "RitualTableAddon",
+      "RitualTableDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 18821
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 18820
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 18819
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 18818
+      }
+    ]
+  },
+  "roasting-pig-on-a-spit-south": {
+    "servuoClasses": [
+      "RoastingPigOnASpitAddon",
+      "RoastingPigOnASpitComponent",
+      "RoastingPigOnASpitDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 39317
+      },
+      {
+        "dx": -1,
+        "dy": 1,
+        "id": 39316
+      }
+    ]
+  },
+  "roasting-pig-on-a-spit-east": {
+    "servuoClasses": [
+      "RoastingPigOnASpitAddon",
+      "RoastingPigOnASpitComponent",
+      "RoastingPigOnASpitDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 39305
+      },
+      {
+        "dx": 1,
+        "dy": -1,
+        "id": 39304
+      }
+    ]
+  },
+  "royal-soul-forge": {
+    "servuoClasses": [
+      "RoyalSoulForge"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 17015
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 17016
+      },
+      {
+        "dx": 2,
+        "dy": 0,
+        "id": 17017
+      },
+      {
+        "dx": 3,
+        "dy": 0,
+        "id": 17018
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 17019
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 17020
+      },
+      {
+        "dx": 2,
+        "dy": 1,
+        "id": 17021
+      },
+      {
+        "dx": 3,
+        "dy": 1,
+        "id": 17022
+      },
+      {
+        "dx": 0,
+        "dy": 2,
+        "id": 17023
+      },
+      {
+        "dx": 1,
+        "dy": 2,
+        "id": 17024
+      },
+      {
+        "dx": 2,
+        "dy": 2,
+        "id": 17025
+      },
+      {
+        "dx": 3,
+        "dy": 2,
+        "id": 17026
+      },
+      {
+        "dx": 0,
+        "dy": 3,
+        "id": 17027
+      },
+      {
+        "dx": 1,
+        "dy": 3,
+        "id": 17028
+      },
+      {
+        "dx": 2,
+        "dy": 3,
+        "id": 17029
+      },
+      {
+        "dx": 3,
+        "dy": 3,
+        "id": 17030
+      }
+    ]
+  },
+  "rustic-bench-east": {
+    "servuoClasses": [
+      "RusticBenchEastAddon",
+      "RusticBenchEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3667
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 3666
+      }
+    ]
+  },
+  "rustic-bench-south": {
+    "servuoClasses": [
+      "RusticBenchSouthAddon",
+      "RusticBenchSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3664
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 3665
+      }
+    ]
+  },
+  "sh-teleporter": {
+    "servuoClasses": [
+      "SHTeleComponent",
+      "SHTeleporter"
+    ],
+    "components": [
+      {
+        "dx": -1,
+        "dy": -1,
+        "id": 1353
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 1357
+      },
+      {
+        "dx": 1,
+        "dy": -1,
+        "id": 1358
+      },
+      {
+        "dx": 2,
+        "dy": -1,
+        "id": 1352
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 1355
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 1339
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 1339
+      },
+      {
+        "dx": 2,
+        "dy": 0,
+        "id": 1348
+      },
+      {
+        "dx": -1,
+        "dy": 1,
+        "id": 1356
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 1339
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 1339
+      },
+      {
+        "dx": 2,
+        "dy": 1,
+        "id": 1349
+      },
+      {
+        "dx": -1,
+        "dy": 2,
+        "id": 1351
+      },
+      {
+        "dx": 0,
+        "dy": 2,
+        "id": 1345
+      },
+      {
+        "dx": 1,
+        "dy": 2,
+        "id": 1347
+      },
+      {
+        "dx": 2,
+        "dy": 2,
+        "id": 1344
+      }
+    ]
+  },
+  "sacrificial-altar": {
+    "servuoClasses": [
+      "SacrificialAltarAddon",
+      "SacrificialAltarDeed"
+    ],
+    "components": [
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 10906
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 10909
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 10906
+      }
+    ]
+  },
+  "sandstone-fireplace-east": {
+    "servuoClasses": [
+      "SandstoneFireplaceEastAddon",
+      "SandstoneFireplaceEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 1161
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 1141
+      }
+    ]
+  },
+  "sandstone-fireplace-south": {
+    "servuoClasses": [
+      "SandstoneFireplaceSouthAddon",
+      "SandstoneFireplaceSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 1154
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 1147
+      }
+    ]
+  },
+  "sandstone-fountain": {
+    "servuoClasses": [
+      "SandstoneFountainAddon"
+    ],
+    "components": [
+      {
+        "dx": -2,
+        "dy": 1,
+        "id": 6595
+      },
+      {
+        "dx": -1,
+        "dy": 1,
+        "id": 6596
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 6597
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 6598
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 6599
+      },
+      {
+        "dx": 1,
+        "dy": -1,
+        "id": 6600
+      },
+      {
+        "dx": 1,
+        "dy": -2,
+        "id": 6601
+      },
+      {
+        "dx": 0,
+        "dy": -2,
+        "id": 6602
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 6603
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 6604
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 6605
+      },
+      {
+        "dx": -2,
+        "dy": 0,
+        "id": 6606
+      },
+      {
+        "dx": -2,
+        "dy": -1,
+        "id": 6607
+      },
+      {
+        "dx": -1,
+        "dy": -1,
+        "id": 6608
+      },
+      {
+        "dx": -1,
+        "dy": -2,
+        "id": 6609
+      },
+      {
+        "dx": -2,
+        "dy": -2,
+        "id": 6611
+      }
+    ]
+  },
+  "scarecrow": {
+    "servuoClasses": [
+      "ScarecrowComponent",
+      "ScarecrowAddon",
+      "ScarecrowDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 7732
+      }
+    ]
+  },
+  "serpent-pillar": {
+    "servuoClasses": [
+      "SerpentPillarAddon"
+    ],
+    "components": [
+      {
+        "dx": -2,
+        "dy": 1,
+        "id": 9020
+      },
+      {
+        "dx": -2,
+        "dy": 0,
+        "id": 9021
+      },
+      {
+        "dx": -2,
+        "dy": -1,
+        "id": 9022
+      },
+      {
+        "dx": -2,
+        "dy": -2,
+        "id": 9023
+      },
+      {
+        "dx": -1,
+        "dy": -2,
+        "id": 9024
+      },
+      {
+        "dx": 0,
+        "dy": -2,
+        "id": 9025
+      },
+      {
+        "dx": 1,
+        "dy": -2,
+        "id": 9026
+      },
+      {
+        "dx": -1,
+        "dy": 1,
+        "id": 9027
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 9028
+      },
+      {
+        "dx": -1,
+        "dy": -1,
+        "id": 9029
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 9030
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 9031
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 9032
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 9033
+      },
+      {
+        "dx": 1,
+        "dy": -1,
+        "id": 9034
+      }
+    ]
+  },
+  "fire-demon-statue": {
+    "servuoClasses": [
+      "FireDemonStatueAddon",
+      "FireDemonStatueDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 13899
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 13979
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 13899
+      }
+    ]
+  },
+  "globe-of-sosaria": {
+    "servuoClasses": [
+      "GlobeOfSosariaAddon",
+      "GlobeOfSosariaDeed"
+    ],
+    "components": [
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 13911
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 13912
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 13913
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 13921
+      }
+    ]
+  },
+  "obsidian-pillar": {
+    "servuoClasses": [
+      "ObsidianPillarAddon",
+      "ObsidianPillarDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 13903
+      }
+    ]
+  },
+  "obsidian-rock": {
+    "servuoClasses": [
+      "ObsidianRockAddon",
+      "ObsidianRockDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 13902
+      }
+    ]
+  },
+  "shadow-altar-south": {
+    "servuoClasses": [
+      "ShadowAltarAddon",
+      "ShadowAltarDeed"
+    ],
+    "components": [
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 13914
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 13915
+      }
+    ]
+  },
+  "shadow-altar-east": {
+    "servuoClasses": [
+      "ShadowAltarAddon",
+      "ShadowAltarDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 13982
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 13981
+      }
+    ]
+  },
+  "shadow-banner-south": {
+    "servuoClasses": [
+      "ShadowBannerAddon",
+      "ShadowBannerDeed"
+    ],
+    "components": [
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 13916
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 13917
+      }
+    ]
+  },
+  "shadow-banner-east": {
+    "servuoClasses": [
+      "ShadowBannerAddon",
+      "ShadowBannerDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 13918
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 13919
+      }
+    ]
+  },
+  "shadow-fire-pit": {
+    "servuoClasses": [
+      "ShadowFirePitAddon",
+      "ShadowFirePitDeed"
+    ],
+    "components": [
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 13907
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 13906
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 13905
+      }
+    ]
+  },
+  "shadow-pillar": {
+    "servuoClasses": [
+      "ShadowPillarAddon",
+      "ShadowPillarDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 13904
+      }
+    ]
+  },
+  "spike-column": {
+    "servuoClasses": [
+      "SpikeColumnAddon",
+      "SpikeColumnDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 13900
+      }
+    ]
+  },
+  "spike-post": {
+    "servuoClasses": [
+      "SpikePostAddon",
+      "SpikePostDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 13901
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 13980
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 13901
+      }
+    ]
+  },
+  "shrine-of-wisdom": {
+    "servuoClasses": [
+      "ShrineOfWisdomAddon",
+      "ShrineOfWisdomComponent"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5315
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 5318
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 5332
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 5333
+      }
+    ]
+  },
+  "skull-pile": {
+    "servuoClasses": [
+      "SkullPileAddon"
+    ],
+    "components": [
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 6872
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 6873
+      },
+      {
+        "dx": -1,
+        "dy": 1,
+        "id": 6874
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 6875
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 6876
+      },
+      {
+        "dx": 1,
+        "dy": -1,
+        "id": 6877
+      },
+      {
+        "dx": 2,
+        "dy": -1,
+        "id": 6878
+      },
+      {
+        "dx": 2,
+        "dy": 0,
+        "id": 6879
+      }
+    ]
+  },
+  "skull-tiled-floor": {
+    "servuoClasses": [
+      "SkullTiledFloorAddon",
+      "SkullTiledFloorAddonDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 41807
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 41808
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 41806
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 41803
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 41804
+      },
+      {
+        "dx": -1,
+        "dy": 1,
+        "id": 41805
+      },
+      {
+        "dx": 1,
+        "dy": -1,
+        "id": 41809
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 41810
+      },
+      {
+        "dx": -1,
+        "dy": -1,
+        "id": 41811
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 41816
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 41815
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 41817
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 41812
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 41813
+      },
+      {
+        "dx": 1,
+        "dy": -1,
+        "id": 41814
+      },
+      {
+        "dx": -1,
+        "dy": 1,
+        "id": 41818
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 41819
+      },
+      {
+        "dx": -1,
+        "dy": -1,
+        "id": 41820
+      }
+    ]
+  },
+  "small-bed-east": {
+    "servuoClasses": [
+      "SmallBedEastAddon",
+      "SmallBedEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2653
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 2658
+      }
+    ]
+  },
+  "small-bed-south": {
+    "servuoClasses": [
+      "SmallBedSouthAddon",
+      "SmallBedSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2659
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 2652
+      }
+    ]
+  },
+  "small-display-case-east": {
+    "servuoClasses": [
+      "SmallDisplayCaseEastAddon",
+      "SmallDisplayCaseEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2825
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2827,
+        "dz": 3
+      }
+    ]
+  },
+  "small-display-case-south": {
+    "servuoClasses": [
+      "SmallDisplayCaseSouthAddon",
+      "SmallDisplayCaseSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2826
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2828,
+        "dz": 3
+      }
+    ]
+  },
+  "small-fishing-net": {
+    "servuoClasses": [
+      "SmallFishingNetComponent",
+      "SmallFishingNetAddon",
+      "SmallFishingNetDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 7843
+      }
+    ]
+  },
+  "small-forge": {
+    "servuoClasses": [
+      "SmallForgeAddon",
+      "SmallForgeDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4017
+      }
+    ]
+  },
+  "small-soul-forge": {
+    "servuoClasses": [
+      "SmallSoulForge",
+      "SmallSoulForgeDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 17607
+      }
+    ]
+  },
+  "soul-forge": {
+    "servuoClasses": [
+      "SoulForge",
+      "SoulForgeDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 16995
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 16996
+      },
+      {
+        "dx": 2,
+        "dy": 0,
+        "id": 16997
+      },
+      {
+        "dx": 3,
+        "dy": 0,
+        "id": 16998
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 16999
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 17000
+      },
+      {
+        "dx": 2,
+        "dy": 1,
+        "id": 17001
+      },
+      {
+        "dx": 3,
+        "dy": 1,
+        "id": 17002
+      },
+      {
+        "dx": 0,
+        "dy": 2,
+        "id": 17003
+      },
+      {
+        "dx": 1,
+        "dy": 2,
+        "id": 17004
+      },
+      {
+        "dx": 2,
+        "dy": 2,
+        "id": 17005
+      },
+      {
+        "dx": 3,
+        "dy": 2,
+        "id": 17006
+      },
+      {
+        "dx": 0,
+        "dy": 3,
+        "id": 17007
+      },
+      {
+        "dx": 1,
+        "dy": 3,
+        "id": 17008
+      },
+      {
+        "dx": 2,
+        "dy": 3,
+        "id": 17009
+      },
+      {
+        "dx": 3,
+        "dy": 3,
+        "id": 17010
+      }
+    ]
+  },
+  "spinningwheel-east": {
+    "servuoClasses": [
+      "SpinningwheelEastAddon",
+      "SpinningwheelEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4121
+      }
+    ]
+  },
+  "spinningwheel-south": {
+    "servuoClasses": [
+      "SpinningwheelSouthAddon",
+      "SpinningwheelSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4117
+      }
+    ]
+  },
+  "squirrel-statue-east": {
+    "servuoClasses": [
+      "SquirrelStatueEastAddon",
+      "SquirrelStatueEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 11536
+      }
+    ]
+  },
+  "squirrel-statue-south": {
+    "servuoClasses": [
+      "SquirrelStatueSouthAddon",
+      "SquirrelStatueSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 11537
+      }
+    ]
+  },
+  "standing-broken-chair": {
+    "servuoClasses": [
+      "StandingBrokenChairComponent",
+      "StandingBrokenChairAddon",
+      "StandingBrokenChairDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3099
+      }
+    ]
+  },
+  "stone-statue": {
+    "servuoClasses": [
+      "StoneStatueAddon",
+      "StoneStatueDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5022
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 5023
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 5024
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4767
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 4768
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 4769
+      }
+    ]
+  },
+  "stone-ankh": {
+    "servuoClasses": [
+      "StoneAnkhComponent",
+      "StoneAnkh",
+      "StoneAnkhDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 3
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 4
+      }
+    ]
+  },
+  "stone-anvil-east": {
+    "servuoClasses": [
+      "StoneAnvilEastAddon",
+      "StoneAnvilEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 11734
+      }
+    ]
+  },
+  "stone-anvil-south": {
+    "servuoClasses": [
+      "StoneAnvilSouthAddon",
+      "StoneAnvilSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 11733
+      }
+    ]
+  },
+  "stone-fireplace-east": {
+    "servuoClasses": [
+      "StoneFireplaceEastAddon",
+      "StoneFireplaceEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2393
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 2387
+      }
+    ]
+  },
+  "stone-fireplace-south": {
+    "servuoClasses": [
+      "StoneFireplaceSouthAddon",
+      "StoneFireplaceSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 2407
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2401
+      }
+    ]
+  },
+  "stone-fountain": {
+    "servuoClasses": [
+      "StoneFountainAddon"
+    ],
+    "components": [
+      {
+        "dx": -2,
+        "dy": 1,
+        "id": 5937
+      },
+      {
+        "dx": -1,
+        "dy": 1,
+        "id": 5938
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 5939
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 5940
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 5941
+      },
+      {
+        "dx": 1,
+        "dy": -1,
+        "id": 5942
+      },
+      {
+        "dx": 1,
+        "dy": -2,
+        "id": 5943
+      },
+      {
+        "dx": 0,
+        "dy": -2,
+        "id": 5944
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 5945
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5946
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 5947
+      },
+      {
+        "dx": -2,
+        "dy": 0,
+        "id": 5948
+      },
+      {
+        "dx": -2,
+        "dy": -1,
+        "id": 5949
+      },
+      {
+        "dx": -1,
+        "dy": -1,
+        "id": 5950
+      },
+      {
+        "dx": -1,
+        "dy": -2,
+        "id": 5951
+      },
+      {
+        "dx": -2,
+        "dy": -2,
+        "id": 5953
+      }
+    ]
+  },
+  "stone-oven-east": {
+    "servuoClasses": [
+      "StoneOvenEastAddon",
+      "StoneOvenEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2348
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 2347
+      }
+    ]
+  },
+  "stone-oven-south": {
+    "servuoClasses": [
+      "StoneOvenSouthAddon",
+      "StoneOvenSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 2353
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2352
+      }
+    ]
+  },
+  "small-stretched-hide-east": {
+    "servuoClasses": [
+      "SmallStretchedHideEastAddon",
+      "SmallStretchedHideEastDeed",
+      "SmallStretchedHideSouthAddon",
+      "SmallStretchedHideSouthDeed",
+      "MediumStretchedHideEastAddon",
+      "MediumStretchedHideEastDeed",
+      "MediumStretchedHideSouthAddon",
+      "MediumStretchedHideSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4201
+      }
+    ]
+  },
+  "small-stretched-hide-south": {
+    "servuoClasses": [
+      "SmallStretchedHideEastAddon",
+      "SmallStretchedHideEastDeed",
+      "SmallStretchedHideSouthAddon",
+      "SmallStretchedHideSouthDeed",
+      "MediumStretchedHideEastAddon",
+      "MediumStretchedHideEastDeed",
+      "MediumStretchedHideSouthAddon",
+      "MediumStretchedHideSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4218
+      }
+    ]
+  },
+  "medium-stretched-hide-east": {
+    "servuoClasses": [
+      "SmallStretchedHideEastAddon",
+      "SmallStretchedHideEastDeed",
+      "SmallStretchedHideSouthAddon",
+      "SmallStretchedHideSouthDeed",
+      "MediumStretchedHideEastAddon",
+      "MediumStretchedHideEastDeed",
+      "MediumStretchedHideSouthAddon",
+      "MediumStretchedHideSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4203
+      }
+    ]
+  },
+  "medium-stretched-hide-south": {
+    "servuoClasses": [
+      "SmallStretchedHideEastAddon",
+      "SmallStretchedHideEastDeed",
+      "SmallStretchedHideSouthAddon",
+      "SmallStretchedHideSouthDeed",
+      "MediumStretchedHideEastAddon",
+      "MediumStretchedHideEastDeed",
+      "MediumStretchedHideSouthAddon",
+      "MediumStretchedHideSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4220
+      }
+    ]
+  },
+  "suit-of-gold-armor": {
+    "servuoClasses": [
+      "SuitOfGoldArmorComponent",
+      "SuitOfGoldArmorAddon",
+      "SuitOfGoldArmorDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 15786
+      }
+    ]
+  },
+  "suit-of-silver-armor": {
+    "servuoClasses": [
+      "SuitOfSilverArmorComponent",
+      "SuitOfSilverArmorAddon",
+      "SuitOfSilverArmorDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 15750
+      }
+    ]
+  },
+  "table-with-blue-cloth": {
+    "servuoClasses": [
+      "TableWithBlueClothAddon",
+      "TableWithBlueClothDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4492
+      }
+    ]
+  },
+  "table-with-orange-cloth": {
+    "servuoClasses": [
+      "TableWithOrangeClothAddon",
+      "TableWithOrangeClothDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4494
+      }
+    ]
+  },
+  "table-with-purple-cloth": {
+    "servuoClasses": [
+      "TableWithPurpleClothAddon",
+      "TableWithPurpleClothDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4491
+      }
+    ]
+  },
+  "table-with-red-cloth": {
+    "servuoClasses": [
+      "TableWithRedClothAddon",
+      "TableWithRedClothDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4493
+      }
+    ]
+  },
+  "tall-elven-bed-east": {
+    "servuoClasses": [
+      "TallElvenBedEastAddon",
+      "TallElvenBedEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 12372
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 12371
+      },
+      {
+        "dx": 2,
+        "dy": -1,
+        "id": 12373
+      },
+      {
+        "dx": 2,
+        "dy": 0,
+        "id": 12370
+      }
+    ]
+  },
+  "tall-elven-bed-south": {
+    "servuoClasses": [
+      "TallElvenBedSouthAddon",
+      "TallElvenBedSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 12376
+      },
+      {
+        "dx": -1,
+        "dy": 1,
+        "id": 12375
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 12377
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 12374
+      }
+    ]
+  },
+  "telescope": {
+    "servuoClasses": [
+      "Telescope"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 5,
+        "id": 5268
+      },
+      {
+        "dx": 0,
+        "dy": 6,
+        "id": 5211
+      },
+      {
+        "dx": 0,
+        "dy": 7,
+        "id": 5210
+      },
+      {
+        "dx": 1,
+        "dy": 4,
+        "id": 5269
+      },
+      {
+        "dx": 1,
+        "dy": 7,
+        "id": 5212
+      },
+      {
+        "dx": 1,
+        "dy": 8,
+        "id": 5213
+      },
+      {
+        "dx": 2,
+        "dy": 3,
+        "id": 5270
+      },
+      {
+        "dx": 2,
+        "dy": 4,
+        "id": 5273
+      },
+      {
+        "dx": 2,
+        "dy": 6,
+        "id": 5262
+      },
+      {
+        "dx": 2,
+        "dy": 7,
+        "id": 5267
+      },
+      {
+        "dx": 2,
+        "dy": 8,
+        "id": 5266
+      },
+      {
+        "dx": 2,
+        "dy": 9,
+        "id": 5214
+      },
+      {
+        "dx": 2,
+        "dy": 10,
+        "id": 5209
+      },
+      {
+        "dx": 3,
+        "dy": 2,
+        "id": 5271
+      },
+      {
+        "dx": 3,
+        "dy": 9,
+        "id": 5215
+      },
+      {
+        "dx": 3,
+        "dy": 10,
+        "id": 5217
+      },
+      {
+        "dx": 4,
+        "dy": 1,
+        "id": 5274
+      },
+      {
+        "dx": 4,
+        "dy": 2,
+        "id": 5272
+      },
+      {
+        "dx": 4,
+        "dy": 4,
+        "id": 5263
+      },
+      {
+        "dx": 4,
+        "dy": 6,
+        "id": 5261
+      },
+      {
+        "dx": 4,
+        "dy": 8,
+        "id": 5256
+      },
+      {
+        "dx": 4,
+        "dy": 9,
+        "id": 5216
+      },
+      {
+        "dx": 4,
+        "dy": 10,
+        "id": 5218
+      },
+      {
+        "dx": 5,
+        "dy": 0,
+        "id": 5245
+      },
+      {
+        "dx": 5,
+        "dy": 4,
+        "id": 5264
+      },
+      {
+        "dx": 5,
+        "dy": 5,
+        "id": 5259
+      },
+      {
+        "dx": 5,
+        "dy": 6,
+        "id": 5258
+      },
+      {
+        "dx": 5,
+        "dy": 7,
+        "id": 5254
+      },
+      {
+        "dx": 5,
+        "dy": 8,
+        "id": 5253
+      },
+      {
+        "dx": 6,
+        "dy": 0,
+        "id": 5244
+      },
+      {
+        "dx": 6,
+        "dy": 4,
+        "id": 5265
+      },
+      {
+        "dx": 6,
+        "dy": 5,
+        "id": 5260
+      },
+      {
+        "dx": 6,
+        "dy": 6,
+        "id": 5257
+      },
+      {
+        "dx": 6,
+        "dy": 7,
+        "id": 5255
+      },
+      {
+        "dx": 6,
+        "dy": 8,
+        "id": 5252
+      },
+      {
+        "dx": 6,
+        "dy": 10,
+        "id": 5219
+      },
+      {
+        "dx": 7,
+        "dy": 0,
+        "id": 5243
+      },
+      {
+        "dx": 7,
+        "dy": 3,
+        "id": 5247
+      },
+      {
+        "dx": 7,
+        "dy": 4,
+        "id": 5248
+      },
+      {
+        "dx": 7,
+        "dy": 5,
+        "id": 5250
+      },
+      {
+        "dx": 7,
+        "dy": 6,
+        "id": 5225
+      },
+      {
+        "dx": 7,
+        "dy": 7,
+        "id": 5224
+      },
+      {
+        "dx": 7,
+        "dy": 8,
+        "id": 5221
+      },
+      {
+        "dx": 7,
+        "dy": 9,
+        "id": 5220
+      },
+      {
+        "dx": 8,
+        "dy": 0,
+        "id": 5242
+      },
+      {
+        "dx": 8,
+        "dy": 1,
+        "id": 5241
+      },
+      {
+        "dx": 8,
+        "dy": 2,
+        "id": 5239
+      },
+      {
+        "dx": 8,
+        "dy": 3,
+        "id": 5246
+      },
+      {
+        "dx": 8,
+        "dy": 4,
+        "id": 5249
+      },
+      {
+        "dx": 8,
+        "dy": 5,
+        "id": 5251
+      },
+      {
+        "dx": 8,
+        "dy": 6,
+        "id": 5226
+      },
+      {
+        "dx": 8,
+        "dy": 7,
+        "id": 5223
+      },
+      {
+        "dx": 8,
+        "dy": 8,
+        "id": 5222
+      },
+      {
+        "dx": 9,
+        "dy": 1,
+        "id": 5240
+      },
+      {
+        "dx": 9,
+        "dy": 2,
+        "id": 5237
+      },
+      {
+        "dx": 9,
+        "dy": 3,
+        "id": 5236
+      },
+      {
+        "dx": 9,
+        "dy": 4,
+        "id": 5231
+      },
+      {
+        "dx": 9,
+        "dy": 5,
+        "id": 5230
+      },
+      {
+        "dx": 9,
+        "dy": 6,
+        "id": 5229
+      },
+      {
+        "dx": 9,
+        "dy": 7,
+        "id": 5227
+      },
+      {
+        "dx": 10,
+        "dy": 2,
+        "id": 5238
+      },
+      {
+        "dx": 10,
+        "dy": 3,
+        "id": 5235
+      },
+      {
+        "dx": 10,
+        "dy": 4,
+        "id": 5232
+      },
+      {
+        "dx": 10,
+        "dy": 5,
+        "id": 5233
+      },
+      {
+        "dx": 10,
+        "dy": 6,
+        "id": 5234
+      }
+    ]
+  },
+  "ter-mur-dresser-east": {
+    "servuoClasses": [
+      "TerMurDresserEastAddon",
+      "TerMurDresserEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 16430
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 16429
+      }
+    ]
+  },
+  "ter-mur-dresser-south": {
+    "servuoClasses": [
+      "TerMurDresserSouthAddon",
+      "TerMurDresserSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 16427
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 16428
+      }
+    ]
+  },
+  "fifteenth-anniversary-lithograph-east": {
+    "servuoClasses": [
+      "FifteenthAnniversaryLithographAddon",
+      "FifteenthAnniversaryLithographDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 19508
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19507
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 19506
+      }
+    ]
+  },
+  "fifteenth-anniversary-lithograph-south": {
+    "servuoClasses": [
+      "FifteenthAnniversaryLithographAddon",
+      "FifteenthAnniversaryLithographDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19510
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 19509
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 19511
+      }
+    ]
+  },
+  "barrel-sponge": {
+    "servuoClasses": [
+      "BarrelSpongeAddon",
+      "BarrelSpongeDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19504
+      }
+    ]
+  },
+  "bull-tapestry-east": {
+    "servuoClasses": [
+      "BullTapestryAddon",
+      "BullTapestryDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19619
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 19618
+      }
+    ]
+  },
+  "bull-tapestry-south": {
+    "servuoClasses": [
+      "BullTapestryAddon",
+      "BullTapestryDeed"
+    ],
+    "components": [
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 19617
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19616
+      }
+    ]
+  },
+  "cactus-sponge": {
+    "servuoClasses": [
+      "CactusSpongeAddon",
+      "CactusSpongeDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19502
+      }
+    ]
+  },
+  "castle-painting-east": {
+    "servuoClasses": [
+      "CastlePaintingAddon",
+      "CastlePaintingDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19489
+      }
+    ]
+  },
+  "castle-painting-south": {
+    "servuoClasses": [
+      "CastlePaintingAddon",
+      "CastlePaintingDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19488
+      }
+    ]
+  },
+  "embroidered-tapestry-east": {
+    "servuoClasses": [
+      "EmbroideredTapestryAddon",
+      "EmbroideredTapestryDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19610
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 19611
+      }
+    ]
+  },
+  "embroidered-tapestry-south": {
+    "servuoClasses": [
+      "EmbroideredTapestryAddon",
+      "EmbroideredTapestryDeed"
+    ],
+    "components": [
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 19609
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19608
+      }
+    ]
+  },
+  "fire-painting-east": {
+    "servuoClasses": [
+      "FirePaintingAddon",
+      "FirePaintingDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19497
+      }
+    ]
+  },
+  "fire-painting-south": {
+    "servuoClasses": [
+      "FirePaintingAddon",
+      "FirePaintingDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19496
+      }
+    ]
+  },
+  "fluffy-sponge": {
+    "servuoClasses": [
+      "FluffySpongeAddon",
+      "FluffySpongeDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19505
+      }
+    ]
+  },
+  "golden-table-east": {
+    "servuoClasses": [
+      "GoldenTableAddon",
+      "GoldenTableDeed"
+    ],
+    "components": [
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 19624
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19627
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 19626
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 19625
+      }
+    ]
+  },
+  "golden-table-south": {
+    "servuoClasses": [
+      "GoldenTableAddon",
+      "GoldenTableDeed"
+    ],
+    "components": [
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 19623
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 19622
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 19621
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19620
+      }
+    ]
+  },
+  "horse-painting-east": {
+    "servuoClasses": [
+      "HorsePaintingAddon",
+      "HorsePaintingDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19491
+      }
+    ]
+  },
+  "horse-painting-south": {
+    "servuoClasses": [
+      "HorsePaintingAddon",
+      "HorsePaintingDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19490
+      }
+    ]
+  },
+  "marble-table-east": {
+    "servuoClasses": [
+      "MarbleTableAddon",
+      "MarbleTableDeed"
+    ],
+    "components": [
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 19635
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19634
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 19633
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 19632
+      }
+    ]
+  },
+  "marble-table-south": {
+    "servuoClasses": [
+      "MarbleTableAddon",
+      "MarbleTableDeed"
+    ],
+    "components": [
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 19631
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 19630
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 19629
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19628
+      }
+    ]
+  },
+  "shelf-sponge": {
+    "servuoClasses": [
+      "ShelfSpongeAddon",
+      "ShelfSpongeDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19503
+      }
+    ]
+  },
+  "ship-painting-east": {
+    "servuoClasses": [
+      "ShipPaintingAddon",
+      "ShipPaintingDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19495
+      }
+    ]
+  },
+  "ship-painting-south": {
+    "servuoClasses": [
+      "ShipPaintingAddon",
+      "ShipPaintingDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19494
+      }
+    ]
+  },
+  "tinker-bench-south": {
+    "servuoClasses": [
+      "TinkerBenchAddon",
+      "TinkerBenchDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 41491
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 41489
+      }
+    ]
+  },
+  "tinker-bench-east": {
+    "servuoClasses": [
+      "TinkerBenchAddon",
+      "TinkerBenchDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 41499
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 41489
+      }
+    ]
+  },
+  "training-dummy-east": {
+    "servuoClasses": [
+      "TrainingDummy",
+      "TrainingDummyEastAddon",
+      "TrainingDummyEastDeed",
+      "TrainingDummySouthAddon",
+      "TrainingDummySouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4212
+      }
+    ]
+  },
+  "training-dummy-south": {
+    "servuoClasses": [
+      "TrainingDummy",
+      "TrainingDummyEastAddon",
+      "TrainingDummyEastDeed",
+      "TrainingDummySouthAddon",
+      "TrainingDummySouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4208
+      }
+    ]
+  },
+  "unmade-bed": {
+    "servuoClasses": [
+      "UnmadeBedAddon",
+      "UnmadeBedDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2700
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 2701
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 2704
+      },
+      {
+        "dx": -1,
+        "dy": -1,
+        "id": 2705
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3504
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 3505
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 3508
+      },
+      {
+        "dx": -1,
+        "dy": -1,
+        "id": 3509
+      }
+    ]
+  },
+  "unsettling-portrait": {
+    "servuoClasses": [
+      "UnsettlingPortraitComponent",
+      "UnsettlingPortraitAddon",
+      "UnsettlingPortraitDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10853
+      }
+    ]
+  },
+  "wall-banner": {
+    "servuoClasses": [
+      "WallBannerComponent",
+      "WallBanner",
+      "WallBannerDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5663
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 5662
+      },
+      {
+        "dx": 0,
+        "dy": 2,
+        "id": 5661
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5510
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 5511
+      },
+      {
+        "dx": 2,
+        "dy": 0,
+        "id": 5512
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5666
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 5665
+      },
+      {
+        "dx": 0,
+        "dy": 2,
+        "id": 5664
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5513
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 5514
+      },
+      {
+        "dx": 2,
+        "dy": 0,
+        "id": 5515
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5669
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 5668
+      },
+      {
+        "dx": 0,
+        "dy": 2,
+        "id": 5667
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5516
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 5517
+      },
+      {
+        "dx": 2,
+        "dy": 0,
+        "id": 5518
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5672
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 5671
+      },
+      {
+        "dx": 0,
+        "dy": 2,
+        "id": 5670
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5520
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 5521
+      },
+      {
+        "dx": 2,
+        "dy": 0,
+        "id": 5519
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5674
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 5673
+      },
+      {
+        "dx": 0,
+        "dy": 2,
+        "id": 5670
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5522
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 5523
+      },
+      {
+        "dx": 2,
+        "dy": 0,
+        "id": 5519
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5677
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 5676
+      },
+      {
+        "dx": 0,
+        "dy": 2,
+        "id": 5675
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5524
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 5525
+      },
+      {
+        "dx": 2,
+        "dy": 0,
+        "id": 5526
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5682
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 5681
+      },
+      {
+        "dx": 0,
+        "dy": 2,
+        "id": 5678
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5528
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 5531
+      },
+      {
+        "dx": 2,
+        "dy": 0,
+        "id": 5532
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5683
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 5680
+      },
+      {
+        "dx": 0,
+        "dy": 2,
+        "id": 5679
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5529
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 5530
+      },
+      {
+        "dx": 2,
+        "dy": 0,
+        "id": 5533
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5648
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 5647
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5536
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 5537
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5650
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 5649
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5538
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 5539
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5652
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 5651
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5540
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 5541
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5654
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 5653
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5542
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 5543
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5656
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 5655
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5544
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 5545
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5658
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 5657
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5546
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 5547
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5660
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 5659
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5548
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 5549
+      }
+    ]
+  },
+  "wall-torch": {
+    "servuoClasses": [
+      "WallTorchComponent",
+      "WallTorchAddon",
+      "WallTorchDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 15768
+      }
+    ]
+  },
+  "warrior-statue-east": {
+    "servuoClasses": [
+      "WarriorStatueEastAddon",
+      "WarriorStatueEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 11538
+      }
+    ]
+  },
+  "warrior-statue-south": {
+    "servuoClasses": [
+      "WarriorStatueSouthAddon",
+      "WarriorStatueSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 11539
+      }
+    ]
+  },
+  "wash-basin-south": {
+    "servuoClasses": [
+      "WaterContainerComponent",
+      "WashBasinAddon",
+      "WashBasinDeed"
+    ],
+    "components": [
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 41646
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 41645
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 41644
+      }
+    ]
+  },
+  "wash-basin-east": {
+    "servuoClasses": [
+      "WaterContainerComponent",
+      "WashBasinAddon",
+      "WashBasinDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 41653
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 41652
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 41651
+      }
+    ]
+  },
+  "water-trough-east": {
+    "servuoClasses": [
+      "WaterTroughEastAddon",
+      "WaterTroughEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2881
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 2882
+      }
+    ]
+  },
+  "water-trough-south": {
+    "servuoClasses": [
+      "WaterTroughSouthAddon",
+      "WaterTroughSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2883
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 2884
+      }
+    ]
+  },
+  "water-vat-east": {
+    "servuoClasses": [
+      "WaterVatEast",
+      "WaterVatSouth"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5464
+      },
+      {
+        "dx": -1,
+        "dy": 1,
+        "id": 5342
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 5458
+      },
+      {
+        "dx": 1,
+        "dy": -1,
+        "id": 5343
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 5460
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 5465
+      },
+      {
+        "dx": 1,
+        "dy": 3,
+        "id": 5456
+      },
+      {
+        "dx": 3,
+        "dy": 1,
+        "id": 5461
+      },
+      {
+        "dx": 2,
+        "dy": 2,
+        "id": 5335
+      },
+      {
+        "dx": 2,
+        "dy": -1,
+        "id": 8612
+      },
+      {
+        "dx": 3,
+        "dy": 0,
+        "id": 8612
+      },
+      {
+        "dx": -1,
+        "dy": 2,
+        "id": 8612
+      },
+      {
+        "dx": 0,
+        "dy": 3,
+        "id": 8612
+      }
+    ]
+  },
+  "water-vat-south": {
+    "servuoClasses": [
+      "WaterVatEast",
+      "WaterVatSouth"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5464
+      },
+      {
+        "dx": -1,
+        "dy": 1,
+        "id": 5342
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 5458
+      },
+      {
+        "dx": 1,
+        "dy": -1,
+        "id": 5343
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 5460
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 5465
+      },
+      {
+        "dx": 1,
+        "dy": 3,
+        "id": 5457
+      },
+      {
+        "dx": 3,
+        "dy": 1,
+        "id": 5462
+      },
+      {
+        "dx": 2,
+        "dy": 2,
+        "id": 5335
+      },
+      {
+        "dx": 2,
+        "dy": -1,
+        "id": 8612
+      },
+      {
+        "dx": 3,
+        "dy": 0,
+        "id": 8612
+      },
+      {
+        "dx": -1,
+        "dy": 2,
+        "id": 8612
+      },
+      {
+        "dx": 0,
+        "dy": 3,
+        "id": 8612
+      }
+    ]
+  },
+  "weathered-bronze-archer": {
+    "servuoClasses": [
+      "WeatheredBronzeArcherComponent",
+      "WeatheredBronzeArcherAddon",
+      "WeatheredBronzeArcherDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 40238
+      }
+    ]
+  },
+  "weathered-bronze-fairy-sculpture": {
+    "servuoClasses": [
+      "WeatheredBronzeFairySculptureComponent",
+      "WeatheredBronzeFairySculptureAddon",
+      "WeatheredBronzeFairySculptureDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 40201
+      }
+    ]
+  },
+  "weathered-bronze-globe-sculpture": {
+    "servuoClasses": [
+      "WeatheredBronzeGlobeSculptureAddon",
+      "WeatheredBronzeGlobeSculptureDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 40175
+      }
+    ]
+  },
+  "weathered-bronze-man-on-a-bench": {
+    "servuoClasses": [
+      "WeatheredBronzeManOnABenchComponent",
+      "WeatheredBronzeManOnABenchAddon",
+      "WeatheredBronzeManOnABenchDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 40197
+      }
+    ]
+  },
+  "wooden-coffin": {
+    "servuoClasses": [
+      "WoodenCoffinComponent",
+      "WoodenCoffinAddon",
+      "WoodenCoffinDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 7233
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 7234
+      },
+      {
+        "dx": 2,
+        "dy": 0,
+        "id": 7235
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 7247
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 7248
+      },
+      {
+        "dx": 0,
+        "dy": 2,
+        "id": 7249
+      }
+    ]
+  },
+  "wooden-table-east": {
+    "servuoClasses": [
+      "WoodenTableEastAddon",
+      "WoodenTableEastDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19659
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 19658
+      }
+    ]
+  },
+  "wooden-table-south": {
+    "servuoClasses": [
+      "WoodenTableSouthAddon",
+      "WoodenTableSouthDeed"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 19656
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 19657
+      }
+    ]
+  }
+}

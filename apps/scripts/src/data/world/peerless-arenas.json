@@ -1,0 +1,30 @@
+[
+  {
+    "name": "travesty",
+    "requiredKeys": [
+      "citadel captain key",
+      "citadel first mate key",
+      "citadel quartermaster key"
+    ],
+    "bossKind": "travesty",
+    "spawnAt":    { "x": 6444, "y": 290, "z": 0, "map": 1 },
+    "teleportTo": { "x": 6438, "y": 290, "z": 0, "map": 1 },
+    "cooldownMs": 3600000
+  },
+  {
+    "name": "melisande",
+    "requiredKeys": ["fairy trinket", "satyr horn", "wisp orb"],
+    "bossKind": "lady-mel",
+    "spawnAt":    { "x": 6772, "y": 511, "z": 0, "map": 1 },
+    "teleportTo": { "x": 6770, "y": 510, "z": 0, "map": 1 },
+    "cooldownMs": 3600000
+  },
+  {
+    "name": "effusion",
+    "requiredKeys": ["ethereal warrior crystal"],
+    "bossKind": "shimmering-effusion",
+    "spawnAt":    { "x": 7027, "y": 285, "z": -32, "map": 1 },
+    "teleportTo": { "x": 7022, "y": 285, "z": -32, "map": 1 },
+    "cooldownMs": 3600000
+  }
+]

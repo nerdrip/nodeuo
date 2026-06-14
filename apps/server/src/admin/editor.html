@@ -1,0 +1,1954 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>UO·Node — Iso World Editor</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden;
+    font: 12px/1.45 'Consolas', 'Cascadia Mono', monospace;
+    color: #d8c89a; background: #0c0906; }
+  #root { display: grid; grid-template-columns: 1fr 320px; height: 100vh; }
+  #stage { position: relative; overflow: hidden; background: #050403; }
+  canvas { display: block; image-rendering: pixelated; cursor: crosshair; }
+  #side {
+    background: #1a1410; border-left: 2px solid #4a3818;
+    overflow-y: auto; padding: 10px; font-size: 12px;
+  }
+  h3 { font-size: 12px; color: #ffd070; margin: 12px 0 6px; letter-spacing: 1px; }
+  h3:first-child { margin-top: 0; }
+  button { background: #3a2c14; color: #ffd070; border: 1px solid #7a5a20;
+    padding: 4px 8px; cursor: pointer; font: inherit; border-radius: 2px; }
+  button:hover { background: #4a3818; }
+  button.primary { background: #6a4a18; }
+  button.danger { color: #ff6060; border-color: #803030; }
+  input, select { background: #14100a; color: #d8c89a; border: 1px solid #4a3818;
+    padding: 3px 6px; font: inherit; border-radius: 2px; }
+  .row { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-bottom: 4px; }
+  .tool-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+  .tool-grid button { text-align: left; padding: 6px 8px; }
+  .pill { display: inline-block; padding: 1px 5px; border-radius: 8px;
+    font-size: 10px; border: 1px solid currentColor; }
+  #hud {
+    position: absolute; top: 8px; left: 8px;
+    background: rgba(20,16,10,.85); border: 1px solid #4a3818;
+    padding: 6px 10px; color: #d8c89a; pointer-events: none;
+    font-size: 11px; letter-spacing: 0.5px; border-radius: 2px;
+  }
+  #hud b { color: #ffd070; font-weight: normal; }
+  #toolhud {
+    position: absolute; top: 8px; right: 8px;
+    background: rgba(20,16,10,.85); border: 1px solid #4a3818;
+    padding: 6px 10px; color: #ffd070; pointer-events: none;
+    font-size: 11px; border-radius: 2px;
+  }
+  #stack {
+    position: absolute; bottom: 8px; left: 8px;
+    background: rgba(20,16,10,.85); border: 1px solid #4a3818;
+    padding: 6px 10px; color: #d8c89a; pointer-events: none;
+    font-size: 11px; max-width: 480px; max-height: 200px; overflow: auto;
+    white-space: pre; border-radius: 2px;
+  }
+  #stack b { color: #ffd070; font-weight: normal; }
+  #loading {
+    position: absolute; inset: 0; display: flex;
+    align-items: center; justify-content: center; flex-direction: column;
+    color: #ffd070; background: #050403; gap: 10px; z-index: 10;
+  }
+  #loading .bar { width: 240px; height: 6px; background: #2a1f10; border: 1px solid #4a3818; }
+  #loading .bar > div { height: 100%; background: #ffd070; width: 0%; transition: width 200ms; }
+  #palette {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
+    max-height: 260px; overflow-y: auto;
+  }
+  .pal {
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px; border: 1px solid #3a2c14; cursor: pointer;
+    border-radius: 3px; font-size: 11px;
+  }
+  .pal:hover { border-color: #6a4a18; }
+  .pal.active { border-color: #ffd070; background: #2a1f10; }
+  .pal canvas { width: 28px; height: 28px; image-rendering: pixelated;
+    background: #0a0805; flex-shrink: 0; }
+  .pal .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pal .id { opacity: .5; font-size: 10px; }
+  .topbar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 6px 10px; background: #20180e; border-bottom: 1px solid #4a3818;
+    color: #ffd070; font-size: 11px;
+  }
+  .topbar a { color: #ffd070; text-decoration: none; }
+  .topbar a:hover { text-decoration: underline; }
+  .topbar .spacer { flex: 1; }
+  .kbd {
+    display: inline-block; padding: 0 4px; border: 1px solid #4a3818;
+    border-radius: 2px; background: #1a1410; color: #d8c89a;
+    font-size: 10px; margin: 0 1px;
+  }
+  details summary { cursor: pointer; padding: 4px 0; color: #ffd070; }
+</style>
+</head>
+<body>
+<div id="root">
+  <div id="stage">
+    <div class="topbar">
+      <a href="/">← Admin</a>
+      <span class="spacer"></span>
+      <span>Facet:</span>
+      <select id="facet">
+        <option value="0">Felucca</option>
+        <option value="1" selected>Trammel</option>
+        <option value="2">Ilshenar</option>
+        <option value="3">Malas</option>
+        <option value="4">Tokuno</option>
+        <option value="5">TerMur</option>
+      </select>
+      <span>X</span><input id="goto-x" type="number" value="1495" style="width:70px" />
+      <span>Y</span><input id="goto-y" type="number" value="1625" style="width:70px" />
+      <button onclick="ed.goto()">Go</button>
+      <span style="margin-left:8px">Loc:</span>
+      <select id="goto-loc" style="width:200px;font-size:11px">
+        <option value="">— select location —</option>
+      </select>
+      <button onclick="ed.tpAdminHere()" title="Teleport your admin character here">🚀 TP me</button>
+    </div>
+    <canvas id="cv" width="800" height="600"></canvas>
+    <div id="hud">camera (<b id="hud-cx">—</b>, <b id="hud-cy">—</b>) · zoom <b id="hud-z">1.0</b>x · hover (<b id="hud-hx">—</b>, <b id="hud-hy">—</b>) · z=<b id="hud-hz">—</b></div>
+    <div id="toolhud">Tool: <span id="toolname">—</span></div>
+    <div id="stack"></div>
+    <div id="loading">
+      <div>Loading atlases…</div>
+      <div class="bar"><div id="lbar"></div></div>
+      <div id="lmsg" style="font-size:11px;opacity:.7"></div>
+    </div>
+  </div>
+
+  <div id="side">
+    <h3>Tool</h3>
+    <div class="tool-grid">
+      <button data-tool="paintLand" class="primary">🖌 Paint land</button>
+      <button data-tool="placeStatic">🧱 Place static</button>
+      <button data-tool="remove">🗑 Remove</button>
+      <button data-tool="pick">🎯 Pick</button>
+      <button data-tool="tp">🚀 TP</button>
+      <button data-tool="inspect">👁 Inspect</button>
+    </div>
+    <div style="font-size:10px;opacity:.6;margin-top:4px">
+      <span class="kbd">WASD</span> pan · <span class="kbd">+/-</span> zoom · <span class="kbd">middle-drag</span> pan · <span class="kbd">RMB</span> = remove · <span class="kbd">B</span> place · <span class="kbd">M</span> paint · <span class="kbd">space</span> toggle mob layer
+    </div>
+
+    <h3>Brush</h3>
+    <div class="row">
+      <span style="min-width:36px">ID</span>
+      <input id="brush-id" type="text" value="0x0003" style="width:90px;font-family:Consolas" />
+      <span id="brush-kind" class="pill" style="color:#80c0ff">land</span>
+    </div>
+    <div class="row">
+      <span style="min-width:36px">Z</span>
+      <input id="brush-z" type="number" value="0" min="-128" max="127" style="width:70px" />
+      <label style="font-size:11px">
+        <input type="checkbox" id="brush-z-override" />
+        override
+      </label>
+    </div>
+    <div class="row">
+      <span style="min-width:36px">Hue</span>
+      <input id="brush-hue" type="number" value="0" min="0" max="65535" style="width:80px" />
+    </div>
+    <div class="row">
+      <span style="min-width:36px">Size</span>
+      <select id="brush-size">
+        <option value="1">1×1</option>
+        <option value="2">2×2</option>
+        <option value="3">3×3</option>
+        <option value="5">5×5</option>
+        <option value="8">8×8</option>
+      </select>
+    </div>
+
+    <h3>Palette</h3>
+    <input id="search" placeholder="🔍 search by name or 0xNNNN…"
+      style="width:100%;margin-bottom:6px" />
+    <div class="row" style="margin-bottom:6px">
+      <label><input type="radio" name="kind" value="land" checked /> Land</label>
+      <label><input type="radio" name="kind" value="static" /> Statics</label>
+    </div>
+    <div id="palette"></div>
+
+    <h3>Pending edits</h3>
+    <div id="pending" style="font-size:11px">
+      <div>Land paints: <b id="pend-land">0</b></div>
+      <div>Statics added: <b id="pend-add">0</b></div>
+      <div>Statics removed: <b id="pend-rem">0</b></div>
+    </div>
+    <div class="row" style="margin-top:6px">
+      <button class="primary" onclick="ed.saveAll()">💾 Save all</button>
+      <button onclick="ed.discardAll()">↶ Discard</button>
+    </div>
+    <div style="font-size:10px;opacity:.6;margin-top:4px">
+      Edits stay client-side as a pending overlay until Save. Discard reverts to the on-disk state. Baked map statics (from the source <code>statics*.bin</code>) are read-only — Remove only marks runtime items + your pending additions.
+    </div>
+    <details style="margin-top:8px">
+      <summary>Danger zone</summary>
+      <div class="row" style="margin-top:4px">
+        <button class="danger" onclick="ed.resetLandOverlay()">🗑 Wipe ALL land overlay</button>
+      </div>
+    </details>
+
+    <h3>View</h3>
+    <div class="row">
+      <button onclick="ed.zoom(1.5)">+</button>
+      <button onclick="ed.zoom(0.6667)">−</button>
+      <button onclick="ed.zoom('reset')">1×</button>
+      <span style="opacity:.6">zoom controls (or scroll wheel)</span>
+    </div>
+    <div class="row">
+      <label><input type="checkbox" id="show-grid" /> Grid</label>
+      <label><input type="checkbox" id="show-mobs" checked /> Mobs overlay</label>
+      <label><input type="checkbox" id="show-items" checked /> Runtime items</label>
+      <label><input type="checkbox" id="show-spawners" checked /> Spawners</label>
+    </div>
+
+    <h3>Spawners</h3>
+    <div class="row">
+      <button onclick="ed.startAddSpawner()" title="Draw a rect on the map, then fill in the form">➕ Add Spawner (Shift+drag)</button>
+    </div>
+    <div style="font-size:10px;opacity:.6">
+      Hold <span class="kbd">shift</span> + drag to mark a rect, then open the form to pick monster kinds.
+      Click any existing spawner outline to edit / delete.
+    </div>
+
+    <h3>Prefabs</h3>
+    <div class="row">
+      <button onclick="ed.savePrefab()">💾 Save selection</button>
+      <button onclick="ed.browsePrefabs()">📂 Browse</button>
+    </div>
+    <div style="font-size:10px;opacity:.6">
+      Hold <span class="kbd">shift</span> and drag in the canvas to mark a rectangle for the next prefab save (or rect-fill paint).
+    </div>
+  </div>
+</div>
+
+<script type="module">
+'use strict';
+
+// ============================================================================
+// SHARED MODULES — iso math, tiledata flag constants and the notoriety
+// hue table are now imported from `apps/client/src/shared/*` so the
+// admin editor and the in-game client agree on every number byte-for-
+// byte. The admin web server exposes the directory at `/shared/*` (see
+// apps/server/src/admin/admin-server.js).
+// ============================================================================
+import {
+  TILE_W, TILE_H, TILE_HALF_W, TILE_HALF_H, Z_STEP,
+  worldToScreen, screenToWorld, depthKey,
+  LAYER_LAND, LAYER_STATIC, LAYER_ITEM, LAYER_MOBILE,
+} from '/shared/iso.js';
+import {
+  FLAG_BACKGROUND, FLAG_WALL, FLAG_IMPASSABLE, FLAG_SURFACE,
+  FLAG_BRIDGE, FLAG_FOLIAGE, FLAG_ROOF, FLAG_DOOR,
+  isSolidFlag, classifyTileFlags,
+} from '/shared/tiledata-flags.js';
+import {
+  LAND_COUNT,
+  landNameOf  as sharedLandNameOf,
+  staticNameOf as sharedStaticNameOf,
+  staticHeight as sharedStaticHeight,
+  staticEntry, landEntry,
+} from '/shared/tiledata.js';
+import { NOTORIETY_HUE, NOTORIETY_LABEL, notorietyHue } from '/shared/notoriety-hues.js';
+
+// ============================================================================
+// HTTP helpers — same-origin cookie auth (set by /api/auth/login)
+// ============================================================================
+async function api(method, url, body) {
+  const init = { method, headers: {}, credentials: 'same-origin' };
+  if (body) { init.headers['content-type'] = 'application/json'; init.body = JSON.stringify(body); }
+  const r = await fetch(url, init);
+  if (r.status === 401) { location.href = '/login'; throw new Error('unauthorized'); }
+  if (!r.ok) {
+    let msg = `HTTP ${r.status}`;
+    try { const j = await r.json(); msg = j.error || j.reason || msg; } catch {}
+    throw new Error(msg);
+  }
+  return r.json();
+}
+
+// ============================================================================
+// ATLAS LOADER — fetch land-atlas.json + static-atlas.json + tiledata.json,
+// lazy-load PNG pages as needed.
+// ============================================================================
+const AT = {
+  landIdx: null,      // {count, pageCount, tiles: {id: {page,u,v}}}
+  staticIdx: null,    // {pageCount, tiles: {id: {page,u,v,w,h}}}
+  tiledata: null,     // {land:[{name,flags,...}], statics:[{name,height,flags,layer}]}
+  landPages: {},      // page → HTMLImageElement
+  staticPages: {},    // page → HTMLImageElement
+  landPagePromises: {},
+  staticPagePromises: {},
+};
+
+function loadImage(url) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = (e) => reject(new Error('img load failed: ' + url));
+    img.src = url;
+  });
+}
+
+async function loadAtlases(onProgress) {
+  const steps = [
+    ['land index',    () => fetch('/assets/land-atlas.json').then(r => r.json()).then(j => AT.landIdx = j)],
+    ['static index',  () => fetch('/assets/static-atlas.json').then(r => r.json()).then(j => AT.staticIdx = j)],
+    ['tiledata',      () => fetch('/assets/tiledata.json').then(r => r.json()).then(j => AT.tiledata = j)],
+  ];
+  for (let i = 0; i < steps.length; i++) {
+    onProgress?.(i / steps.length, steps[i][0]);
+    await steps[i][1]();
+  }
+  onProgress?.(1, 'done');
+}
+
+function ensureLandPage(page) {
+  if (AT.landPages[page]) return Promise.resolve(AT.landPages[page]);
+  if (AT.landPagePromises[page]) return AT.landPagePromises[page];
+  // land-atlas pages: land-atlas-00.png ... pageCount-1. Filename
+  // uses 2-digit zero-pad (matches extractor output).
+  const url = `/assets/land-atlas-${String(page).padStart(2, '0')}.png`;
+  const p = loadImage(url).then((img) => { AT.landPages[page] = img; return img; })
+    .catch((e) => { console.warn('land page load fail', page, e); return null; });
+  AT.landPagePromises[page] = p;
+  return p;
+}
+function ensureStaticPage(page) {
+  if (AT.staticPages[page]) return Promise.resolve(AT.staticPages[page]);
+  if (AT.staticPagePromises[page]) return AT.staticPagePromises[page];
+  // static atlas uses 3-digit pad.
+  const url = `/assets/static-atlas-${String(page).padStart(3, '0')}.png`;
+  const p = loadImage(url).then((img) => { AT.staticPages[page] = img; return img; })
+    .catch((e) => { console.warn('static page load fail', page, e); return null; });
+  AT.staticPagePromises[page] = p;
+  return p;
+}
+
+// LAND_COUNT + tiledata lookups now live in /shared/tiledata.js so the
+// admin editor and the in-game client agree on the LOCAL ↔ GLOBAL id
+// shift (0x4000) and the dual-lookup fallback for renamed dumps. We
+// wrap the shared helpers with thin closures over `AT.tiledata` so the
+// call sites in the rest of this file stay terse.
+function landNameOf(id)        { return sharedLandNameOf(AT.tiledata, id); }
+function staticNameOf(id)      { return sharedStaticNameOf(AT.tiledata, id); }
+function staticHeight(id)      { return sharedStaticHeight(AT.tiledata, id); }
+function staticAtlasEntry(id)  { return AT.staticIdx?.tiles?.[id + LAND_COUNT]; }
+
+// ============================================================================
+// SLOPE WARPING — affine texture-mapped triangle for per-corner Z.
+// ============================================================================
+// Given three source points inside the atlas slice (s1, s2, s3) and the
+// matching screen destination points (d1, d2, d3), draws the triangle
+// region by setting up the 6-coefficient affine matrix that maps
+// source → destination, clipping to the destination triangle path.
+//
+// canvas2D doesn't have perspective-correct texture mapping, but for
+// small (≤ a few z-units) slopes the affine approximation is visually
+// indistinguishable from the per-vertex MeshSimple the game client
+// uses, and it costs ~2× a flat drawImage per warped tile. Flat tiles
+// still take the single-drawImage fast path.
+function drawTexTri(ctx, img, entry, s1, s2, s3, d1, d2, d3) {
+  // Solve [d - d3] = A * [s - s3] with A = 2×2:
+  //   sx1 sx2     a c     dx1 dx2
+  //   sy1 sy2  *  b d  =  dy1 dy2
+  const sx1 = s1.x - s3.x, sy1 = s1.y - s3.y;
+  const sx2 = s2.x - s3.x, sy2 = s2.y - s3.y;
+  const det = sx1 * sy2 - sx2 * sy1;
+  if (det === 0) return;
+  const dx1 = d1.x - d3.x, dy1 = d1.y - d3.y;
+  const dx2 = d2.x - d3.x, dy2 = d2.y - d3.y;
+  // A = D * S^-1
+  const inv = 1 / det;
+  const i00 =  sy2 * inv, i01 = -sx2 * inv;
+  const i10 = -sy1 * inv, i11 =  sx1 * inv;
+  const a = dx1 * i00 + dx2 * i10;
+  const c = dx1 * i01 + dx2 * i11;
+  const b = dy1 * i00 + dy2 * i10;
+  const d = dy1 * i01 + dy2 * i11;
+  const e = d3.x - (a * s3.x + c * s3.y);
+  const f = d3.y - (b * s3.x + d * s3.y);
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(d1.x, d1.y); ctx.lineTo(d2.x, d2.y); ctx.lineTo(d3.x, d3.y);
+  ctx.closePath();
+  ctx.clip();
+  ctx.setTransform(a, b, c, d, e, f);
+  // Atlas slice → draw at the matrix's source origin. The matrix maps
+  // (0..44, 0..44) in *atlas* coords to dest, so we offset by (u, v)
+  // when sampling.
+  ctx.drawImage(img, entry.u, entry.v, TILE_W, TILE_H, 0, 0, TILE_W, TILE_H);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.restore();
+}
+
+// ============================================================================
+// EDITOR STATE
+// ============================================================================
+const ed = window.ed = {
+  // Persist the facet across reloads — operator picks Felucca once,
+  // every subsequent boot reopens on it. Without this the select
+  // resets to whatever the HTML `selected` attribute hard-codes (1 =
+  // Trammel), which surprised the user when their custom spawn rect
+  // changes were on Felucca but the editor kept reopening on Trammel.
+  facet: (() => {
+    const n = Number(localStorage.getItem('uo-editor-facet'));
+    return Number.isFinite(n) && n >= 0 && n <= 5 ? n : 1;
+  })(),
+  // World coords of camera center.
+  cx: 1495, cy: 1625,
+  zoomLevel: 1.0,      // 1 = 100%, 0.5 = 50% (zoomed out), 2 = 200%
+  view: { w: 32, h: 32 },  // tiles visible (recomputed from canvas + zoom)
+
+  // Brush
+  brushKind: 'land',   // 'land' | 'static'
+  brushId: 0x0003,
+  brushZ: 0,
+  brushHue: 0,
+  brushZOverride: false,
+  brushSize: 1,
+
+  tool: 'paintLand',   // paintLand | placeStatic | remove | pick | tp | inspect
+
+  // Slice cache: tiles[i] for land + cells for statics, indexed by dx|dy.
+  tiles: null,
+  cells: null,
+  mobiles: [],         // live mobs (from /api/mobiles), for overlay layer
+  loadGen: 0,
+
+  // Pending overlay (client-side until Save). Three independent lists:
+  //   pendingLand     – land paint deltas (committed via /api/map/edit)
+  //   pendingAdds     – statics queued to be placed (POST /api/statics/place each on save)
+  //   pendingRemoves  – serials of runtime items queued for removal (POST /api/statics/remove)
+  // Baked statics from the on-disk static dump are never marked for
+  // removal — they're read-only at this layer. The Remove tool only
+  // accepts runtime items or pending adds (which are unstaged in-place).
+  pendingLand: [],
+  pendingAdds: [],
+  pendingRemoves: new Set(),     // serials (string '0x…')
+  pendingAddSeq: 0,              // increments per add so each entry has a stable temp id
+
+  // Frame coalescer — render() schedules a RAF and drains once per
+  // frame. Multiple state changes between frames batch into a single
+  // paint, eliminating the per-input render storm we used to do.
+  _renderQueued: false,
+  // Debounced reloadSlice so WASD/middle-drag pan doesn't fire one
+  // GET pair per movement step.
+  _reloadTimer: null,
+
+  // Hover-stack memo — only re-render the stack popup when the cell
+  // under cursor actually changes (was rebuilding 60×/s during pan).
+  _lastHover: null,
+
+  // Hover state
+  hover: { x: null, y: null, z: 0 },
+  // Rect drag (shift-drag) — used for prefab save bounds + rect-fill paint.
+  rectStart: null, rectEnd: null,
+
+  // Camera pan via middle-mouse-drag.
+  panDrag: null,
+
+  // Toggles
+  showGrid: false,
+  showMobs: true,
+  showItems: true,
+  showSpawners: true,
+  /** Live spawner list — refreshed via refreshSpawners() */
+  spawners: [],
+
+  // ---- public API used by buttons --------------------------------------
+  goto() {
+    const x = Number(document.getElementById('goto-x').value);
+    const y = Number(document.getElementById('goto-y').value);
+    if (Number.isFinite(x) && Number.isFinite(y)) {
+      this.cx = x; this.cy = y; this.reloadSlice();   // explicit Go = immediate
+    }
+  },
+  zoom(arg) {
+    if (arg === 'reset') this.zoomLevel = 1.0;
+    else this.zoomLevel *= arg;
+    this.zoomLevel = Math.max(0.25, Math.min(4, this.zoomLevel));
+    document.getElementById('hud-z').textContent = this.zoomLevel.toFixed(2);
+    this.recomputeView();
+    this.reloadSliceSoon(60);  // settle ~60 ms after the click
+  },
+  async saveAll() {
+    const summary = [];
+    if (this.pendingLand.length) {
+      const r = await api('POST', '/api/map/edit', {
+        facet: this.facet, edits: this.pendingLand,
+      });
+      if (r.error) { alert('Land save failed: ' + r.error); return; }
+      summary.push(`${this.pendingLand.length} land paints`);
+      this.pendingLand = [];
+    }
+    if (this.pendingAdds.length) {
+      let placed = 0;
+      // Chunk into 32-at-a-time parallel POSTs (server is single-call
+      // per place but we can pipeline). Skips on failure but keeps going
+      // so a single bad tile doesn't abandon the whole batch.
+      for (let i = 0; i < this.pendingAdds.length; i += 32) {
+        const slice = this.pendingAdds.slice(i, i + 32);
+        const results = await Promise.all(slice.map((a) =>
+          api('POST', '/api/statics/place', {
+            facet: this.facet, x: a.x, y: a.y, z: a.z,
+            itemId: a.itemId, hue: a.hue,
+          }).catch(() => ({ error: 'network' }))));
+        placed += results.filter((r) => r.ok).length;
+      }
+      summary.push(`${placed}/${this.pendingAdds.length} statics placed`);
+      this.pendingAdds = [];
+    }
+    if (this.pendingRemoves.size) {
+      let removed = 0;
+      const serials = [...this.pendingRemoves];
+      for (let i = 0; i < serials.length; i += 32) {
+        const slice = serials.slice(i, i + 32);
+        const results = await Promise.all(slice.map((s) =>
+          api('POST', '/api/statics/remove', { serial: s })
+            .catch(() => ({ error: 'network' }))));
+        removed += results.filter((r) => r.ok).length;
+      }
+      summary.push(`${removed}/${serials.length} statics removed`);
+      this.pendingRemoves.clear();
+    }
+    if (!summary.length) { alert('Nothing to save.'); return; }
+    this.updatePendingHud();
+    this.reloadSlice();
+    alert('Saved: ' + summary.join(', '));
+  },
+  async discardAll() {
+    this.pendingLand = [];
+    this.pendingAdds = [];
+    this.pendingRemoves.clear();
+    this.updatePendingHud();
+    await this.reloadSlice();
+  },
+  async resetLandOverlay() {
+    if (!confirm('Wipe ALL land overlay edits server-wide?')) return;
+    const r = await api('POST', '/api/map/reset', {});
+    alert('Cleared ' + r.cleared + ' overlay tiles.');
+    await this.reloadSlice();
+  },
+  async tpAdminHere() {
+    const r = await api('POST', '/api/me/teleport', {
+      x: this.cx, y: this.cy, z: 0, map: this.facet,
+    });
+    if (r.error) alert('TP failed: ' + r.error);
+  },
+  async savePrefab() {
+    const r = this.rectBounds();
+    if (!r) { alert('Hold shift and drag to mark a rectangle first.'); return; }
+    const name = prompt('Prefab name (alphanumeric, _, -):', 'prefab-' + (Date.now() % 100000));
+    if (!name) return;
+    const res = await api('POST', '/api/statics/save-prefab', {
+      facet: this.facet, x0: r.x0, y0: r.y0, x1: r.x1, y1: r.y1, name,
+    });
+    if (res.error) { alert('Save failed: ' + res.error); return; }
+    alert('Saved ' + res.tileCount + ' tiles as "' + res.name + '"');
+  },
+  async browsePrefabs() {
+    const r = await api('GET', '/api/statics/prefabs');
+    if (!r.prefabs?.length) { alert('No prefabs saved yet.'); return; }
+    const lines = r.prefabs.map((p) => `${p.name} (${p.sizeX}×${p.sizeY}, ${p.tileCount} tiles)`).join('\n');
+    const pick = prompt(`Prefabs available:\n${lines}\n\nEnter name to place at editor center:`);
+    if (!pick) return;
+    const res = await api('POST', '/api/statics/import-prefab', {
+      name: pick.trim(), facet: this.facet, x: this.cx, y: this.cy,
+    });
+    if (res.error) { alert('Place failed: ' + res.error); return; }
+    alert('Placed ' + res.placed + ' / ' + res.total + ' tiles.');
+    this.reloadSlice();
+  },
+
+  // ---- internals -------------------------------------------------------
+  recomputeView() {
+    const cv = document.getElementById('cv');
+    // Visible tile count = canvas px / (tile px * zoom). Iso tile spans
+    // TILE_W horizontally and TILE_H vertically; diagonal coverage means
+    // a tile of width W on the screen occupies ~W world columns. Give
+    // ~30% margin so streamed tiles never pop in at the edge.
+    const px = TILE_W * this.zoomLevel;
+    const tilesX = Math.ceil(cv.width / px) + 2;
+    const tilesY = Math.ceil(cv.height / px) + 2;
+    // Iso doubles the world-axis count for screen-coverage — each iso
+    // row needs roughly twice the tile count vs an axis-aligned grid.
+    // Server clamps /api/map/slice and /api/statics/slice to 64×64 max,
+    // and we add a 2-tile margin around the visible area for slope-warp
+    // neighbour lookups — so cap the view at 60 to keep the slice ≤ 64.
+    this.view.w = Math.min(60, Math.max(16, tilesX + tilesY));
+    this.view.h = this.view.w;
+  },
+
+  updatePendingHud() {
+    document.getElementById('pend-land').textContent = this.pendingLand.length;
+    document.getElementById('pend-add').textContent  = this.pendingAdds.length;
+    document.getElementById('pend-rem').textContent  = this.pendingRemoves.size;
+  },
+
+  // RAF-batched paint. Anywhere that mutates render-affecting state
+  // should call this instead of render() directly — coalesces 30+
+  // bursts (hover + pan + page-load + pending) into one frame.
+  requestRender() {
+    if (this._renderQueued) return;
+    this._renderQueued = true;
+    requestAnimationFrame(() => {
+      this._renderQueued = false;
+      this.render();
+    });
+  },
+
+  // Coalesce pan-driven slice fetches with a hybrid throttle+debounce.
+  // Behaviour:
+  //   1. If we haven't fetched in the last `throttleMs` window, fire
+  //      *now* — this means the user sees fresh tiles ARRIVE during a
+  //      continuous pan, not only after they stop.
+  //   2. Otherwise debounce by `delay` so a final settling fetch
+  //      catches the last (cx, cy) once movement stops.
+  // The slice cache (`_sliceCache`) re-uses the most recent matching
+  // payload so the camera-render path can paint with cached data while
+  // the latest fetch is still in flight.
+  reloadSliceSoon(delay = 120, throttleMs = 180) {
+    const now = performance.now();
+    clearTimeout(this._reloadTimer);
+    if (!this._lastReloadAt || now - this._lastReloadAt > throttleMs) {
+      this._lastReloadAt = now;
+      this.reloadSlice();
+      return;
+    }
+    this._reloadTimer = setTimeout(() => {
+      this._lastReloadAt = performance.now();
+      this.reloadSlice();
+    }, delay);
+  },
+
+  rectBounds() {
+    if (!this.rectStart || !this.rectEnd) return null;
+    const a = this.rectStart, b = this.rectEnd;
+    return {
+      x0: Math.min(a.x, b.x), y0: Math.min(a.y, b.y),
+      x1: Math.max(a.x, b.x), y1: Math.max(a.y, b.y),
+    };
+  },
+
+  async reloadSlice() {
+    this.loadGen++;
+    const gen = this.loadGen;
+    // Fetch +2 tile margin around the visible area so slope warping
+    // can look up neighbour Z values at the boundary without falling
+    // back to the tile's own Z (which causes visible cliffs at the
+    // edge of the camera frame). Server caps slice at 64×64 — the
+    // 64-cap recomputeView() already accounts for it; with the margin
+    // we drop the actual view by 4 tiles to stay inside the cap.
+    const margin = 2;
+    const w = this.view.w, h = this.view.h;
+    const x0 = this.cx - (w >> 1) - margin;
+    const y0 = this.cy - (h >> 1) - margin;
+    const W = w + margin * 2, H = h + margin * 2;
+    // Cap to server limit; recomputeView() should already keep us inside.
+    const W2 = Math.min(64, W), H2 = Math.min(64, H);
+    const [mapR, staticsR] = await Promise.all([
+      api('GET', `/api/map/slice?facet=${this.facet}&x=${x0}&y=${y0}&w=${W2}&h=${H2}`),
+      api('GET', `/api/statics/slice?facet=${this.facet}&x=${x0}&y=${y0}&w=${W2}&h=${H2}`),
+    ]);
+    if (gen !== this.loadGen) return;     // superseded by a newer reload
+    this.tiles = mapR.tiles;
+    this.cells = staticsR.cells;
+    this.sliceX0 = x0; this.sliceY0 = y0;
+    this.sliceW = W2;  this.sliceH = H2;
+    // Cache the most recent payload keyed by facet + center sector so a
+    // mid-pan re-render can use it as soon as the cells/tiles are
+    // unpacked, even before the atlas pages below finish loading.
+    this._sliceCache ??= new Map();
+    const cacheKey = `${this.facet}|${(x0 + (W2 >> 1)) >> 5}|${(y0 + (H2 >> 1)) >> 5}`;
+    this._sliceCache.set(cacheKey, { tiles: this.tiles, cells: this.cells,
+      sliceX0: x0, sliceY0: y0, sliceW: W2, sliceH: H2, ts: performance.now() });
+    if (this._sliceCache.size > 32) {
+      // Drop the oldest 8 entries (LRU-ish — Map iteration is insertion order).
+      const it = this._sliceCache.keys();
+      for (let i = 0; i < 8; i++) this._sliceCache.delete(it.next().value);
+    }
+    // Immediate render once cells/tiles are unpacked — atlas page
+    // ensure-load below may paint blanks for missing pages, but as
+    // soon as each page resolves the next requestRender (driven by
+    // the page-load callbacks) will refill those tiles.
+    this.requestRender();
+    // Make sure the atlas pages we need are loaded before the next
+    // paint. Walk through the slice and fire ensure-* for each unique page.
+    const needLand = new Set(), needStatic = new Set();
+    for (const t of this.tiles) {
+      const e = AT.landIdx?.tiles?.[t[0]];
+      if (e) needLand.add(e.page);
+    }
+    for (const k in this.cells) {
+      for (const s of this.cells[k]) {
+        const e = staticAtlasEntry(s.tileId);
+        if (e) needStatic.add(e.page);
+      }
+    }
+    // Fire async loads — render won't draw a tile whose page isn't
+    // ready, but we re-render once any page completes.
+    Promise.all([
+      ...[...needLand].map((p) => ensureLandPage(p).then(() => this.requestRender())),
+      ...[...needStatic].map((p) => ensureStaticPage(p).then(() => this.requestRender())),
+    ]).then(() => this.requestRender());
+
+    document.getElementById('hud-cx').textContent = this.cx;
+    document.getElementById('hud-cy').textContent = this.cy;
+    document.getElementById('goto-x').value = this.cx;
+    document.getElementById('goto-y').value = this.cy;
+    this.requestRender();
+  },
+
+  setTool(t) {
+    this.tool = t;
+    for (const b of document.querySelectorAll('#side [data-tool]')) {
+      b.classList.toggle('primary', b.dataset.tool === t);
+    }
+    document.getElementById('toolname').textContent = t;
+    // Switch brushKind hint based on tool so the palette matches
+    // what the tool actually uses.
+    if (t === 'paintLand') this.setBrushKind('land');
+    else if (t === 'placeStatic') this.setBrushKind('static');
+  },
+
+  setBrushKind(k) {
+    this.brushKind = k;
+    document.getElementById('brush-kind').textContent = k;
+    document.getElementById('brush-kind').style.color = k === 'land' ? '#80c0ff' : '#ffd070';
+    for (const r of document.querySelectorAll('input[name="kind"]')) r.checked = (r.value === k);
+    this.refreshPalette();
+  },
+
+  setBrushId(id) {
+    id = id | 0;
+    if (!Number.isFinite(id) || id < 0) return;
+    this.brushId = id;
+    document.getElementById('brush-id').value = '0x' + id.toString(16).padStart(4, '0');
+    this.refreshPalette();
+  },
+
+  async refreshPalette() {
+    // Re-render whatever the search box currently asks for, with
+    // active highlight on this.brushId.
+    const q = document.getElementById('search').value;
+    const r = await api('GET',
+      `/api/tiles/search?q=${encodeURIComponent(q)}&kind=${this.brushKind}&limit=120`);
+    const wrap = document.getElementById('palette');
+    if (!r.matches?.length) {
+      wrap.innerHTML = `<div style="opacity:.5;padding:6px">No matches.</div>`;
+      return;
+    }
+    wrap.innerHTML = r.matches.map((m) => `
+      <div class="pal ${m.id === ed.brushId ? 'active' : ''}" data-id="${m.id}">
+        <canvas width="44" height="44"></canvas>
+        <div style="flex:1;min-width:0">
+          <div class="name">${escapeHtml(m.name)}</div>
+          <div class="id">0x${m.id.toString(16).padStart(4,'0')}</div>
+        </div>
+      </div>`).join('');
+    // Wire clicks + draw sprite previews.
+    wrap.querySelectorAll('.pal').forEach((el) => {
+      const id = Number(el.dataset.id);
+      el.addEventListener('click', () => ed.setBrushId(id));
+      const cv = el.querySelector('canvas');
+      drawTilePreview(cv, this.brushKind, id);
+    });
+  },
+
+  // Look up land tile [tileId, z] in the current slice given world
+  // coords. Returns null if the requested coord is outside the cached
+  // slice (caller falls back). Slice includes a 2-tile margin so
+  // neighbour-Z lookups at the visible edge succeed.
+  tileAt(wx, wy) {
+    // Bail when the slice hasn't been fetched yet — `this.tiles` is
+    // null at boot until reloadSlice() returns, and the spawner-edit
+    // click path could land here on a stale coord causing `null[NaN]`
+    // (TypeError: Cannot read properties of null (reading 'NaN')).
+    if (!this.tiles || !this.sliceW || !this.sliceH) return null;
+    const dx = wx - this.sliceX0, dy = wy - this.sliceY0;
+    if (dx < 0 || dy < 0 || dx >= this.sliceW || dy >= this.sliceH) return null;
+    return this.tiles[dy * this.sliceW + dx] ?? null;
+  },
+  // CUO/ServUO land slope convention: tile (wx, wy) stores Z for its
+  // NORTH corner (top in iso). The east, south, west corners pick up
+  // Z from neighbour tiles. Returns 4 Zs in (N, E, S, W) order. For
+  // missing neighbours falls back to this tile's Z (flat boundary).
+  cornerZ(wx, wy) {
+    const t = this.tileAt(wx, wy);
+    if (!t) return [0, 0, 0, 0];
+    const own = t[1] | 0;
+    const e = this.tileAt(wx + 1, wy);       // east neighbour's NW = our NE
+    const s = this.tileAt(wx + 1, wy + 1);   // SE neighbour's NW = our SE
+    const w = this.tileAt(wx, wy + 1);       // south neighbour's NW = our SW
+    return [own, (e ? e[1] : own) | 0, (s ? s[1] : own) | 0, (w ? w[1] : own) | 0];
+  },
+
+  render() {
+    if (!this.tiles || !this.cells) return;
+    const cv = document.getElementById('cv');
+    const ctx = cv.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    ctx.fillStyle = '#050403';
+    ctx.fillRect(0, 0, cv.width, cv.height);
+
+    const w = this.view.w, h = this.view.h;
+    const x0 = this.cx - (w >> 1), y0 = this.cy - (h >> 1);
+    const zoom = this.zoomLevel;
+    const half = TILE_HALF_W * zoom;
+    // World origin → screen: place camera-center tile at canvas center.
+    // We compute every tile's screen position relative to the camera.
+    const camScreen = worldToScreen(this.cx, this.cy, 0);
+    const ox = cv.width / 2 - camScreen.x * zoom;
+    const oy = cv.height / 2 - camScreen.y * zoom;
+
+    // ---- LAND PASS — slope-warped, two passes for coast seams ----------
+    // Two-pass draw: water tiles FIRST, then land. CUO's `tile-renderer`
+    // achieves the same coast-seam fix via a -1 zIndex bias on water so
+    // adjacent grass paints over it; on canvas-2D we get the same
+    // result by painting water before everything else. Without the
+    // split, grass-on-coastline tiles drew first and the water tile to
+    // the south overpainted them, producing a one-pixel sea-spill
+    // along the shore. UO water graphics range 0xA8..0xCC.
+    const tileZ = Math.round(half);  // visual radius of a tile (zoomed)
+    const drawLandTile = (wx, wy, isWater) => {
+      const t = this.tileAt(wx, wy);
+      if (!t) return;
+      const id = t[0];
+      const tileIsWater = (id >= 0xA8 && id <= 0xCC);
+      if (tileIsWater !== isWater) return;
+      const entry = AT.landIdx?.tiles?.[id];
+      const page = entry ? AT.landPages[entry.page] : null;
+      const [zN, zE, zS, zW] = this.cornerZ(wx, wy);
+      const sp = worldToScreen(wx, wy, 0);
+      const cx = ox + sp.x * zoom;
+      const cy = oy + sp.y * zoom;
+      const nP = { x: cx,          y: cy - tileZ - zN * Z_STEP * zoom };
+      const eP = { x: cx + tileZ,  y: cy         - zE * Z_STEP * zoom };
+      const sP = { x: cx,          y: cy + tileZ - zS * Z_STEP * zoom };
+      const wP = { x: cx - tileZ,  y: cy         - zW * Z_STEP * zoom };
+      if (!page || !entry) {
+        ctx.fillStyle = '#1a1410';
+        ctx.beginPath();
+        ctx.moveTo(nP.x, nP.y); ctx.lineTo(eP.x, eP.y);
+        ctx.lineTo(sP.x, sP.y); ctx.lineTo(wP.x, wP.y);
+        ctx.closePath(); ctx.fill();
+        return;
+      }
+      if (zN === zE && zE === zS && zS === zW) {
+        ctx.drawImage(page, entry.u, entry.v, TILE_W, TILE_H,
+          cx - half, cy - tileZ - zN * Z_STEP * zoom,
+          TILE_W * zoom, TILE_H * zoom);
+      } else {
+        // Warped 2-triangle affine map — atlas slice corners
+        // N=(22,0) E=(44,22) S=(22,44) W=(0,22).
+        drawTexTri(ctx, page, entry,
+          { x: 22, y:  0 }, { x: 44, y: 22 }, { x: 22, y: 44 },
+          nP, eP, sP);
+        drawTexTri(ctx, page, entry,
+          { x: 22, y:  0 }, { x: 22, y: 44 }, { x:  0, y: 22 },
+          nP, sP, wP);
+      }
+    };
+    // Pass 1 — water only (lowest layer).
+    for (let dy = 0; dy < h; dy++) {
+      for (let dx = 0; dx < w; dx++) drawLandTile(x0 + dx, y0 + dy, true);
+    }
+    // Pass 2 — non-water on top, so shoreline grass / sand / cobble
+    // paints over the bordering water tile and the coast seam reads
+    // as a clean transition (no one-pixel ocean spill).
+    for (let dy = 0; dy < h; dy++) {
+      for (let dx = 0; dx < w; dx++) drawLandTile(x0 + dx, y0 + dy, false);
+    }
+
+    // ---- STATIC + ITEM PASS — depth-sorted ---------------------------
+    // Flatten cells into a draw list, then sort by (x+y) primary, z
+    // secondary, source tertiary (item draws after static at same
+    // x+y/z so admin-placed items show on top). Includes pendingAdds
+    // (with 'pending' source) so they show immediately in iso, even
+    // before Save commits them to the server. pendingRemoves overlay a
+    // red X over the affected runtime item.
+    const draws = [];
+    // Compute the visible window in world coords + a small overscan
+    // so statics whose footprint enters the visible rect from outside
+    // still get drawn (e.g. tall towers sitting just off-screen).
+    const visMinX = x0 - 2, visMaxX = x0 + w + 2;
+    const visMinY = y0 - 2, visMaxY = y0 + h + 2;
+    for (const k in this.cells) {
+      const [cdx, cdy] = k.split('|').map(Number);
+      const wx = this.sliceX0 + cdx, wy = this.sliceY0 + cdy;
+      if (wx < visMinX || wx >= visMaxX || wy < visMinY || wy >= visMaxY) continue;
+      const stack = this.cells[k];
+      for (const s of stack) {
+        if (s.source === 'item' && !this.showItems) continue;
+        const flagged = s.serial && this.pendingRemoves.has(s.serial);
+        draws.push({
+          wx, wy, z: s.z | 0, src: s.source, tileId: s.tileId,
+          hue: s.hue | 0, serial: s.serial, flagged,
+          depth: (wx + wy) * 65536 + ((s.z + 128) << 4) + (s.source === 'item' ? 8 : 4),
+        });
+      }
+    }
+    // Add pending placements as a virtual 'pending' source. They sort
+    // by their declared z just like a real static.
+    for (const a of this.pendingAdds) {
+      if (a.x < visMinX || a.x >= visMaxX || a.y < visMinY || a.y >= visMaxY) continue;
+      draws.push({
+        wx: a.x, wy: a.y, z: a.z | 0, src: 'pending', tileId: a.itemId,
+        hue: a.hue | 0, serial: null, flagged: false,
+        depth: (a.x + a.y) * 65536 + ((a.z + 128) << 4) + 10,
+      });
+    }
+    draws.sort((a, b) => a.depth - b.depth);
+    for (const d of draws) {
+      const entry = staticAtlasEntry(d.tileId);
+      if (!entry) continue;
+      const page = AT.staticPages[entry.page];
+      const sp = worldToScreen(d.wx, d.wy, d.z);
+      const sx = ox + sp.x * zoom;
+      const sy = oy + sp.y * zoom;
+      const ew = entry.w * zoom, eh = entry.h * zoom;
+      // CUO anchors statics so the foot of the sprite sits on the tile
+      // diamond center. The atlas entry's height already includes any
+      // overhang, so anchor by (w/2, h) — i.e. bottom-center pivot.
+      const ddx = sx - ew / 2;
+      const ddy = sy - eh + TILE_HALF_H * zoom;
+      if (page) {
+        if (d.src === 'pending') ctx.globalAlpha = 0.75;
+        if (d.flagged) ctx.globalAlpha = 0.4;
+        ctx.drawImage(page, entry.u, entry.v, entry.w, entry.h, ddx, ddy, ew, eh);
+        ctx.globalAlpha = 1;
+      } else {
+        ctx.fillStyle = d.src === 'pending' ? 'rgba(80,255,80,.5)'
+                      : d.src === 'item' ? 'rgba(255,208,112,.5)'
+                      : 'rgba(180,150,100,.5)';
+        ctx.fillRect(ddx, ddy, ew, eh);
+      }
+      // Per-source markers around the foot diamond:
+      //   item    → yellow box (admin-placed)
+      //   pending → green dashed (pending add, not saved)
+      //   removed → red X (pending remove)
+      const fx = sx - half, fy = sy - TILE_HALF_H * zoom;
+      const fw = half * 2, fh = TILE_HALF_H * zoom * 2;
+      if (d.src === 'item' && this.showItems) {
+        ctx.strokeStyle = '#ffd070';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(fx + 0.5, fy + 0.5, fw - 1, fh - 1);
+      } else if (d.src === 'pending') {
+        ctx.setLineDash([4, 3]);
+        ctx.strokeStyle = '#80ff80';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(fx + 0.5, fy + 0.5, fw - 1, fh - 1);
+        ctx.setLineDash([]);
+      }
+      if (d.flagged) {
+        ctx.strokeStyle = '#ff5050';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(fx, fy);             ctx.lineTo(fx + fw, fy + fh);
+        ctx.moveTo(fx + fw, fy);        ctx.lineTo(fx, fy + fh);
+        ctx.stroke();
+      }
+    }
+
+    // ---- GRID --------------------------------------------------------
+    if (this.showGrid) {
+      ctx.strokeStyle = 'rgba(255,208,112,0.15)';
+      ctx.lineWidth = 1;
+      for (let dy = 0; dy < h; dy++) {
+        for (let dx = 0; dx < w; dx++) {
+          const wx = x0 + dx, wy = y0 + dy;
+          const z = this.zAtWorld(wx, wy);
+          const sp = worldToScreen(wx, wy, z);
+          const sx = ox + sp.x * zoom, sy = oy + sp.y * zoom;
+          ctx.beginPath();
+          ctx.moveTo(sx, sy - TILE_HALF_H * zoom);
+          ctx.lineTo(sx + half, sy);
+          ctx.lineTo(sx, sy + TILE_HALF_H * zoom);
+          ctx.lineTo(sx - half, sy);
+          ctx.closePath();
+          ctx.stroke();
+        }
+      }
+    }
+
+    // ---- HOVER HIGHLIGHT --------------------------------------------
+    if (this.hover.x != null) {
+      const sp = worldToScreen(this.hover.x, this.hover.y, this.hover.z);
+      const sx = ox + sp.x * zoom, sy = oy + sp.y * zoom;
+      ctx.strokeStyle = '#ffd070';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(sx, sy - TILE_HALF_H * zoom);
+      ctx.lineTo(sx + half, sy);
+      ctx.lineTo(sx, sy + TILE_HALF_H * zoom);
+      ctx.lineTo(sx - half, sy);
+      ctx.closePath();
+      ctx.stroke();
+    }
+
+    // ---- RECT PREVIEW ------------------------------------------------
+    if (this.rectStart && this.rectEnd) {
+      const r = this.rectBounds();
+      ctx.strokeStyle = '#ff8050';
+      ctx.lineWidth = 2;
+      for (let y = r.y0; y <= r.y1; y++) {
+        for (let x = r.x0; x <= r.x1; x++) {
+          const z = this.zAtWorld(x, y);
+          const sp = worldToScreen(x, y, z);
+          const sx = ox + sp.x * zoom, sy = oy + sp.y * zoom;
+          ctx.beginPath();
+          ctx.moveTo(sx, sy - TILE_HALF_H * zoom);
+          ctx.lineTo(sx + half, sy);
+          ctx.lineTo(sx, sy + TILE_HALF_H * zoom);
+          ctx.lineTo(sx - half, sy);
+          ctx.closePath();
+          ctx.stroke();
+        }
+      }
+    }
+
+    // ---- PENDING LAND OVERLAY ----------------------------------------
+    for (const e of this.pendingLand) {
+      const sp = worldToScreen(e.x, e.y, e.z);
+      const sx = ox + sp.x * zoom, sy = oy + sp.y * zoom;
+      ctx.fillStyle = 'rgba(0,255,0,0.25)';
+      ctx.beginPath();
+      ctx.moveTo(sx, sy - TILE_HALF_H * zoom);
+      ctx.lineTo(sx + half, sy);
+      ctx.lineTo(sx, sy + TILE_HALF_H * zoom);
+      ctx.lineTo(sx - half, sy);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // ---- MOBS OVERLAY (red dots; mob graphics not loaded in editor) --
+    if (this.showMobs && this.mobiles.length) {
+      for (const m of this.mobiles) {
+        if (m.map !== this.facet) continue;
+        if (m.x < x0 || m.x >= x0 + w || m.y < y0 || m.y >= y0 + h) continue;
+        const sp = worldToScreen(m.x, m.y, m.z | 0);
+        const sx = ox + sp.x * zoom, sy = oy + sp.y * zoom;
+        const notColors = { 1: '#80c0ff', 2: '#80ff80', 3: '#a0a0a0', 4: '#a0a0a0', 5: '#ff8030', 6: '#ff5050', 7: '#ffff80' };
+        ctx.fillStyle = m.isPlayer ? '#ffffff' : (notColors[m.not] ?? '#a0a0a0');
+        ctx.beginPath();
+        ctx.arc(sx, sy, 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // ---- SPAWNERS OVERLAY -------------------------------------------
+    // Lime-green outline of every spawner rect that overlaps the
+    // visible window. Active mobs render as the red/cyan dots above;
+    // this rect tells you WHERE a respawn will happen + carries a
+    // clickable label that opens the inline editor in the Spawners
+    // admin tab. Fetched once on tab-load and refreshed via
+    // refreshSpawners() — cheap because /api/spawners is in-memory.
+    if (this.showSpawners !== false && Array.isArray(this.spawners) && this.spawners.length) {
+      ctx.save();
+      ctx.lineWidth = 2;
+      // Color-code spawners by content so the operator can tell at a
+      // glance whether a rect in town is a vendor/civic spawner (safe,
+      // green) or a monster spawner (alarm, red). User report 2026-05-17
+      // claimed an "orc spawner in the middle of Britain" — investigation
+      // confirmed the data is correct (no monster rects overlap Britain
+      // region 1340,1470–1657,1730), but adjacent wilderness rects 9-135
+      // tiles outside the wall (Outdoors#341, Outdoors#184) look like
+      // they touch the city at low zoom. Distinct hues make the
+      // boundary obvious and surface any genuine mis-placement.
+      const CIVIC_TOKENS = [
+        'vendor','townspeople','townslife','spawner','quest','noble','townie',
+        'beggar','wandering','market','jester','escortable','seeker','agent',
+        'sirhareus','sirberran','sirfelean','sarakki','naturalist','verity',
+        'regina','gabrielpiete','emilio','evan','britanniawaters','maceandblade',
+        'wizardscompendium','songsofnote','oilandoubliette','foldedsteel',
+        'pasttreasures','skeletonkey','lightandmight','artssection','trades',
+        'understandinganimals','britainscribe','britainimpresario','bardmastery',
+        'impresario','fishguildmaster',
+      ];
+      const NPC_TOKENS = [
+        'mage','alchemist','tavernkeeper','waiter','cook','barkeeper','healer',
+        'butcher','baker','minter','banker','provisioner','cobbler','jeweler',
+        'herbalist','blacksmith','tinker','tailor','weaver','furtrader','tanner',
+        'scribe','bowyer','bard','innkeeper','shipwright','mapmaker','harbormaster',
+        'fisherman','hiresailor','hirefighter','hirebard','towncrier','guildmaster',
+        'orderguard','customhairstylist','veterinarian','realestatebroker','artist',
+        'carpenter','architect','armorer','weaponsmith','merchant','animaltrainer',
+      ];
+      const TAME_TOKENS = ['bird','cat','dog','chicken','horse','cow','sheep','pig','rat'];
+      const classify = (s) => {
+        const names = (s.kinds ?? []).map((k) => {
+          const raw = Array.isArray(k) ? k[0] : (k?.name ?? k);
+          return String(raw).toLowerCase();
+        });
+        const nameField = String(s.id ?? s.name ?? '').toLowerCase();
+        if (names.some((n) => TAME_TOKENS.includes(n))
+            && !names.some((n) => !TAME_TOKENS.includes(n) && !CIVIC_TOKENS.some((t) => n.includes(t)))) {
+          return 'tame';                      // rats/dogs/cats — neutral grey
+        }
+        const allCivic = names.every((n) =>
+          CIVIC_TOKENS.some((t) => n.includes(t))
+          || NPC_TOKENS.some((t) => n.includes(t)));
+        if (allCivic) return 'civic';
+        if (CIVIC_TOKENS.some((t) => nameField.includes(t))) return 'civic';
+        return 'monster';
+      };
+      const STYLE = {
+        civic:   { stroke: 'rgba(120,255,120,0.85)', fill: 'rgba(120,255,120,0.10)', text: '#80ff80', bg: '#0c1808' },
+        tame:    { stroke: 'rgba(200,200,200,0.75)', fill: 'rgba(200,200,200,0.08)', text: '#d0d0d0', bg: '#181818' },
+        monster: { stroke: 'rgba(255,90,90,0.95)',   fill: 'rgba(255,90,90,0.12)',   text: '#ffb0b0', bg: '#1c0808' },
+      };
+      for (const s of this.spawners) {
+        if (s.map !== this.facet || !s.rect) continue;
+        const { x1, y1, x2, y2 } = s.rect;
+        // Quick visibility cull — skip rects entirely off-screen.
+        if (x2 < x0 || x1 >= x0 + w || y2 < y0 || y1 >= y0 + h) continue;
+        const corners = [
+          worldToScreen(x1,     y1,     0),
+          worldToScreen(x2 + 1, y1,     0),
+          worldToScreen(x2 + 1, y2 + 1, 0),
+          worldToScreen(x1,     y2 + 1, 0),
+        ].map((p) => ({ x: ox + p.x * zoom, y: oy + p.y * zoom }));
+        const style = STYLE[classify(s)] ?? STYLE.civic;
+        ctx.strokeStyle = style.stroke;
+        ctx.beginPath();
+        ctx.moveTo(corners[0].x, corners[0].y);
+        for (let i = 1; i < 4; i++) ctx.lineTo(corners[i].x, corners[i].y);
+        ctx.closePath();
+        ctx.stroke();
+        ctx.fillStyle = style.fill;
+        ctx.fill();
+        // Label at the center.
+        const cxs = (corners[0].x + corners[2].x) / 2;
+        const cys = (corners[0].y + corners[2].y) / 2;
+        ctx.fillStyle = style.bg;
+        ctx.fillRect(cxs - 50, cys - 8, 100, 16);
+        ctx.fillStyle = style.text;
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(s.id.slice(0, 16), cxs, cys);
+      }
+      ctx.restore();
+    }
+  },
+
+  /** Pull the live spawner list. Called once on init and after the
+   *  user toggles a checkbox or saves a new spawner via the API. */
+  async refreshSpawners() {
+    try {
+      const r = await fetch('/api/spawners').then((x) => x.json());
+      this.spawners = r.spawners ?? [];
+      this.requestRender();
+    } catch { /* silent */ }
+  },
+
+  zAtWorld(wx, wy) {
+    const t = this.tileAt(wx, wy);
+    return t ? (t[1] | 0) : 0;
+  },
+
+  // Mouse → world tile via inverse iso, accounting for the tile's z.
+  // We can't know z without first guessing the tile, so iterate twice:
+  // pick using z=0, then re-pick using that tile's z. Good enough for
+  // flat-ish regions; in steep terrain the operator sees the highlight
+  // snap when they hover near a tall feature.
+  mouseToTile(e) {
+    const cv = document.getElementById('cv');
+    const rect = cv.getBoundingClientRect();
+    const sx = (e.clientX - rect.left) * (cv.width / rect.width);
+    const sy = (e.clientY - rect.top) * (cv.height / rect.height);
+    const camScreen = worldToScreen(this.cx, this.cy, 0);
+    const zoom = this.zoomLevel;
+    const ox = cv.width / 2 - camScreen.x * zoom;
+    const oy = cv.height / 2 - camScreen.y * zoom;
+    // Inverse iso, screen-space (after camera).
+    let wx0 = (sx - ox) / zoom;
+    let wy0 = (sy - oy) / zoom;
+    // First pass — assume z=0.
+    let p = screenToWorld(wx0, wy0, 0);
+    let tx = Math.floor(p.x + 0.5), ty = Math.floor(p.y + 0.5);
+    // Second pass — re-run using the z of the tile we picked.
+    const tz = this.zAtWorld(tx, ty);
+    p = screenToWorld(wx0, wy0, tz);
+    tx = Math.floor(p.x + 0.5); ty = Math.floor(p.y + 0.5);
+    return { x: tx, y: ty, z: this.zAtWorld(tx, ty) };
+  },
+};
+
+// ============================================================================
+// PALETTE PREVIEW — draws a single tile sprite to an inline canvas.
+// ============================================================================
+function drawTilePreview(canvas, kind, id) {
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (kind === 'land') {
+    const e = AT.landIdx?.tiles?.[id];
+    if (!e) return;
+    ensureLandPage(e.page).then((img) => {
+      if (!img) return;
+      ctx.drawImage(img, e.u, e.v, TILE_W, TILE_H, 0, 0, canvas.width, canvas.height);
+    });
+  } else {
+    const e = staticAtlasEntry(id);
+    if (!e) return;
+    ensureStaticPage(e.page).then((img) => {
+      if (!img) return;
+      // Fit inside while preserving aspect.
+      const r = Math.min(canvas.width / e.w, canvas.height / e.h);
+      const w = e.w * r, h = e.h * r;
+      ctx.drawImage(img, e.u, e.v, e.w, e.h,
+        (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
+    });
+  }
+}
+
+// ============================================================================
+// INPUT HANDLERS
+// ============================================================================
+function setup() {
+  const cv = document.getElementById('cv');
+
+  // Resize canvas to fill stage.
+  function resize() {
+    const stage = document.getElementById('stage');
+    cv.width = stage.clientWidth;
+    cv.height = stage.clientHeight - 40;  // minus topbar
+    ed.recomputeView();
+    ed.requestRender();
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // "Go to…" location dropdown — fills from /api/locations (the same
+  // canonical catalogue [go uses in-world). Selecting an entry centres
+  // the camera + populates X/Y inputs + reloads the slice immediately.
+  fetch('/api/locations', { credentials: 'include' })
+    .then((r) => r.ok ? r.json() : null)
+    .then((j) => {
+      if (!j?.locations) return;
+      const sel = document.getElementById('goto-loc');
+      if (!sel) return;
+      const byFacet = new Map();
+      for (const loc of j.locations) {
+        if (!byFacet.has(loc.map)) byFacet.set(loc.map, []);
+        byFacet.get(loc.map).push(loc);
+      }
+      const FACETS = { 0: 'Felucca', 1: 'Trammel', 2: 'Ilshenar', 3: 'Malas', 4: 'Tokuno', 5: 'TerMur' };
+      for (const [facet, list] of [...byFacet.entries()].sort((a, b) => a[0] - b[0])) {
+        const og = document.createElement('optgroup');
+        og.label = FACETS[facet] ?? `Facet ${facet}`;
+        for (const loc of list) {
+          const o = document.createElement('option');
+          o.value = JSON.stringify({ x: loc.x, y: loc.y, z: loc.z, map: loc.map });
+          o.textContent = `${loc.label}  (${loc.x},${loc.y})`;
+          og.appendChild(o);
+        }
+        sel.appendChild(og);
+      }
+      sel.addEventListener('change', () => {
+        if (!sel.value) return;
+        try {
+          const loc = JSON.parse(sel.value);
+          ed.facet = loc.map | 0;
+          ed.cx = loc.x | 0;
+          ed.cy = loc.y | 0;
+          document.getElementById('facet').value = String(ed.facet);
+          document.getElementById('goto-x').value = ed.cx;
+          document.getElementById('goto-y').value = ed.cy;
+          ed.reloadSlice();
+        } catch (e) { console.warn('[editor] goto-loc parse failed', e); }
+      });
+    })
+    .catch((e) => console.warn('[editor] /api/locations failed', e));
+
+  // Mouse hover → tile. Only re-render when the cell under cursor
+  // actually changes, and never block on a synchronous reloadSlice
+  // during mid-drag — that used to fire ≥30 round-trips/sec.
+  cv.addEventListener('mousemove', (e) => {
+    if (ed.panDrag) {
+      const dx = (e.clientX - ed.panDrag.x) / ed.zoomLevel;
+      const dy = (e.clientY - ed.panDrag.y) / ed.zoomLevel;
+      // Inverse iso for pan delta → world delta.
+      const fx = dx / TILE_HALF_W, fy = dy / TILE_HALF_H;
+      const newCx = ed.panDrag.cx - (fy + fx) / 2 | 0;
+      const newCy = ed.panDrag.cy - (fy - fx) / 2 | 0;
+      if (newCx !== ed.cx || newCy !== ed.cy) {
+        ed.cx = newCx; ed.cy = newCy;
+        ed.reloadSliceSoon(80);
+        ed.requestRender();    // immediate visual feedback w/ cached slice
+      }
+      return;
+    }
+    const t = ed.mouseToTile(e);
+    // Hover snap-back coalescing: only do the stack rebuild + hud
+    // update when the tile under cursor changes. Stops a 60 Hz
+    // re-render storm during smooth mouse moves.
+    const key = `${t.x}|${t.y}|${t.z}`;
+    if (key === ed._lastHover) return;
+    ed._lastHover = key;
+    ed.hover.x = t.x; ed.hover.y = t.y; ed.hover.z = t.z;
+    document.getElementById('hud-hx').textContent = t.x;
+    document.getElementById('hud-hy').textContent = t.y;
+    document.getElementById('hud-hz').textContent = t.z;
+    // Show stack under cursor (relative to slice origin including margin).
+    const dxL = t.x - ed.sliceX0, dyL = t.y - ed.sliceY0;
+    const stack = ed.cells?.[`${dxL}|${dyL}`] ?? [];
+    const land = ed.tileAt(t.x, t.y);
+    const lines = [];
+    if (land) lines.push(`<b>land</b>  0x${land[0].toString(16).padStart(4,'0')}  z=${land[1]}  ${escapeHtml(landNameOf(land[0]))}`);
+    for (const s of stack) {
+      const kind = s.source === 'item' ? '<b>item</b>' : 'static';
+      const flagged = s.serial && ed.pendingRemoves.has(s.serial)
+        ? ' <span style="color:#ff5050">[pending remove]</span>' : '';
+      lines.push(`${kind} 0x${s.tileId.toString(16).padStart(4,'0')}  z=${s.z}  h${staticHeight(s.tileId)}  ${escapeHtml(staticNameOf(s.tileId))}${s.serial ? ' ' + s.serial : ''}${flagged}`);
+    }
+    document.getElementById('stack').innerHTML = lines.join('\n');
+
+    // Rect drag (shift held).
+    if (ed.rectStart && (e.buttons & 1)) {
+      ed.rectEnd = { x: t.x, y: t.y };
+    }
+    ed.requestRender();
+  });
+
+  cv.addEventListener('mouseleave', () => {
+    ed.hover.x = null; ed._lastHover = null; ed.requestRender();
+    document.getElementById('stack').innerHTML = '';
+  });
+
+  cv.addEventListener('mousedown', async (e) => {
+    if (e.button === 1) {
+      // Middle-mouse = pan camera.
+      e.preventDefault();
+      ed.panDrag = { x: e.clientX, y: e.clientY, cx: ed.cx, cy: ed.cy };
+      return;
+    }
+    if (e.shiftKey) {
+      const t = ed.mouseToTile(e);
+      ed.rectStart = { x: t.x, y: t.y };
+      ed.rectEnd = { x: t.x, y: t.y };
+      ed.requestRender();
+      return;
+    }
+    if (e.button === 2) {
+      // Right-click — remove under cursor (pending overlay; same rules
+      // as the Remove tool: pending add → un-stage, runtime item → mark
+      // for delete on save, baked → reject quietly).
+      const t = ed.mouseToTile(e);
+      removeUnderCursorPending(t);
+      return;
+    }
+    // Tool dispatch on left click.
+    const t = ed.mouseToTile(e);
+    await doTool(ed.tool, t);
+  });
+
+  cv.addEventListener('mouseup', async (e) => {
+    if (e.button === 1) { ed.panDrag = null; return; }
+    if (ed.rectStart && ed.rectEnd) {
+      // Rect-fill paint when in land paint tool; otherwise leave the
+      // rect so "Save Prefab" can pick it up.
+      if (ed.tool === 'paintLand') {
+        const r = ed.rectBounds();
+        if (r) {
+          for (let y = r.y0; y <= r.y1; y++) {
+            for (let x = r.x0; x <= r.x1; x++) {
+              const oldZ = ed.zAtWorld(x, y);
+              const z = ed.brushZOverride ? ed.brushZ : oldZ;
+              ed.pendingLand = ed.pendingLand.filter((p) => !(p.x === x && p.y === y));
+              ed.pendingLand.push({ x, y, tileId: ed.brushId, z });
+              // Also mutate local slice for instant feedback (writes
+              // into the same offset model the slope-warp lookup uses).
+              const dxL = x - ed.sliceX0, dyL = y - ed.sliceY0;
+              if (dxL >= 0 && dyL >= 0 && dxL < ed.sliceW && dyL < ed.sliceH) {
+                ed.tiles[dyL * ed.sliceW + dxL] = [ed.brushId, z];
+              }
+            }
+          }
+          ed.updatePendingHud();
+          ed.rectStart = null; ed.rectEnd = null;
+        }
+      } else if (ed.tool === 'placeStatic') {
+        // Rect-fill statics — pending-add only, no immediate POST.
+        // Big rects no longer need a confirm (pending is reversible
+        // via Discard) but warn for absurd sizes.
+        const r = ed.rectBounds();
+        const total = (r.x1 - r.x0 + 1) * (r.y1 - r.y0 + 1);
+        if (total > 4096) {
+          if (!confirm(`Queue ${total} pending statics? (Discard will undo, but the list will be heavy.)`)) {
+            ed.rectStart = null; ed.rectEnd = null; ed.requestRender(); return;
+          }
+        }
+        for (let y = r.y0; y <= r.y1; y++) {
+          for (let x = r.x0; x <= r.x1; x++) {
+            const oldZ = ed.zAtWorld(x, y);
+            const z = ed.brushZOverride ? ed.brushZ : oldZ;
+            ed.pendingAdds.push({
+              _id: ++ed.pendingAddSeq,
+              x, y, z, itemId: ed.brushId, hue: ed.brushHue,
+            });
+          }
+        }
+        ed.updatePendingHud();
+        ed.rectStart = null; ed.rectEnd = null;
+      }
+      // (For non-paint tools, keep the rect bounds around so
+      // "Save selection as prefab" can pick them up.)
+      // If the operator armed "Add Spawner" via the toolbar button,
+      // the next Shift-drag releases its rect to the spawner modal
+      // instead. consumePendingRectForSpawner returns true when it
+      // handled the rect; we clear it so the prefab pipeline doesn't
+      // also pick it up.
+      const r = ed.rectBounds?.();
+      if (r && ed.consumePendingRectForSpawner) {
+        const consumed = await ed.consumePendingRectForSpawner({
+          x1: r.x0, y1: r.y0, x2: r.x1, y2: r.y1,
+        });
+        if (consumed) { ed.rectStart = null; ed.rectEnd = null; }
+      }
+    }
+    ed.requestRender();
+  });
+
+  cv.addEventListener('contextmenu', (e) => e.preventDefault());
+
+  // Wheel zoom — towards cursor.
+  cv.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.2 : 1 / 1.2;
+    const newZoom = Math.max(0.25, Math.min(4, ed.zoomLevel * factor));
+    ed.zoomLevel = newZoom;
+    document.getElementById('hud-z').textContent = ed.zoomLevel.toFixed(2);
+    ed.recomputeView();
+    ed.requestRender();         // immediate cosmetic feedback
+    ed.reloadSliceSoon(120);    // settle once the wheel stops
+  }, { passive: false });
+
+  // Keyboard pan + tool shortcuts.
+  const heldKeys = new Set();
+  window.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    heldKeys.add(e.key.toLowerCase());
+    if (e.key === 'b') ed.setTool('placeStatic');
+    if (e.key === 'm') ed.setTool('paintLand');
+    if (e.key === 'r') ed.setTool('remove');
+    if (e.key === 'p') ed.setTool('pick');
+    if (e.key === 'i') ed.setTool('inspect');
+    if (e.key === 't') ed.setTool('tp');
+    if (e.key === '+' || e.key === '=') ed.zoom(1.2);
+    if (e.key === '-') ed.zoom(0.83);
+    if (e.key === ' ') {
+      e.preventDefault();
+      ed.showMobs = !ed.showMobs;
+      document.getElementById('show-mobs').checked = ed.showMobs;
+      ed.requestRender();
+    }
+  });
+  window.addEventListener('keyup', (e) => heldKeys.delete(e.key.toLowerCase()));
+
+  // Pan loop — runs at ~16 Hz when any WASD/arrow is held. Per step we
+  // (a) re-render against the already-cached slice for instant feedback
+  // and (b) ping reloadSliceSoon so once the key releases or the user
+  // pauses we re-fetch — one HTTP round-trip per WASD burst, not per
+  // tick. The 2-tile slice margin keeps slope-warp neighbours valid up
+  // to 2 tiles past the visible window so brief pans don't show cliffs.
+  setInterval(() => {
+    if (document.activeElement?.tagName === 'INPUT') return;
+    let dx = 0, dy = 0;
+    if (heldKeys.has('a') || heldKeys.has('arrowleft'))  { dx -= 1; dy += 1; }
+    if (heldKeys.has('d') || heldKeys.has('arrowright')) { dx += 1; dy -= 1; }
+    if (heldKeys.has('w') || heldKeys.has('arrowup'))    { dx -= 1; dy -= 1; }
+    if (heldKeys.has('s') || heldKeys.has('arrowdown'))  { dx += 1; dy += 1; }
+    if (dx || dy) {
+      const step = Math.max(1, Math.round(2 / ed.zoomLevel));
+      ed.cx += dx * step;
+      ed.cy += dy * step;
+      ed.reloadSliceSoon(140);
+      ed.requestRender();
+    }
+  }, 60);
+
+  // Side panel listeners.
+  document.querySelectorAll('#side [data-tool]').forEach((b) =>
+    b.addEventListener('click', () => ed.setTool(b.dataset.tool)));
+  document.getElementById('brush-id').addEventListener('change', (e) =>
+    ed.setBrushId(parseInt(e.target.value, 0)));
+  document.getElementById('brush-z').addEventListener('change', (e) =>
+    ed.brushZ = Math.max(-128, Math.min(127, Number(e.target.value) | 0)));
+  document.getElementById('brush-hue').addEventListener('change', (e) =>
+    ed.brushHue = Math.max(0, Math.min(0xFFFF, Number(e.target.value) | 0)));
+  document.getElementById('brush-z-override').addEventListener('change', (e) =>
+    ed.brushZOverride = e.target.checked);
+  document.getElementById('brush-size').addEventListener('change', (e) =>
+    ed.brushSize = Number(e.target.value) | 0);
+  document.getElementById('show-grid').addEventListener('change', (e) => {
+    ed.showGrid = e.target.checked; ed.requestRender();
+  });
+  document.getElementById('show-mobs').addEventListener('change', (e) => {
+    ed.showMobs = e.target.checked; ed.requestRender();
+  });
+  document.getElementById('show-items').addEventListener('change', (e) => {
+    ed.showItems = e.target.checked; ed.requestRender();
+  });
+  document.getElementById('show-spawners').addEventListener('change', (e) => {
+    ed.showSpawners = e.target.checked; ed.requestRender();
+    if (ed.showSpawners) ed.refreshSpawners();
+  });
+  document.querySelectorAll('input[name="kind"]').forEach((r) =>
+    r.addEventListener('change', () => ed.setBrushKind(r.value)));
+  let searchTimer = null;
+  document.getElementById('search').addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => ed.refreshPalette(), 180);
+  });
+  document.getElementById('facet').addEventListener('change', (e) => {
+    ed.facet = Number(e.target.value);
+    try { localStorage.setItem('uo-editor-facet', String(ed.facet)); } catch { /* private mode */ }
+    ed.reloadSlice();
+  });
+  // Sync the <select> with the persisted facet so the dropdown reflects
+  // what the editor actually loaded (otherwise the user sees "Trammel"
+  // in the picker even though Felucca was restored from localStorage).
+  const facetSel = document.getElementById('facet');
+  if (facetSel) facetSel.value = String(ed.facet);
+  // Hotkey 1..6 → switch facet (Felucca/Trammel/Ilshenar/Malas/Tokuno/TerMur).
+  // Skip when an input/textarea/contenteditable is focused so typing
+  // coordinates in the goto box doesn't yank the map underneath the user.
+  window.addEventListener('keydown', (e) => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const tag = (e.target?.tagName ?? '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+    if (e.target?.isContentEditable) return;
+    const n = Number(e.key);
+    if (!Number.isFinite(n) || n < 1 || n > 6) return;
+    const newFacet = n - 1;
+    if (newFacet === ed.facet) return;
+    ed.facet = newFacet;
+    if (facetSel) facetSel.value = String(newFacet);
+    try { localStorage.setItem('uo-editor-facet', String(newFacet)); } catch { /* private mode */ }
+    ed.reloadSlice();
+  });
+}
+
+async function doTool(tool, t) {
+  if (tool === 'tp') {
+    const r = await api('POST', '/api/me/teleport', {
+      x: t.x, y: t.y, z: t.z, map: ed.facet,
+    });
+    if (r.error) alert('TP failed: ' + r.error);
+    return;
+  }
+  if (tool === 'inspect') return;
+  if (tool === 'pick') {
+    // Sample stack: prefer runtime item, else topmost static, else land.
+    const w = ed.view.w;
+    const x0 = ed.cx - (w >> 1), y0 = ed.cy - (ed.view.h >> 1);
+    const dx = t.x - x0, dy = t.y - y0;
+    const stack = ed.cells?.[`${dx}|${dy}`] ?? [];
+    const top = [...stack].reverse().find((s) => s.source === 'item') ?? stack[stack.length - 1];
+    if (top) {
+      ed.setBrushKind('static');
+      ed.setBrushId(top.tileId);
+      ed.brushZ = top.z;
+      ed.brushHue = top.hue ?? 0;
+      document.getElementById('brush-z').value = top.z;
+      document.getElementById('brush-hue').value = top.hue ?? 0;
+    } else {
+      const land = ed.tiles?.[dy * w + dx];
+      if (land) {
+        ed.setBrushKind('land');
+        ed.setBrushId(land[0]);
+        ed.brushZ = land[1];
+        document.getElementById('brush-z').value = land[1];
+      }
+    }
+    return;
+  }
+  if (tool === 'remove') { removeUnderCursorPending(t); return; }
+  if (tool === 'paintLand') {
+    // Brush-size aware paint. Writes into the slice (with margin) so
+    // slope warping picks up the new corner Zs immediately.
+    const r = (ed.brushSize - 1) >> 1;
+    for (let oy = -r; oy <= r; oy++) {
+      for (let ox = -r; ox <= r; ox++) {
+        const x = t.x + ox, y = t.y + oy;
+        const oldZ = ed.zAtWorld(x, y);
+        const z = ed.brushZOverride ? ed.brushZ : oldZ;
+        ed.pendingLand = ed.pendingLand.filter((p) => !(p.x === x && p.y === y));
+        ed.pendingLand.push({ x, y, tileId: ed.brushId, z });
+        const dxL = x - ed.sliceX0, dyL = y - ed.sliceY0;
+        if (dxL >= 0 && dyL >= 0 && dxL < ed.sliceW && dyL < ed.sliceH) {
+          ed.tiles[dyL * ed.sliceW + dxL] = [ed.brushId, z];
+        }
+      }
+    }
+    ed.updatePendingHud();
+    ed.requestRender();
+    return;
+  }
+  if (tool === 'placeStatic') {
+    const oldZ = ed.zAtWorld(t.x, t.y);
+    const z = ed.brushZOverride ? ed.brushZ : oldZ;
+    // Pending-add — no immediate POST. Save batches everything.
+    ed.pendingAdds.push({
+      _id: ++ed.pendingAddSeq,
+      x: t.x, y: t.y, z, itemId: ed.brushId, hue: ed.brushHue,
+    });
+    ed.updatePendingHud();
+    ed.requestRender();
+  }
+}
+
+// Remove resolves in order:
+//   1. Pending add at this tile → un-stage (cheapest undo).
+//   2. Runtime item at this tile → mark in pendingRemoves.
+//   3. Baked map static at this tile → reject with a hint; this layer
+//      is read-only because the on-disk static dump is shared with all
+//      players. Use the Map Editor (paint over with 'nodraw' or change
+//      the land) if you really need to remove it.
+function removeUnderCursorPending(tHint) {
+  const t = tHint;
+  // 1. Pending add — pop the topmost match (last placed at this tile).
+  for (let i = ed.pendingAdds.length - 1; i >= 0; i--) {
+    const a = ed.pendingAdds[i];
+    if (a.x === t.x && a.y === t.y) {
+      ed.pendingAdds.splice(i, 1);
+      ed.updatePendingHud();
+      ed.requestRender();
+      return;
+    }
+  }
+  // 2. Runtime item — find topmost (highest Z) at this tile in the
+  // current slice's cells.
+  const dx = t.x - ed.sliceX0, dy = t.y - ed.sliceY0;
+  const stack = ed.cells?.[`${dx}|${dy}`] ?? [];
+  const top = [...stack].reverse().find((s) =>
+    s.source === 'item' && !ed.pendingRemoves.has(s.serial));
+  if (top) {
+    ed.pendingRemoves.add(top.serial);
+    ed.updatePendingHud();
+    ed.requestRender();
+    return;
+  }
+  // 3. Baked static — un-removable here. Show a one-shot status hint.
+  // (Quiet — we don't pop alerts on every right-click; surface it via
+  // the bottom stack hud which the user sees while hovering.)
+  if (stack.length) {
+    const stackEl = document.getElementById('stack');
+    const note = '\n\n<b style="color:#ff8060">[baked static — read-only at this layer]</b>';
+    stackEl.innerHTML = stackEl.innerHTML + note;
+  }
+}
+
+// ============================================================================
+// MOBS POLL — show live mobiles as a hint dot overlay (no animation).
+// ============================================================================
+async function pollMobs() {
+  try {
+    // Server caps at 500 / call — fine for a casual overlay. Editor's
+    // purpose is terrain, not unit micro-management, so we accept the
+    // partial view without a spatial filter endpoint.
+    const r = await api('GET', '/api/mobiles?limit=500');
+    ed.mobiles = (r.mobiles ?? []).map((m) => ({
+      x: m.x, y: m.y, z: m.z, map: m.map,
+      isPlayer: !!m.isPlayer,
+      // ServUO notoriety: 1 innocent, 2 ally, 3 grey, 4 criminal,
+      // 5 enemy (orange), 6 murderer (red), 7 invul. Editor renders a
+      // tinted dot for each so admin can see populations + threats.
+      not: m.notoriety | 0,
+    }));
+    ed.requestRender();
+  } catch {}
+}
+
+// ============================================================================
+// UTIL
+// ============================================================================
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[<>&"']/g, (c) =>
+    ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ============================================================================
+// BOOT
+// ============================================================================
+(async function boot() {
+  const bar = document.getElementById('lbar');
+  const msg = document.getElementById('lmsg');
+  await loadAtlases((pct, stepName) => {
+    bar.style.width = (pct * 100) + '%';
+    msg.textContent = stepName;
+  });
+  // Eager-load the first land + first few static pages so the initial
+  // render doesn't show only stub diamonds. Other pages stream lazily.
+  await Promise.all([
+    ensureLandPage(0), ensureLandPage(1),
+    ensureStaticPage(0), ensureStaticPage(1), ensureStaticPage(2),
+  ]);
+  document.getElementById('loading').remove();
+  ed.recomputeView();
+  ed.setTool('paintLand');
+  setup();
+  await ed.refreshPalette();
+  await ed.reloadSlice();
+  pollMobs();
+  setInterval(pollMobs, 4000);
+  // Spawner overlay — refresh every 8 s so spawner edits made via the
+  // admin UI surface here without a hard reload.
+  ed.refreshSpawners();
+  setInterval(() => { if (ed.showSpawners) ed.refreshSpawners(); }, 8000);
+})().catch((e) => {
+  document.getElementById('lmsg').textContent = 'Boot error: ' + e.message;
+});
+
+// ============================================================================
+// SPAWNER MODAL — visual add/edit. The "Add Spawner" toolbar button
+// arms a one-shot rect-select on the next Shift+drag; releasing the
+// drag pops this modal pre-filled with the marked rect, monster kind
+// dropdown (populated from /api/monster-kinds), maxCount and respawn
+// range. Clicking an existing spawner outline opens the same modal
+// pre-filled with its current values.
+// ============================================================================
+(function wireSpawnerModal() {
+  let monsterKinds = [];
+  let pendingRect = null;
+  let editingId = null;
+  let armedAdd = false;          // toolbar button toggled it on
+
+  const root = document.createElement('div');
+  root.id = 'spawner-modal';
+  root.style.cssText = `
+    display:none; position:fixed; inset:0; z-index:1000;
+    background:rgba(0,0,0,0.65); align-items:center; justify-content:center;
+    font:13px/1.4 'Segoe UI', system-ui, sans-serif; color:#e8d8b0;
+  `;
+  root.innerHTML = `
+    <div style="background:#1a1208; border:1px solid #5a4020; border-radius:6px; padding:20px; width:520px; max-height:90vh; overflow:auto; box-shadow:0 8px 32px #000a;">
+      <h2 style="margin:0 0 14px; font-size:16px; color:#ffd080;" id="sp-modal-title">Add Spawner</h2>
+      <div style="display:grid; grid-template-columns: 110px 1fr; gap:8px 12px; align-items:center;">
+        <label for="sp-id">ID</label>
+        <input id="sp-id" type="text" style="background:#0c0804;color:#e8d8b0;border:1px solid #4a3818;padding:5px;border-radius:3px;" />
+        <label for="sp-map">Map</label>
+        <select id="sp-map" style="background:#0c0804;color:#e8d8b0;border:1px solid #4a3818;padding:5px;border-radius:3px;">
+          <option value="0">0 — Felucca</option>
+          <option value="1">1 — Trammel</option>
+          <option value="2">2 — Ilshenar</option>
+          <option value="3">3 — Malas</option>
+          <option value="4">4 — Tokuno</option>
+          <option value="5">5 — TerMur</option>
+        </select>
+        <label>Rect</label>
+        <div style="display:flex; gap:4px; align-items:center;">
+          <input id="sp-x1" type="number" placeholder="x1" style="width:70px;background:#0c0804;color:#e8d8b0;border:1px solid #4a3818;padding:5px;border-radius:3px;" />
+          <input id="sp-y1" type="number" placeholder="y1" style="width:70px;background:#0c0804;color:#e8d8b0;border:1px solid #4a3818;padding:5px;border-radius:3px;" />
+          <span style="opacity:.6">→</span>
+          <input id="sp-x2" type="number" placeholder="x2" style="width:70px;background:#0c0804;color:#e8d8b0;border:1px solid #4a3818;padding:5px;border-radius:3px;" />
+          <input id="sp-y2" type="number" placeholder="y2" style="width:70px;background:#0c0804;color:#e8d8b0;border:1px solid #4a3818;padding:5px;border-radius:3px;" />
+        </div>
+        <label for="sp-maxCount">Max alive</label>
+        <input id="sp-maxCount" type="number" min="1" max="50" value="3" style="width:90px;background:#0c0804;color:#e8d8b0;border:1px solid #4a3818;padding:5px;border-radius:3px;" />
+        <label>Respawn (ms)</label>
+        <div style="display:flex; gap:4px;">
+          <input id="sp-respLo" type="number" min="1000" value="60000" style="width:100px;background:#0c0804;color:#e8d8b0;border:1px solid #4a3818;padding:5px;border-radius:3px;" />
+          <span style="opacity:.6">to</span>
+          <input id="sp-respHi" type="number" min="2000" value="180000" style="width:100px;background:#0c0804;color:#e8d8b0;border:1px solid #4a3818;padding:5px;border-radius:3px;" />
+        </div>
+        <label for="sp-proximity">Proximity</label>
+        <input id="sp-proximity" type="number" min="0" value="0" style="width:90px;background:#0c0804;color:#e8d8b0;border:1px solid #4a3818;padding:5px;border-radius:3px;" title="0 = always spawn; >0 = only if player within N tiles" />
+        <label for="sp-filter">Kinds</label>
+        <div>
+          <input id="sp-filter" type="text" placeholder="filter (e.g. orc, dragon…)" style="width:100%;background:#0c0804;color:#e8d8b0;border:1px solid #4a3818;padding:5px;border-radius:3px;margin-bottom:6px;box-sizing:border-box;" />
+          <select id="sp-kinds" multiple size="10" style="width:100%;background:#0c0804;color:#e8d8b0;border:1px solid #4a3818;padding:5px;border-radius:3px;"></select>
+          <div style="font-size:10px;opacity:.6;margin-top:3px;">
+            Ctrl+click for multi-select. Selected kinds get equal weighting (uniform random pick on each spawn).
+          </div>
+        </div>
+      </div>
+      <div style="display:flex; gap:8px; margin-top:18px; justify-content:flex-end;">
+        <button id="sp-delete" style="background:#3a1010;color:#ff8080;border:1px solid #6a2020;padding:6px 14px;border-radius:3px;cursor:pointer;display:none;">Delete</button>
+        <span style="flex:1"></span>
+        <button id="sp-cancel" style="background:#1a1208;color:#a8987a;border:1px solid #4a3818;padding:6px 14px;border-radius:3px;cursor:pointer;">Cancel</button>
+        <button id="sp-save" style="background:#2a3a1a;color:#b0e080;border:1px solid #5a8030;padding:6px 14px;border-radius:3px;cursor:pointer;font-weight:bold;">Save</button>
+      </div>
+      <div id="sp-msg" style="font-size:11px;color:#ff8080;margin-top:8px;min-height:14px;"></div>
+    </div>
+  `;
+  document.body.appendChild(root);
+
+  const $ = (id) => document.getElementById(id);
+
+  async function loadKinds() {
+    if (monsterKinds.length) return monsterKinds;
+    try {
+      const r = await fetch('/api/monster-kinds').then((x) => x.json());
+      monsterKinds = r.kinds ?? [];
+    } catch { monsterKinds = []; }
+    return monsterKinds;
+  }
+
+  const TIER_HUE = { boss: '#ff6060', paragon: '#ff9040', monster: '#ffc060', tame: '#a0e0a0', fauna: '#a0a0a0' };
+  function rebuildKindOptions(filter = '', selectedSet = new Set()) {
+    const sel = $('sp-kinds');
+    sel.innerHTML = '';
+    const f = filter.trim().toLowerCase();
+    for (const k of monsterKinds) {
+      if (f && !k.kind.includes(f) && !(k.name ?? '').toLowerCase().includes(f)) continue;
+      const opt = document.createElement('option');
+      opt.value = k.kind;
+      opt.textContent = `${k.kind}  —  ${k.name}  [${k.tier}]`;
+      opt.style.color = TIER_HUE[k.tier] ?? '#e8d8b0';
+      if (selectedSet.has(k.kind)) opt.selected = true;
+      sel.appendChild(opt);
+    }
+  }
+
+  $('sp-filter').addEventListener('input', (e) => {
+    const cur = new Set(Array.from($('sp-kinds').selectedOptions, (o) => o.value));
+    rebuildKindOptions(e.target.value, cur);
+  });
+
+  function open({ id, map, rect, maxCount, respawnMs, proximityRange, kinds }, isEdit) {
+    pendingRect = rect;
+    editingId = isEdit ? id : null;
+    $('sp-modal-title').textContent = isEdit ? `Edit Spawner — ${id}` : 'Add Spawner';
+    $('sp-id').value = id ?? `custom-${Date.now().toString(36)}`;
+    $('sp-id').disabled = !!isEdit;
+    $('sp-map').value = String(map ?? ed.facet);
+    $('sp-x1').value = rect.x1; $('sp-y1').value = rect.y1;
+    $('sp-x2').value = rect.x2; $('sp-y2').value = rect.y2;
+    $('sp-maxCount').value = maxCount ?? 3;
+    $('sp-respLo').value = (respawnMs?.[0] ?? 60_000);
+    $('sp-respHi').value = (respawnMs?.[1] ?? 180_000);
+    $('sp-proximity').value = proximityRange ?? 0;
+    $('sp-msg').textContent = '';
+    $('sp-delete').style.display = isEdit ? '' : 'none';
+    const selectedSet = new Set();
+    for (const k of (kinds ?? [])) {
+      selectedSet.add(typeof k === 'string' ? k : (Array.isArray(k) ? k[0] : (k?.kind ?? k?.name ?? '')));
+    }
+    rebuildKindOptions($('sp-filter').value, selectedSet);
+    root.style.display = 'flex';
+  }
+  function close() { root.style.display = 'none'; pendingRect = null; editingId = null; }
+
+  $('sp-cancel').addEventListener('click', close);
+  root.addEventListener('click', (e) => { if (e.target === root) close(); });
+
+  $('sp-save').addEventListener('click', async () => {
+    const id = $('sp-id').value.trim();
+    if (!id) { $('sp-msg').textContent = 'ID required.'; return; }
+    const kinds = Array.from($('sp-kinds').selectedOptions, (o) => o.value);
+    if (!kinds.length) { $('sp-msg').textContent = 'Pick at least one kind.'; return; }
+    const x1 = Math.min(+$('sp-x1').value, +$('sp-x2').value);
+    const y1 = Math.min(+$('sp-y1').value, +$('sp-y2').value);
+    const x2 = Math.max(+$('sp-x1').value, +$('sp-x2').value);
+    const y2 = Math.max(+$('sp-y1').value, +$('sp-y2').value);
+    const payload = {
+      id, map: +$('sp-map').value | 0,
+      rect: { x1, y1, x2, y2 },
+      maxCount: Math.max(1, Math.min(50, +$('sp-maxCount').value | 0)),
+      respawnMs: [+$('sp-respLo').value | 0, +$('sp-respHi').value | 0],
+      proximityRange: +$('sp-proximity').value | 0,
+      kinds,
+    };
+    try {
+      const r = await fetch('/api/spawners', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }).then((x) => x.json());
+      if (r.error) { $('sp-msg').textContent = r.error; return; }
+      close();
+      ed.refreshSpawners();
+    } catch (e) { $('sp-msg').textContent = e.message; }
+  });
+
+  $('sp-delete').addEventListener('click', async () => {
+    if (!editingId) return;
+    if (!confirm(`Delete spawner "${editingId}"? Active mobs survive their lifecycle.`)) return;
+    try {
+      await fetch(`/api/spawners/${encodeURIComponent(editingId)}`, { method: 'DELETE' });
+      close();
+      ed.refreshSpawners();
+    } catch (e) { $('sp-msg').textContent = e.message; }
+  });
+
+  // Lightweight banner mounted at the top of the canvas — `lmsg` lives
+  // inside the boot-loading overlay which gets `.remove()`'d after the
+  // first atlas load, so once the editor is interactive `lmsg` no
+  // longer exists in the DOM (TypeError: Cannot set 'textContent' of
+  // null). Stand up a peer banner above the canvas and reuse it for
+  // every transient editor-mode status line.
+  function statusBanner(text) {
+    let el = document.getElementById('editor-banner');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'editor-banner';
+      el.style.cssText = 'position:fixed;top:6px;left:50%;transform:translateX(-50%);background:rgba(20,14,8,0.92);color:#ffd070;border:1px solid #5a4020;padding:4px 12px;border-radius:3px;font:11px/1.3 Consolas, monospace;z-index:9999;pointer-events:none;';
+      document.body.appendChild(el);
+    }
+    if (!text) { el.style.display = 'none'; return; }
+    el.style.display = '';
+    el.textContent = text;
+  }
+
+  // Public hooks consumed by editor toolbar + canvas click handler.
+  ed.startAddSpawner = async () => {
+    await loadKinds();
+    armedAdd = true;
+    statusBanner('Shift+drag a rectangle on the map to mark the spawner area.');
+  };
+  ed.openSpawnerEditor = async (spawner) => {
+    await loadKinds();
+    open(spawner, true);
+  };
+  // Called from the prefab/rect-select pathway when the rect is committed.
+  ed.consumePendingRectForSpawner = async (rect) => {
+    if (!armedAdd) return false;
+    armedAdd = false;
+    statusBanner('');
+    await loadKinds();
+    open({ map: ed.facet, rect, kinds: [] }, false);
+    return true;
+  };
+
+  // Canvas click → if hit on an existing spawner rect outline, open the
+  // editor pre-filled. Hooks into the editor's existing mousedown path
+  // via a delegated listener on the canvas (we sit between the brush
+  // logic and the pick fallback by checking the spawner list first
+  // when the user is NOT in an active brush mode).
+  const cv = document.getElementById('cv');
+  if (cv) {
+    cv.addEventListener('click', (e) => {
+      if (armedAdd) return;
+      if (!ed.spawners?.length) return;
+      // Only handle ctrl+click as a spawner-edit gesture so we don't
+      // intercept the existing brush/pick clicks. Operator workflow:
+      //   plain click   → brush (existing)
+      //   ctrl + click  → open spawner editor for the clicked rect
+      if (!e.ctrlKey) return;
+      const t = ed.mouseToTile(e);
+      if (!t) return;
+      for (const s of ed.spawners) {
+        if (s.map !== ed.facet || !s.rect) continue;
+        const { x1, y1, x2, y2 } = s.rect;
+        if (t.x >= x1 && t.x <= x2 && t.y >= y1 && t.y <= y2) {
+          ed.openSpawnerEditor(s);
+          e.stopPropagation();
+          return;
+        }
+      }
+    }, true);
+  }
+})();
+</script>
+</body>
+</html>

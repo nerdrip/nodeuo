@@ -1,0 +1,1271 @@
+[
+  {
+    "id": "Hawkins",
+    "body": 400,
+    "hue": 33774,
+    "name": "Hawkins",
+    "title": "the banker of Britain",
+    "region": "britain",
+    "vendorKind": "banker"
+  },
+  {
+    "id": "Vesper Ann",
+    "body": 401,
+    "hue": 33770,
+    "name": "Ann",
+    "title": "the innkeeper",
+    "region": "britain",
+    "vendorKind": "innkeeper"
+  },
+  {
+    "id": "Britain Gilforn",
+    "body": 400,
+    "hue": 33778,
+    "name": "Gilforn",
+    "title": "the master mage",
+    "region": "britain",
+    "vendorKind": "mage"
+  },
+  {
+    "id": "Britain Anette",
+    "body": 401,
+    "hue": 33776,
+    "name": "Anette",
+    "title": "the wandering healer",
+    "region": "britain",
+    "vendorKind": "healer"
+  },
+  {
+    "id": "Britain Smith Vorin",
+    "body": 400,
+    "hue": 33778,
+    "name": "Vorin",
+    "title": "the blacksmith",
+    "region": "britain",
+    "vendorKind": "smith"
+  },
+  {
+    "id": "Trinsic Tobin",
+    "body": 400,
+    "hue": 33774,
+    "name": "Tobin",
+    "title": "the paladin trainer",
+    "region": "trinsic",
+    "vendorKind": "paladin"
+  },
+  {
+    "id": "Trinsic Helga",
+    "body": 401,
+    "hue": 33776,
+    "name": "Helga",
+    "title": "the innkeeper",
+    "region": "trinsic",
+    "vendorKind": "innkeeper"
+  },
+  {
+    "id": "Trinsic Gareth",
+    "body": 400,
+    "hue": 33778,
+    "name": "Gareth",
+    "title": "the master armorer",
+    "region": "trinsic",
+    "vendorKind": "smith"
+  },
+  {
+    "id": "Trinsic Aldric",
+    "body": 400,
+    "hue": 33770,
+    "name": "Aldric",
+    "title": "captain of the paladins",
+    "region": "trinsic",
+    "vendorKind": "paladin"
+  },
+  {
+    "id": "Yew Sister Lana",
+    "body": 401,
+    "hue": 33776,
+    "name": "Sister Lana",
+    "title": "sister of the Yew abbey",
+    "region": "yew",
+    "vendorKind": "healer"
+  },
+  {
+    "id": "Yew Brother Anton",
+    "body": 400,
+    "hue": 33774,
+    "name": "Brother Anton",
+    "title": "brother of the Yew abbey",
+    "region": "yew",
+    "vendorKind": "monk"
+  },
+  {
+    "id": "Yew Eldric",
+    "body": 400,
+    "hue": 33778,
+    "name": "Eldric",
+    "title": "the bowyer",
+    "region": "yew",
+    "vendorKind": "fletcher"
+  },
+  {
+    "id": "Vesper Bahir",
+    "body": 400,
+    "hue": 33770,
+    "name": "Bahir",
+    "title": "the banker",
+    "region": "vesper",
+    "vendorKind": "banker"
+  },
+  {
+    "id": "Vesper Solly",
+    "body": 401,
+    "hue": 33776,
+    "name": "Solly",
+    "title": "the tailor",
+    "region": "vesper",
+    "vendorKind": "tailor"
+  },
+  {
+    "id": "Vesper Reuben",
+    "body": 400,
+    "hue": 33778,
+    "name": "Reuben",
+    "title": "the shipwright",
+    "region": "vesper",
+    "vendorKind": "shipwright"
+  },
+  {
+    "id": "Minoc Sandra",
+    "body": 401,
+    "hue": 33774,
+    "name": "Sandra",
+    "title": "master of the mines",
+    "region": "minoc",
+    "vendorKind": "miner"
+  },
+  {
+    "id": "Minoc Brom",
+    "body": 400,
+    "hue": 33778,
+    "name": "Brom",
+    "title": "the smith of Minoc",
+    "region": "minoc",
+    "vendorKind": "smith"
+  },
+  {
+    "id": "Minoc Galen",
+    "body": 400,
+    "hue": 33770,
+    "name": "Galen",
+    "title": "the tinker",
+    "region": "minoc",
+    "vendorKind": "tinker"
+  },
+  {
+    "id": "Cove Iolo",
+    "body": 400,
+    "hue": 33774,
+    "name": "Iolo",
+    "title": "the bard of Cove",
+    "region": "cove",
+    "vendorKind": "bard"
+  },
+  {
+    "id": "Cove Shamino",
+    "body": 400,
+    "hue": 33770,
+    "name": "Shamino",
+    "title": "the ranger",
+    "region": "cove",
+    "vendorKind": "ranger"
+  },
+  {
+    "id": "Magincia Casca",
+    "body": 400,
+    "hue": 33778,
+    "name": "Casca",
+    "title": "merchant of Magincia",
+    "region": "magincia",
+    "vendorKind": "tradesman"
+  },
+  {
+    "id": "Haven Aron",
+    "body": 400,
+    "hue": 33774,
+    "name": "Aron",
+    "title": "the new player guide",
+    "region": "haven",
+    "vendorKind": "newbie-guide"
+  },
+  {
+    "id": "Haven Uzeraan",
+    "body": 400,
+    "hue": 33778,
+    "name": "Uzeraan",
+    "title": "the heroic warrior",
+    "region": "haven",
+    "vendorKind": "quest-giver"
+  },
+  {
+    "id": "Jhelom Kalir",
+    "body": 400,
+    "hue": 33778,
+    "name": "Kalir",
+    "title": "the duel master",
+    "region": "jhelom",
+    "vendorKind": "duelmaster"
+  },
+  {
+    "id": "New Magincia Gabriel",
+    "body": 400,
+    "hue": 33776,
+    "name": "Gabriel",
+    "title": "mayor of New Magincia",
+    "region": "new-magincia",
+    "vendorKind": "mayor"
+  },
+  {
+    "id": "TerMur Royal Guard Verite",
+    "body": 400,
+    "hue": 16385,
+    "name": "Verite",
+    "title": "royal guard of Royal City",
+    "region": "ter-mur",
+    "vendorKind": "guard"
+  },
+  {
+    "id": "TerMur Queen Zhah",
+    "body": 401,
+    "hue": 16389,
+    "name": "Queen Zhah",
+    "title": "Queen of the Gargoyles",
+    "region": "ter-mur",
+    "vendorKind": "royalty"
+  },
+  {
+    "id": "Zento Master Sho",
+    "body": 400,
+    "hue": 33778,
+    "name": "Master Sho",
+    "title": "master of the samurai",
+    "region": "zento",
+    "vendorKind": "samurai-trainer"
+  },
+  {
+    "id": "Zento Hina",
+    "body": 401,
+    "hue": 33776,
+    "name": "Hina",
+    "title": "mistress of the tea ceremony",
+    "region": "zento",
+    "vendorKind": "tea-master"
+  },
+  {
+    "id": "Eodon Maklak",
+    "body": 400,
+    "hue": 33770,
+    "name": "Chief Maklak",
+    "title": "chief of the Barako",
+    "region": "eodon-barako",
+    "vendorKind": "tribe-chief"
+  },
+  {
+    "id": "Eodon Sage",
+    "body": 400,
+    "hue": 33774,
+    "name": "Sage Atokk",
+    "title": "shaman of the Sakkhra",
+    "region": "eodon-sakkhra",
+    "vendorKind": "shaman"
+  },
+  {
+    "id": "Eodon Lorrak",
+    "body": 400,
+    "hue": 33778,
+    "name": "Lorrak",
+    "title": "warlord of the Kurak",
+    "region": "eodon-kurak",
+    "vendorKind": "tribe-warlord"
+  },
+  {
+    "id": "Britain Vivian",
+    "body": 401,
+    "hue": 33774,
+    "name": "Vivian",
+    "title": "the banker",
+    "region": "britain",
+    "vendorKind": "banker"
+  },
+  {
+    "id": "Britain Garamon",
+    "body": 400,
+    "hue": 33778,
+    "name": "Garamon",
+    "title": "the banker",
+    "region": "britain",
+    "vendorKind": "banker"
+  },
+  {
+    "id": "Britain Sandy",
+    "body": 401,
+    "hue": 33776,
+    "name": "Sandy",
+    "title": "the banker",
+    "region": "britain",
+    "vendorKind": "banker"
+  },
+  {
+    "id": "Britain Hairy Pomf",
+    "body": 400,
+    "hue": 33770,
+    "name": "Hairy Pomf",
+    "title": "the baker",
+    "region": "britain",
+    "vendorKind": "baker"
+  },
+  {
+    "id": "Britain Tournai",
+    "body": 400,
+    "hue": 33778,
+    "name": "Tournai",
+    "title": "the master mage",
+    "region": "britain",
+    "vendorKind": "mage"
+  },
+  {
+    "id": "Britain Adalwulf",
+    "body": 400,
+    "hue": 33778,
+    "name": "Adalwulf",
+    "title": "the necromancer",
+    "region": "britain",
+    "vendorKind": "mage"
+  },
+  {
+    "id": "Britain Geoffrey",
+    "body": 400,
+    "hue": 33770,
+    "name": "Geoffrey",
+    "title": "the fencer trainer",
+    "region": "britain",
+    "vendorKind": "fencer"
+  },
+  {
+    "id": "Britain Dupre",
+    "body": 400,
+    "hue": 33778,
+    "name": "Dupre",
+    "title": "the paladin trainer",
+    "region": "britain",
+    "vendorKind": "paladin"
+  },
+  {
+    "id": "Britain Iolo",
+    "body": 400,
+    "hue": 33774,
+    "name": "Iolo",
+    "title": "the bard trainer",
+    "region": "britain",
+    "vendorKind": "bard"
+  },
+  {
+    "id": "Britain Jaana",
+    "body": 401,
+    "hue": 33775,
+    "name": "Jaana",
+    "title": "the master healer",
+    "region": "britain",
+    "vendorKind": "healer"
+  },
+  {
+    "id": "Britain Mariah",
+    "body": 401,
+    "hue": 33774,
+    "name": "Mariah",
+    "title": "the mage of moonglow",
+    "region": "britain",
+    "vendorKind": "mage"
+  },
+  {
+    "id": "Britain Shamino",
+    "body": 400,
+    "hue": 33770,
+    "name": "Shamino",
+    "title": "the ranger of skara brae",
+    "region": "britain",
+    "vendorKind": "ranger"
+  },
+  {
+    "id": "Britain Lord British",
+    "body": 400,
+    "hue": 33774,
+    "name": "Lord British",
+    "title": "sovereign of Britannia",
+    "region": "britain",
+    "vendorKind": "royalty"
+  },
+  {
+    "id": "Britain Lord Blackthorn",
+    "body": 400,
+    "hue": 33778,
+    "name": "Lord Blackthorn",
+    "title": "the dark lord",
+    "region": "britain",
+    "vendorKind": "royalty"
+  },
+  {
+    "id": "Britain Avery",
+    "body": 400,
+    "hue": 33776,
+    "name": "Avery",
+    "title": "the archery trainer",
+    "region": "britain",
+    "vendorKind": "archery"
+  },
+  {
+    "id": "Britain Cyndar",
+    "body": 401,
+    "hue": 33774,
+    "name": "Cyndar",
+    "title": "the master tailor",
+    "region": "britain",
+    "vendorKind": "tailor"
+  },
+  {
+    "id": "Britain Toon",
+    "body": 400,
+    "hue": 33778,
+    "name": "Toon",
+    "title": "the master blacksmith",
+    "region": "britain",
+    "vendorKind": "smith"
+  },
+  {
+    "id": "Britain Anya",
+    "body": 401,
+    "hue": 33776,
+    "name": "Anya",
+    "title": "the alchemist",
+    "region": "britain",
+    "vendorKind": "alchemist"
+  },
+  {
+    "id": "Britain Sherry",
+    "body": 401,
+    "hue": 33774,
+    "name": "Sherry the Mouse",
+    "title": "the famous mouse",
+    "region": "britain",
+    "vendorKind": "quest-giver"
+  },
+  {
+    "id": "Trinsic Tervin",
+    "body": 400,
+    "hue": 33778,
+    "name": "Tervin",
+    "title": "the paladin commander",
+    "region": "trinsic",
+    "vendorKind": "paladin"
+  },
+  {
+    "id": "Trinsic Faina",
+    "body": 401,
+    "hue": 33776,
+    "name": "Faina",
+    "title": "the temple healer",
+    "region": "trinsic",
+    "vendorKind": "healer"
+  },
+  {
+    "id": "Trinsic Bulgar",
+    "body": 400,
+    "hue": 33774,
+    "name": "Bulgar",
+    "title": "the banker",
+    "region": "trinsic",
+    "vendorKind": "banker"
+  },
+  {
+    "id": "Trinsic Lord Cassius",
+    "body": 400,
+    "hue": 33778,
+    "name": "Lord Cassius",
+    "title": "mayor of Trinsic",
+    "region": "trinsic",
+    "vendorKind": "royalty"
+  },
+  {
+    "id": "Trinsic Selena",
+    "body": 401,
+    "hue": 33774,
+    "name": "Selena",
+    "title": "the jeweler",
+    "region": "trinsic",
+    "vendorKind": "jeweler"
+  },
+  {
+    "id": "Trinsic Mira",
+    "body": 401,
+    "hue": 33776,
+    "name": "Mira",
+    "title": "the runemaker",
+    "region": "trinsic",
+    "vendorKind": "mage"
+  },
+  {
+    "id": "Trinsic Brother Adam",
+    "body": 400,
+    "hue": 33774,
+    "name": "Brother Adam",
+    "title": "brother of the temple",
+    "region": "trinsic",
+    "vendorKind": "monk"
+  },
+  {
+    "id": "Yew Mayor Maeve",
+    "body": 401,
+    "hue": 33774,
+    "name": "Mayor Maeve",
+    "title": "mayor of Yew",
+    "region": "yew",
+    "vendorKind": "royalty"
+  },
+  {
+    "id": "Yew Brother Mark",
+    "body": 400,
+    "hue": 33774,
+    "name": "Brother Mark",
+    "title": "brother of the abbey",
+    "region": "yew",
+    "vendorKind": "monk"
+  },
+  {
+    "id": "Yew Sister Vivian",
+    "body": 401,
+    "hue": 33775,
+    "name": "Sister Vivian",
+    "title": "sister of the abbey",
+    "region": "yew",
+    "vendorKind": "healer"
+  },
+  {
+    "id": "Yew Cornelius",
+    "body": 400,
+    "hue": 33778,
+    "name": "Cornelius",
+    "title": "the fletcher",
+    "region": "yew",
+    "vendorKind": "fletcher"
+  },
+  {
+    "id": "Yew Hanse",
+    "body": 400,
+    "hue": 33770,
+    "name": "Hanse",
+    "title": "the forest ranger",
+    "region": "yew",
+    "vendorKind": "ranger"
+  },
+  {
+    "id": "Yew Owyn",
+    "body": 400,
+    "hue": 33774,
+    "name": "Owyn",
+    "title": "the tinker",
+    "region": "yew",
+    "vendorKind": "tinker"
+  },
+  {
+    "id": "Vesper Lord Hugo",
+    "body": 400,
+    "hue": 33778,
+    "name": "Lord Hugo",
+    "title": "mayor of Vesper",
+    "region": "vesper",
+    "vendorKind": "royalty"
+  },
+  {
+    "id": "Vesper Galiana",
+    "body": 401,
+    "hue": 33776,
+    "name": "Galiana",
+    "title": "the master mage",
+    "region": "vesper",
+    "vendorKind": "mage"
+  },
+  {
+    "id": "Vesper Sven",
+    "body": 400,
+    "hue": 33770,
+    "name": "Sven",
+    "title": "the shipwright",
+    "region": "vesper",
+    "vendorKind": "shipwright"
+  },
+  {
+    "id": "Vesper Annette",
+    "body": 401,
+    "hue": 33774,
+    "name": "Annette",
+    "title": "the jeweler",
+    "region": "vesper",
+    "vendorKind": "jeweler"
+  },
+  {
+    "id": "Vesper Petra",
+    "body": 401,
+    "hue": 33776,
+    "name": "Petra",
+    "title": "the fishmonger",
+    "region": "vesper",
+    "vendorKind": "fisherman"
+  },
+  {
+    "id": "Vesper Cynthia",
+    "body": 401,
+    "hue": 33778,
+    "name": "Cynthia",
+    "title": "the mapmaker",
+    "region": "vesper",
+    "vendorKind": "mapmaker"
+  },
+  {
+    "id": "Minoc Karinna",
+    "body": 401,
+    "hue": 33774,
+    "name": "Karinna",
+    "title": "the banker",
+    "region": "minoc",
+    "vendorKind": "banker"
+  },
+  {
+    "id": "Minoc Heigel",
+    "body": 400,
+    "hue": 33778,
+    "name": "Heigel",
+    "title": "the master blacksmith",
+    "region": "minoc",
+    "vendorKind": "smith"
+  },
+  {
+    "id": "Minoc Renika",
+    "body": 401,
+    "hue": 33776,
+    "name": "Renika",
+    "title": "mistress of the mines",
+    "region": "minoc",
+    "vendorKind": "miner"
+  },
+  {
+    "id": "Minoc Joeb",
+    "body": 400,
+    "hue": 33774,
+    "name": "Joeb",
+    "title": "the innkeeper",
+    "region": "minoc",
+    "vendorKind": "innkeeper"
+  },
+  {
+    "id": "Minoc Erhad",
+    "body": 400,
+    "hue": 33770,
+    "name": "Erhad",
+    "title": "the tinker",
+    "region": "minoc",
+    "vendorKind": "tinker"
+  },
+  {
+    "id": "Minoc Old Joh",
+    "body": 400,
+    "hue": 33770,
+    "name": "Old Joh",
+    "title": "the old miner",
+    "region": "minoc",
+    "vendorKind": "miner"
+  },
+  {
+    "id": "Cove Marek",
+    "body": 400,
+    "hue": 33778,
+    "name": "Marek",
+    "title": "the innkeeper",
+    "region": "cove",
+    "vendorKind": "innkeeper"
+  },
+  {
+    "id": "Cove Captain Ohanlan",
+    "body": 400,
+    "hue": 33778,
+    "name": "Captain Ohanlan",
+    "title": "captain of the garrison",
+    "region": "cove",
+    "vendorKind": "guard"
+  },
+  {
+    "id": "Cove Cyo",
+    "body": 400,
+    "hue": 33774,
+    "name": "Cyo",
+    "title": "the fisherman",
+    "region": "cove",
+    "vendorKind": "fisherman"
+  },
+  {
+    "id": "Magincia Aulus",
+    "body": 400,
+    "hue": 33774,
+    "name": "Aulus",
+    "title": "the surviving banker",
+    "region": "magincia",
+    "vendorKind": "banker"
+  },
+  {
+    "id": "Magincia Lavinia",
+    "body": 401,
+    "hue": 33774,
+    "name": "Lavinia",
+    "title": "the surviving mage",
+    "region": "magincia",
+    "vendorKind": "mage"
+  },
+  {
+    "id": "Skara Brae Mayor",
+    "body": 400,
+    "hue": 33774,
+    "name": "Mayor Drocyn",
+    "title": "mayor of Skara Brae",
+    "region": "skara-brae",
+    "vendorKind": "royalty"
+  },
+  {
+    "id": "Skara Brae Ardol",
+    "body": 400,
+    "hue": 33770,
+    "name": "Ardol",
+    "title": "the ranger",
+    "region": "skara-brae",
+    "vendorKind": "ranger"
+  },
+  {
+    "id": "Skara Brae Heater",
+    "body": 400,
+    "hue": 33778,
+    "name": "Heater",
+    "title": "the blacksmith",
+    "region": "skara-brae",
+    "vendorKind": "smith"
+  },
+  {
+    "id": "Skara Brae Korvol",
+    "body": 400,
+    "hue": 33774,
+    "name": "Korvol",
+    "title": "the banker",
+    "region": "skara-brae",
+    "vendorKind": "banker"
+  },
+  {
+    "id": "Skara Brae Khim",
+    "body": 401,
+    "hue": 33776,
+    "name": "Khim",
+    "title": "the healer",
+    "region": "skara-brae",
+    "vendorKind": "healer"
+  },
+  {
+    "id": "Skara Brae Cori",
+    "body": 401,
+    "hue": 33774,
+    "name": "Cori",
+    "title": "the tailor",
+    "region": "skara-brae",
+    "vendorKind": "tailor"
+  },
+  {
+    "id": "Serps Hold Sentry Ariana",
+    "body": 401,
+    "hue": 33774,
+    "name": "Sentry Ariana",
+    "title": "sentry of the hold",
+    "region": "serpents-hold",
+    "vendorKind": "guard"
+  },
+  {
+    "id": "Serps Hold Captain Ash",
+    "body": 400,
+    "hue": 33778,
+    "name": "Captain Ash",
+    "title": "captain of the hold",
+    "region": "serpents-hold",
+    "vendorKind": "guard"
+  },
+  {
+    "id": "Serps Hold Tournament Master",
+    "body": 400,
+    "hue": 33778,
+    "name": "Tournament Master",
+    "title": "tournament master",
+    "region": "serpents-hold",
+    "vendorKind": "duelmaster"
+  },
+  {
+    "id": "Nujelm Vizier",
+    "body": 400,
+    "hue": 33774,
+    "name": "Vizier Boren",
+    "title": "the vizier",
+    "region": "nujelm",
+    "vendorKind": "mage"
+  },
+  {
+    "id": "Nujelm Galiana",
+    "body": 401,
+    "hue": 33776,
+    "name": "Galiana the Dancer",
+    "title": "the dancer",
+    "region": "nujelm",
+    "vendorKind": "entertainer"
+  },
+  {
+    "id": "Nujelm Banker Avitas",
+    "body": 400,
+    "hue": 33774,
+    "name": "Avitas",
+    "title": "the banker",
+    "region": "nujelm",
+    "vendorKind": "banker"
+  },
+  {
+    "id": "Papua Innkeeper Sariela",
+    "body": 401,
+    "hue": 33774,
+    "name": "Sariela",
+    "title": "the innkeeper",
+    "region": "papua",
+    "vendorKind": "innkeeper"
+  },
+  {
+    "id": "Papua Banker Tor",
+    "body": 400,
+    "hue": 33774,
+    "name": "Tor",
+    "title": "the banker",
+    "region": "papua",
+    "vendorKind": "banker"
+  },
+  {
+    "id": "Delucia Innkeeper Wina",
+    "body": 401,
+    "hue": 33774,
+    "name": "Wina",
+    "title": "the innkeeper",
+    "region": "delucia",
+    "vendorKind": "innkeeper"
+  },
+  {
+    "id": "Delucia Banker Sopor",
+    "body": 400,
+    "hue": 33774,
+    "name": "Sopor",
+    "title": "the banker",
+    "region": "delucia",
+    "vendorKind": "banker"
+  },
+  {
+    "id": "Delucia Trader Wend",
+    "body": 400,
+    "hue": 33770,
+    "name": "Wend",
+    "title": "the provisioner",
+    "region": "delucia",
+    "vendorKind": "provisioner"
+  },
+  {
+    "id": "Bucs Den Captain Garr",
+    "body": 400,
+    "hue": 33778,
+    "name": "Captain Garr",
+    "title": "pirate captain",
+    "region": "bucs-den",
+    "vendorKind": "pirate-lord"
+  },
+  {
+    "id": "Bucs Den Fence Lurks",
+    "body": 400,
+    "hue": 33774,
+    "name": "Lurks",
+    "title": "the fence",
+    "region": "bucs-den",
+    "vendorKind": "fence"
+  },
+  {
+    "id": "Bucs Den Quartermaster Vord",
+    "body": 400,
+    "hue": 33776,
+    "name": "Vord",
+    "title": "the quartermaster",
+    "region": "bucs-den",
+    "vendorKind": "shipwright"
+  },
+  {
+    "id": "Wind Archmage Kazimir",
+    "body": 400,
+    "hue": 33778,
+    "name": "Archmage Kazimir",
+    "title": "archmage of Wind",
+    "region": "wind",
+    "vendorKind": "mage"
+  },
+  {
+    "id": "Wind Apprentice Linus",
+    "body": 400,
+    "hue": 33774,
+    "name": "Apprentice Linus",
+    "title": "apprentice of Wind",
+    "region": "wind",
+    "vendorKind": "mage"
+  },
+  {
+    "id": "Haven Sage Humbolt",
+    "body": 400,
+    "hue": 33774,
+    "name": "Sage Humbolt",
+    "title": "the sage of Haven",
+    "region": "haven",
+    "vendorKind": "newbie-guide"
+  },
+  {
+    "id": "Haven Brother Tristen",
+    "body": 400,
+    "hue": 33774,
+    "name": "Brother Tristen",
+    "title": "brother of Haven",
+    "region": "haven",
+    "vendorKind": "newbie-guide"
+  },
+  {
+    "id": "Haven Sister Adela",
+    "body": 401,
+    "hue": 33776,
+    "name": "Sister Adela",
+    "title": "sister of Haven",
+    "region": "haven",
+    "vendorKind": "healer"
+  },
+  {
+    "id": "Haven Andros",
+    "body": 400,
+    "hue": 33778,
+    "name": "Andros",
+    "title": "the blacksmith of Haven",
+    "region": "haven",
+    "vendorKind": "smith"
+  },
+  {
+    "id": "Jhelom Tarja",
+    "body": 401,
+    "hue": 33778,
+    "name": "Tarja",
+    "title": "mistress of the pit",
+    "region": "jhelom",
+    "vendorKind": "duelmaster"
+  },
+  {
+    "id": "Jhelom Lord Edward",
+    "body": 400,
+    "hue": 33778,
+    "name": "Lord Edward",
+    "title": "lord of Jhelom",
+    "region": "jhelom",
+    "vendorKind": "royalty"
+  },
+  {
+    "id": "Jhelom Merian",
+    "body": 401,
+    "hue": 33774,
+    "name": "Merian",
+    "title": "the healer",
+    "region": "jhelom",
+    "vendorKind": "healer"
+  },
+  {
+    "id": "Moonglow Mariah",
+    "body": 401,
+    "hue": 33776,
+    "name": "Mariah of Moonglow",
+    "title": "mistress of Moonglow",
+    "region": "moonglow",
+    "vendorKind": "mage"
+  },
+  {
+    "id": "Moonglow Archmage Tabius",
+    "body": 400,
+    "hue": 33778,
+    "name": "Archmage Tabius",
+    "title": "archmage of Moonglow",
+    "region": "moonglow",
+    "vendorKind": "mage"
+  },
+  {
+    "id": "Moonglow Khordal",
+    "body": 400,
+    "hue": 33774,
+    "name": "Khordal",
+    "title": "the alchemist",
+    "region": "moonglow",
+    "vendorKind": "mage"
+  },
+  {
+    "id": "Moonglow Diane",
+    "body": 401,
+    "hue": 33774,
+    "name": "Diane",
+    "title": "the jeweler",
+    "region": "moonglow",
+    "vendorKind": "jeweler"
+  },
+  {
+    "id": "Moonglow Zoot",
+    "body": 400,
+    "hue": 33778,
+    "name": "Zoot",
+    "title": "the carnival barker",
+    "region": "moonglow",
+    "vendorKind": "gypsy"
+  },
+  {
+    "id": "New Magincia Bazaar Master",
+    "body": 400,
+    "hue": 33774,
+    "name": "Bazaar Master",
+    "title": "master of the bazaar",
+    "region": "new-magincia",
+    "vendorKind": "merchant"
+  },
+  {
+    "id": "New Magincia Distiller",
+    "body": 401,
+    "hue": 33776,
+    "name": "Distiller Anya",
+    "title": "the master distiller",
+    "region": "new-magincia",
+    "vendorKind": "alchemist"
+  },
+  {
+    "id": "New Magincia Townhall Clerk",
+    "body": 400,
+    "hue": 33774,
+    "name": "Clerk Polonius",
+    "title": "the townhall clerk",
+    "region": "new-magincia",
+    "vendorKind": "town-crier"
+  },
+  {
+    "id": "TerMur Holy Mage Apollo",
+    "body": 400,
+    "hue": 16385,
+    "name": "Holy Mage Apollo",
+    "title": "master of the holy city",
+    "region": "ter-mur",
+    "vendorKind": "mage"
+  },
+  {
+    "id": "TerMur Trinity Stone Keeper",
+    "body": 400,
+    "hue": 16389,
+    "name": "Trinity Keeper",
+    "title": "keeper of the trinity stone",
+    "region": "ter-mur",
+    "vendorKind": "royalty"
+  },
+  {
+    "id": "TerMur Imbuing Master Aurora",
+    "body": 401,
+    "hue": 16387,
+    "name": "Aurora",
+    "title": "master of imbuing",
+    "region": "ter-mur",
+    "vendorKind": "imbuer"
+  },
+  {
+    "id": "TerMur Royal Steward",
+    "body": 400,
+    "hue": 16386,
+    "name": "Royal Steward Sssaru",
+    "title": "steward of the royal city",
+    "region": "ter-mur",
+    "vendorKind": "royalty"
+  },
+  {
+    "id": "TerMur Throne Guard",
+    "body": 400,
+    "hue": 16385,
+    "name": "Throne Guard Verite",
+    "title": "guard of the throne",
+    "region": "ter-mur",
+    "vendorKind": "guard"
+  },
+  {
+    "id": "Zento Daimyo Tao",
+    "body": 400,
+    "hue": 33778,
+    "name": "Daimyo Tao",
+    "title": "daimyo of Zento",
+    "region": "zento",
+    "vendorKind": "royalty"
+  },
+  {
+    "id": "Zento Master Ninjitsu",
+    "body": 400,
+    "hue": 33776,
+    "name": "Master Kaeko",
+    "title": "master of ninjitsu",
+    "region": "zento",
+    "vendorKind": "ninja-trainer"
+  },
+  {
+    "id": "Zento Master Bushido",
+    "body": 400,
+    "hue": 33778,
+    "name": "Master Daichi",
+    "title": "master of bushido",
+    "region": "zento",
+    "vendorKind": "samurai-trainer"
+  },
+  {
+    "id": "Makoto Bonsai Master",
+    "body": 400,
+    "hue": 33774,
+    "name": "Master Jiro",
+    "title": "master gardener",
+    "region": "makoto-jima",
+    "vendorKind": "bonsai-master"
+  },
+  {
+    "id": "Homare Master Storyteller",
+    "body": 400,
+    "hue": 33774,
+    "name": "Master Kotaro",
+    "title": "the storyteller",
+    "region": "homare-jima",
+    "vendorKind": "storyteller"
+  },
+  {
+    "id": "Eodon Sage Urali",
+    "body": 400,
+    "hue": 33770,
+    "name": "Sage Tarokk",
+    "title": "sage of the Urali",
+    "region": "eodon-urali",
+    "vendorKind": "shaman"
+  },
+  {
+    "id": "Eodon Tribe Elder Tiger",
+    "body": 400,
+    "hue": 33778,
+    "name": "Elder Roonu",
+    "title": "elder of Tiger Island",
+    "region": "eodon-tiger-island",
+    "vendorKind": "tribe-elder"
+  },
+  {
+    "id": "Eodon Kahn Alchemist",
+    "body": 401,
+    "hue": 33776,
+    "name": "Alchemist Veni",
+    "title": "alchemist of the Kahn",
+    "region": "eodon-kahn",
+    "vendorKind": "alchemist"
+  },
+  {
+    "id": "Eodon Jukari Trial Keeper",
+    "body": 400,
+    "hue": 33774,
+    "name": "Trial Keeper Yotok",
+    "title": "trial keeper of the Jukari",
+    "region": "eodon-jukari",
+    "vendorKind": "tribe-chief"
+  },
+  {
+    "id": "Eodon Myrmidex Scout",
+    "body": 400,
+    "hue": 33778,
+    "name": "Scout Zeren",
+    "title": "scout leader against the Hive",
+    "region": "eodon-central",
+    "vendorKind": "tribe-warlord"
+  },
+  {
+    "id": "Lakeshire Innkeeper",
+    "body": 401,
+    "hue": 33774,
+    "name": "Innkeeper Petra",
+    "title": "the innkeeper",
+    "region": "lakeshire",
+    "vendorKind": "innkeeper"
+  },
+  {
+    "id": "Royal City Healer",
+    "body": 401,
+    "hue": 33775,
+    "name": "Healer Sssa",
+    "title": "the healer",
+    "region": "royal-city",
+    "vendorKind": "healer"
+  },
+  {
+    "id": "Royal City Smith",
+    "body": 400,
+    "hue": 33778,
+    "name": "Smith Zhah",
+    "title": "the smith",
+    "region": "royal-city",
+    "vendorKind": "smith"
+  },
+  {
+    "id": "Royal City Stoneworker",
+    "body": 400,
+    "hue": 33778,
+    "name": "Stoneworker Rakk",
+    "title": "the stoneworker",
+    "region": "royal-city",
+    "vendorKind": "mason"
+  },
+  {
+    "id": "Faction Vendor True Britannian",
+    "body": 400,
+    "hue": 33770,
+    "name": "True Britannian Captain",
+    "title": "True Britannian quartermaster",
+    "region": "britain",
+    "vendorKind": "faction-trade"
+  },
+  {
+    "id": "Faction Vendor Council of Mages",
+    "body": 401,
+    "hue": 33776,
+    "name": "Council Quartermaster",
+    "title": "Council of Mages quartermaster",
+    "region": "magincia",
+    "vendorKind": "faction-trade"
+  },
+  {
+    "id": "Faction Vendor Minax",
+    "body": 401,
+    "hue": 33778,
+    "name": "Minax Quartermaster",
+    "title": "Minax quartermaster",
+    "region": "wrong-passage",
+    "vendorKind": "faction-trade"
+  },
+  {
+    "id": "Faction Vendor Shadowlords",
+    "body": 400,
+    "hue": 33778,
+    "name": "Shadowlord Quartermaster",
+    "title": "Shadowlord quartermaster",
+    "region": "destard",
+    "vendorKind": "faction-trade"
+  }
+]

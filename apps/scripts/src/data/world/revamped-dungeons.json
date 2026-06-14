@@ -1,0 +1,834 @@
+[
+  {
+    "id": "shame",
+    "name": "Shame Revamped",
+    "region": "shame",
+    "rooms": [
+      {
+        "id": "shame-r1",
+        "spawns": [
+          "water-elemental",
+          "sea-serpent"
+        ],
+        "count": 5
+      },
+      {
+        "id": "shame-r2",
+        "spawns": [
+          "water-elemental-greater",
+          "kraken"
+        ],
+        "count": 4
+      },
+      {
+        "id": "shame-r3",
+        "spawns": [
+          "rikktor-spawn"
+        ],
+        "count": 8
+      }
+    ],
+    "minibosses": [
+      "lava-elemental",
+      "galvanized-elemental"
+    ],
+    "finalBoss": "wanderer-of-the-void",
+    "artifactPool": [
+      "shame-defender",
+      "crimson-cincture",
+      "unstoppable",
+      "soul-seeker",
+      "banshee's-call"
+    ]
+  },
+  {
+    "id": "wrong",
+    "name": "Wrong Revamped",
+    "region": "wrong",
+    "rooms": [
+      {
+        "id": "wrong-r1",
+        "spawns": [
+          "prison-guard",
+          "imprisoned-mage"
+        ],
+        "count": 6
+      },
+      {
+        "id": "wrong-r2",
+        "spawns": [
+          "warden-spectre"
+        ],
+        "count": 4
+      }
+    ],
+    "minibosses": [
+      "wrong-warden"
+    ],
+    "finalBoss": "overseer-anon",
+    "artifactPool": [
+      "jailers-key",
+      "overseers-amulet",
+      "ironwood-shield"
+    ]
+  },
+  {
+    "id": "despise",
+    "name": "Despise Revamped",
+    "region": "despise",
+    "rooms": [
+      {
+        "id": "despise-r1",
+        "spawns": [
+          "imp",
+          "evil-mage"
+        ],
+        "count": 5
+      },
+      {
+        "id": "despise-r2",
+        "spawns": [
+          "daemon-grunt"
+        ],
+        "count": 4
+      }
+    ],
+    "minibosses": [
+      "despise-balron"
+    ],
+    "finalBoss": "andros",
+    "artifactPool": [
+      "andros-blade",
+      "pristine-dread-horn",
+      "jaded-charm"
+    ]
+  },
+  {
+    "id": "covetous",
+    "name": "Covetous Revamped",
+    "region": "covetous",
+    "rooms": [
+      {
+        "id": "covetous-r1",
+        "spawns": [
+          "scorpion",
+          "giant-spider"
+        ],
+        "count": 6
+      },
+      {
+        "id": "covetous-r2",
+        "spawns": [
+          "poison-elemental"
+        ],
+        "count": 4
+      }
+    ],
+    "minibosses": [
+      "greater-poison-elemental"
+    ],
+    "finalBoss": "navreys-night-eyes",
+    "artifactPool": [
+      "spiders-eye-amulet",
+      "navreys-fang",
+      "silken-mantle"
+    ]
+  },
+  {
+    "id": "deceit",
+    "name": "Deceit Revamped",
+    "region": "deceit",
+    "rooms": [
+      {
+        "id": "deceit-r1",
+        "spawns": [
+          "skeleton",
+          "lich"
+        ],
+        "count": 6
+      },
+      {
+        "id": "deceit-r2",
+        "spawns": [
+          "lich-lord"
+        ],
+        "count": 3
+      }
+    ],
+    "minibosses": [
+      "ancient-lich-lord"
+    ],
+    "finalBoss": "corgul-the-soulbinder",
+    "artifactPool": [
+      "soulbinder-scepter",
+      "corguls-skull-pendant",
+      "bones-of-the-rotted-king"
+    ]
+  },
+  {
+    "id": "destard",
+    "name": "Destard Revamped",
+    "region": "destard",
+    "rooms": [
+      {
+        "id": "destard-r1",
+        "spawns": [
+          "drake",
+          "dragon"
+        ],
+        "count": 5
+      },
+      {
+        "id": "destard-r2",
+        "spawns": [
+          "ancient-wyrm"
+        ],
+        "count": 3
+      }
+    ],
+    "minibosses": [
+      "dread-wyrm"
+    ],
+    "finalBoss": "rikktor",
+    "artifactPool": [
+      "rikktors-claw",
+      "dragonscale-aegis",
+      "wyrm-tongue"
+    ]
+  },
+  {
+    "id": "hythloth",
+    "name": "Hythloth Revamped",
+    "region": "hythloth",
+    "rooms": [
+      {
+        "id": "hythloth-r1",
+        "spawns": [
+          "gargoyle",
+          "fire-gargoyle"
+        ],
+        "count": 6
+      },
+      {
+        "id": "hythloth-r2",
+        "spawns": [
+          "stone-gargoyle"
+        ],
+        "count": 4
+      }
+    ],
+    "minibosses": [
+      "gargoyle-veteran-warrior"
+    ],
+    "finalBoss": "monstrous-interred-grizzle",
+    "artifactPool": [
+      "grizzle's-grimoire",
+      "tunic-of-fire",
+      "shroud-of-deceit"
+    ]
+  },
+  {
+    "id": "painted-caves",
+    "name": "Painted Caves",
+    "region": "painted-caves",
+    "rooms": [
+      {
+        "id": "pc-r1",
+        "spawns": [
+          "ogre",
+          "ogre-lord"
+        ],
+        "count": 5
+      }
+    ],
+    "minibosses": [
+      "ogre-shaman"
+    ],
+    "finalBoss": "paroxysmus",
+    "artifactPool": [
+      "paroxysmus-swamp-dragon",
+      "corroded-greatsword"
+    ]
+  },
+  {
+    "id": "fire-temple",
+    "name": "Fire Temple Ruins",
+    "region": "fire-temple",
+    "rooms": [
+      {
+        "id": "ft-r1",
+        "spawns": [
+          "fire-steed",
+          "efreet"
+        ],
+        "count": 4
+      }
+    ],
+    "minibosses": [
+      "fire-djinn"
+    ],
+    "finalBoss": "oaks",
+    "artifactPool": [
+      "oaks-amulet",
+      "pyre-of-ashes"
+    ]
+  },
+  {
+    "id": "sanctuary",
+    "name": "Sanctuary Revamped",
+    "region": "sanctuary",
+    "rooms": [
+      {
+        "id": "sanct-r1",
+        "spawns": [
+          "undead-knight",
+          "spectral-warrior"
+        ],
+        "count": 5
+      }
+    ],
+    "minibosses": [
+      "sanctuary-acolyte"
+    ],
+    "finalBoss": "lady-mariah",
+    "artifactPool": [
+      "mariahs-rod",
+      "sanctuary-chalice"
+    ]
+  },
+  {
+    "id": "ankh-dungeon",
+    "name": "Ankh Dungeon Revamped",
+    "region": "ankh-dungeon",
+    "rooms": [
+      {
+        "id": "ankh-r1",
+        "spawns": [
+          "skeletal-knight",
+          "wraith"
+        ],
+        "count": 5
+      }
+    ],
+    "minibosses": [
+      "ankh-warden"
+    ],
+    "finalBoss": "lord-of-the-ankh",
+    "artifactPool": [
+      "ankh-pendant",
+      "soul-binding-cuirass"
+    ]
+  },
+  {
+    "id": "wisp-dungeon",
+    "name": "Wisp Dungeon Revamped",
+    "region": "wisp-dungeon",
+    "rooms": [
+      {
+        "id": "wisp-r1",
+        "spawns": [
+          "wisp",
+          "pixie"
+        ],
+        "count": 6
+      },
+      {
+        "id": "wisp-r2",
+        "spawns": [
+          "wisp-elder"
+        ],
+        "count": 3
+      }
+    ],
+    "minibosses": [
+      "wisp-warden"
+    ],
+    "finalBoss": "lurg-the-wisp-mother",
+    "artifactPool": [
+      "wisp-essence-charm",
+      "fey-cloak"
+    ]
+  },
+  {
+    "id": "solen-hive",
+    "name": "Solen Hive Revamped",
+    "region": "solen-hive",
+    "rooms": [
+      {
+        "id": "solen-r1",
+        "spawns": [
+          "solen-worker",
+          "solen-warrior"
+        ],
+        "count": 7
+      },
+      {
+        "id": "solen-r2",
+        "spawns": [
+          "solen-infiltrator"
+        ],
+        "count": 4
+      }
+    ],
+    "minibosses": [
+      "solen-matriarch-spawn"
+    ],
+    "finalBoss": "solen-matriarch",
+    "artifactPool": [
+      "solen-mandible",
+      "matriarch-crown",
+      "solen-jelly"
+    ]
+  },
+  {
+    "id": "exodus-dungeon",
+    "name": "Exodus Dungeon Revamped",
+    "region": "exodus",
+    "rooms": [
+      {
+        "id": "exo-r1",
+        "spawns": [
+          "mechanical-titan",
+          "cyclopean-warrior"
+        ],
+        "count": 5
+      },
+      {
+        "id": "exo-r2",
+        "spawns": [
+          "mechanical-juggernaut"
+        ],
+        "count": 3
+      }
+    ],
+    "minibosses": [
+      "exodus-overseer"
+    ],
+    "finalBoss": "exodus",
+    "artifactPool": [
+      "exodus-core",
+      "lich-ring-of-elements",
+      "titan-greatsword"
+    ]
+  },
+  {
+    "id": "khaldun-revamped",
+    "name": "Khaldun Revamped",
+    "region": "khaldun",
+    "rooms": [
+      {
+        "id": "khal-r1",
+        "spawns": [
+          "khaldun-ghost",
+          "khaldun-mummy"
+        ],
+        "count": 6
+      }
+    ],
+    "minibosses": [
+      "khaldun-high-mummy"
+    ],
+    "finalBoss": "khaldun-pharaoh",
+    "artifactPool": [
+      "pharaohs-circlet",
+      "khaldun-staff",
+      "pyramid-amulet"
+    ]
+  },
+  {
+    "id": "ice-dungeon",
+    "name": "Ice Dungeon Revamped",
+    "region": "ice",
+    "rooms": [
+      {
+        "id": "ice-r1",
+        "spawns": [
+          "ice-fiend",
+          "frost-spider"
+        ],
+        "count": 6
+      },
+      {
+        "id": "ice-r2",
+        "spawns": [
+          "ice-giant"
+        ],
+        "count": 3
+      }
+    ],
+    "minibosses": [
+      "ice-elder"
+    ],
+    "finalBoss": "ice-queen-aliyah",
+    "artifactPool": [
+      "ice-queen-tiara",
+      "frostbrand",
+      "cryomancer-robe"
+    ]
+  },
+  {
+    "id": "spider-cave",
+    "name": "Spider Cave Revamped",
+    "region": "spider-cave",
+    "rooms": [
+      {
+        "id": "spider-r1",
+        "spawns": [
+          "giant-spider",
+          "frost-spider"
+        ],
+        "count": 7
+      },
+      {
+        "id": "spider-r2",
+        "spawns": [
+          "dread-spider"
+        ],
+        "count": 4
+      }
+    ],
+    "minibosses": [
+      "ancient-spider-matriarch"
+    ],
+    "finalBoss": "arachnid-empress",
+    "artifactPool": [
+      "silk-mantle-arachnid",
+      "spider-fang-dagger",
+      "web-walker-boots"
+    ]
+  },
+  {
+    "id": "hythloth-lower",
+    "name": "Hythloth Lower Revamped",
+    "region": "hythloth-lower",
+    "rooms": [
+      {
+        "id": "hyth-l-r1",
+        "spawns": [
+          "daemon-grunt",
+          "horde-minion"
+        ],
+        "count": 6
+      },
+      {
+        "id": "hyth-l-r2",
+        "spawns": [
+          "daemon-mage"
+        ],
+        "count": 4
+      }
+    ],
+    "minibosses": [
+      "arch-daemon"
+    ],
+    "finalBoss": "lord-of-hythloth",
+    "artifactPool": [
+      "hythloth-shroud",
+      "daemon-claw-spear",
+      "soul-glaive-ancient"
+    ]
+  },
+  {
+    "id": "yew-crypts",
+    "name": "Yew Crypts Revamped",
+    "region": "yew-crypts",
+    "rooms": [
+      {
+        "id": "yew-r1",
+        "spawns": [
+          "ghost",
+          "spectre"
+        ],
+        "count": 6
+      }
+    ],
+    "minibosses": [
+      "crypt-warden"
+    ],
+    "finalBoss": "crypt-lord-yew",
+    "artifactPool": [
+      "yew-amulet-of-souls",
+      "lich-coronet"
+    ]
+  },
+  {
+    "id": "bedlam",
+    "name": "Bedlam Revamped",
+    "region": "bedlam",
+    "rooms": [
+      {
+        "id": "bedlam-r1",
+        "spawns": [
+          "asylum-patient",
+          "mad-mage"
+        ],
+        "count": 6
+      },
+      {
+        "id": "bedlam-r2",
+        "spawns": [
+          "bedlam-orderly"
+        ],
+        "count": 4
+      }
+    ],
+    "minibosses": [
+      "head-doctor"
+    ],
+    "finalBoss": "malachi-the-mad",
+    "artifactPool": [
+      "malachi-staff",
+      "asylum-strait-jacket",
+      "mad-mage-pendant"
+    ]
+  },
+  {
+    "id": "blighted-grove",
+    "name": "Blighted Grove Revamped",
+    "region": "blighted-grove",
+    "rooms": [
+      {
+        "id": "blight-r1",
+        "spawns": [
+          "corrupt-treefellow",
+          "blight-spider"
+        ],
+        "count": 6
+      }
+    ],
+    "minibosses": [
+      "putrefier"
+    ],
+    "finalBoss": "lady-melisande",
+    "artifactPool": [
+      "melisande-charm",
+      "thorn-of-corruption"
+    ]
+  },
+  {
+    "id": "painted-caves-extended",
+    "name": "Painted Caves Extended",
+    "region": "painted-caves-ext",
+    "rooms": [
+      {
+        "id": "pce-r1",
+        "spawns": [
+          "ogre-shaman",
+          "cave-troll"
+        ],
+        "count": 6
+      }
+    ],
+    "minibosses": [
+      "cave-king"
+    ],
+    "finalBoss": "troll-warlord",
+    "artifactPool": [
+      "troll-king-club",
+      "cave-lion-cloak"
+    ]
+  },
+  {
+    "id": "twisted-weald",
+    "name": "Twisted Weald Revamped",
+    "region": "twisted-weald",
+    "rooms": [
+      {
+        "id": "tw-r1",
+        "spawns": [
+          "twisted-pixie",
+          "corrupt-dryad"
+        ],
+        "count": 6
+      }
+    ],
+    "minibosses": [
+      "weald-knight"
+    ],
+    "finalBoss": "irk-the-cursed",
+    "artifactPool": [
+      "weald-staff",
+      "irk-pendant",
+      "tangled-thorns"
+    ]
+  },
+  {
+    "id": "parox-lair",
+    "name": "Paroxysmus' Lair Revamped",
+    "region": "parox-lair",
+    "rooms": [
+      {
+        "id": "parox-r1",
+        "spawns": [
+          "corrosive-slime",
+          "gigantic-slime"
+        ],
+        "count": 5
+      }
+    ],
+    "minibosses": [
+      "paroxysmus-spawn"
+    ],
+    "finalBoss": "paroxysmus",
+    "artifactPool": [
+      "paroxysmus-swamp-dragon",
+      "corroded-greatsword",
+      "slime-shroud"
+    ]
+  },
+  {
+    "id": "orc-fortress",
+    "name": "Orc Fortress Revamped",
+    "region": "orc-fort",
+    "rooms": [
+      {
+        "id": "orc-r1",
+        "spawns": [
+          "orc",
+          "orc-mage"
+        ],
+        "count": 8
+      },
+      {
+        "id": "orc-r2",
+        "spawns": [
+          "orc-lord"
+        ],
+        "count": 4
+      }
+    ],
+    "minibosses": [
+      "orc-chieftain"
+    ],
+    "finalBoss": "orc-warlord-grom",
+    "artifactPool": [
+      "grom-cleaver",
+      "orc-warlord-helm",
+      "tribe-totem-fortress"
+    ]
+  },
+  {
+    "id": "lizardmen-fortress",
+    "name": "Lizardmen Fortress Revamped",
+    "region": "lizardmen-fort",
+    "rooms": [
+      {
+        "id": "liz-r1",
+        "spawns": [
+          "lizardman",
+          "lizardman-warrior"
+        ],
+        "count": 7
+      }
+    ],
+    "minibosses": [
+      "lizardman-shaman"
+    ],
+    "finalBoss": "serpentine-warlord",
+    "artifactPool": [
+      "serpentine-blade",
+      "lizardman-tongue-charm"
+    ]
+  },
+  {
+    "id": "ratman-fortress",
+    "name": "Ratman Fortress Revamped",
+    "region": "ratman-fort",
+    "rooms": [
+      {
+        "id": "rat-r1",
+        "spawns": [
+          "ratman",
+          "ratman-mage"
+        ],
+        "count": 7
+      }
+    ],
+    "minibosses": [
+      "ratman-warlord"
+    ],
+    "finalBoss": "gnaw-the-king-rat",
+    "artifactPool": [
+      "gnaw-fang-charm",
+      "ratman-stew"
+    ]
+  },
+  {
+    "id": "magincia-ruins",
+    "name": "Magincia Ruins Revamped",
+    "region": "magincia-ruins",
+    "rooms": [
+      {
+        "id": "mag-r1",
+        "spawns": [
+          "ruined-citizen",
+          "invading-daemon"
+        ],
+        "count": 6
+      },
+      {
+        "id": "mag-r2",
+        "spawns": [
+          "invasion-leader"
+        ],
+        "count": 3
+      }
+    ],
+    "minibosses": [
+      "ruined-citymaster"
+    ],
+    "finalBoss": "overseer-of-the-ruins",
+    "artifactPool": [
+      "ruined-pillar",
+      "magincia-deed-replica",
+      "ash-cloak"
+    ]
+  },
+  {
+    "id": "corgul-galleon",
+    "name": "Corgul's Galleon",
+    "region": "corgul-galleon",
+    "rooms": [
+      {
+        "id": "cor-g-r1",
+        "spawns": [
+          "storm-thrall",
+          "corgul-cultist"
+        ],
+        "count": 6
+      }
+    ],
+    "minibosses": [
+      "cult-master"
+    ],
+    "finalBoss": "corgul-the-soulbinder-redux",
+    "artifactPool": [
+      "corgul-soul-chain",
+      "storm-galleon-wheel"
+    ]
+  },
+  {
+    "id": "doom-revamped",
+    "name": "Doom Revamped Lobby",
+    "region": "doom",
+    "rooms": [
+      {
+        "id": "doom-r1",
+        "spawns": [
+          "doom-skeleton",
+          "doom-zombie"
+        ],
+        "count": 8
+      }
+    ],
+    "minibosses": [
+      "doom-elite"
+    ],
+    "finalBoss": "darkfather",
+    "artifactPool": [
+      "dark-father-cloak",
+      "doom-essence",
+      "reaper-of-life"
+    ]
+  }
+]

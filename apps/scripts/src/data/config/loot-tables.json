@@ -1,0 +1,237 @@
+[
+  {
+    "name": "orc-common",
+    "entries": [
+      { "template": "wooden-shield", "chance": 0.25 },
+      { "template": "broadsword",    "chance": 0.15 },
+      { "template": "raw-ribs",      "chance": 0.5, "amount": [1, 2] }
+    ]
+  },
+  {
+    "name": "rat-common",
+    "entries": [
+      { "template": "raw-ribs", "chance": 0.4 }
+    ]
+  },
+  {
+    "name": "skeleton-common",
+    "entries": [
+      { "template": "wooden-shield", "chance": 0.2 },
+      { "template": "cutlass",       "chance": 0.2 },
+      { "template": "bone",          "chance": 0.8, "amount": [1, 3] }
+    ]
+  },
+  {
+    "name": "dragon-hoard",
+    "entries": [
+      { "template": "ruby",         "chance": 0.6, "amount": [1, 3] },
+      { "template": "sapphire",     "chance": 0.3 },
+      { "template": "emerald",      "chance": 0.3 },
+      { "template": "diamond",      "chance": 0.15 },
+      { "template": "scroll",       "chance": 0.5, "amount": [1, 4] },
+      { "template": "dragon-scale", "chance": 0.9, "amount": [3, 8] }
+    ]
+  },
+  {
+    "name": "lich-common",
+    "entries": [
+      { "template": "bone",      "chance": 0.9, "amount": [2, 5] },
+      { "template": "scroll",    "chance": 0.7, "amount": [1, 3] },
+      { "template": "reagent-nightshade", "chance": 0.5, "amount": [1, 4] },
+      { "template": "reagent-mandrake",   "chance": 0.5, "amount": [1, 4] },
+      { "template": "reagent-black-pearl","chance": 0.5, "amount": [1, 4] },
+      { "template": "sapphire",  "chance": 0.2 }
+    ]
+  },
+  {
+    "name": "ogre-common",
+    "entries": [
+      { "template": "mace",     "chance": 0.25 },
+      { "template": "leather",  "chance": 0.8, "amount": [2, 5] },
+      { "template": "raw-ribs", "chance": 0.5, "amount": [1, 3] }
+    ]
+  },
+  {
+    "name": "gazer-common",
+    "entries": [
+      { "template": "scroll",    "chance": 0.8, "amount": [1, 3] },
+      { "template": "ruby",      "chance": 0.3 },
+      { "template": "emerald",   "chance": 0.3 },
+      { "template": "reagent-black-pearl", "chance": 0.4, "amount": [1, 3] }
+    ]
+  },
+  {
+    "name": "troll-common",
+    "entries": [
+      { "template": "gnarled-staff", "chance": 0.2 },
+      { "template": "leather",       "chance": 0.7, "amount": [1, 4] },
+      { "template": "bandage",       "chance": 0.3, "amount": [1, 3] }
+    ]
+  },
+  {
+    "name": "ettin-common",
+    "entries": [
+      { "template": "mace",         "chance": 0.3 },
+      { "template": "metal-shield", "chance": 0.2 },
+      { "template": "raw-ribs",     "chance": 0.6, "amount": [1, 3] }
+    ]
+  },
+  {
+    "name": "brigand-common",
+    "entries": [
+      { "template": "dagger",   "chance": 0.3 },
+      { "template": "kryss",    "chance": 0.15 },
+      { "template": "cutlass",  "chance": 0.15 },
+      { "template": "bandage",  "chance": 0.4, "amount": [1, 3] }
+    ]
+  },
+
+  { "name": "wolf-common", "entries": [
+    { "template": "raw-ribs", "chance": 0.6, "amount": [1, 2] },
+    { "template": "leather",  "chance": 0.4, "amount": [1, 2] }
+  ]},
+  { "name": "bear-common", "entries": [
+    { "template": "raw-ribs", "chance": 0.7, "amount": [2, 4] },
+    { "template": "leather",  "chance": 0.7, "amount": [2, 5] }
+  ]},
+  { "name": "deer-common", "entries": [
+    { "template": "raw-ribs", "chance": 0.8, "amount": [2, 4] },
+    { "template": "leather",  "chance": 0.4, "amount": [1, 3] }
+  ]},
+  { "name": "boar-common", "entries": [
+    { "template": "raw-ribs", "chance": 0.7, "amount": [1, 3] },
+    { "template": "leather",  "chance": 0.5, "amount": [1, 2] }
+  ]},
+  { "name": "alligator-common", "entries": [
+    { "template": "leather", "chance": 0.9, "amount": [2, 6] }
+  ]},
+  { "name": "snake-common", "entries": [
+    { "template": "reagent-spider-silk", "chance": 0.3, "amount": [1, 2] },
+    { "template": "leather", "chance": 0.4 }
+  ]},
+  { "name": "lizardman-common", "entries": [
+    { "template": "broadsword", "chance": 0.15 },
+    { "template": "wooden-shield", "chance": 0.2 },
+    { "template": "leather", "chance": 0.6, "amount": [2, 4] }
+  ]},
+  { "name": "zombie-common", "entries": [
+    { "template": "bone",     "chance": 0.9, "amount": [1, 3] },
+    { "template": "bandage",  "chance": 0.2 }
+  ]},
+  { "name": "wraith-common", "entries": [
+    { "template": "scroll",  "chance": 0.7, "amount": [1, 2] },
+    { "template": "reagent-black-pearl", "chance": 0.4, "amount": [1, 3] },
+    { "template": "reagent-nightshade",  "chance": 0.4, "amount": [1, 3] }
+  ]},
+  { "name": "bone-knight-common", "entries": [
+    { "template": "broadsword",   "chance": 0.4 },
+    { "template": "metal-shield", "chance": 0.3 },
+    { "template": "bone",         "chance": 0.9, "amount": [2, 6] }
+  ]},
+  { "name": "imp-common", "entries": [
+    { "template": "scroll", "chance": 0.5, "amount": [1, 2] },
+    { "template": "reagent-sulfurous-ash", "chance": 0.4, "amount": [1, 3] }
+  ]},
+  { "name": "daemon-common", "entries": [
+    { "template": "scroll", "chance": 0.8, "amount": [2, 5] },
+    { "template": "ruby",   "chance": 0.3 },
+    { "template": "reagent-sulfurous-ash", "chance": 0.6, "amount": [3, 6] },
+    { "template": "reagent-blood-moss",    "chance": 0.5, "amount": [2, 5] }
+  ]},
+  { "name": "balron-common", "entries": [
+    { "template": "scroll", "chance": 0.95, "amount": [4, 8] },
+    { "template": "diamond", "chance": 0.5 },
+    { "template": "reagent-sulfurous-ash", "chance": 0.9, "amount": [5, 12] }
+  ]},
+  { "name": "elemental-water-common", "entries": [
+    { "template": "reagent-spider-silk", "chance": 0.7, "amount": [2, 5] },
+    { "template": "sapphire", "chance": 0.3 }
+  ]},
+  { "name": "elemental-air-common", "entries": [
+    { "template": "reagent-mandrake", "chance": 0.7, "amount": [2, 5] }
+  ]},
+  { "name": "elemental-earth-common", "entries": [
+    { "template": "reagent-bloodmoss", "chance": 0.5, "amount": [2, 5] },
+    { "template": "emerald", "chance": 0.3 }
+  ]},
+  { "name": "elemental-fire-common", "entries": [
+    { "template": "reagent-sulfurous-ash", "chance": 0.8, "amount": [3, 6] },
+    { "template": "ruby", "chance": 0.4 }
+  ]},
+  { "name": "drake-common", "entries": [
+    { "template": "leather",      "chance": 0.6, "amount": [3, 6] },
+    { "template": "dragon-scale", "chance": 0.5, "amount": [1, 3] },
+    { "template": "ruby",         "chance": 0.3 }
+  ]},
+  { "name": "wyvern-common", "entries": [
+    { "template": "leather",      "chance": 0.6, "amount": [2, 5] },
+    { "template": "scroll",       "chance": 0.4, "amount": [1, 2] },
+    { "template": "sapphire",     "chance": 0.3 }
+  ]},
+  { "name": "ratman-common", "entries": [
+    { "template": "cutlass",  "chance": 0.2 },
+    { "template": "wooden-shield", "chance": 0.15 },
+    { "template": "raw-ribs", "chance": 0.5, "amount": [1, 2] }
+  ]},
+  { "name": "gargoyle-common", "entries": [
+    { "template": "broadsword", "chance": 0.3 },
+    { "template": "metal-shield", "chance": 0.25 },
+    { "template": "scroll",     "chance": 0.5, "amount": [1, 3] }
+  ]},
+  { "name": "frost-troll-common", "entries": [
+    { "template": "mace",     "chance": 0.25 },
+    { "template": "leather",  "chance": 0.7, "amount": [2, 4] }
+  ]},
+  { "name": "phoenix-common", "entries": [
+    { "template": "ruby",                  "chance": 0.7 },
+    { "template": "reagent-sulfurous-ash", "chance": 0.9, "amount": [3, 6] },
+    { "template": "scroll",                "chance": 0.6, "amount": [2, 4] }
+  ]},
+  { "name": "kraken-common", "entries": [
+    { "template": "leather",  "chance": 0.9, "amount": [4, 10] },
+    { "template": "sapphire", "chance": 0.5 },
+    { "template": "scroll",   "chance": 0.6, "amount": [1, 3] }
+  ]},
+  { "name": "sea-serpent-common", "entries": [
+    { "template": "leather", "chance": 0.6, "amount": [2, 5] },
+    { "template": "scroll",  "chance": 0.3 }
+  ]},
+  { "name": "mongbat-common", "entries": [
+    { "template": "raw-ribs", "chance": 0.4 }
+  ]},
+  { "name": "boss-hoard", "entries": [
+    { "template": "ruby",         "chance": 0.95, "amount": [3, 8] },
+    { "template": "sapphire",     "chance": 0.85, "amount": [3, 8] },
+    { "template": "emerald",      "chance": 0.75, "amount": [3, 6] },
+    { "template": "diamond",      "chance": 0.65, "amount": [2, 5] },
+    { "template": "scroll",       "chance": 0.95, "amount": [4, 12] },
+    { "template": "dragon-scale", "chance": 0.4,  "amount": [4, 10] },
+    { "template": "leather",      "chance": 0.7,  "amount": [10, 25] }
+  ]},
+  { "name": "champion-hoard", "entries": [
+    { "template": "ruby",     "chance": 0.7,  "amount": [2, 6] },
+    { "template": "sapphire", "chance": 0.6,  "amount": [2, 6] },
+    { "template": "emerald",  "chance": 0.5,  "amount": [2, 5] },
+    { "template": "diamond",  "chance": 0.4,  "amount": [1, 3] },
+    { "template": "scroll",   "chance": 0.85, "amount": [3, 8] },
+    { "template": "leather",  "chance": 0.6,  "amount": [5, 15] }
+  ]},
+  { "name": "boss-rare-drop", "entries": [
+    { "artifact": true, "unique": true, "tier": ["greater", "lesser"], "chance": 0.05 },
+    { "magicItem": { "count": 4, "budget": 0.85, "slot": "weapon" }, "chance": 0.10 },
+    { "magicItem": { "count": 4, "budget": 0.85, "slot": "armor"  }, "chance": 0.10 }
+  ]},
+  { "name": "champion-rare-drop", "entries": [
+    { "artifact": true, "unique": true, "tier": "greater", "chance": 0.10 },
+    { "artifact": true, "unique": true, "tier": "lesser",  "chance": 0.20 },
+    { "magicItem": { "count": 5, "budget": 0.95, "slot": "weapon" }, "chance": 0.20 },
+    { "magicItem": { "count": 5, "budget": 0.95, "slot": "armor"  }, "chance": 0.20 }
+  ]},
+  { "name": "elite-magic-drop", "entries": [
+    { "magicItem": { "count": 2, "budget": 0.4, "slot": "weapon" }, "chance": 0.15 },
+    { "magicItem": { "count": 2, "budget": 0.4, "slot": "armor"  }, "chance": 0.10 }
+  ]},
+  { "name": "housing-rare-drop", "entries": [
+    { "artifact": true, "tier": "decorative", "chance": 0.02 }
+  ]}
+]

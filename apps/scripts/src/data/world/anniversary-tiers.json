@@ -1,0 +1,13 @@
+[
+  { "years":  1, "gift": "first-anniversary-token",        "label": "1-year commemorative token",  "itemId": 5360 },
+  { "years":  2, "gift": "second-anniversary-sash",        "label": "2-year red sash",              "itemId": 5441,  "hue": 33 },
+  { "years":  3, "gift": "third-anniversary-cake",         "label": "3-year birthday cake",         "itemId": 2537 },
+  { "years":  5, "gift": "fifth-anniversary-statuette",    "label": "5-year statuette",             "itemId": 8402 },
+  { "years": 10, "gift": "tenth-anniversary-pillow",       "label": "10-year pillow",               "itemId": 5073,  "hue": 1150 },
+  { "years": 15, "gift": "fifteenth-anniversary-banner",   "label": "15-year banner",               "itemId": 5540,  "hue": 1161 },
+  { "years": 18, "gift": "eighteenth-anniversary-cake",    "label": "18-year cake",                 "itemId": 2537,  "hue": 1153 },
+  { "years": 20, "gift": "twentieth-anniversary-painting", "label": "20-year painting",             "itemId": 4011 },
+  { "years": 22, "gift": "twentysecond-anniversary-globe", "label": "22-year globe",                "itemId": 6249,  "hue": 1150 },
+  { "years": 25, "gift": "twentyfifth-anniversary-crown",  "label": "25-year golden crown",         "itemId": 5915,  "hue": 2213 },
+  { "years": 30, "gift": "thirtieth-anniversary-throne",   "label": "30-year throne",               "itemId": 4632,  "hue": 2085 }
+]

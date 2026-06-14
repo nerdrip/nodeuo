@@ -1,0 +1,278 @@
+{
+  "Filthy": {
+    "name": "pack.filthy",
+    "entries": [
+      {
+        "itemId": 3821,
+        "min": 1,
+        "max": 25,
+        "chance": 1
+      }
+    ]
+  },
+  "Poor": {
+    "name": "pack.poor",
+    "entries": [
+      {
+        "itemId": 3821,
+        "min": 25,
+        "max": 75,
+        "chance": 1
+      },
+      {
+        "itemId": 3963,
+        "min": 1,
+        "max": 2,
+        "chance": 0.05
+      }
+    ]
+  },
+  "Meager": {
+    "name": "pack.meager",
+    "entries": [
+      {
+        "itemId": 3821,
+        "min": 100,
+        "max": 250,
+        "chance": 1
+      },
+      {
+        "itemId": 3963,
+        "min": 1,
+        "max": 4,
+        "chance": 0.1
+      },
+      {
+        "itemId": 3974,
+        "min": 1,
+        "max": 4,
+        "chance": 0.1
+      },
+      {
+        "itemId": 7981,
+        "min": 1,
+        "max": 1,
+        "chance": 0.05
+      }
+    ]
+  },
+  "Average": {
+    "name": "pack.average",
+    "entries": [
+      {
+        "itemId": 3821,
+        "min": 250,
+        "max": 750,
+        "chance": 1
+      },
+      {
+        "itemId": 3963,
+        "min": 2,
+        "max": 6,
+        "chance": 0.2
+      },
+      {
+        "itemId": 3974,
+        "min": 2,
+        "max": 6,
+        "chance": 0.2
+      },
+      {
+        "itemId": 7981,
+        "min": 1,
+        "max": 1,
+        "chance": 0.1
+      },
+      {
+        "itemId": 5355,
+        "min": 1,
+        "max": 1,
+        "chance": 0.05
+      }
+    ]
+  },
+  "Rich": {
+    "name": "pack.rich",
+    "entries": [
+      {
+        "itemId": 3821,
+        "min": 750,
+        "max": 1500,
+        "chance": 1
+      },
+      {
+        "itemId": 3963,
+        "min": 5,
+        "max": 10,
+        "chance": 0.4
+      },
+      {
+        "itemId": 3974,
+        "min": 5,
+        "max": 10,
+        "chance": 0.4
+      },
+      {
+        "itemId": 7981,
+        "min": 1,
+        "max": 1,
+        "chance": 0.2
+      },
+      {
+        "itemId": 5355,
+        "min": 1,
+        "max": 1,
+        "chance": 0.1
+      },
+      {
+        "itemId": 7962,
+        "min": 1,
+        "max": 1,
+        "chance": 0.05
+      }
+    ]
+  },
+  "FilthyRich": {
+    "name": "pack.filthy-rich",
+    "entries": [
+      {
+        "itemId": 3821,
+        "min": 1500,
+        "max": 3000,
+        "chance": 1
+      },
+      {
+        "itemId": 3963,
+        "min": 8,
+        "max": 15,
+        "chance": 0.55
+      },
+      {
+        "itemId": 3974,
+        "min": 8,
+        "max": 15,
+        "chance": 0.55
+      },
+      {
+        "itemId": 7981,
+        "min": 1,
+        "max": 2,
+        "chance": 0.3
+      },
+      {
+        "itemId": 5355,
+        "min": 1,
+        "max": 1,
+        "chance": 0.2
+      },
+      {
+        "itemId": 7962,
+        "min": 1,
+        "max": 1,
+        "chance": 0.15
+      },
+      {
+        "itemId": 7953,
+        "min": 1,
+        "max": 1,
+        "chance": 0.1
+      }
+    ]
+  },
+  "UltraRich": {
+    "name": "pack.ultra-rich",
+    "entries": [
+      {
+        "itemId": 3821,
+        "min": 3000,
+        "max": 6000,
+        "chance": 1
+      },
+      {
+        "itemId": 3963,
+        "min": 12,
+        "max": 20,
+        "chance": 0.7
+      },
+      {
+        "itemId": 3974,
+        "min": 12,
+        "max": 20,
+        "chance": 0.7
+      },
+      {
+        "itemId": 7981,
+        "min": 2,
+        "max": 3,
+        "chance": 0.5
+      },
+      {
+        "itemId": 5355,
+        "min": 1,
+        "max": 2,
+        "chance": 0.3
+      },
+      {
+        "itemId": 7962,
+        "min": 1,
+        "max": 2,
+        "chance": 0.3
+      },
+      {
+        "itemId": 7953,
+        "min": 1,
+        "max": 2,
+        "chance": 0.2
+      },
+      {
+        "artifact": true,
+        "chance": 0.05
+      }
+    ]
+  },
+  "SuperBoss": {
+    "name": "pack.super-boss",
+    "entries": [
+      {
+        "itemId": 3821,
+        "min": 6000,
+        "max": 15000,
+        "chance": 1
+      },
+      {
+        "itemId": 3963,
+        "min": 20,
+        "max": 40,
+        "chance": 0.95
+      },
+      {
+        "itemId": 3974,
+        "min": 20,
+        "max": 40,
+        "chance": 0.95
+      },
+      {
+        "itemId": 7981,
+        "min": 3,
+        "max": 5,
+        "chance": 0.85
+      },
+      {
+        "itemId": 5355,
+        "min": 2,
+        "max": 4,
+        "chance": 0.5
+      },
+      {
+        "itemId": 7962,
+        "min": 2,
+        "max": 4,
+        "chance": 0.5
+      },
+      {
+        "artifact": true,
+        "chance": 0.3
+      }
+    ]
+  }
+}

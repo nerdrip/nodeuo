@@ -1,0 +1,8 @@
+{
+  "_comment": "Magincia Bazaar 4x4 stall grid — center + spacing.",
+  "centerX": 3713,
+  "centerY": 2113,
+  "map": 1,
+  "gridStride": 4,
+  "gridRange": 6
+}

@@ -1,0 +1,6031 @@
+{
+  "aquarium": {
+    "name": "Aquarium",
+    "script": "aquarium",
+    "kind": "container",
+    "container": true,
+    "gumpId": 61,
+    "capacity": 30,
+    "maxWeight": 400,
+    "servuoClass": "Aquarium",
+    "servuoClasses": ["Aquarium", "AquariumState", "AquariumGump", "ExamineEntry", "CollectRewardEntry", "ViewEventEntry", "CancelVacationMode", "GMAddFood", "GMAddWater", "GMForceEvaluate", "GMOpen", "GMFill"],
+    "components": [
+      { "dx": -1, "dy": 0, "id": 12385, "script": "aquarium", "name": "Aquarium", "container": true, "gumpId": 61, "capacity": 30, "maxWeight": 400, "servuoClass": "Aquarium", "servuoClasses": ["Aquarium", "AquariumState", "AquariumGump", "ExamineEntry", "CollectRewardEntry", "ViewEventEntry", "CancelVacationMode", "GMAddFood", "GMAddWater", "GMForceEvaluate", "GMOpen", "GMFill"] },
+      { "dx": 0, "dy": -1, "id": 12387, "script": "aquarium", "name": "Aquarium", "container": true, "gumpId": 61, "capacity": 30, "maxWeight": 400, "servuoClass": "Aquarium", "servuoClasses": ["Aquarium", "AquariumState", "AquariumGump", "ExamineEntry", "CollectRewardEntry", "ViewEventEntry", "CancelVacationMode", "GMAddFood", "GMAddWater", "GMForceEvaluate", "GMOpen", "GMFill"] }
+    ]
+  },
+  "fountain-of-life": {
+    "name": "Fountain of Life",
+    "script": "fountain-of-life",
+    "kind": "container",
+    "container": true,
+    "gumpId": 1156,
+    "capacity": 125,
+    "maxWeight": 400,
+    "fountainCharges": 10,
+    "fountainMaxCharges": 10,
+    "servuoClass": "FountainOfLife",
+    "servuoClasses": ["FountainOfLife", "FountainOfLifeDeed", "EnhancedBandage", "BaseAddonContainer"],
+    "deed": {
+      "name": "Fountain of Life Deed",
+      "tagId": "fountain-of-life-deed",
+      "servuoClass": "FountainOfLifeDeed",
+      "servuoClasses": ["FountainOfLifeDeed", "FountainOfLife"],
+      "blessed": true
+    },
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10944,
+        "script": "fountain-of-life",
+        "name": "Fountain of Life",
+        "container": true,
+        "gumpId": 1156,
+        "capacity": 125,
+        "maxWeight": 400,
+        "fountainCharges": 10,
+        "fountainMaxCharges": 10,
+        "servuoClass": "FountainOfLife",
+        "servuoClasses": ["FountainOfLife", "FountainOfLifeDeed", "EnhancedBandage", "BaseAddonContainer"]
+      }
+    ]
+  },
+  "fountain": {
+    "name": "Fountain",
+    "script": "fountain",
+    "servuoClass": "FountainAddon",
+    "servuoClasses": ["FountainAddon", "FountainDeed", "StoneFountainAddon"],
+    "deed": {
+      "name": "Fountain Deed",
+      "tagId": "fountain-deed",
+      "labelNumber": 1076283,
+      "blessed": true,
+      "servuoClass": "FountainDeed",
+      "servuoClasses": ["FountainDeed", "FountainAddon", "StoneFountainAddon"]
+    },
+    "components": [
+      { "dx": -2, "dy": 1, "id": 5937, "script": "fountain" },
+      { "dx": -1, "dy": 1, "id": 5938, "script": "fountain" },
+      { "dx": 0, "dy": 1, "id": 5939, "script": "fountain" },
+      { "dx": 1, "dy": 1, "id": 5940, "script": "fountain" },
+      { "dx": 1, "dy": 0, "id": 5941, "script": "fountain" },
+      { "dx": 1, "dy": -1, "id": 5942, "script": "fountain" },
+      { "dx": 1, "dy": -2, "id": 5943, "script": "fountain" },
+      { "dx": 0, "dy": -2, "id": 5944, "script": "fountain" },
+      { "dx": 0, "dy": -1, "id": 5945, "script": "fountain" },
+      { "dx": 0, "dy": 0, "id": 5946, "script": "fountain" },
+      { "dx": -1, "dy": 0, "id": 5947, "script": "fountain" },
+      { "dx": -2, "dy": 0, "id": 5948, "script": "fountain" },
+      { "dx": -2, "dy": -1, "id": 5949, "script": "fountain" },
+      { "dx": -1, "dy": -1, "id": 5950, "script": "fountain" },
+      { "dx": -1, "dy": -2, "id": 5951, "script": "fountain" },
+      { "dx": -2, "dy": -2, "id": 5953, "script": "fountain" }
+    ]
+  },
+  "giant-web-1": {
+    "name": "Giant Web 1",
+    "servuoClass": "GiantWeb1",
+    "servuoClasses": ["GiantWeb1"],
+    "components": [
+      { "dx": 4, "dy": -4, "id": 4280 },
+      { "dx": 3, "dy": -3, "id": 4281 },
+      { "dx": 2, "dy": -2, "id": 4282 },
+      { "dx": 1, "dy": -1, "id": 4283 },
+      { "dx": 0, "dy": 0, "id": 4284 }
+    ]
+  },
+  "giant-web-2": {
+    "name": "Giant Web 2",
+    "servuoClass": "GiantWeb2",
+    "servuoClasses": ["GiantWeb2"],
+    "components": [
+      { "dx": 0, "dy": 0, "id": 4285 },
+      { "dx": 1, "dy": -1, "id": 4286 },
+      { "dx": 2, "dy": -2, "id": 4287 },
+      { "dx": 3, "dy": -3, "id": 4288 },
+      { "dx": 4, "dy": -4, "id": 4289 }
+    ]
+  },
+  "giant-web-3": {
+    "name": "Giant Web 3",
+    "servuoClass": "GiantWeb3",
+    "servuoClasses": ["GiantWeb3"],
+    "components": [
+      { "dx": 0, "dy": 0, "id": 4290 },
+      { "dx": 1, "dy": -1, "id": 4291 },
+      { "dx": 2, "dy": -2, "id": 4292 },
+      { "dx": 3, "dy": -3, "id": 4293 }
+    ]
+  },
+  "giant-web-4": {
+    "name": "Giant Web 4",
+    "servuoClass": "GiantWeb4",
+    "servuoClasses": ["GiantWeb4"],
+    "components": [
+      { "dx": 3, "dy": -3, "id": 4294 },
+      { "dx": 2, "dy": -2, "id": 4295 },
+      { "dx": 1, "dy": -1, "id": 4296 },
+      { "dx": 0, "dy": 0, "id": 4297 }
+    ]
+  },
+  "giant-web-5": {
+    "name": "Giant Web 5",
+    "servuoClass": "GiantWeb5",
+    "servuoClasses": ["GiantWeb5"],
+    "components": [
+      { "dx": 0, "dy": 0, "id": 4298 },
+      { "dx": 1, "dy": -1, "id": 4299 },
+      { "dx": 2, "dy": -2, "id": 4300 },
+      { "dx": 3, "dy": -3, "id": 4301 }
+    ]
+  },
+  "giant-web-6": {
+    "name": "Giant Web 6",
+    "servuoClass": "GiantWeb6",
+    "servuoClasses": ["GiantWeb6"],
+    "components": [
+      { "dx": 3, "dy": -3, "id": 4302 },
+      { "dx": 2, "dy": -2, "id": 4303 },
+      { "dx": 1, "dy": -1, "id": 4304 },
+      { "dx": 0, "dy": 0, "id": 4305 }
+    ]
+  },
+  "garden-shed-east": {
+    "name": "Garden Shed",
+    "container": true,
+    "kind": "container",
+    "capacity": 125,
+    "maxWeight": 400,
+    "gumpId": 267,
+    "labelNumber": 1153492,
+    "servuoClasses": ["GardenShedAddon", "GardenShedBarrel", "GardenShedComponent", "GardenShedDeed", "IRewardItem"],
+    "components": [
+      { "dx": 0, "dy": 0, "id": 19435, "name": "Garden Shed", "container": true, "kind": "container", "gumpId": 267, "servuoClass": "GardenShedAddon", "servuoClasses": ["GardenShedAddon", "BaseAddonContainer"] },
+      { "dx": 0, "dy": -2, "id": 19437, "name": "Garden Shed", "container": true, "kind": "container", "gumpId": 62, "servuoClass": "GardenShedBarrel", "servuoClasses": ["GardenShedBarrel", "BaseAddonContainer"] },
+      { "dx": 0, "dy": 1, "id": 19434, "servuoClass": "GardenShedComponent" },
+      { "dx": 0, "dy": -1, "id": 19436, "servuoClass": "GardenShedComponent" },
+      { "dx": -1, "dy": 1, "id": 19441, "servuoClass": "GardenShedComponent" },
+      { "dx": -1, "dy": 0, "id": 19440, "servuoClass": "GardenShedComponent" },
+      { "dx": -2, "dy": -1, "id": 19439, "servuoClass": "GardenShedComponent" },
+      { "dx": -1, "dy": -2, "id": 19438, "servuoClass": "GardenShedComponent" },
+      { "dx": -2, "dy": -2, "id": 19445, "servuoClass": "GardenShedComponent" },
+      { "dx": -2, "dy": 0, "id": 19443, "servuoClass": "GardenShedComponent" },
+      { "dx": -2, "dy": 1, "id": 19434, "servuoClass": "GardenShedComponent" }
+    ]
+  },
+  "garden-shed-south": {
+    "name": "Garden Shed",
+    "container": true,
+    "kind": "container",
+    "capacity": 125,
+    "maxWeight": 400,
+    "gumpId": 267,
+    "labelNumber": 1153492,
+    "servuoClasses": ["GardenShedAddon", "GardenShedBarrel", "GardenShedComponent", "GardenShedDeed", "IRewardItem"],
+    "components": [
+      { "dx": 0, "dy": 0, "id": 19431, "name": "Garden Shed", "container": true, "kind": "container", "gumpId": 267, "servuoClass": "GardenShedAddon", "servuoClasses": ["GardenShedAddon", "BaseAddonContainer"] },
+      { "dx": 2, "dy": 0, "id": 19433, "name": "Garden Shed", "container": true, "kind": "container", "gumpId": 62, "servuoClass": "GardenShedBarrel", "servuoClasses": ["GardenShedBarrel", "BaseAddonContainer"] },
+      { "dx": 2, "dy": -1, "id": 19426, "servuoClass": "GardenShedComponent" },
+      { "dx": -1, "dy": -1, "id": 19429, "servuoClass": "GardenShedComponent" },
+      { "dx": -1, "dy": -2, "id": 19422, "servuoClass": "GardenShedComponent" },
+      { "dx": 2, "dy": -2, "id": 19425, "servuoClass": "GardenShedComponent" },
+      { "dx": 1, "dy": 0, "id": 19432, "servuoClass": "GardenShedComponent" },
+      { "dx": 1, "dy": -1, "id": 19427, "servuoClass": "GardenShedComponent" },
+      { "dx": -1, "dy": 0, "id": 19430, "servuoClass": "GardenShedComponent" },
+      { "dx": 1, "dy": -2, "id": 19424, "servuoClass": "GardenShedComponent" },
+      { "dx": 0, "dy": -1, "id": 19428, "servuoClass": "GardenShedComponent" }
+    ]
+  },
+  "mining-cart-ore-south": {
+    "name": "Mining Cart",
+    "script": "mining-cart",
+    "labelNumber": 1026786,
+    "miningCartType": "OreSouth",
+    "servuoClasses": ["MiningCart", "MiningCartType", "MiningCartDeed", "InternalAddonComponent", "IRewardItem", "IRewardOption"],
+    "components": [
+      { "dx": 0, "dy": 0, "id": 6787, "script": "mining-cart", "miningCartType": "OreSouth", "miningCartState": true },
+      { "dx": 0, "dy": 1, "id": 6786, "script": "mining-cart", "miningCartType": "OreSouth" },
+      { "dx": 0, "dy": -1, "id": 6790, "script": "mining-cart", "miningCartType": "OreSouth" }
+    ]
+  },
+  "mining-cart-ore-east": {
+    "name": "Mining Cart",
+    "script": "mining-cart",
+    "labelNumber": 1026786,
+    "miningCartType": "OreEast",
+    "servuoClasses": ["MiningCart", "MiningCartType", "MiningCartDeed", "InternalAddonComponent", "IRewardItem", "IRewardOption"],
+    "components": [
+      { "dx": 0, "dy": 0, "id": 6792, "script": "mining-cart", "miningCartType": "OreEast", "miningCartState": true },
+      { "dx": 1, "dy": 0, "id": 6791, "script": "mining-cart", "miningCartType": "OreEast" },
+      { "dx": -1, "dy": 0, "id": 6795, "script": "mining-cart", "miningCartType": "OreEast" }
+    ]
+  },
+  "mining-cart-gem-south": {
+    "name": "Mining Cart",
+    "script": "mining-cart",
+    "labelNumber": 1080388,
+    "miningCartType": "GemSouth",
+    "servuoClasses": ["MiningCart", "MiningCartType", "MiningCartDeed", "InternalAddonComponent", "IRewardItem", "IRewardOption"],
+    "components": [
+      { "dx": 0, "dy": 0, "id": 6787, "script": "mining-cart", "miningCartType": "GemSouth", "miningCartState": true },
+      { "dx": 0, "dy": 1, "id": 6786, "script": "mining-cart", "miningCartType": "GemSouth" },
+      { "dx": 0, "dy": -1, "id": 6790, "script": "mining-cart", "miningCartType": "GemSouth" },
+      { "dx": 0, "dy": 0, "dz": 6, "id": 3884 },
+      { "dx": 0, "dy": 0, "dz": 5, "id": 3869 },
+      { "dx": 0, "dy": 0, "dz": 2, "id": 3883 },
+      { "dx": 0, "dy": 0, "dz": 1, "id": 3873 },
+      { "dx": 0, "dy": 0, "dz": 4, "id": 3874 },
+      { "dx": 0, "dy": 0, "dz": 5, "id": 3887 },
+      { "dx": 0, "dy": 0, "dz": 6, "id": 3878 },
+      { "dx": 0, "dy": 0, "dz": 3, "id": 3879 },
+      { "dx": 0, "dy": 0, "dz": 0, "id": 3881 }
+    ]
+  },
+  "mining-cart-gem-east": {
+    "name": "Mining Cart",
+    "script": "mining-cart",
+    "labelNumber": 1080388,
+    "miningCartType": "GemEast",
+    "servuoClasses": ["MiningCart", "MiningCartType", "MiningCartDeed", "InternalAddonComponent", "IRewardItem", "IRewardOption"],
+    "components": [
+      { "dx": 0, "dy": 0, "id": 6792, "script": "mining-cart", "miningCartType": "GemEast", "miningCartState": true },
+      { "dx": 1, "dy": 0, "id": 6791, "script": "mining-cart", "miningCartType": "GemEast" },
+      { "dx": -1, "dy": 0, "id": 6795, "script": "mining-cart", "miningCartType": "GemEast" },
+      { "dx": 0, "dy": 0, "dz": 6, "id": 3886 },
+      { "dx": 0, "dy": 0, "dz": 3, "id": 3858 },
+      { "dx": 0, "dy": 0, "dz": 1, "id": 3881 },
+      { "dx": 0, "dy": 0, "dz": 5, "id": 3876 },
+      { "dx": 0, "dy": 0, "dz": 1, "id": 3873 },
+      { "dx": 0, "dy": 0, "dz": 3, "id": 3883 },
+      { "dx": 0, "dy": 0, "dz": 4, "id": 3887 },
+      { "dx": 0, "dy": 0, "dz": 3, "id": 3875 },
+      { "dx": 0, "dy": 0, "dz": 3, "id": 3879 }
+    ]
+  },
+  "harpsichord-south": {
+    "name": "Harpsichord",
+    "script": "harpsichord",
+    "harpsichordDirection": "South",
+    "servuoClasses": ["HarpsichordAddon", "HarpsichordAddonDeed", "HarpsichordSongGump", "HarpsichordColor", "DirectionType", "IRewardOption"],
+    "components": [
+      { "dx": 2, "dy": 0, "id": 25539, "script": "harpsichord", "harpsichordDirection": "South", "harpsichordState": true },
+      { "dx": 2, "dy": 1, "id": 25540, "script": "harpsichord", "harpsichordDirection": "South" },
+      { "dx": -1, "dy": 0, "id": 25545, "script": "harpsichord", "harpsichordDirection": "South" },
+      { "dx": 0, "dy": 1, "id": 25543, "script": "harpsichord", "harpsichordDirection": "South" },
+      { "dx": 1, "dy": 1, "id": 25541, "script": "harpsichord", "harpsichordDirection": "South" },
+      { "dx": 1, "dy": 0, "id": 25542, "script": "harpsichord", "harpsichordDirection": "South" },
+      { "dx": 0, "dy": 0, "id": 25544, "script": "harpsichord", "harpsichordDirection": "South" }
+    ]
+  },
+  "harpsichord-east": {
+    "name": "Harpsichord",
+    "script": "harpsichord",
+    "harpsichordDirection": "East",
+    "servuoClasses": ["HarpsichordAddon", "HarpsichordAddonDeed", "HarpsichordSongGump", "HarpsichordColor", "DirectionType", "IRewardOption"],
+    "components": [
+      { "dx": 1, "dy": 2, "id": 25532, "script": "harpsichord", "harpsichordDirection": "East", "harpsichordState": true },
+      { "dx": 0, "dy": 2, "id": 25533, "script": "harpsichord", "harpsichordDirection": "East" },
+      { "dx": 0, "dy": -1, "id": 25538, "script": "harpsichord", "harpsichordDirection": "East" },
+      { "dx": 1, "dy": 0, "id": 25537, "script": "harpsichord", "harpsichordDirection": "East" },
+      { "dx": 0, "dy": 0, "id": 25536, "script": "harpsichord", "harpsichordDirection": "East" },
+      { "dx": 1, "dy": 1, "id": 25535, "script": "harpsichord", "harpsichordDirection": "East" },
+      { "dx": 0, "dy": 1, "id": 25534, "script": "harpsichord", "harpsichordDirection": "East" }
+    ]
+  },
+  "sheep-statue": {
+    "name": "Sheep Statue",
+    "script": "sheep-statue",
+    "labelNumber": 1151835,
+    "servuoClass": "SheepStatue",
+    "servuoClasses": ["SheepStatue", "SheepStatueDeed", "InternalAddonComponent", "IRewardItem"],
+    "components": [
+      { "dx": 0, "dy": 0, "id": 19093, "script": "sheep-statue", "sheepResourceCount": 0 }
+    ]
+  },
+  "gold-carpet": {
+    "name": "goldcarpet",
+    "servuoClass": "GoldCarpetAddon",
+    "servuoClasses": ["GoldCarpetAddon", "goldcarpetAddonDeed"],
+    "deed": {
+      "name": "goldcarpet",
+      "tagId": "gold-carpet-deed",
+      "servuoClass": "goldcarpetAddonDeed",
+      "servuoClasses": ["goldcarpetAddonDeed", "GoldCarpetAddon"]
+    },
+    "components": [
+      { "dx": 2, "dy": 2, "id": 2779 },
+      { "dx": 2, "dy": 1, "id": 2785 },
+      { "dx": 2, "dy": 0, "id": 2785 },
+      { "dx": 1, "dy": 2, "id": 2786 },
+      { "dx": 0, "dy": 2, "id": 2786 },
+      { "dx": -2, "dy": 2, "id": 2781 },
+      { "dx": -1, "dy": 2, "id": 2786 },
+      { "dx": 2, "dy": -2, "id": 2782 },
+      { "dx": -2, "dy": 1, "id": 2783 },
+      { "dx": -2, "dy": 0, "id": 2783 },
+      { "dx": -2, "dy": -1, "id": 2783 },
+      { "dx": 1, "dy": -2, "id": 2784 },
+      { "dx": 0, "dy": -2, "id": 2784 },
+      { "dx": -1, "dy": -2, "id": 2784 },
+      { "dx": 2, "dy": -1, "id": 2785 },
+      { "dx": -2, "dy": -2, "id": 2780 },
+      { "dx": -1, "dy": -1, "id": 2778 },
+      { "dx": -1, "dy": 0, "id": 2778 },
+      { "dx": -1, "dy": 1, "id": 2778 },
+      { "dx": 0, "dy": 1, "id": 2778 },
+      { "dx": 0, "dy": 0, "id": 2778 },
+      { "dx": 0, "dy": -1, "id": 2778 },
+      { "dx": 1, "dy": -1, "id": 2778 },
+      { "dx": 1, "dy": 0, "id": 2778 },
+      { "dx": 1, "dy": 1, "id": 2778 }
+    ]
+  },
+  "medusa-s-nest": {
+    "name": "MedusaSNest",
+    "servuoClass": "MedusaSNestAddon",
+    "servuoClasses": ["MedusaSNestAddon", "MedusaSNestAddonDeed"],
+    "deed": {
+      "name": "MedusaSNest",
+      "tagId": "medusa-s-nest-deed",
+      "servuoClass": "MedusaSNestAddonDeed",
+      "servuoClasses": ["MedusaSNestAddonDeed", "MedusaSNestAddon"]
+    },
+    "components": [
+      { "dx": -1, "dy": 1, "id": 7045 },
+      { "dx": 0, "dy": 0, "id": 12795 },
+      { "dx": 1, "dy": 0, "id": 7054 },
+      { "dx": 1, "dy": 1, "id": 7042 },
+      { "dx": -1, "dy": -1, "id": 7046 },
+      { "dx": -1, "dy": 0, "id": 7054 },
+      { "dx": 1, "dy": -1, "id": 7065 },
+      { "dx": 0, "dy": 1, "id": 7054 },
+      { "dx": 0, "dy": -1, "id": 7054 }
+    ]
+  },
+  "geoffrey-camp": {
+    "name": "Geoffrey Camp",
+    "servuoClass": "GeoffreyCampAddon",
+    "servuoClasses": ["GeoffreyCampAddon"],
+    "noDeed": true,
+    "components": [
+      { "dx": 8, "dy": 9, "dz": 12, "id": 7864 },
+      { "dx": 12, "dy": 3, "id": 7135 },
+      { "dx": 8, "dy": 9, "id": 2960 },
+      { "dx": 11, "dy": 2, "id": 7135 },
+      { "dx": 10, "dy": 3, "id": 7135 },
+      { "dx": 9, "dy": 9, "dz": 9, "id": 4148 },
+      { "dx": 11, "dy": 4, "id": 7135 },
+      { "dx": 8, "dy": 3, "dz": 5, "id": 17100 },
+      { "dx": -8, "dy": 14, "id": 3728 },
+      { "dx": -5, "dy": 17, "id": 16933 },
+      { "dx": -6, "dy": 17, "id": 3730 },
+      { "dx": -6, "dy": 16, "id": 3731 },
+      { "dx": -4, "dy": 0, "id": 4132 },
+      { "dx": -8, "dy": 12, "id": 16933 },
+      { "dx": -1, "dy": 8, "id": 2591 },
+      { "dx": -1, "dy": 2, "id": 543 },
+      { "dx": -6, "dy": -1, "id": 4106 },
+      { "dx": 1, "dy": 2, "id": 543 },
+      { "dx": 7, "dy": 3, "id": 2592 },
+      { "dx": 0, "dy": 1, "id": 542 },
+      { "dx": 3, "dy": 8, "id": 2591 },
+      { "dx": 0, "dy": 3, "id": 542 },
+      { "dx": 6, "dy": -8, "id": 3734 },
+      { "dx": -6, "dy": -3, "id": 4106 },
+      { "dx": 4, "dy": -8, "id": 3732 },
+      { "dx": 5, "dy": -7, "id": 16933 },
+      { "dx": 5, "dy": -8, "id": 3733 },
+      { "dx": -9, "dy": 14, "id": 3727 },
+      { "dx": -10, "dy": 14, "id": 3726 },
+      { "dx": -11, "dy": -13, "id": 3723 },
+      { "dx": -11, "dy": -16, "id": 16933 },
+      { "dx": -11, "dy": -15, "id": 3725 },
+      { "dx": -11, "dy": -14, "id": 3724 },
+      { "dx": -1, "dy": 9, "dz": 6, "id": 17099, "name": "banner", "light": { "type": -1 } },
+      { "dx": 0, "dy": 2, "dz": 10, "id": 6571 },
+      { "dx": 0, "dy": 2, "id": 9407 }
+    ]
+  },
+  "alchemists-bookshelf-south": {
+    "name": "Alchemist Bookcase",
+    "kind": "container",
+    "container": true,
+    "gumpId": 77,
+    "capacity": 125,
+    "maxWeight": 400,
+    "servuoClass": "AlchemistsBookshelfAddon",
+    "servuoClasses": ["AlchemistsBookshelfAddon", "AlchemistsBookshelfDeed", "AddonOptionGump", "IRewardOption"],
+    "components": [
+      { "dx": 0, "dy": 0, "id": 19492, "container": true, "kind": "container", "gumpId": 77, "servuoClass": "AlchemistsBookshelfAddon" }
+    ]
+  },
+  "alchemists-bookshelf-east": {
+    "name": "Alchemist Bookcase",
+    "kind": "container",
+    "container": true,
+    "gumpId": 77,
+    "capacity": 125,
+    "maxWeight": 400,
+    "servuoClass": "AlchemistsBookshelfAddon",
+    "servuoClasses": ["AlchemistsBookshelfAddon", "AlchemistsBookshelfDeed", "AddonOptionGump", "IRewardOption"],
+    "components": [
+      { "dx": 0, "dy": 0, "id": 19493, "container": true, "kind": "container", "gumpId": 77, "servuoClass": "AlchemistsBookshelfAddon" }
+    ]
+  },
+  "flaming-head": {
+    "name": "Flaming Head",
+    "script": "flaming-head",
+    "labelNumber": 1041266,
+    "blessed": true,
+    "isRewardItem": true,
+    "servuoClass": "FlamingHead",
+    "servuoClasses": ["FlamingHead", "FlamingHeadDeed", "StoneFaceTrapNoDamage", "StoneFaceTrap", "StoneFaceTrapType", "IRewardItem"],
+    "noDeed": true,
+    "components": [
+      { "dx": 0, "dy": 0, "id": 4348, "script": "flaming-head", "flamingHeadType": "north-wall" }
+    ]
+  },
+  "pickpocket-dip-east": {
+    "name": "Pickpocket Dip",
+    "script": "pickpocket-dip",
+    "labelNumber": 1044337,
+    "servuoClasses": ["PickpocketDip", "PickpocketDipEastAddon", "PickpocketDipEastDeed", "InternalTimer", "FlipableAttribute"],
+    "components": [
+      { "dx": 0, "dy": 0, "id": 7875, "script": "pickpocket-dip", "pickpocketMinSkill": -25, "pickpocketMaxSkill": 25 }
+    ]
+  },
+  "pickpocket-dip-south": {
+    "name": "Pickpocket Dip",
+    "script": "pickpocket-dip",
+    "labelNumber": 1044338,
+    "servuoClasses": ["PickpocketDip", "PickpocketDipSouthAddon", "PickpocketDipSouthDeed", "InternalTimer", "FlipableAttribute"],
+    "components": [
+      { "dx": 0, "dy": 0, "id": 7872, "script": "pickpocket-dip", "pickpocketMinSkill": -25, "pickpocketMaxSkill": 25 }
+    ]
+  },
+  "dolphin-rug-large-east": {
+    "name": "Dolphin Rug",
+    "script": "dolphin-rug",
+    "servuoClasses": ["DolphinRugAddon", "DolphinRugAddonDeed", "InternalAddonComponent", "RugType", "IRewardItem", "IRewardOption"],
+    "dolphinRugType": "EastLarge",
+    "components": [
+      { "dx": 1, "dy": -1, "id": 14590, "script": "dolphin-rug" },
+      { "dx": 1, "dy": -2, "id": 14586, "script": "dolphin-rug" },
+      { "dx": 0, "dy": -1, "id": 14589, "script": "dolphin-rug" },
+      { "dx": -1, "dy": -1, "id": 14592, "script": "dolphin-rug" },
+      { "dx": 0, "dy": 0, "id": 14593, "script": "dolphin-rug", "dolphinRugState": true },
+      { "dx": 0, "dy": 1, "id": 14597, "script": "dolphin-rug" },
+      { "dx": -1, "dy": 0, "id": 14596, "script": "dolphin-rug" },
+      { "dx": -1, "dy": 1, "id": 14600, "script": "dolphin-rug" },
+      { "dx": -1, "dy": 2, "id": 14604, "script": "dolphin-rug" },
+      { "dx": 0, "dy": -2, "id": 14585, "script": "dolphin-rug" },
+      { "dx": 2, "dy": -2, "id": 14587, "script": "dolphin-rug" },
+      { "dx": 2, "dy": -1, "id": 14591, "script": "dolphin-rug" },
+      { "dx": 0, "dy": 2, "id": 14601, "script": "dolphin-rug" },
+      { "dx": -1, "dy": -2, "id": 14588, "script": "dolphin-rug" },
+      { "dx": -1, "dy": -3, "id": 14581, "script": "dolphin-rug" },
+      { "dx": 0, "dy": -3, "id": 14582, "script": "dolphin-rug" },
+      { "dx": 1, "dy": -3, "id": 14583, "script": "dolphin-rug" },
+      { "dx": 2, "dy": -3, "id": 14584, "script": "dolphin-rug" },
+      { "dx": 0, "dy": 3, "id": 14605, "script": "dolphin-rug" },
+      { "dx": 1, "dy": 3, "id": 14606, "script": "dolphin-rug" },
+      { "dx": 2, "dy": 0, "id": 14595, "script": "dolphin-rug" },
+      { "dx": 2, "dy": 1, "id": 14599, "script": "dolphin-rug" },
+      { "dx": 2, "dy": 2, "id": 14603, "script": "dolphin-rug" },
+      { "dx": -1, "dy": 3, "id": 14608, "script": "dolphin-rug" },
+      { "dx": 2, "dy": 3, "id": 14607, "script": "dolphin-rug" },
+      { "dx": 1, "dy": 0, "id": 14594, "script": "dolphin-rug" },
+      { "dx": 1, "dy": 1, "id": 14602, "script": "dolphin-rug" },
+      { "dx": 1, "dy": 2, "id": 14598, "script": "dolphin-rug" }
+    ]
+  },
+  "dolphin-rug-large-south": {
+    "name": "Dolphin Rug",
+    "script": "dolphin-rug",
+    "servuoClasses": ["DolphinRugAddon", "DolphinRugAddonDeed", "InternalAddonComponent", "RugType", "IRewardItem", "IRewardOption"],
+    "dolphinRugType": "SouthLarge",
+    "components": [
+      { "dx": -3, "dy": 2, "id": 14553, "script": "dolphin-rug" },
+      { "dx": -3, "dy": 1, "id": 14554, "script": "dolphin-rug" },
+      { "dx": -3, "dy": 0, "id": 14555, "script": "dolphin-rug" },
+      { "dx": -3, "dy": -1, "id": 14556, "script": "dolphin-rug" },
+      { "dx": -2, "dy": 1, "id": 14557, "script": "dolphin-rug" },
+      { "dx": -2, "dy": 0, "id": 14558, "script": "dolphin-rug" },
+      { "dx": -2, "dy": -1, "id": 14559, "script": "dolphin-rug" },
+      { "dx": -2, "dy": 2, "id": 14560, "script": "dolphin-rug" },
+      { "dx": -1, "dy": 1, "id": 14561, "script": "dolphin-rug" },
+      { "dx": -1, "dy": 0, "id": 14562, "script": "dolphin-rug" },
+      { "dx": -1, "dy": 2, "id": 14564, "script": "dolphin-rug" },
+      { "dx": 0, "dy": 1, "id": 14565, "script": "dolphin-rug" },
+      { "dx": 0, "dy": 2, "id": 14568, "script": "dolphin-rug" },
+      { "dx": -1, "dy": -1, "id": 14563, "script": "dolphin-rug" },
+      { "dx": 0, "dy": -1, "id": 14567, "script": "dolphin-rug" },
+      { "dx": 0, "dy": 0, "id": 14566, "script": "dolphin-rug", "dolphinRugState": true },
+      { "dx": 1, "dy": -1, "id": 14571, "script": "dolphin-rug" },
+      { "dx": 3, "dy": 0, "id": 14578, "script": "dolphin-rug" },
+      { "dx": 1, "dy": 2, "id": 14572, "script": "dolphin-rug" },
+      { "dx": 1, "dy": 1, "id": 14569, "script": "dolphin-rug" },
+      { "dx": 2, "dy": 2, "id": 14576, "script": "dolphin-rug" },
+      { "dx": 3, "dy": 2, "id": 14580, "script": "dolphin-rug" },
+      { "dx": 2, "dy": 1, "id": 14573, "script": "dolphin-rug" },
+      { "dx": 3, "dy": 1, "id": 14577, "script": "dolphin-rug" },
+      { "dx": 3, "dy": -1, "id": 14579, "script": "dolphin-rug" },
+      { "dx": 2, "dy": -1, "id": 14575, "script": "dolphin-rug" },
+      { "dx": 1, "dy": 0, "id": 14570, "script": "dolphin-rug" },
+      { "dx": 2, "dy": 0, "id": 14574, "script": "dolphin-rug" }
+    ]
+  },
+  "dolphin-rug-small-east": {
+    "name": "Dolphin Rug",
+    "script": "dolphin-rug",
+    "servuoClasses": ["DolphinRugAddon", "DolphinRugAddonDeed", "InternalAddonComponent", "RugType", "IRewardItem", "IRewardOption"],
+    "dolphinRugType": "EastSmall",
+    "components": [
+      { "dx": 1, "dy": 0, "id": 18283, "script": "dolphin-rug" },
+      { "dx": 1, "dy": 1, "id": 18276, "script": "dolphin-rug" },
+      { "dx": 1, "dy": 2, "id": 18289, "script": "dolphin-rug" },
+      { "dx": 0, "dy": 2, "id": 18288, "script": "dolphin-rug" },
+      { "dx": -1, "dy": -2, "id": 18287, "script": "dolphin-rug" },
+      { "dx": 1, "dy": -2, "id": 18286, "script": "dolphin-rug" },
+      { "dx": 0, "dy": -2, "id": 18285, "script": "dolphin-rug" },
+      { "dx": -1, "dy": 2, "id": 18284, "script": "dolphin-rug" },
+      { "dx": -1, "dy": 1, "id": 18282, "script": "dolphin-rug" },
+      { "dx": -1, "dy": 0, "id": 18281, "script": "dolphin-rug" },
+      { "dx": 1, "dy": -1, "id": 18280, "script": "dolphin-rug" },
+      { "dx": 0, "dy": -1, "id": 18279, "script": "dolphin-rug" },
+      { "dx": -1, "dy": -1, "id": 18278, "script": "dolphin-rug" },
+      { "dx": 0, "dy": 1, "id": 18277, "script": "dolphin-rug" },
+      { "dx": 0, "dy": 0, "id": 18275, "script": "dolphin-rug", "dolphinRugState": true }
+    ]
+  },
+  "dolphin-rug-small-south": {
+    "name": "Dolphin Rug",
+    "script": "dolphin-rug",
+    "servuoClasses": ["DolphinRugAddon", "DolphinRugAddonDeed", "InternalAddonComponent", "RugType", "IRewardItem", "IRewardOption"],
+    "dolphinRugType": "SouthSmall",
+    "components": [
+      { "dx": 2, "dy": -1, "id": 18393, "script": "dolphin-rug" },
+      { "dx": -2, "dy": -1, "id": 18392, "script": "dolphin-rug" },
+      { "dx": -2, "dy": 1, "id": 18391, "script": "dolphin-rug" },
+      { "dx": 1, "dy": -1, "id": 18390, "script": "dolphin-rug" },
+      { "dx": 1, "dy": 0, "id": 18300, "script": "dolphin-rug" },
+      { "dx": 1, "dy": 1, "id": 18299, "script": "dolphin-rug" },
+      { "dx": 0, "dy": -1, "id": 18298, "script": "dolphin-rug" },
+      { "dx": 2, "dy": 0, "id": 18297, "script": "dolphin-rug" },
+      { "dx": 0, "dy": 1, "id": 18296, "script": "dolphin-rug" },
+      { "dx": -1, "dy": -1, "id": 18295, "script": "dolphin-rug" },
+      { "dx": -1, "dy": 0, "id": 18294, "script": "dolphin-rug" },
+      { "dx": -1, "dy": 1, "id": 18293, "script": "dolphin-rug" },
+      { "dx": 2, "dy": 1, "id": 18292, "script": "dolphin-rug" },
+      { "dx": -2, "dy": 0, "id": 18291, "script": "dolphin-rug" },
+      { "dx": 0, "dy": 0, "id": 18290, "script": "dolphin-rug", "dolphinRugState": true }
+    ]
+  },
+  "gingerbread-house": {
+    "name": "Gingerbread House",
+    "servuoClass": "GingerBreadHouseAddon",
+    "servuoClasses": ["GingerBreadHouseAddon"],
+    "deed": {
+      "name": "a Gingerbread House Deed",
+      "tagId": "gingerbread-house-deed",
+      "servuoClass": "GingerBreadHouseDeed",
+      "servuoClasses": ["GingerBreadHouseDeed"],
+      "labelNumber": 1077394,
+      "blessed": true
+    },
+    "components": [
+      { "dx": -1, "dy": 0, "id": 11237, "name": "Gingerbread House", "labelNumber": 1077395, "light": 3, "servuoClass": "GingerBreadHouseAddon", "servuoClasses": ["GingerBreadHouseAddon"] },
+      { "dx": 0, "dy": 0, "id": 11238, "name": "Gingerbread House", "labelNumber": 1077395, "light": 3, "servuoClass": "GingerBreadHouseAddon", "servuoClasses": ["GingerBreadHouseAddon"] },
+      { "dx": 0, "dy": -1, "id": 11239, "name": "Gingerbread House", "labelNumber": 1077395, "light": 3, "servuoClass": "GingerBreadHouseAddon", "servuoClasses": ["GingerBreadHouseAddon"] }
+    ]
+  },
+  "hearth-of-home-fire-east": {
+    "name": "Hearth of the Home Fire (East)",
+    "servuoClass": "HearthOfHomeFire",
+    "servuoClasses": ["HearthOfHomeFire", "HearthOfHomeFireDeed"],
+    "deed": {
+      "name": "Hearth of the Home Fire Deed",
+      "tagId": "hearth-of-home-fire-deed",
+      "labelNumber": 1062919,
+      "blessed": true,
+      "addonNames": { "south": "hearth-of-home-fire-south", "east": "hearth-of-home-fire-east" },
+      "servuoClass": "HearthOfHomeFireDeed",
+      "servuoClasses": ["HearthOfHomeFireDeed", "HearthOfHomeFire"]
+    },
+    "components": [
+      { "dx": 0, "dy": 0, "id": 9042, "light": 9, "servuoClass": "HearthOfHomeFire", "servuoClasses": ["HearthOfHomeFire"] },
+      { "dx": 0, "dy": -1, "id": 9048, "light": 9, "servuoClass": "HearthOfHomeFire", "servuoClasses": ["HearthOfHomeFire"] }
+    ]
+  },
+  "hearth-of-home-fire-south": {
+    "name": "Hearth of the Home Fire (South)",
+    "servuoClass": "HearthOfHomeFire",
+    "servuoClasses": ["HearthOfHomeFire", "HearthOfHomeFireDeed"],
+    "deed": {
+      "name": "Hearth of the Home Fire Deed",
+      "tagId": "hearth-of-home-fire-deed",
+      "labelNumber": 1062919,
+      "blessed": true,
+      "addonNames": { "south": "hearth-of-home-fire-south", "east": "hearth-of-home-fire-east" },
+      "servuoClass": "HearthOfHomeFireDeed",
+      "servuoClasses": ["HearthOfHomeFireDeed", "HearthOfHomeFire"]
+    },
+    "components": [
+      { "dx": 0, "dy": 0, "id": 9056, "light": 9, "servuoClass": "HearthOfHomeFire", "servuoClasses": ["HearthOfHomeFire"] },
+      { "dx": -1, "dy": 0, "id": 9062, "light": 9, "servuoClass": "HearthOfHomeFire", "servuoClasses": ["HearthOfHomeFire"] }
+    ]
+  },
+  "hag-stew": {
+    "name": "Hag Stew",
+    "servuoClass": "HagStew",
+    "servuoClasses": ["HagStew", "ShowStew"],
+    "components": [
+      { "dx": 0, "dy": 0, "dz": -7, "id": 2416, "name": "stew", "script": "hag-stew", "visible": true, "servuoClass": "HagStew", "servuoClasses": ["HagStew", "ShowStew"] }
+    ]
+  },
+  "hag-cauldron": {
+    "name": "Hag Cauldron",
+    "servuoClass": "HagCauldron",
+    "servuoClasses": ["HagCauldron"],
+    "components": [
+      { "dx": 0, "dy": 0, "id": 2420, "name": "pot w/ support", "servuoClass": "HagCauldron", "servuoClasses": ["HagCauldron"] },
+      { "dx": 0, "dy": 0, "id": 4012, "name": "fire pit", "light": 9, "servuoClass": "HagCauldron", "servuoClasses": ["HagCauldron"] }
+    ]
+  },
+  "picnic-blanket-south": {
+    "name": "Picnic Blanket",
+    "components": [
+      { "dx": 1, "dy": 1, "id": 41168, "name": "blanket", "labelNumber": 1125186 },
+      { "dx": 1, "dy": 0, "id": 41169, "name": "blanket", "labelNumber": 1125186 },
+      { "dx": 0, "dy": 1, "id": 41170, "name": "blanket", "labelNumber": 1125186 },
+      { "dx": 0, "dy": 0, "id": 41171, "name": "blanket", "labelNumber": 1125186 },
+      { "dx": -1, "dy": 1, "id": 41172, "name": "blanket", "labelNumber": 1125186 },
+      { "dx": -1, "dy": 0, "id": 41173, "name": "blanket", "labelNumber": 1125186 }
+    ]
+  },
+  "picnic-blanket-east": {
+    "name": "Picnic Blanket",
+    "components": [
+      { "dx": 0, "dy": 1, "id": 41163, "name": "blanket", "labelNumber": 1125186 },
+      { "dx": 1, "dy": 1, "id": 41162, "name": "blanket", "labelNumber": 1125186 },
+      { "dx": 0, "dy": 0, "id": 41165, "name": "blanket", "labelNumber": 1125186 },
+      { "dx": 1, "dy": 0, "id": 41164, "name": "blanket", "labelNumber": 1125186 },
+      { "dx": 1, "dy": -1, "id": 41166, "name": "blanket", "labelNumber": 1125186 },
+      { "dx": 0, "dy": -1, "id": 41167, "name": "blanket", "labelNumber": 1125186 }
+    ]
+  },
+  "solen-ant-hole": {
+    "name": "Solen Ant Hole",
+    "noDeed": true,
+    "components": [
+      { "dx": 0, "dy": 0, "id": 2324, "name": "dirt" },
+      { "dx": 1, "dy": 0, "id": 4650, "name": "a hole", "script": "solen-ant-hole" },
+      { "dx": 1, "dy": 1, "id": 6947, "hue": 2416, "name": "dirt" },
+      { "dx": 1, "dy": 0, "id": 3808, "name": "dirt" },
+      { "dx": 1, "dy": -1, "id": 6948, "hue": 2416, "name": "dirt" },
+      { "dx": 0, "dy": -1, "id": 3809, "name": "dirt" },
+      { "dx": -1, "dy": -1, "id": 6949, "hue": 2416, "name": "dirt" },
+      { "dx": -1, "dy": 0, "id": 3810, "name": "dirt" },
+      { "dx": -1, "dy": 1, "id": 6950, "hue": 2416, "name": "dirt" },
+      { "dx": 0, "dy": 1, "id": 3795, "name": "dirt" }
+    ]
+  },
+  "four-post-bed-south": {
+    "name": "Four Post Bed",
+    "components": [
+      { "dx": 1, "dy": 1, "id": 19561, "labelNumber": 1154131 },
+      { "dx": 1, "dy": 0, "id": 19560, "labelNumber": 1154131 },
+      { "dx": 0, "dy": 1, "id": 19565, "labelNumber": 1154131 },
+      { "dx": 0, "dy": 0, "id": 19564, "labelNumber": 1154131 },
+      { "dx": 1, "dy": -1, "id": 19562, "labelNumber": 1154131 },
+      { "dx": 0, "dy": -1, "id": 19563, "labelNumber": 1154131 }
+    ]
+  },
+  "four-post-bed-east": {
+    "name": "Four Post Bed",
+    "components": [
+      { "dx": 1, "dy": 0, "id": 19569, "labelNumber": 1154131 },
+      { "dx": 1, "dy": 1, "id": 19568, "labelNumber": 1154131 },
+      { "dx": 0, "dy": 1, "id": 19566, "labelNumber": 1154131 },
+      { "dx": 0, "dy": 0, "id": 19570, "labelNumber": 1154131 },
+      { "dx": -1, "dy": 0, "id": 19571, "labelNumber": 1154131 },
+      { "dx": -1, "dy": 1, "id": 19567, "labelNumber": 1154131 }
+    ]
+  },
+  "monastery-bell-south": {
+    "name": "Monastery Bell",
+    "components": [
+      { "dx": 1, "dy": 0, "id": 19602, "labelNumber": 1098472, "musicId": 1644, "script": "music-box" },
+      { "dx": 0, "dy": 0, "id": 19603, "labelNumber": 1098472, "musicId": 1644, "script": "music-box" }
+    ]
+  },
+  "monastery-bell-east": {
+    "name": "Monastery Bell",
+    "components": [
+      { "dx": 0, "dy": 0, "id": 19604, "labelNumber": 1098472, "musicId": 1644, "script": "music-box" },
+      { "dx": 0, "dy": 1, "id": 19605, "labelNumber": 1098472, "musicId": 1644, "script": "music-box" }
+    ]
+  },
+  "ornate-bed-south": {
+    "name": "Ornate Bed",
+    "components": [
+      { "dx": 0, "dy": -1, "id": 19575, "labelNumber": 1154133 },
+      { "dx": 0, "dy": 1, "id": 19577, "labelNumber": 1154133 },
+      { "dx": 1, "dy": 0, "id": 19572, "labelNumber": 1154133 },
+      { "dx": 1, "dy": -1, "id": 19574, "labelNumber": 1154133 },
+      { "dx": 1, "dy": 1, "id": 19573, "labelNumber": 1154133 },
+      { "dx": 0, "dy": 0, "id": 19576, "labelNumber": 1154133 }
+    ]
+  },
+  "ornate-bed-east": {
+    "name": "Ornate Bed",
+    "components": [
+      { "dx": 1, "dy": 1, "id": 19583, "labelNumber": 1154133 },
+      { "dx": 0, "dy": 0, "id": 19578, "labelNumber": 1154133 },
+      { "dx": -1, "dy": 0, "id": 19580, "labelNumber": 1154133 },
+      { "dx": 0, "dy": 1, "id": 19582, "labelNumber": 1154133 },
+      { "dx": 1, "dy": 0, "id": 19579, "labelNumber": 1154133 },
+      { "dx": -1, "dy": 1, "id": 19581, "labelNumber": 1154133 }
+    ]
+  },
+  "armoire-cherry": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 16419
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 16420
+      }
+    ]
+  },
+  "armoire-elegant": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 16437
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 16438
+      }
+    ]
+  },
+  "brazier-stone": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 6570
+      }
+    ]
+  },
+  "brazier-golden": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 6587
+      }
+    ]
+  },
+  "training-dummy": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4209
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 4210
+      }
+    ]
+  },
+  "pickpocket-dip": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 7872
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 7873
+      }
+    ]
+  },
+  "forge-fancy": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 6533
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 6534
+      }
+    ]
+  },
+  "anvil-fancy": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 6535
+      }
+    ]
+  },
+  "loom": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4194
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 4195
+      }
+    ]
+  },
+  "spinning-wheel": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4116
+      }
+    ]
+  },
+  "fountain-marble": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4650
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 4651
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 4652
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 4653
+      }
+    ]
+  },
+  "statue-warrior": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4632
+      }
+    ]
+  },
+  "statue-ranger": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4633
+      }
+    ]
+  },
+  "statue-mage": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4634
+      }
+    ]
+  },
+  "archery-butte": {
+    "name": "Archery Butte",
+    "script": "archery-butte",
+    "servuoClass": "ArcheryButte",
+    "servuoClasses": ["ArcheryButte", "ArcheryButteAddon", "ArcheryButteDeed", "ScoreEntry", "FlipableAttribute"],
+    "deed": {
+      "labelNumber": 1080205,
+      "servuoClass": "ArcheryButteDeed",
+      "servuoClasses": ["ArcheryButteDeed", "ArcheryButteAddon", "ArcheryButte", "ScoreEntry", "IRewardOption"]
+    },
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4106,
+        "script": "archery-butte",
+        "servuoClass": "ArcheryButte",
+        "servuoClasses": ["ArcheryButte", "ArcheryButteAddon", "ArcheryButteDeed", "ScoreEntry", "FlipableAttribute"]
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 4107,
+        "script": "archery-butte",
+        "servuoClass": "ArcheryButte",
+        "servuoClasses": ["ArcheryButte", "ArcheryButteAddon", "ArcheryButteDeed", "ScoreEntry", "FlipableAttribute"]
+      }
+    ]
+  },
+  "fishing-pole-rack": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3519
+      }
+    ]
+  },
+  "water-trough": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2881
+      }
+    ]
+  },
+  "bird-bath": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2882
+      }
+    ]
+  },
+  "wedding-altar": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2930
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 2931
+      }
+    ]
+  },
+  "corner-bookcase": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 16405
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 16406
+      }
+    ]
+  },
+  "bookcase-ancient": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2712
+      }
+    ]
+  },
+  "bookcase-spellbook": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2713
+      }
+    ]
+  },
+  "bookcase-leather": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2714
+      }
+    ]
+  },
+  "bookcase-bardic": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2715
+      }
+    ]
+  },
+  "bookcase-yew": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 16409
+      }
+    ]
+  },
+  "bookcase-cherry": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 16416
+      }
+    ]
+  },
+  "tall-bookcase-elven": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 16405
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 16406
+      }
+    ]
+  },
+  "magery-bookcase": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2716
+      }
+    ]
+  },
+  "bedroll-east": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2645
+      }
+    ]
+  },
+  "bedroll-south": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2646
+      }
+    ]
+  },
+  "bedroll-rolled": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2647
+      }
+    ]
+  },
+  "bed-east": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2679
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 2680
+      }
+    ]
+  },
+  "bed-south": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2681
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 2682
+      }
+    ]
+  },
+  "four-poster-east": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 16679
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 16680
+      }
+    ]
+  },
+  "four-poster-south": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 16681
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 16682
+      }
+    ]
+  },
+  "wooden-table": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2940
+      }
+    ]
+  },
+  "large-table": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2941
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 2942
+      }
+    ]
+  },
+  "stone-table": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2943
+      }
+    ]
+  },
+  "wooden-chair": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2899
+      }
+    ]
+  },
+  "wooden-throne": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2866
+      }
+    ]
+  },
+  "iron-throne": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4632
+      }
+    ]
+  },
+  "ornate-throne": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4650
+      }
+    ]
+  },
+  "gargoyle-throne": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 17095
+      }
+    ]
+  },
+  "stone-chair": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2903
+      }
+    ]
+  },
+  "bamboo-chair": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2904
+      }
+    ]
+  },
+  "fancy-bench": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2883
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 2884
+      }
+    ]
+  },
+  "wooden-bench": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2885
+      }
+    ]
+  },
+  "stone-bench": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2886
+      }
+    ]
+  },
+  "pillow-blue": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5073
+      }
+    ]
+  },
+  "pillow-red": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5074
+      }
+    ]
+  },
+  "pillow-yellow": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5075
+      }
+    ]
+  },
+  "pillow-purple": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5076
+      }
+    ]
+  },
+  "carpet-red": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2760
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 2761
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 2762
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 2763
+      }
+    ]
+  },
+  "carpet-blue": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2764
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 2765
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 2766
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 2767
+      }
+    ]
+  },
+  "persian-rug-east": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2752
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 2753
+      }
+    ]
+  },
+  "persian-rug-south": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2754
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 2755
+      }
+    ]
+  },
+  "cabinet-elven": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 16454
+      }
+    ]
+  },
+  "cabinet-yew": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 16455
+      }
+    ]
+  },
+  "cabinet-oak": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 16456
+      }
+    ]
+  },
+  "wall-cabinet": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2686
+      }
+    ]
+  },
+  "chess-board": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4006
+      }
+    ]
+  },
+  "chess-pieces": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3610
+      }
+    ]
+  },
+  "checkers-board": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4007
+      }
+    ]
+  },
+  "checkers-pieces": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3611
+      }
+    ]
+  },
+  "backgammon-board": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3612
+      }
+    ]
+  },
+  "dice-cup": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4007
+      }
+    ]
+  },
+  "cards-deck": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4013
+      }
+    ]
+  },
+  "piano": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3760
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 3761
+      }
+    ]
+  },
+  "harpsichord": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3762
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 3763
+      }
+    ]
+  },
+  "music-stand": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3767
+      }
+    ]
+  },
+  "crab-trophy": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4018
+      }
+    ]
+  },
+  "lobster-trophy": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4019
+      }
+    ]
+  },
+  "swordfish-trophy": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4020
+      }
+    ]
+  },
+  "shark-trophy": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4021
+      }
+    ]
+  },
+  "pufferfish-trophy": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4022
+      }
+    ]
+  },
+  "leviathan-trophy": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4023
+      }
+    ]
+  },
+  "pedestal-stone": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 13038
+      }
+    ]
+  },
+  "pedestal-marble": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 13039
+      }
+    ]
+  },
+  "statue-virtue": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 13040
+      }
+    ]
+  },
+  "statue-king-blackthorn": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 13041
+      }
+    ]
+  },
+  "statue-female": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4630
+      }
+    ]
+  },
+  "statue-male": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4631
+      }
+    ]
+  },
+  "statue-pegasus": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4792
+      }
+    ]
+  },
+  "statue-archer": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4793
+      }
+    ]
+  },
+  "yule-tree-small": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3272
+      }
+    ]
+  },
+  "yule-tree-large": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3273
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 3274
+      }
+    ]
+  },
+  "yule-tree-decorated": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3275
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 3276
+      }
+    ]
+  },
+  "halloween-pumpkin-stand": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3178
+      }
+    ]
+  },
+  "easter-flower-basket": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2540
+      }
+    ]
+  },
+  "reward-banner-true-britannian": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5547
+      }
+    ]
+  },
+  "reward-banner-minax": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5548
+      }
+    ]
+  },
+  "reward-banner-council": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5549
+      }
+    ]
+  },
+  "reward-banner-shadowlords": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5550
+      }
+    ]
+  },
+  "forge-stone": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4017
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 4018
+      }
+    ]
+  },
+  "anvil-iron": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4016
+      }
+    ]
+  },
+  "tinker-bench": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 7866
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 7867
+      }
+    ]
+  },
+  "fletcher-bench": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4338
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 4339
+      }
+    ]
+  },
+  "tailoring-bench": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4199
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 4200
+      }
+    ]
+  },
+  "mortar-and-pestle": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3739
+      }
+    ]
+  },
+  "garden-shed": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 16498
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 16499
+      }
+    ]
+  },
+  "gardenhouse": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 16500
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 16501
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 16502
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 16503
+      }
+    ]
+  },
+  "flowerbox-narrow": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 16504
+      }
+    ]
+  },
+  "flowerbox-large": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 16505
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 16506
+      }
+    ]
+  },
+  "flowerpot-clay": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5634
+      }
+    ]
+  },
+  "flowerpot-stone": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5635
+      }
+    ]
+  },
+  "rose-bush": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3524
+      }
+    ]
+  },
+  "cherry-tree": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3278
+      }
+    ]
+  },
+  "apple-tree": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3279
+      }
+    ]
+  },
+  "orange-tree": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3280
+      }
+    ]
+  },
+  "peach-tree": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3281
+      }
+    ]
+  },
+  "date-palm": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3282
+      }
+    ]
+  },
+  "fountain-small": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3730
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 3731
+      }
+    ]
+  },
+  "well": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3732
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 3733
+      }
+    ]
+  },
+  "birdbath-marble": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2882
+      }
+    ]
+  },
+  "birdbath-stone": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2880
+      }
+    ]
+  },
+  "candelabrum-tall": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2598
+      }
+    ]
+  },
+  "candelabrum-short": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2599
+      }
+    ]
+  },
+  "candelabrum-iron": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2600
+      }
+    ]
+  },
+  "wall-sconce-east": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2850
+      }
+    ]
+  },
+  "wall-sconce-south": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2851
+      }
+    ]
+  },
+  "torch-stand": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2578
+      }
+    ]
+  },
+  "lantern-iron": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2584
+      }
+    ]
+  },
+  "hanging-lantern": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2585
+      }
+    ]
+  },
+  "arch-doorway-east": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 1776
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 1777
+      }
+    ]
+  },
+  "arch-doorway-south": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 1778
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 1779
+      }
+    ]
+  },
+  "fern-pot": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3525
+      }
+    ]
+  },
+  "cattail-bunch": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3526
+      }
+    ]
+  },
+  "reed-bunch": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3527
+      }
+    ]
+  },
+  "heritage-rug-east-2x": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2752
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 2753
+      }
+    ]
+  },
+  "heritage-rug-south-2x": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2754
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 2755
+      }
+    ]
+  },
+  "heritage-pillar-classic": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4789
+      }
+    ]
+  },
+  "heritage-pillar-tokuno": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10396
+      }
+    ]
+  },
+  "heritage-marble-arch": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4790
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 4791
+      }
+    ]
+  },
+  "heritage-stone-arch": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 1780
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 1781
+      }
+    ]
+  },
+  "heritage-bardic-chair": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2910
+      }
+    ]
+  },
+  "heritage-veteran-1": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10598
+      }
+    ]
+  },
+  "heritage-veteran-2": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10599
+      }
+    ]
+  },
+  "heritage-veteran-3": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10600
+      }
+    ]
+  },
+  "heritage-veteran-4": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10601
+      }
+    ]
+  },
+  "heritage-veteran-5": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10602
+      }
+    ]
+  },
+  "heritage-veteran-6": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10603
+      }
+    ]
+  },
+  "globe-rotatable": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 6249
+      }
+    ]
+  },
+  "astrolabe": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 6250
+      }
+    ]
+  },
+  "sextant-display": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 6251
+      }
+    ]
+  },
+  "painting-landscape": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4011
+      }
+    ]
+  },
+  "painting-portrait": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4012
+      }
+    ]
+  },
+  "tapestry-east": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3755
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 3756
+      }
+    ]
+  },
+  "tapestry-south": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 3757
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 3758
+      }
+    ]
+  },
+  "tokuno-byobu-east": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10272
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 10273
+      }
+    ]
+  },
+  "tokuno-byobu-south": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10274
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 10275
+      }
+    ]
+  },
+  "tokuno-bamboo-curtain": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10276
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 10277
+      }
+    ]
+  },
+  "tokuno-tea-pot": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 9280
+      }
+    ]
+  },
+  "tokuno-tea-set": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 9281
+      }
+    ]
+  },
+  "tokuno-bonsai-small": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10434
+      }
+    ]
+  },
+  "tokuno-bonsai-large": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10435
+      }
+    ]
+  },
+  "tokuno-cherry-blossom-east": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10455
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 10456
+      }
+    ]
+  },
+  "gargish-iron-fence-east": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 16720
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 16721
+      }
+    ]
+  },
+  "gargish-iron-fence-south": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 16722
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 16723
+      }
+    ]
+  },
+  "gargish-stone-arch": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 16724
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 16725
+      }
+    ]
+  },
+  "gargish-altar": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 16726
+      }
+    ]
+  },
+  "gargish-throne-ornate": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 17095
+      }
+    ]
+  },
+  "gargish-crystal-fountain": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 16736
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 16737
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 16738
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 16739
+      }
+    ]
+  },
+  "eodon-tribal-mask-display": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 17584
+      }
+    ]
+  },
+  "eodon-tribal-totem-large": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 7961
+      }
+    ]
+  },
+  "eodon-tribal-banner": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5544
+      }
+    ]
+  },
+  "magincia-merchant-stall": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 17520
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 17521
+      }
+    ]
+  },
+  "magincia-canvas-tent": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 17522
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 17523
+      }
+    ]
+  },
+  "loom-elven": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 16441
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 16442
+      }
+    ]
+  },
+  "loom-tokuno": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10283
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 10284
+      }
+    ]
+  },
+  "spinning-wheel-elven": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 16448
+      }
+    ]
+  },
+  "spinning-wheel-tokuno": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10285
+      }
+    ]
+  },
+  "wooden-cooking-board": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2558
+      }
+    ]
+  },
+  "butcher-block": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 4483
+      }
+    ]
+  },
+  "butcher-knife-stand": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 5111
+      }
+    ]
+  },
+  "cheese-rack": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2519
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 2520
+      }
+    ]
+  },
+  "wine-rack": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2538
+      }
+    ]
+  },
+  "beer-keg-stand": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2463
+      }
+    ]
+  },
+  "pewter-mug-rack": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2507
+      }
+    ]
+  },
+  "mead-table": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2940
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 2941
+      }
+    ]
+  },
+  "feast-table": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2940
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 2941
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 2944
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 2945
+      }
+    ]
+  },
+  "royal-feast-table": {
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 2940
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 2941
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 2946
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 2947
+      }
+    ]
+  },
+  "advanced-training-dummy-east": {
+    "name": "Advanced Training Dummy (East)",
+    "servuoClass": "AdvancedTrainingDummyEastAddon",
+    "servuoClasses": ["AdvancedTrainingDummyEastAddon", "AdvancedTrainingDummyEastDeed", "AdvancedTrainingDummy"],
+    "deed": {
+      "name": "Advanced Training Dummy East Deed",
+      "tagId": "advanced-training-dummy-east-deed",
+      "labelNumber": 1150596,
+      "servuoClass": "AdvancedTrainingDummyEastDeed",
+      "servuoClasses": ["AdvancedTrainingDummyEastDeed", "AdvancedTrainingDummyEastAddon", "AdvancedTrainingDummy"]
+    },
+    "components": [
+      { "dx": 0, "dy": 0, "id": 38945, "script": "training-dummy", "training": { "minSkill": -25, "maxSkill": 60 }, "servuoClass": "AdvancedTrainingDummy", "servuoClasses": ["AdvancedTrainingDummy"] },
+      { "dx": 0, "dy": -1, "id": 38962 },
+      { "dx": 0, "dy": 0, "id": 38960 },
+      { "dx": 0, "dy": 1, "id": 38958 },
+      { "dx": -1, "dy": 1, "id": 38959 },
+      { "dx": 1, "dy": 1, "id": 38961 },
+      { "dx": -1, "dy": -1, "id": 38963 },
+      { "dx": 1, "dy": -1, "id": 38957 }
+    ]
+  },
+  "advanced-training-dummy-south": {
+    "name": "Advanced Training Dummy (South)",
+    "servuoClass": "AdvancedTrainingDummySouthAddon",
+    "servuoClasses": ["AdvancedTrainingDummySouthAddon", "AdvancedTrainingDummySouthDeed", "AdvancedTrainingDummy"],
+    "deed": {
+      "name": "Advanced Training Dummy South Deed",
+      "tagId": "advanced-training-dummy-south-deed",
+      "labelNumber": 1150595,
+      "servuoClass": "AdvancedTrainingDummySouthDeed",
+      "servuoClasses": ["AdvancedTrainingDummySouthDeed", "AdvancedTrainingDummySouthAddon", "AdvancedTrainingDummy"]
+    },
+    "components": [
+      { "dx": 0, "dy": 0, "id": 38940, "script": "training-dummy", "training": { "minSkill": -25, "maxSkill": 60 }, "servuoClass": "AdvancedTrainingDummy", "servuoClasses": ["AdvancedTrainingDummy"] },
+      { "dx": -1, "dy": 0, "id": 38955 },
+      { "dx": 0, "dy": 0, "id": 38953 },
+      { "dx": 1, "dy": 0, "id": 38951 },
+      { "dx": -1, "dy": 1, "id": 38954 },
+      { "dx": -1, "dy": -1, "id": 38956 },
+      { "dx": 1, "dy": 1, "id": 38950 },
+      { "dx": 1, "dy": -1, "id": 38952 }
+    ]
+  },
+  "alchemy-station": {
+    "components": [
+      { "dx": 0, "dy": 0, "id": 40334, "script": "alchemy-table" },
+      { "dx": 0, "dy": -1, "id": 40343 }
+    ]
+  },
+  "bbq-smoker": {
+    "components": [
+      { "dx": 0, "dy": 0, "id": 40350, "script": "oven" },
+      { "dx": 0, "dy": -1, "id": 40355 }
+    ]
+  },
+  "abbatoir": {
+    "components": [
+      { "dx": -1, "dy": -1, "id": 4622 },
+      { "dx": 0, "dy": -1, "id": 4623 },
+      { "dx": 1, "dy": -1, "id": 4624 },
+      { "dx": -1, "dy": 0, "id": 4629 },
+      { "dx": 0, "dy": 0, "id": 4630, "script": "abattoir-block" },
+      { "dx": 1, "dy": 0, "id": 4625 },
+      { "dx": -1, "dy": 1, "id": 4628 },
+      { "dx": 0, "dy": 1, "id": 4627 },
+      { "dx": 1, "dy": 1, "id": 4626 }
+    ]
+  },
+  "fletching-station-south": {
+    "components": [
+      { "dx": 0, "dy": 0, "id": 39982, "script": "fletching-station" },
+      { "dx": -1, "dy": 0, "id": 40004 }
+    ]
+  },
+  "fletching-station-east": {
+    "components": [
+      { "dx": 0, "dy": 0, "id": 39992, "script": "fletching-station" },
+      { "dx": 1, "dy": 0, "id": 40003 }
+    ]
+  },
+  "sewing-machine-south": {
+    "components": [
+      { "dx": 0, "dy": 0, "id": 39496, "script": "sewing-machine" },
+      { "dx": -1, "dy": 0, "id": 39498 }
+    ]
+  },
+  "sewing-machine-east": {
+    "components": [
+      { "dx": 0, "dy": 0, "id": 39497, "script": "sewing-machine" },
+      { "dx": 0, "dy": 1, "id": 39498 }
+    ]
+  },
+  "smithing-press-south": {
+    "components": [
+      { "dx": 0, "dy": 0, "id": 39592, "script": "smithing-press" },
+      { "dx": -1, "dy": 0, "id": 39569 }
+    ]
+  },
+  "smithing-press-east": {
+    "components": [
+      { "dx": 0, "dy": 0, "id": 39593, "script": "smithing-press" },
+      { "dx": 0, "dy": 1, "id": 39569 }
+    ]
+  },
+  "spinning-lathe-south": {
+    "components": [
+      { "dx": 0, "dy": 0, "id": 39962, "script": "spinning-lathe" },
+      { "dx": -1, "dy": 0, "id": 40006 }
+    ]
+  },
+  "spinning-lathe-east": {
+    "components": [
+      { "dx": 0, "dy": 0, "id": 39972, "script": "spinning-lathe" },
+      { "dx": 0, "dy": 1, "id": 40007 }
+    ]
+  },
+  "writing-desk-south": {
+    "components": [
+      { "dx": 0, "dy": 0, "id": 40938, "script": "writing-desk" },
+      { "dx": 1, "dy": 0, "id": 40953 }
+    ]
+  },
+  "writing-desk-east": {
+    "components": [
+      { "dx": 0, "dy": 0, "id": 40945, "script": "writing-desk" },
+      { "dx": 0, "dy": -1, "id": 40952 }
+    ]
+  },
+  "glass-kiln-south": {
+    "servuoClasses": ["GlassKilnAddon", "GlassKilnDeed"],
+    "components": [
+      { "dx": 0, "dy": 0, "id": 42288, "craftingStation": "glassblowing" },
+      { "dx": 0, "dy": 1, "id": 42286 }
+    ]
+  },
+  "glass-kiln-east": {
+    "components": [
+      { "dx": 0, "dy": 0, "id": 42292, "craftingStation": "glassblowing" },
+      { "dx": 1, "dy": 0, "id": 42287 }
+    ]
+  },
+  "enchanted-sculpting-tool-south": {
+    "servuoClasses": ["EnchantedSculptingToolAddon", "EnchantedSculptingToolDeed"],
+    "components": [
+      { "dx": 0, "dy": 0, "id": 42296, "craftingStation": "masonry" },
+      { "dx": 0, "dy": 1, "id": 42313 }
+    ]
+  },
+  "enchanted-sculpting-tool-east": {
+    "components": [
+      { "dx": 0, "dy": 0, "id": 42304, "craftingStation": "masonry" },
+      { "dx": 1, "dy": 0, "id": 42312 }
+    ]
+  },
+  "claw-foot-tub-south": {
+    "components": [
+      { "dx": 0, "dy": -1, "id": 39277, "script": "claw-foot-tub" },
+      { "dx": 0, "dy": 0, "id": 39276, "script": "claw-foot-tub" },
+      { "dx": 0, "dy": 1, "id": 39275, "script": "claw-foot-tub" }
+    ]
+  },
+  "claw-foot-tub-east": {
+    "components": [
+      { "dx": -1, "dy": 0, "id": 39288, "script": "claw-foot-tub" },
+      { "dx": 0, "dy": 0, "id": 39287, "script": "claw-foot-tub" },
+      { "dx": 1, "dy": 0, "id": 39286, "script": "claw-foot-tub" }
+    ]
+  },
+  "flour-mill-east": {
+    "components": [
+      { "dx": -1, "dy": 0, "id": 6432, "script": "flour-mill", "craftingStation": "cooking" },
+      { "dx": 0, "dy": 0, "id": 6434, "script": "flour-mill", "craftingStation": "cooking" },
+      { "dx": 1, "dy": 0, "id": 6436, "script": "flour-mill", "craftingStation": "cooking" }
+    ]
+  },
+  "flour-mill-south": {
+    "components": [
+      { "dx": 0, "dy": -1, "id": 6444, "script": "flour-mill", "craftingStation": "cooking" },
+      { "dx": 0, "dy": 0, "id": 6446, "script": "flour-mill", "craftingStation": "cooking" },
+      { "dx": 0, "dy": 1, "id": 6448, "script": "flour-mill", "craftingStation": "cooking" }
+    ]
+  },
+  "cherry-blossom-tree": {
+    "components": [
+      { "dx": 0, "dy": 0, "id": 9966, "labelNumber": 1076268 },
+      { "dx": 0, "dy": 0, "id": 12578, "labelNumber": 1076268 }
+    ]
+  },
+  "cherry-blossom-trunk": {
+    "components": [
+      { "dx": 0, "dy": 0, "id": 9966, "labelNumber": 1076784 }
+    ]
+  },
+  "fountain-of-fortune": {
+    "components": [
+      { "dx": -2, "dy": 1, "id": 5937 },
+      { "dx": -1, "dy": 1, "id": 5938 },
+      { "dx": 0, "dy": 1, "id": 5939 },
+      { "dx": 1, "dy": 1, "id": 5940 },
+      { "dx": 1, "dy": 0, "id": 5941 },
+      { "dx": 1, "dy": -1, "id": 5942 },
+      { "dx": 1, "dy": -2, "id": 5943 },
+      { "dx": 0, "dy": -2, "id": 5944 },
+      { "dx": 0, "dy": -1, "id": 5945 },
+      { "dx": 0, "dy": 0, "id": 5946 },
+      { "dx": -1, "dy": 0, "id": 5947 },
+      { "dx": -2, "dy": 0, "id": 5948 },
+      { "dx": -2, "dy": -1, "id": 5949 },
+      { "dx": -1, "dy": -1, "id": 5950 },
+      { "dx": -1, "dy": -2, "id": 5951 },
+      { "dx": -2, "dy": -2, "id": 5953 }
+    ]
+  },
+  "blood-pentagram": {
+    "components": [
+      { "dx": 0, "dy": 1, "id": 7417 }, { "dx": 0, "dy": 2, "id": 7416 }, { "dx": 0, "dy": 3, "id": 7415 }, { "dx": 0, "dy": 4, "id": 7414 }, { "dx": 0, "dy": 5, "id": 7413 },
+      { "dx": 1, "dy": 0, "id": 7419 }, { "dx": 1, "dy": 1, "id": 7418 }, { "dx": 1, "dy": 2, "id": 7433 }, { "dx": 1, "dy": 3, "id": 7432 }, { "dx": 1, "dy": 4, "id": 7431 }, { "dx": 1, "dy": 5, "id": 7412 },
+      { "dx": 2, "dy": 0, "id": 7420 }, { "dx": 2, "dy": 1, "id": 7434 }, { "dx": 2, "dy": 2, "id": 7441 }, { "dx": 2, "dy": 3, "id": 7440 }, { "dx": 2, "dy": 4, "id": 7430 }, { "dx": 2, "dy": 5, "id": 7411 },
+      { "dx": 3, "dy": 0, "id": 7421 }, { "dx": 3, "dy": 1, "id": 7435 }, { "dx": 3, "dy": 2, "id": 7442 }, { "dx": 3, "dy": 3, "id": 7439 }, { "dx": 3, "dy": 4, "id": 7429 }, { "dx": 3, "dy": 5, "id": 7410 },
+      { "dx": 4, "dy": 0, "id": 7422 }, { "dx": 4, "dy": 1, "id": 7436 }, { "dx": 4, "dy": 2, "id": 7437 }, { "dx": 4, "dy": 3, "id": 7438 }, { "dx": 4, "dy": 4, "id": 7428 }, { "dx": 4, "dy": 5, "id": 7409 },
+      { "dx": 5, "dy": 0, "id": 7423 }, { "dx": 5, "dy": 1, "id": 7424 }, { "dx": 5, "dy": 2, "id": 7425 }, { "dx": 5, "dy": 3, "id": 7426 }, { "dx": 5, "dy": 4, "id": 7427 }
+    ]
+  },
+  "bloody-pentagram": {
+    "name": "Bloody Pentagram",
+    "components": [
+      { "dx": 0, "dy": 1, "id": 7417, "labelNumber": 1080279 }, { "dx": 0, "dy": 2, "id": 7416, "labelNumber": 1080279 }, { "dx": 0, "dy": 3, "id": 7415, "labelNumber": 1080279 }, { "dx": 0, "dy": 4, "id": 7414, "labelNumber": 1080279 }, { "dx": 0, "dy": 5, "id": 7413, "labelNumber": 1080279 },
+      { "dx": 1, "dy": 0, "id": 7419, "labelNumber": 1080279 }, { "dx": 1, "dy": 1, "id": 7418, "labelNumber": 1080279 }, { "dx": 1, "dy": 2, "id": 7433, "labelNumber": 1080279 }, { "dx": 1, "dy": 3, "id": 7432, "labelNumber": 1080279 }, { "dx": 1, "dy": 4, "id": 7431, "labelNumber": 1080279 }, { "dx": 1, "dy": 5, "id": 7412, "labelNumber": 1080279 },
+      { "dx": 2, "dy": 0, "id": 7420, "labelNumber": 1080279 }, { "dx": 2, "dy": 1, "id": 7434, "labelNumber": 1080279 }, { "dx": 2, "dy": 2, "id": 7441, "labelNumber": 1080279 }, { "dx": 2, "dy": 3, "id": 7440, "labelNumber": 1080279 }, { "dx": 2, "dy": 4, "id": 7430, "labelNumber": 1080279 }, { "dx": 2, "dy": 5, "id": 7411, "labelNumber": 1080279 },
+      { "dx": 3, "dy": 0, "id": 7421, "labelNumber": 1080279 }, { "dx": 3, "dy": 1, "id": 7435, "labelNumber": 1080279 }, { "dx": 3, "dy": 2, "id": 7442, "labelNumber": 1080279 }, { "dx": 3, "dy": 3, "id": 7439, "labelNumber": 1080279 }, { "dx": 3, "dy": 4, "id": 7429, "labelNumber": 1080279 }, { "dx": 3, "dy": 5, "id": 7410, "labelNumber": 1080279 },
+      { "dx": 4, "dy": 0, "id": 7422, "labelNumber": 1080279 }, { "dx": 4, "dy": 1, "id": 7436, "labelNumber": 1080279 }, { "dx": 4, "dy": 2, "id": 7437, "labelNumber": 1080279 }, { "dx": 4, "dy": 3, "id": 7438, "labelNumber": 1080279 }, { "dx": 4, "dy": 4, "id": 7428, "labelNumber": 1080279 }, { "dx": 4, "dy": 5, "id": 7409, "labelNumber": 1080279 },
+      { "dx": 5, "dy": 0, "id": 7423, "labelNumber": 1080279 }, { "dx": 5, "dy": 1, "id": 7424, "labelNumber": 1080279 }, { "dx": 5, "dy": 2, "id": 7425, "labelNumber": 1080279 }, { "dx": 5, "dy": 3, "id": 7426, "labelNumber": 1080279 }, { "dx": 5, "dy": 4, "id": 7427, "labelNumber": 1080279 }
+    ]
+  },
+  "water-wheel-south": {
+    "servuoClasses": ["WaterWheelAddon", "WaterWheelDeed"],
+    "components": [
+      { "dx": 0, "dy": 0, "id": 41208, "labelNumber": 1125222, "waterSourceQuantity": 500 }
+    ]
+  },
+  "water-wheel-east": {
+    "servuoClasses": ["WaterWheelAddon", "WaterWheelDeed"],
+    "components": [
+      { "dx": 0, "dy": 0, "id": 41198, "labelNumber": 1125222, "waterSourceQuantity": 500 }
+    ]
+  },
+  "wood-stove-south": {
+    "servuoClasses": ["WoodStoveAddon", "WoodStoveDeed"],
+    "components": [
+      { "dx": 0, "dy": 0, "id": 41640, "labelNumber": 1125660, "script": "wood-stove", "craftingStation": "oven", "light": { "radius": 5, "color": 16752704 } }
+    ]
+  },
+  "wood-stove-east": {
+    "servuoClasses": ["WoodStoveAddon", "WoodStoveDeed"],
+    "components": [
+      { "dx": 0, "dy": 0, "id": 41636, "labelNumber": 1125660, "script": "wood-stove", "craftingStation": "oven", "light": { "radius": 5, "color": 16752704 } }
+    ]
+  },
+  "haunted-mirror": {
+    "servuoClasses": ["HaunterMirrorComponent", "HaunterMirrorAddon", "HauntedMirrorDeed"],
+    "components": [
+      { "dx": 0, "dy": 0, "id": 10875, "labelNumber": 1074800, "script": "haunted-mirror" }
+    ]
+  },
+  "tree-stump-west": {
+    "servuoClasses": ["TreeStump", "TreeStumpDeed"],
+    "components": [
+      { "dx": 0, "dy": 0, "id": 3670, "labelNumber": 1080406, "script": "tree-stump", "_logs": 100 }
+    ]
+  },
+  "tree-stump-north": {
+    "servuoClasses": ["TreeStump", "TreeStumpDeed"],
+    "components": [
+      { "dx": 0, "dy": 0, "id": 3672, "labelNumber": 1080406, "script": "tree-stump", "_logs": 100 }
+    ]
+  },
+  "tree-stump-east": {
+    "servuoClasses": ["TreeStump", "TreeStumpDeed"],
+    "components": [
+      { "dx": 0, "dy": 0, "id": 3671, "labelNumber": 1080406, "script": "tree-stump", "_logs": 100 }
+    ]
+  },
+  "tree-stump-south": {
+    "servuoClasses": ["TreeStump", "TreeStumpDeed"],
+    "components": [
+      { "dx": 0, "dy": 0, "id": 3673, "labelNumber": 1080406, "script": "tree-stump", "_logs": 100 }
+    ]
+  },
+  "metal-tub-south": {
+    "name": "Metal Tub",
+    "servuoClasses": ["MetalTubAddon", "MetalTubDeed", "IWaterSource", "IRewardOption"],
+    "waterSourceQuantity": 500,
+    "components": [
+      { "dx": 0, "dy": 0, "id": 42208, "labelNumber": 1126234, "waterSourceQuantity": 500 }
+    ]
+  },
+  "metal-tub-east": {
+    "name": "Metal Tub",
+    "servuoClasses": ["MetalTubAddon", "MetalTubDeed", "IWaterSource", "IRewardOption"],
+    "waterSourceQuantity": 500,
+    "components": [
+      { "dx": 0, "dy": 0, "id": 42210, "labelNumber": 1126234, "waterSourceQuantity": 500 }
+    ]
+  },
+  "dungeon-fountain": {
+    "name": "Dungeon Fountain",
+    "servuoClasses": ["DungeonFountainAddon", "DungeonFountainDeed"],
+    "components": [
+      { "dx": 0, "dy": 0, "id": 42226 },
+      { "dx": 1, "dy": 0, "id": 42227 },
+      { "dx": 0, "dy": 1, "id": 42225 },
+      { "dx": 1, "dy": 1, "id": 42228 }
+    ]
+  },
+  "metal-ladder-south-castle": {
+    "name": "Metal Ladder",
+    "servuoClasses": ["MetalLadderAddon", "MetalLadderDeed", "MetalLadderType", "IRewardOption"],
+    "components": [
+      { "dx": 0, "dy": 2, "dz": 20, "id": 42329, "labelNumber": 1076791 },
+      { "dx": 0, "dy": 0, "id": 42327 }
+    ]
+  },
+  "metal-ladder-east-castle": {
+    "name": "Metal Ladder",
+    "servuoClasses": ["MetalLadderAddon", "MetalLadderDeed", "MetalLadderType", "IRewardOption"],
+    "components": [
+      { "dx": 2, "dy": 0, "dz": 20, "id": 42330, "labelNumber": 1076791 },
+      { "dx": 0, "dy": 0, "id": 42328 }
+    ]
+  },
+  "metal-ladder-north-castle": {
+    "name": "Metal Ladder",
+    "servuoClasses": ["MetalLadderAddon", "MetalLadderDeed", "MetalLadderType", "IRewardOption"],
+    "components": [
+      { "dx": 0, "dy": 0, "id": 42332, "labelNumber": 1154133 }
+    ]
+  },
+  "metal-ladder-west-castle": {
+    "name": "Metal Ladder",
+    "servuoClasses": ["MetalLadderAddon", "MetalLadderDeed", "MetalLadderType", "IRewardOption"],
+    "components": [
+      { "dx": 0, "dy": 0, "id": 42331, "labelNumber": 1154133 }
+    ]
+  },
+  "metal-ladder-south": {
+    "name": "Metal Ladder",
+    "servuoClasses": ["MetalLadderAddon", "MetalLadderDeed", "MetalLadderType", "IRewardOption"],
+    "components": [
+      { "dx": 0, "dy": 0, "id": 42327, "labelNumber": 1154133 }
+    ]
+  },
+  "metal-ladder-east": {
+    "name": "Metal Ladder",
+    "servuoClasses": ["MetalLadderAddon", "MetalLadderDeed", "MetalLadderType", "IRewardOption"],
+    "components": [
+      { "dx": 0, "dy": 0, "id": 42328, "labelNumber": 1154133 }
+    ]
+  },
+  "metal-ladder-north": {
+    "name": "Metal Ladder",
+    "servuoClasses": ["MetalLadderAddon", "MetalLadderDeed", "MetalLadderType", "IRewardOption"],
+    "components": [
+      { "dx": 0, "dy": 0, "id": 42332, "labelNumber": 1154133 }
+    ]
+  },
+  "metal-ladder-west": {
+    "name": "Metal Ladder",
+    "servuoClasses": ["MetalLadderAddon", "MetalLadderDeed", "MetalLadderType", "IRewardOption"],
+    "components": [
+      { "dx": 0, "dy": 0, "id": 42331, "labelNumber": 1154133 }
+    ]
+  },
+  "rose-rug-large-east": {
+    "name": "Rose Rug",
+    "script": "rose-rug",
+    "labelNumber": 1150121,
+    "addonResourceKind": "rose-rug",
+    "addonResourceMax": 10,
+    "addonResourceRechargeAmount": 1,
+    "addonResourceLabelNumber": 1150102,
+    "servuoClass": "RoseRugAddon",
+    "servuoClasses": ["RoseRugAddon", "RoseRugAddonDeed", "InternalAddonComponent", "RugType", "RewardOptionGump", "IRewardItem", "IRewardOption"],
+    "components": [
+      { "dx": 2, "dy": -3, "id": 14551, "addonResourceState": true }, { "dx": 0, "dy": -3, "id": 14550 }, { "dx": 1, "dy": -3, "id": 14549 }, { "dx": -1, "dy": -3, "id": 14552 },
+      { "dx": 0, "dy": -1, "id": 14542 }, { "dx": 2, "dy": -1, "id": 14543 }, { "dx": -1, "dy": 1, "id": 14536 }, { "dx": 0, "dy": 3, "id": 14527 },
+      { "dx": 0, "dy": 2, "id": 14530 }, { "dx": 1, "dy": 0, "id": 14537 }, { "dx": 2, "dy": 1, "id": 14535 }, { "dx": -1, "dy": -1, "id": 14544 },
+      { "dx": -1, "dy": 2, "id": 14532 }, { "dx": 1, "dy": 2, "id": 14529 }, { "dx": 1, "dy": -1, "id": 14541 }, { "dx": 2, "dy": -2, "id": 14547 },
+      { "dx": -1, "dy": -2, "id": 14548 }, { "dx": 1, "dy": 3, "id": 14526 }, { "dx": 2, "dy": 2, "id": 14531 }, { "dx": 0, "dy": -2, "id": 14546 },
+      { "dx": -1, "dy": 0, "id": 14540 }, { "dx": -1, "dy": 3, "id": 14528 }, { "dx": 0, "dy": 1, "id": 14534 }, { "dx": 2, "dy": 3, "id": 14525 },
+      { "dx": 1, "dy": 1, "id": 14533 }, { "dx": 1, "dy": -2, "id": 14545 }, { "dx": 2, "dy": 0, "id": 14539 }, { "dx": 0, "dy": 0, "id": 14538 }
+    ]
+  },
+  "rose-rug-large-south": {
+    "name": "Rose Rug",
+    "script": "rose-rug",
+    "labelNumber": 1150121,
+    "addonResourceKind": "rose-rug",
+    "addonResourceMax": 10,
+    "addonResourceRechargeAmount": 1,
+    "addonResourceLabelNumber": 1150102,
+    "servuoClass": "RoseRugAddon",
+    "servuoClasses": ["RoseRugAddon", "RoseRugAddonDeed", "InternalAddonComponent", "RugType", "RewardOptionGump", "IRewardItem", "IRewardOption"],
+    "components": [
+      { "dx": 0, "dy": -1, "id": 14512, "addonResourceState": true }, { "dx": 0, "dy": 2, "id": 14511 }, { "dx": -3, "dy": 2, "id": 14497 }, { "dx": -1, "dy": 2, "id": 14507 },
+      { "dx": -3, "dy": 1, "id": 14498 }, { "dx": -2, "dy": 1, "id": 14501 }, { "dx": 0, "dy": 1, "id": 14509 }, { "dx": -3, "dy": -1, "id": 14500 },
+      { "dx": 1, "dy": -1, "id": 14516 }, { "dx": 2, "dy": 1, "id": 14517 }, { "dx": 2, "dy": 0, "id": 14518 }, { "dx": 1, "dy": 2, "id": 14515 },
+      { "dx": -2, "dy": 2, "id": 14503 }, { "dx": -1, "dy": 0, "id": 14506 }, { "dx": 0, "dy": 0, "id": 14510 }, { "dx": -1, "dy": -1, "id": 14508 },
+      { "dx": -2, "dy": -1, "id": 14504 }, { "dx": -2, "dy": 0, "id": 14502 }, { "dx": -1, "dy": 1, "id": 14505 }, { "dx": 2, "dy": 2, "id": 14519 },
+      { "dx": 1, "dy": 0, "id": 14514 }, { "dx": 2, "dy": -1, "id": 14520 }, { "dx": 1, "dy": 1, "id": 14513 }, { "dx": -3, "dy": 0, "id": 14499 },
+      { "dx": 3, "dy": 0, "id": 14522 }, { "dx": 3, "dy": 1, "id": 14521 }, { "dx": 3, "dy": 2, "id": 14523 }, { "dx": 3, "dy": -1, "id": 14524 }
+    ]
+  },
+  "rose-rug-small-east": {
+    "name": "Rose Rug",
+    "script": "rose-rug",
+    "labelNumber": 1150121,
+    "addonResourceKind": "rose-rug",
+    "addonResourceMax": 10,
+    "addonResourceRechargeAmount": 1,
+    "addonResourceLabelNumber": 1150102,
+    "servuoClass": "RoseRugAddon",
+    "servuoClasses": ["RoseRugAddon", "RoseRugAddonDeed", "InternalAddonComponent", "RugType", "RewardOptionGump", "IRewardItem", "IRewardOption"],
+    "components": [
+      { "dx": 0, "dy": -1, "id": 18249, "addonResourceState": true }, { "dx": -1, "dy": -1, "id": 18248 }, { "dx": 1, "dy": -1, "id": 18250 }, { "dx": -1, "dy": 0, "id": 18251 },
+      { "dx": 1, "dy": 2, "id": 18252 }, { "dx": 1, "dy": 0, "id": 18253 }, { "dx": 0, "dy": -2, "id": 18246 }, { "dx": -1, "dy": 1, "id": 18254 },
+      { "dx": 0, "dy": 1, "id": 18255 }, { "dx": 1, "dy": 1, "id": 18256 }, { "dx": -1, "dy": 2, "id": 18257 }, { "dx": 0, "dy": 2, "id": 18258 },
+      { "dx": -1, "dy": -2, "id": 18259 }, { "dx": 0, "dy": 0, "id": 18245 }, { "dx": 1, "dy": -2, "id": 18247 }
+    ]
+  },
+  "rose-rug-small-south": {
+    "name": "Rose Rug",
+    "script": "rose-rug",
+    "labelNumber": 1150121,
+    "addonResourceKind": "rose-rug",
+    "addonResourceMax": 10,
+    "addonResourceRechargeAmount": 1,
+    "addonResourceLabelNumber": 1150102,
+    "servuoClass": "RoseRugAddon",
+    "servuoClasses": ["RoseRugAddon", "RoseRugAddonDeed", "InternalAddonComponent", "RugType", "RewardOptionGump", "IRewardItem", "IRewardOption"],
+    "components": [
+      { "dx": 1, "dy": 1, "id": 18269, "addonResourceState": true }, { "dx": 1, "dy": 0, "id": 18270 }, { "dx": 1, "dy": -1, "id": 18271 }, { "dx": -2, "dy": 0, "id": 18272 },
+      { "dx": -2, "dy": 1, "id": 18273 }, { "dx": -2, "dy": -1, "id": 18274 }, { "dx": 0, "dy": -1, "id": 18268 }, { "dx": 0, "dy": 0, "id": 18260 },
+      { "dx": 2, "dy": 0, "id": 18261 }, { "dx": -1, "dy": 0, "id": 18264 }, { "dx": -1, "dy": -1, "id": 18265 }, { "dx": 0, "dy": 1, "id": 18266 },
+      { "dx": 2, "dy": 1, "id": 18267 }, { "dx": 2, "dy": -1, "id": 18262 }, { "dx": -1, "dy": 1, "id": 18263 }
+    ]
+  },
+  "skull-rug-large-east": {
+    "name": "Skull Rug",
+    "script": "skull-rug",
+    "labelNumber": 1150120,
+    "addonResourceKind": "skull-rug",
+    "addonResourceMax": 10,
+    "addonResourceRechargeAmount": 1,
+    "addonResourceLabelNumber": 1150101,
+    "servuoClass": "SkullRugAddon",
+    "servuoClasses": ["SkullRugAddon", "SkullRugAddonDeed", "InternalAddonComponent", "RugType", "RewardOptionGump", "IRewardItem", "IRewardOption"],
+    "components": [
+      { "dx": -1, "dy": -3, "id": 14495, "addonResourceState": true }, { "dx": 0, "dy": -3, "id": 14494 }, { "dx": 1, "dy": -3, "id": 14493 }, { "dx": 2, "dy": -3, "id": 14496 },
+      { "dx": 0, "dy": -1, "id": 14486 }, { "dx": -1, "dy": -1, "id": 14487 }, { "dx": 2, "dy": 1, "id": 14480 }, { "dx": 0, "dy": 3, "id": 14471 },
+      { "dx": 0, "dy": 2, "id": 14474 }, { "dx": 1, "dy": 0, "id": 14481 }, { "dx": -1, "dy": 1, "id": 14479 }, { "dx": 2, "dy": -1, "id": 14488 },
+      { "dx": 2, "dy": 2, "id": 14476 }, { "dx": 1, "dy": 2, "id": 14473 }, { "dx": 1, "dy": -1, "id": 14485 }, { "dx": -1, "dy": -2, "id": 14491 },
+      { "dx": 2, "dy": -2, "id": 14492 }, { "dx": 1, "dy": 3, "id": 14470 }, { "dx": -1, "dy": 2, "id": 14475 }, { "dx": 0, "dy": -2, "id": 14490 },
+      { "dx": 2, "dy": 0, "id": 14484 }, { "dx": -1, "dy": 3, "id": 14472 }, { "dx": 0, "dy": 1, "id": 14478 }, { "dx": 2, "dy": 3, "id": 14469 },
+      { "dx": 1, "dy": 1, "id": 14477 }, { "dx": 1, "dy": -2, "id": 14489 }, { "dx": -1, "dy": 0, "id": 14483 }, { "dx": 0, "dy": 0, "id": 14482 }
+    ]
+  },
+  "skull-rug-large-south": {
+    "name": "Skull Rug",
+    "script": "skull-rug",
+    "labelNumber": 1150120,
+    "addonResourceKind": "skull-rug",
+    "addonResourceMax": 10,
+    "addonResourceRechargeAmount": 1,
+    "addonResourceLabelNumber": 1150101,
+    "servuoClass": "SkullRugAddon",
+    "servuoClasses": ["SkullRugAddon", "SkullRugAddonDeed", "InternalAddonComponent", "RugType", "RewardOptionGump", "IRewardItem", "IRewardOption"],
+    "components": [
+      { "dx": 0, "dy": 2, "id": 14456, "addonResourceState": true }, { "dx": 0, "dy": -1, "id": 14455 }, { "dx": -3, "dy": 2, "id": 14441 }, { "dx": -1, "dy": -1, "id": 14451 },
+      { "dx": 3, "dy": 0, "id": 14466 }, { "dx": -3, "dy": 1, "id": 14442 }, { "dx": -2, "dy": 1, "id": 14445 }, { "dx": 3, "dy": 2, "id": 14468 },
+      { "dx": 0, "dy": 1, "id": 14453 }, { "dx": -3, "dy": -1, "id": 14444 }, { "dx": 1, "dy": 2, "id": 14460 }, { "dx": 3, "dy": -1, "id": 14467 },
+      { "dx": 2, "dy": 1, "id": 14461 }, { "dx": 2, "dy": 0, "id": 14462 }, { "dx": 1, "dy": -1, "id": 14459 }, { "dx": -2, "dy": -1, "id": 14447 },
+      { "dx": -1, "dy": 0, "id": 14450 }, { "dx": 0, "dy": 0, "id": 14454 }, { "dx": -1, "dy": 2, "id": 14452 }, { "dx": -2, "dy": 2, "id": 14448 },
+      { "dx": -2, "dy": 0, "id": 14446 }, { "dx": -1, "dy": 1, "id": 14449 }, { "dx": 2, "dy": -1, "id": 14463 }, { "dx": 1, "dy": 0, "id": 14458 },
+      { "dx": 2, "dy": 2, "id": 14464 }, { "dx": 3, "dy": 1, "id": 14465 }, { "dx": 1, "dy": 1, "id": 14457 }, { "dx": -3, "dy": 0, "id": 14443 }
+    ]
+  },
+  "skull-rug-small-east": {
+    "name": "Skull Rug",
+    "script": "skull-rug",
+    "labelNumber": 1150120,
+    "addonResourceKind": "skull-rug",
+    "addonResourceMax": 10,
+    "addonResourceRechargeAmount": 1,
+    "addonResourceLabelNumber": 1150101,
+    "servuoClass": "SkullRugAddon",
+    "servuoClasses": ["SkullRugAddon", "SkullRugAddonDeed", "InternalAddonComponent", "RugType", "RewardOptionGump", "IRewardItem", "IRewardOption"],
+    "components": [
+      { "dx": 1, "dy": 2, "id": 18198, "addonResourceState": true }, { "dx": 0, "dy": 2, "id": 18199 }, { "dx": -1, "dy": 2, "id": 18200 }, { "dx": 1, "dy": 1, "id": 18209 },
+      { "dx": 0, "dy": 1, "id": 18210 }, { "dx": -1, "dy": 1, "id": 18211 }, { "dx": -1, "dy": -2, "id": 18244 }, { "dx": 0, "dy": -2, "id": 18243 },
+      { "dx": 1, "dy": -2, "id": 18242 }, { "dx": -1, "dy": -1, "id": 18241 }, { "dx": 0, "dy": -1, "id": 18240 }, { "dx": 1, "dy": -1, "id": 18239 },
+      { "dx": -1, "dy": 0, "id": 18238 }, { "dx": 1, "dy": 0, "id": 18236 }, { "dx": 0, "dy": 0, "id": 18237 }
+    ]
+  },
+  "skull-rug-small-south": {
+    "name": "Skull Rug",
+    "script": "skull-rug",
+    "labelNumber": 1150120,
+    "addonResourceKind": "skull-rug",
+    "addonResourceMax": 10,
+    "addonResourceRechargeAmount": 1,
+    "addonResourceLabelNumber": 1150101,
+    "servuoClass": "SkullRugAddon",
+    "servuoClasses": ["SkullRugAddon", "SkullRugAddonDeed", "InternalAddonComponent", "RugType", "RewardOptionGump", "IRewardItem", "IRewardOption"],
+    "components": [
+      { "dx": 1, "dy": 1, "id": 18197, "addonResourceState": true }, { "dx": -2, "dy": 1, "id": 18196 }, { "dx": -1, "dy": 1, "id": 18195 }, { "dx": 2, "dy": 1, "id": 18194 },
+      { "dx": 0, "dy": 1, "id": 18193 }, { "dx": 1, "dy": 0, "id": 18192 }, { "dx": 0, "dy": -1, "id": 18191 }, { "dx": 2, "dy": -1, "id": 18190 },
+      { "dx": 1, "dy": -1, "id": 18189 }, { "dx": -1, "dy": -1, "id": 18188 }, { "dx": -1, "dy": 0, "id": 18187 }, { "dx": 2, "dy": 0, "id": 18186 },
+      { "dx": -2, "dy": -1, "id": 18185 }, { "dx": -2, "dy": 0, "id": 18184 }, { "dx": 0, "dy": 0, "id": 18183 }
+    ]
+  },
+  "fire-painting-south": {
+    "name": "Painting",
+    "script": "fire-painting",
+    "labelNumber": 1098378,
+    "addonResourceKind": "fire-painting",
+    "addonResourceMax": 140,
+    "addonResourceRechargeAmount": 1,
+    "addonResourceLabelNumber": 1154179,
+    "servuoClass": "FirePaintingAddon",
+    "servuoClasses": ["FirePaintingAddon", "FirePaintingComponent", "FirePaintingDeed", "AddonOptionGump", "DirectionType", "IRewardOption"],
+    "components": [
+      { "dx": 0, "dy": 0, "id": 19496, "script": "fire-painting", "addonResourceState": true, "servuoClass": "FirePaintingComponent" }
+    ]
+  },
+  "fire-painting-east": {
+    "name": "Painting",
+    "script": "fire-painting",
+    "labelNumber": 1098378,
+    "addonResourceKind": "fire-painting",
+    "addonResourceMax": 140,
+    "addonResourceRechargeAmount": 1,
+    "addonResourceLabelNumber": 1154179,
+    "servuoClass": "FirePaintingAddon",
+    "servuoClasses": ["FirePaintingAddon", "FirePaintingComponent", "FirePaintingDeed", "AddonOptionGump", "DirectionType", "IRewardOption"],
+    "components": [
+      { "dx": 0, "dy": 0, "id": 19497, "script": "fire-painting", "addonResourceState": true, "servuoClass": "FirePaintingComponent" }
+    ]
+  },
+  "ship-painting-south": {
+    "name": "Painting",
+    "script": "ship-painting",
+    "labelNumber": 1098378,
+    "addonResourceKind": "ship-painting",
+    "addonResourceMax": 210,
+    "addonResourceRechargeAmount": 42,
+    "addonResourceLabelNumber": 1154175,
+    "servuoClass": "ShipPaintingAddon",
+    "servuoClasses": ["ShipPaintingAddon", "ShipPaintingComponent", "ShipPaintingDeed", "AddonOptionGump", "DirectionType", "IRewardOption"],
+    "components": [
+      { "dx": 0, "dy": 0, "id": 19494, "script": "ship-painting", "addonResourceState": true, "servuoClass": "ShipPaintingComponent" }
+    ]
+  },
+  "ship-painting-east": {
+    "name": "Painting",
+    "script": "ship-painting",
+    "labelNumber": 1098378,
+    "addonResourceKind": "ship-painting",
+    "addonResourceMax": 210,
+    "addonResourceRechargeAmount": 42,
+    "addonResourceLabelNumber": 1154175,
+    "servuoClass": "ShipPaintingAddon",
+    "servuoClasses": ["ShipPaintingAddon", "ShipPaintingComponent", "ShipPaintingDeed", "AddonOptionGump", "DirectionType", "IRewardOption"],
+    "components": [
+      { "dx": 0, "dy": 0, "id": 19495, "script": "ship-painting", "addonResourceState": true, "servuoClass": "ShipPaintingComponent" }
+    ]
+  },
+  "medusa-floor-tile": {
+    "name": "Medusa's Floor Tile",
+    "labelNumber": 1113922,
+    "servuoClass": "MedusaFloorTileAddon",
+    "servuoClasses": ["MedusaFloorTileAddon", "MedusaFloorTileAddonDeed", "LocalizedAddonComponent"],
+    "components": [
+      { "dx": 0, "dy": 0, "id": 16589 }, { "dx": 2, "dy": 1, "id": 16591 }, { "dx": -2, "dy": 2, "id": 16577 }, { "dx": -1, "dy": -2, "id": 16578 }, { "dx": 2, "dy": -2, "id": 16581 },
+      { "dx": -1, "dy": 2, "id": 16598 }, { "dx": 0, "dy": -2, "id": 16579 }, { "dx": -2, "dy": -2, "id": 16601 }, { "dx": 1, "dy": -2, "id": 16580 }, { "dx": -2, "dy": 0, "id": 16582 },
+      { "dx": 2, "dy": -1, "id": 16586 }, { "dx": 1, "dy": -1, "id": 16595 }, { "dx": 1, "dy": 1, "id": 16590 }, { "dx": 1, "dy": 0, "id": 16585 }, { "dx": -2, "dy": -1, "id": 16587 },
+      { "dx": -1, "dy": 1, "id": 16593 }, { "dx": 0, "dy": 1, "id": 16594 }, { "dx": 2, "dy": 0, "id": 16596 }, { "dx": -1, "dy": -1, "id": 16588 }, { "dx": 2, "dy": 2, "id": 16597 },
+      { "dx": -2, "dy": 1, "id": 16592 }, { "dx": 0, "dy": -1, "id": 16584 }, { "dx": -1, "dy": 0, "id": 16583 }, { "dx": 0, "dy": 2, "id": 16599 }, { "dx": 1, "dy": 2, "id": 16600 }
+    ]
+  },
+  "lord-british-throne": {
+    "name": "Lord British Throne",
+    "servuoClass": "LordBritishThroneAddon",
+    "servuoClasses": ["LordBritishThroneAddon", "LordBritishThroneDeed"],
+    "components": [
+      { "dx": 0, "dy": 0, "id": 5414 },
+      { "dx": 0, "dy": -1, "id": 5415 }
+    ]
+  },
+  "enormous-venus-flytrap-south": {
+    "name": "Enormous Venus Flytrap",
+    "script": "cleanup-addon-container",
+    "kind": "container",
+    "container": true,
+    "gumpId": 9,
+    "capacity": 125,
+    "maxWeight": 400,
+    "labelNumber": 1154462,
+    "cleanupAddonType": "EnormousVenusFlytrapAddon",
+    "servuoClass": "EnormousVenusFlytrapAddon",
+    "servuoClasses": [
+      "EnormousVenusFlytrapAddon",
+      "EnormousVenusFlytrapAddonDeed",
+      "BaseAddonContainer",
+      "BaseAddonContainerDeed",
+      "CleanupArray",
+      "AppraiseforCleanup"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 39271,
+        "script": "cleanup-addon-container",
+        "kind": "container",
+        "container": true,
+        "gumpId": 9,
+        "servuoClass": "EnormousVenusFlytrapAddon",
+        "cleanupAddonType": "EnormousVenusFlytrapAddon"
+      }
+    ]
+  },
+  "enormous-venus-flytrap-east": {
+    "name": "Enormous Venus Flytrap",
+    "script": "cleanup-addon-container",
+    "kind": "container",
+    "container": true,
+    "gumpId": 9,
+    "capacity": 125,
+    "maxWeight": 400,
+    "labelNumber": 1154462,
+    "cleanupAddonType": "EnormousVenusFlytrapAddon",
+    "servuoClass": "EnormousVenusFlytrapAddon",
+    "servuoClasses": [
+      "EnormousVenusFlytrapAddon",
+      "EnormousVenusFlytrapAddonDeed",
+      "BaseAddonContainer",
+      "BaseAddonContainerDeed",
+      "CleanupArray",
+      "AppraiseforCleanup"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 39272,
+        "script": "cleanup-addon-container",
+        "kind": "container",
+        "container": true,
+        "gumpId": 9,
+        "servuoClass": "EnormousVenusFlytrapAddon",
+        "cleanupAddonType": "EnormousVenusFlytrapAddon"
+      }
+    ]
+  },
+  "sacrificial-altar-south": {
+    "name": "Sacrificial Altar",
+    "script": "cleanup-addon-container",
+    "kind": "container",
+    "container": true,
+    "gumpId": 9,
+    "capacity": 125,
+    "maxWeight": 400,
+    "labelNumber": 1074818,
+    "cleanupAddonType": "SacrificialAltarAddon",
+    "servuoClass": "SacrificialAltarAddon",
+    "servuoClasses": [
+      "SacrificialAltarAddon",
+      "SacrificialAltarDeed",
+      "BaseAddonContainer",
+      "BaseAddonContainerDeed",
+      "CleanupArray",
+      "AppraiseforCleanup"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10907,
+        "script": "cleanup-addon-container",
+        "kind": "container",
+        "container": true,
+        "gumpId": 9,
+        "servuoClass": "SacrificialAltarAddon",
+        "cleanupAddonType": "SacrificialAltarAddon"
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 10906,
+        "labelNumber": 1074818,
+        "servuoClass": "LocalizedContainerComponent"
+      }
+    ]
+  },
+  "sacrificial-altar-east": {
+    "name": "Sacrificial Altar",
+    "script": "cleanup-addon-container",
+    "kind": "container",
+    "container": true,
+    "gumpId": 9,
+    "capacity": 125,
+    "maxWeight": 400,
+    "labelNumber": 1074818,
+    "cleanupAddonType": "SacrificialAltarAddon",
+    "servuoClass": "SacrificialAltarAddon",
+    "servuoClasses": [
+      "SacrificialAltarAddon",
+      "SacrificialAltarDeed",
+      "BaseAddonContainer",
+      "BaseAddonContainerDeed",
+      "CleanupArray",
+      "AppraiseforCleanup"
+    ],
+    "components": [
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 10908,
+        "script": "cleanup-addon-container",
+        "kind": "container",
+        "container": true,
+        "gumpId": 9,
+        "servuoClass": "SacrificialAltarAddon",
+        "cleanupAddonType": "SacrificialAltarAddon"
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 10909,
+        "labelNumber": 1074818,
+        "servuoClass": "LocalizedContainerComponent"
+      }
+    ]
+  },
+  "vendor-mall": {
+    "name": "Vendor Mall",
+    "servuoClass": "VendorMallAddon",
+    "servuoClasses": [
+      "VendorMallAddon",
+      "VendorMallAddonDeed"
+    ],
+    "components": [
+      {
+        "dx": -16,
+        "dy": -4,
+        "id": 3216
+      },
+      {
+        "dx": -16,
+        "dy": -5,
+        "id": 3216
+      },
+      {
+        "dx": -16,
+        "dy": -6,
+        "id": 3216
+      },
+      {
+        "dx": -13,
+        "dy": -4,
+        "id": 1316
+      },
+      {
+        "dx": -15,
+        "dy": -6,
+        "id": 3215
+      },
+      {
+        "dx": -14,
+        "dy": -6,
+        "id": 3215
+      },
+      {
+        "dx": -13,
+        "dy": -6,
+        "id": 3215
+      },
+      {
+        "dx": -14,
+        "dy": -4,
+        "id": 1315
+      },
+      {
+        "dx": -15,
+        "dy": -4,
+        "id": 1315
+      },
+      {
+        "dx": -14,
+        "dy": -5,
+        "id": 1313
+      },
+      {
+        "dx": -13,
+        "dy": -5,
+        "id": 1309
+      },
+      {
+        "dx": -15,
+        "dy": -5,
+        "id": 1309
+      },
+      {
+        "dx": -16,
+        "dy": 9,
+        "id": 3216
+      },
+      {
+        "dx": -16,
+        "dy": 8,
+        "id": 3216
+      },
+      {
+        "dx": -16,
+        "dy": 7,
+        "id": 3216
+      },
+      {
+        "dx": -16,
+        "dy": 6,
+        "id": 3216
+      },
+      {
+        "dx": -16,
+        "dy": 5,
+        "id": 3216
+      },
+      {
+        "dx": -16,
+        "dy": 4,
+        "id": 3216
+      },
+      {
+        "dx": -16,
+        "dy": 3,
+        "id": 3216
+      },
+      {
+        "dx": -16,
+        "dy": 1,
+        "id": 3216
+      },
+      {
+        "dx": -16,
+        "dy": 2,
+        "id": 3216
+      },
+      {
+        "dx": -16,
+        "dy": 0,
+        "id": 3216
+      },
+      {
+        "dx": -16,
+        "dy": -1,
+        "id": 3216
+      },
+      {
+        "dx": -16,
+        "dy": -2,
+        "id": 3216
+      },
+      {
+        "dx": -16,
+        "dy": -3,
+        "id": 3216
+      },
+      {
+        "dx": -14,
+        "dy": 9,
+        "id": 1316
+      },
+      {
+        "dx": -14,
+        "dy": 8,
+        "id": 1316
+      },
+      {
+        "dx": -14,
+        "dy": 5,
+        "id": 1316
+      },
+      {
+        "dx": -14,
+        "dy": 3,
+        "id": 1316
+      },
+      {
+        "dx": -14,
+        "dy": 2,
+        "id": 1316
+      },
+      {
+        "dx": -14,
+        "dy": -1,
+        "id": 1316
+      },
+      {
+        "dx": -15,
+        "dy": 6,
+        "id": 1316
+      },
+      {
+        "dx": -15,
+        "dy": -2,
+        "id": 1316
+      },
+      {
+        "dx": -13,
+        "dy": 2,
+        "id": 1316
+      },
+      {
+        "dx": -13,
+        "dy": 0,
+        "id": 1316
+      },
+      {
+        "dx": -13,
+        "dy": -2,
+        "id": 1316
+      },
+      {
+        "dx": -14,
+        "dy": -2,
+        "id": 1315
+      },
+      {
+        "dx": -13,
+        "dy": 6,
+        "id": 1315
+      },
+      {
+        "dx": -13,
+        "dy": 5,
+        "id": 1315
+      },
+      {
+        "dx": -14,
+        "dy": 7,
+        "id": 1315
+      },
+      {
+        "dx": -13,
+        "dy": 8,
+        "id": 1315
+      },
+      {
+        "dx": -13,
+        "dy": -3,
+        "id": 1315
+      },
+      {
+        "dx": -13,
+        "dy": -1,
+        "id": 1314
+      },
+      {
+        "dx": -14,
+        "dy": 0,
+        "id": 1314
+      },
+      {
+        "dx": -13,
+        "dy": 1,
+        "id": 1314
+      },
+      {
+        "dx": -15,
+        "dy": 2,
+        "id": 1314
+      },
+      {
+        "dx": -13,
+        "dy": 3,
+        "id": 1314
+      },
+      {
+        "dx": -14,
+        "dy": 4,
+        "id": 1314
+      },
+      {
+        "dx": -15,
+        "dy": 4,
+        "id": 1314
+      },
+      {
+        "dx": -13,
+        "dy": 7,
+        "id": 1314
+      },
+      {
+        "dx": -15,
+        "dy": 8,
+        "id": 1314
+      },
+      {
+        "dx": -14,
+        "dy": -3,
+        "id": 1313
+      },
+      {
+        "dx": -14,
+        "dy": 1,
+        "id": 1313
+      },
+      {
+        "dx": -15,
+        "dy": 0,
+        "id": 1313
+      },
+      {
+        "dx": -13,
+        "dy": 4,
+        "id": 1313
+      },
+      {
+        "dx": -14,
+        "dy": 6,
+        "id": 1313
+      },
+      {
+        "dx": -13,
+        "dy": 9,
+        "id": 1313
+      },
+      {
+        "dx": -15,
+        "dy": -3,
+        "id": 1309
+      },
+      {
+        "dx": -15,
+        "dy": -1,
+        "id": 1309
+      },
+      {
+        "dx": -15,
+        "dy": 1,
+        "id": 1309
+      },
+      {
+        "dx": -15,
+        "dy": 3,
+        "id": 1309
+      },
+      {
+        "dx": -15,
+        "dy": 5,
+        "id": 1309
+      },
+      {
+        "dx": -15,
+        "dy": 7,
+        "id": 1309
+      },
+      {
+        "dx": -15,
+        "dy": 9,
+        "id": 1309
+      },
+      {
+        "dx": -12,
+        "dy": -4,
+        "id": 1316
+      },
+      {
+        "dx": -8,
+        "dy": -4,
+        "id": 1316
+      },
+      {
+        "dx": -6,
+        "dy": -4,
+        "id": 1316
+      },
+      {
+        "dx": -2,
+        "dy": -4,
+        "id": 1316
+      },
+      {
+        "dx": 2,
+        "dy": -4,
+        "id": 1316
+      },
+      {
+        "dx": -2,
+        "dy": -5,
+        "id": 1316
+      },
+      {
+        "dx": -4,
+        "dy": -5,
+        "id": 1316
+      },
+      {
+        "dx": -12,
+        "dy": -6,
+        "id": 3215
+      },
+      {
+        "dx": -11,
+        "dy": -6,
+        "id": 3215
+      },
+      {
+        "dx": -10,
+        "dy": -6,
+        "id": 3215
+      },
+      {
+        "dx": -9,
+        "dy": -6,
+        "id": 3215
+      },
+      {
+        "dx": -8,
+        "dy": -6,
+        "id": 3215
+      },
+      {
+        "dx": -7,
+        "dy": -6,
+        "id": 3215
+      },
+      {
+        "dx": -6,
+        "dy": -6,
+        "id": 3215
+      },
+      {
+        "dx": -5,
+        "dy": -6,
+        "id": 3215
+      },
+      {
+        "dx": -4,
+        "dy": -6,
+        "id": 3215
+      },
+      {
+        "dx": -3,
+        "dy": -6,
+        "id": 3215
+      },
+      {
+        "dx": 3,
+        "dy": -6,
+        "id": 3215
+      },
+      {
+        "dx": 3,
+        "dy": -4,
+        "id": 1315
+      },
+      {
+        "dx": 1,
+        "dy": -4,
+        "id": 1315
+      },
+      {
+        "dx": 0,
+        "dy": -5,
+        "id": 1315
+      },
+      {
+        "dx": -3,
+        "dy": -4,
+        "id": 1315
+      },
+      {
+        "dx": -5,
+        "dy": -4,
+        "id": 1315
+      },
+      {
+        "dx": -10,
+        "dy": -4,
+        "id": 1315
+      },
+      {
+        "dx": -9,
+        "dy": -4,
+        "id": 1315
+      },
+      {
+        "dx": -12,
+        "dy": -5,
+        "id": 1315
+      },
+      {
+        "dx": -1,
+        "dy": -5,
+        "id": 1315
+      },
+      {
+        "dx": 2,
+        "dy": -6,
+        "id": 1316
+      },
+      {
+        "dx": -2,
+        "dy": -6,
+        "id": 1316
+      },
+      {
+        "dx": 2,
+        "dy": -7,
+        "id": 1316
+      },
+      {
+        "dx": 1,
+        "dy": -7,
+        "id": 1316
+      },
+      {
+        "dx": 0,
+        "dy": -7,
+        "id": 1316
+      },
+      {
+        "dx": -2,
+        "dy": -7,
+        "id": 1315
+      },
+      {
+        "dx": 0,
+        "dy": -6,
+        "id": 1315
+      },
+      {
+        "dx": -4,
+        "dy": -4,
+        "id": 1314
+      },
+      {
+        "dx": 0,
+        "dy": -4,
+        "id": 1314
+      },
+      {
+        "dx": 2,
+        "dy": -5,
+        "id": 1314
+      },
+      {
+        "dx": 1,
+        "dy": -6,
+        "id": 1314
+      },
+      {
+        "dx": -1,
+        "dy": -6,
+        "id": 1314
+      },
+      {
+        "dx": -7,
+        "dy": -4,
+        "id": 1314
+      },
+      {
+        "dx": -6,
+        "dy": -5,
+        "id": 1314
+      },
+      {
+        "dx": -10,
+        "dy": -5,
+        "id": 1314
+      },
+      {
+        "dx": -11,
+        "dy": -4,
+        "id": 1314
+      },
+      {
+        "dx": -1,
+        "dy": -4,
+        "id": 1313
+      },
+      {
+        "dx": 1,
+        "dy": -5,
+        "id": 1313
+      },
+      {
+        "dx": -1,
+        "dy": -7,
+        "id": 1313
+      },
+      {
+        "dx": -8,
+        "dy": -5,
+        "id": 1313
+      },
+      {
+        "dx": 3,
+        "dy": -5,
+        "id": 1309
+      },
+      {
+        "dx": -3,
+        "dy": -5,
+        "id": 1309
+      },
+      {
+        "dx": -5,
+        "dy": -5,
+        "id": 1309
+      },
+      {
+        "dx": -7,
+        "dy": -5,
+        "id": 1309
+      },
+      {
+        "dx": -9,
+        "dy": -5,
+        "id": 1309
+      },
+      {
+        "dx": -11,
+        "dy": -5,
+        "id": 1309
+      },
+      {
+        "dx": -1,
+        "dy": -6,
+        "id": 6418
+      },
+      {
+        "dx": 1,
+        "dy": -6,
+        "id": 6419
+      },
+      {
+        "dx": 0,
+        "dy": -6,
+        "id": 6430
+      },
+      {
+        "dx": 1,
+        "dy": -7,
+        "id": 6425
+      },
+      {
+        "dx": -1,
+        "dy": -7,
+        "id": 6425
+      },
+      {
+        "dx": 3,
+        "dy": -8,
+        "id": 3215
+      },
+      {
+        "dx": 1,
+        "dy": -8,
+        "id": 3215
+      },
+      {
+        "dx": -1,
+        "dy": -8,
+        "id": 3215
+      },
+      {
+        "dx": 0,
+        "dy": -8,
+        "id": 3215
+      },
+      {
+        "dx": -3,
+        "dy": -8,
+        "id": 3215
+      },
+      {
+        "dx": 3,
+        "dy": -7,
+        "id": 3216
+      },
+      {
+        "dx": 2,
+        "dy": -8,
+        "id": 3216
+      },
+      {
+        "dx": -3,
+        "dy": -7,
+        "id": 3216
+      },
+      {
+        "dx": -2,
+        "dy": -8,
+        "id": 3216
+      },
+      {
+        "dx": -10,
+        "dy": -3,
+        "id": 1316
+      },
+      {
+        "dx": -7,
+        "dy": -3,
+        "id": 1316
+      },
+      {
+        "dx": -1,
+        "dy": -3,
+        "id": 1316
+      },
+      {
+        "dx": 3,
+        "dy": -2,
+        "id": 1316
+      },
+      {
+        "dx": -3,
+        "dy": -2,
+        "id": 1316
+      },
+      {
+        "dx": -6,
+        "dy": -2,
+        "id": 1316
+      },
+      {
+        "dx": -11,
+        "dy": -2,
+        "id": 1316
+      },
+      {
+        "dx": -12,
+        "dy": -1,
+        "id": 1316
+      },
+      {
+        "dx": -12,
+        "dy": 1,
+        "id": 1316
+      },
+      {
+        "dx": -12,
+        "dy": 3,
+        "id": 1316
+      },
+      {
+        "dx": -12,
+        "dy": 5,
+        "id": 1316
+      },
+      {
+        "dx": -12,
+        "dy": 7,
+        "id": 1316
+      },
+      {
+        "dx": 2,
+        "dy": -1,
+        "id": 1316
+      },
+      {
+        "dx": -2,
+        "dy": -1,
+        "id": 1316
+      },
+      {
+        "dx": -4,
+        "dy": -1,
+        "id": 1316
+      },
+      {
+        "dx": -8,
+        "dy": -1,
+        "id": 1316
+      },
+      {
+        "dx": -11,
+        "dy": 0,
+        "id": 1316
+      },
+      {
+        "dx": -11,
+        "dy": 4,
+        "id": 1316
+      },
+      {
+        "dx": -11,
+        "dy": 6,
+        "id": 1316
+      },
+      {
+        "dx": -10,
+        "dy": 8,
+        "id": 3216
+      },
+      {
+        "dx": -10,
+        "dy": 7,
+        "id": 3216
+      },
+      {
+        "dx": -10,
+        "dy": 6,
+        "id": 3216
+      },
+      {
+        "dx": -10,
+        "dy": 5,
+        "id": 3216
+      },
+      {
+        "dx": -10,
+        "dy": 4,
+        "id": 3216
+      },
+      {
+        "dx": -10,
+        "dy": 3,
+        "id": 3216
+      },
+      {
+        "dx": -10,
+        "dy": 2,
+        "id": 3216
+      },
+      {
+        "dx": -10,
+        "dy": 1,
+        "id": 3216
+      },
+      {
+        "dx": -10,
+        "dy": 0,
+        "id": 3216
+      },
+      {
+        "dx": -10,
+        "dy": 9,
+        "id": 3216
+      },
+      {
+        "dx": -1,
+        "dy": -1,
+        "id": 1316
+      },
+      {
+        "dx": -9,
+        "dy": 9,
+        "id": 3215
+      },
+      {
+        "dx": -8,
+        "dy": 9,
+        "id": 3215
+      },
+      {
+        "dx": -7,
+        "dy": 9,
+        "id": 3215
+      },
+      {
+        "dx": -6,
+        "dy": 9,
+        "id": 3215
+      },
+      {
+        "dx": -9,
+        "dy": 0,
+        "id": 3215
+      },
+      {
+        "dx": -8,
+        "dy": 0,
+        "id": 3215
+      },
+      {
+        "dx": -7,
+        "dy": 0,
+        "id": 3215
+      },
+      {
+        "dx": -6,
+        "dy": 0,
+        "id": 3215
+      },
+      {
+        "dx": -5,
+        "dy": 0,
+        "id": 3215
+      },
+      {
+        "dx": -4,
+        "dy": 0,
+        "id": 3215
+      },
+      {
+        "dx": 3,
+        "dy": 0,
+        "id": 3215
+      },
+      {
+        "dx": -3,
+        "dy": 0,
+        "id": 3215
+      },
+      {
+        "dx": 3,
+        "dy": -3,
+        "id": 1315
+      },
+      {
+        "dx": 0,
+        "dy": -2,
+        "id": 1315
+      },
+      {
+        "dx": 0,
+        "dy": -3,
+        "id": 1315
+      },
+      {
+        "dx": -2,
+        "dy": -3,
+        "id": 1315
+      },
+      {
+        "dx": -4,
+        "dy": -3,
+        "id": 1315
+      },
+      {
+        "dx": -5,
+        "dy": -2,
+        "id": 1315
+      },
+      {
+        "dx": -6,
+        "dy": -1,
+        "id": 1315
+      },
+      {
+        "dx": -8,
+        "dy": -2,
+        "id": 1315
+      },
+      {
+        "dx": -8,
+        "dy": -3,
+        "id": 1315
+      },
+      {
+        "dx": -6,
+        "dy": -3,
+        "id": 1315
+      },
+      {
+        "dx": -10,
+        "dy": -1,
+        "id": 1315
+      },
+      {
+        "dx": -12,
+        "dy": 0,
+        "id": 1315
+      },
+      {
+        "dx": -11,
+        "dy": 2,
+        "id": 1315
+      },
+      {
+        "dx": -12,
+        "dy": 9,
+        "id": 1315
+      },
+      {
+        "dx": -11,
+        "dy": 8,
+        "id": 1315
+      },
+      {
+        "dx": -5,
+        "dy": 9,
+        "id": 3215
+      },
+      {
+        "dx": -4,
+        "dy": 9,
+        "id": 3215
+      },
+      {
+        "dx": 3,
+        "dy": 9,
+        "id": 3215
+      },
+      {
+        "dx": -3,
+        "dy": 9,
+        "id": 3215
+      },
+      {
+        "dx": 2,
+        "dy": -3,
+        "id": 1314
+      },
+      {
+        "dx": 1,
+        "dy": -2,
+        "id": 1314
+      },
+      {
+        "dx": 0,
+        "dy": -1,
+        "id": 1314
+      },
+      {
+        "dx": -2,
+        "dy": -2,
+        "id": 1314
+      },
+      {
+        "dx": -4,
+        "dy": -2,
+        "id": 1314
+      },
+      {
+        "dx": -5,
+        "dy": -3,
+        "id": 1314
+      },
+      {
+        "dx": -10,
+        "dy": -2,
+        "id": 1314
+      },
+      {
+        "dx": -9,
+        "dy": -3,
+        "id": 1314
+      },
+      {
+        "dx": -12,
+        "dy": -3,
+        "id": 1314
+      },
+      {
+        "dx": -12,
+        "dy": 4,
+        "id": 1314
+      },
+      {
+        "dx": 2,
+        "dy": -2,
+        "id": 1313
+      },
+      {
+        "dx": 1,
+        "dy": -1,
+        "id": 1313
+      },
+      {
+        "dx": 1,
+        "dy": -3,
+        "id": 1313
+      },
+      {
+        "dx": -1,
+        "dy": -2,
+        "id": 1313
+      },
+      {
+        "dx": -3,
+        "dy": -3,
+        "id": 1313
+      },
+      {
+        "dx": -7,
+        "dy": -2,
+        "id": 1313
+      },
+      {
+        "dx": -9,
+        "dy": -2,
+        "id": 1313
+      },
+      {
+        "dx": -11,
+        "dy": -3,
+        "id": 1313
+      },
+      {
+        "dx": -12,
+        "dy": -2,
+        "id": 1313
+      },
+      {
+        "dx": -12,
+        "dy": 2,
+        "id": 1313
+      },
+      {
+        "dx": -12,
+        "dy": 8,
+        "id": 1313
+      },
+      {
+        "dx": -12,
+        "dy": 6,
+        "id": 1313
+      },
+      {
+        "dx": 3,
+        "dy": -1,
+        "id": 1309
+      },
+      {
+        "dx": -3,
+        "dy": -1,
+        "id": 1309
+      },
+      {
+        "dx": -5,
+        "dy": -1,
+        "id": 1309
+      },
+      {
+        "dx": -7,
+        "dy": -1,
+        "id": 1309
+      },
+      {
+        "dx": -9,
+        "dy": -1,
+        "id": 1309
+      },
+      {
+        "dx": -11,
+        "dy": -1,
+        "id": 1309
+      },
+      {
+        "dx": -11,
+        "dy": 1,
+        "id": 1309
+      },
+      {
+        "dx": -11,
+        "dy": 3,
+        "id": 1309
+      },
+      {
+        "dx": -11,
+        "dy": 5,
+        "id": 1309
+      },
+      {
+        "dx": -11,
+        "dy": 7,
+        "id": 1309
+      },
+      {
+        "dx": -11,
+        "dy": 9,
+        "id": 1309
+      },
+      {
+        "dx": 2,
+        "dy": 0,
+        "id": 1316
+      },
+      {
+        "dx": 1,
+        "dy": 0,
+        "id": 1316
+      },
+      {
+        "dx": 0,
+        "dy": 0,
+        "id": 1316
+      },
+      {
+        "dx": -2,
+        "dy": 0,
+        "id": 1316
+      },
+      {
+        "dx": 2,
+        "dy": 1,
+        "id": 1316
+      },
+      {
+        "dx": 2,
+        "dy": 2,
+        "id": 1316
+      },
+      {
+        "dx": 0,
+        "dy": 2,
+        "id": 1316
+      },
+      {
+        "dx": -2,
+        "dy": 3,
+        "id": 1316
+      },
+      {
+        "dx": 2,
+        "dy": 4,
+        "id": 1316
+      },
+      {
+        "dx": -2,
+        "dy": 5,
+        "id": 1316
+      },
+      {
+        "dx": 0,
+        "dy": 5,
+        "id": 1316
+      },
+      {
+        "dx": 2,
+        "dy": 6,
+        "id": 1316
+      },
+      {
+        "dx": -1,
+        "dy": 6,
+        "id": 1316
+      },
+      {
+        "dx": -2,
+        "dy": 9,
+        "id": 1316
+      },
+      {
+        "dx": 2,
+        "dy": 7,
+        "id": 1316
+      },
+      {
+        "dx": -1,
+        "dy": 8,
+        "id": 1316
+      },
+      {
+        "dx": 2,
+        "dy": 8,
+        "id": 1316
+      },
+      {
+        "dx": -3,
+        "dy": 8,
+        "id": 3216
+      },
+      {
+        "dx": -3,
+        "dy": 7,
+        "id": 3216
+      },
+      {
+        "dx": -3,
+        "dy": 1,
+        "id": 3216
+      },
+      {
+        "dx": -3,
+        "dy": 2,
+        "id": 3216
+      },
+      {
+        "dx": 3,
+        "dy": 1,
+        "id": 3216
+      },
+      {
+        "dx": 3,
+        "dy": 2,
+        "id": 3216
+      },
+      {
+        "dx": 3,
+        "dy": 8,
+        "id": 3216
+      },
+      {
+        "dx": 3,
+        "dy": 7,
+        "id": 3216
+      },
+      {
+        "dx": -1,
+        "dy": 9,
+        "id": 1315
+      },
+      {
+        "dx": 1,
+        "dy": 7,
+        "id": 1315
+      },
+      {
+        "dx": 0,
+        "dy": 6,
+        "id": 1315
+      },
+      {
+        "dx": -1,
+        "dy": 7,
+        "id": 1315
+      },
+      {
+        "dx": -1,
+        "dy": 4,
+        "id": 1315
+      },
+      {
+        "dx": 0,
+        "dy": 3,
+        "id": 1315
+      },
+      {
+        "dx": -2,
+        "dy": 2,
+        "id": 1315
+      },
+      {
+        "dx": 2,
+        "dy": 5,
+        "id": 1315
+      },
+      {
+        "dx": 1,
+        "dy": 9,
+        "id": 1314
+      },
+      {
+        "dx": 0,
+        "dy": 9,
+        "id": 1314
+      },
+      {
+        "dx": 1,
+        "dy": 8,
+        "id": 1314
+      },
+      {
+        "dx": -2,
+        "dy": 7,
+        "id": 1314
+      },
+      {
+        "dx": 1,
+        "dy": 5,
+        "id": 1314
+      },
+      {
+        "dx": 0,
+        "dy": 4,
+        "id": 1314
+      },
+      {
+        "dx": -2,
+        "dy": 4,
+        "id": 1314
+      },
+      {
+        "dx": -2,
+        "dy": 1,
+        "id": 1314
+      },
+      {
+        "dx": -1,
+        "dy": 2,
+        "id": 1314
+      },
+      {
+        "dx": -1,
+        "dy": 0,
+        "id": 1314
+      },
+      {
+        "dx": 0,
+        "dy": 1,
+        "id": 1314
+      },
+      {
+        "dx": 1,
+        "dy": 2,
+        "id": 1314
+      },
+      {
+        "dx": 1,
+        "dy": 3,
+        "id": 1314
+      },
+      {
+        "dx": 2,
+        "dy": 3,
+        "id": 1314
+      },
+      {
+        "dx": 2,
+        "dy": 9,
+        "id": 1313
+      },
+      {
+        "dx": -2,
+        "dy": 8,
+        "id": 1313
+      },
+      {
+        "dx": 0,
+        "dy": 8,
+        "id": 1313
+      },
+      {
+        "dx": 0,
+        "dy": 7,
+        "id": 1313
+      },
+      {
+        "dx": -2,
+        "dy": 6,
+        "id": 1313
+      },
+      {
+        "dx": -1,
+        "dy": 5,
+        "id": 1313
+      },
+      {
+        "dx": -1,
+        "dy": 3,
+        "id": 1313
+      },
+      {
+        "dx": 1,
+        "dy": 4,
+        "id": 1313
+      },
+      {
+        "dx": 1,
+        "dy": 6,
+        "id": 1313
+      },
+      {
+        "dx": 1,
+        "dy": 1,
+        "id": 1313
+      },
+      {
+        "dx": -1,
+        "dy": 1,
+        "id": 1313
+      },
+      {
+        "dx": -7,
+        "dy": 2,
+        "id": 2861
+      },
+      {
+        "dx": -6,
+        "dy": 2,
+        "id": 2861
+      },
+      {
+        "dx": -5,
+        "dy": 2,
+        "id": 2861
+      },
+      {
+        "dx": -5,
+        "dy": 7,
+        "id": 2861
+      },
+      {
+        "dx": -6,
+        "dy": 7,
+        "id": 2861
+      },
+      {
+        "dx": -7,
+        "dy": 7,
+        "id": 2861
+      },
+      {
+        "dx": -4,
+        "dy": 1,
+        "id": 3203
+      },
+      {
+        "dx": -5,
+        "dy": 1,
+        "id": 3203
+      },
+      {
+        "dx": -6,
+        "dy": 1,
+        "id": 3203
+      },
+      {
+        "dx": -7,
+        "dy": 1,
+        "id": 3203
+      },
+      {
+        "dx": -8,
+        "dy": 1,
+        "id": 3203
+      },
+      {
+        "dx": -9,
+        "dy": 1,
+        "id": 3203
+      },
+      {
+        "dx": -9,
+        "dy": 2,
+        "id": 3203
+      },
+      {
+        "dx": -9,
+        "dy": 3,
+        "id": 3203
+      },
+      {
+        "dx": -9,
+        "dy": 4,
+        "id": 3203
+      },
+      {
+        "dx": -9,
+        "dy": 5,
+        "id": 3203
+      },
+      {
+        "dx": -9,
+        "dy": 6,
+        "id": 3203
+      },
+      {
+        "dx": -9,
+        "dy": 7,
+        "id": 3203
+      },
+      {
+        "dx": -9,
+        "dy": 8,
+        "id": 3203
+      },
+      {
+        "dx": -8,
+        "dy": 8,
+        "id": 3203
+      },
+      {
+        "dx": -7,
+        "dy": 8,
+        "id": 3203
+      },
+      {
+        "dx": -6,
+        "dy": 8,
+        "id": 3203
+      },
+      {
+        "dx": -5,
+        "dy": 8,
+        "id": 3203
+      },
+      {
+        "dx": -4,
+        "dy": 8,
+        "id": 3203
+      },
+      {
+        "dx": -8,
+        "dy": 3,
+        "id": 2860
+      },
+      {
+        "dx": -8,
+        "dy": 4,
+        "id": 2860
+      },
+      {
+        "dx": -8,
+        "dy": 5,
+        "id": 2860
+      },
+      {
+        "dx": -8,
+        "dy": 6,
+        "id": 2860
+      },
+      {
+        "dx": 16,
+        "dy": -6,
+        "id": 3216
+      },
+      {
+        "dx": 16,
+        "dy": -5,
+        "id": 3216
+      },
+      {
+        "dx": 16,
+        "dy": -4,
+        "id": 3216
+      },
+      {
+        "dx": 4,
+        "dy": -4,
+        "id": 1316
+      },
+      {
+        "dx": 7,
+        "dy": -4,
+        "id": 1316
+      },
+      {
+        "dx": 8,
+        "dy": -4,
+        "id": 1316
+      },
+      {
+        "dx": 11,
+        "dy": -4,
+        "id": 1316
+      },
+      {
+        "dx": 14,
+        "dy": -5,
+        "id": 1316
+      },
+      {
+        "dx": 10,
+        "dy": -5,
+        "id": 1316
+      },
+      {
+        "dx": 4,
+        "dy": -5,
+        "id": 1316
+      },
+      {
+        "dx": 4,
+        "dy": -6,
+        "id": 3215
+      },
+      {
+        "dx": 5,
+        "dy": -6,
+        "id": 3215
+      },
+      {
+        "dx": 6,
+        "dy": -6,
+        "id": 3215
+      },
+      {
+        "dx": 7,
+        "dy": -6,
+        "id": 3215
+      },
+      {
+        "dx": 8,
+        "dy": -6,
+        "id": 3215
+      },
+      {
+        "dx": 9,
+        "dy": -6,
+        "id": 3215
+      },
+      {
+        "dx": 10,
+        "dy": -6,
+        "id": 3215
+      },
+      {
+        "dx": 11,
+        "dy": -6,
+        "id": 3215
+      },
+      {
+        "dx": 12,
+        "dy": -6,
+        "id": 3215
+      },
+      {
+        "dx": 13,
+        "dy": -6,
+        "id": 3215
+      },
+      {
+        "dx": 14,
+        "dy": -6,
+        "id": 3215
+      },
+      {
+        "dx": 15,
+        "dy": -6,
+        "id": 3215
+      },
+      {
+        "dx": 10,
+        "dy": -4,
+        "id": 1315
+      },
+      {
+        "dx": 8,
+        "dy": -5,
+        "id": 1315
+      },
+      {
+        "dx": 6,
+        "dy": -4,
+        "id": 1315
+      },
+      {
+        "dx": 12,
+        "dy": -5,
+        "id": 1315
+      },
+      {
+        "dx": 13,
+        "dy": -4,
+        "id": 1315
+      },
+      {
+        "dx": 14,
+        "dy": -4,
+        "id": 1314
+      },
+      {
+        "dx": 15,
+        "dy": -4,
+        "id": 1314
+      },
+      {
+        "dx": 9,
+        "dy": -4,
+        "id": 1314
+      },
+      {
+        "dx": 12,
+        "dy": -4,
+        "id": 1313
+      },
+      {
+        "dx": 6,
+        "dy": -5,
+        "id": 1313
+      },
+      {
+        "dx": 5,
+        "dy": -4,
+        "id": 1313
+      },
+      {
+        "dx": 15,
+        "dy": -5,
+        "id": 1309
+      },
+      {
+        "dx": 13,
+        "dy": -5,
+        "id": 1309
+      },
+      {
+        "dx": 11,
+        "dy": -5,
+        "id": 1309
+      },
+      {
+        "dx": 9,
+        "dy": -5,
+        "id": 1309
+      },
+      {
+        "dx": 7,
+        "dy": -5,
+        "id": 1309
+      },
+      {
+        "dx": 5,
+        "dy": -5,
+        "id": 1309
+      },
+      {
+        "dx": 16,
+        "dy": -3,
+        "id": 3216
+      },
+      {
+        "dx": 16,
+        "dy": -2,
+        "id": 3216
+      },
+      {
+        "dx": 16,
+        "dy": -1,
+        "id": 3216
+      },
+      {
+        "dx": 16,
+        "dy": 0,
+        "id": 3216
+      },
+      {
+        "dx": 16,
+        "dy": 1,
+        "id": 3216
+      },
+      {
+        "dx": 16,
+        "dy": 2,
+        "id": 3216
+      },
+      {
+        "dx": 16,
+        "dy": 4,
+        "id": 3216
+      },
+      {
+        "dx": 16,
+        "dy": 3,
+        "id": 3216
+      },
+      {
+        "dx": 16,
+        "dy": 5,
+        "id": 3216
+      },
+      {
+        "dx": 16,
+        "dy": 6,
+        "id": 3216
+      },
+      {
+        "dx": 16,
+        "dy": 7,
+        "id": 3216
+      },
+      {
+        "dx": 16,
+        "dy": 8,
+        "id": 3216
+      },
+      {
+        "dx": 16,
+        "dy": 9,
+        "id": 3216
+      },
+      {
+        "dx": 14,
+        "dy": 7,
+        "id": 1316
+      },
+      {
+        "dx": 14,
+        "dy": 1,
+        "id": 1316
+      },
+      {
+        "dx": 15,
+        "dy": 6,
+        "id": 1316
+      },
+      {
+        "dx": 15,
+        "dy": 0,
+        "id": 1316
+      },
+      {
+        "dx": 13,
+        "dy": 7,
+        "id": 1316
+      },
+      {
+        "dx": 13,
+        "dy": 9,
+        "id": 1316
+      },
+      {
+        "dx": 12,
+        "dy": 4,
+        "id": 1316
+      },
+      {
+        "dx": 12,
+        "dy": -1,
+        "id": 1316
+      },
+      {
+        "dx": 12,
+        "dy": -2,
+        "id": 1316
+      },
+      {
+        "dx": 10,
+        "dy": -2,
+        "id": 1316
+      },
+      {
+        "dx": 11,
+        "dy": 2,
+        "id": 1316
+      },
+      {
+        "dx": 11,
+        "dy": 0,
+        "id": 1316
+      },
+      {
+        "dx": 10,
+        "dy": -1,
+        "id": 1316
+      },
+      {
+        "dx": 10,
+        "dy": 0,
+        "id": 3216
+      },
+      {
+        "dx": 10,
+        "dy": 1,
+        "id": 3216
+      },
+      {
+        "dx": 10,
+        "dy": 2,
+        "id": 3216
+      },
+      {
+        "dx": 10,
+        "dy": 3,
+        "id": 3216
+      },
+      {
+        "dx": 10,
+        "dy": 4,
+        "id": 3216
+      },
+      {
+        "dx": 10,
+        "dy": 5,
+        "id": 3216
+      },
+      {
+        "dx": 10,
+        "dy": 6,
+        "id": 3216
+      },
+      {
+        "dx": 10,
+        "dy": 7,
+        "id": 3216
+      },
+      {
+        "dx": 10,
+        "dy": 8,
+        "id": 3216
+      },
+      {
+        "dx": 10,
+        "dy": 9,
+        "id": 3216
+      },
+      {
+        "dx": 9,
+        "dy": 9,
+        "id": 3215
+      },
+      {
+        "dx": 8,
+        "dy": 9,
+        "id": 3215
+      },
+      {
+        "dx": 7,
+        "dy": 9,
+        "id": 3215
+      },
+      {
+        "dx": 6,
+        "dy": 9,
+        "id": 3215
+      },
+      {
+        "dx": 9,
+        "dy": 0,
+        "id": 3215
+      },
+      {
+        "dx": 8,
+        "dy": 0,
+        "id": 3215
+      },
+      {
+        "dx": 7,
+        "dy": 0,
+        "id": 3215
+      },
+      {
+        "dx": 6,
+        "dy": 0,
+        "id": 3215
+      },
+      {
+        "dx": 5,
+        "dy": 0,
+        "id": 3215
+      },
+      {
+        "dx": 4,
+        "dy": 0,
+        "id": 3215
+      },
+      {
+        "dx": 8,
+        "dy": -1,
+        "id": 1315
+      },
+      {
+        "dx": 7,
+        "dy": -2,
+        "id": 1315
+      },
+      {
+        "dx": 6,
+        "dy": -2,
+        "id": 1315
+      },
+      {
+        "dx": 4,
+        "dy": -1,
+        "id": 1315
+      },
+      {
+        "dx": 4,
+        "dy": -2,
+        "id": 1315
+      },
+      {
+        "dx": 5,
+        "dy": -3,
+        "id": 1315
+      },
+      {
+        "dx": 13,
+        "dy": -3,
+        "id": 1315
+      },
+      {
+        "dx": 14,
+        "dy": -3,
+        "id": 1315
+      },
+      {
+        "dx": 14,
+        "dy": -1,
+        "id": 1315
+      },
+      {
+        "dx": 13,
+        "dy": 1,
+        "id": 1315
+      },
+      {
+        "dx": 13,
+        "dy": 2,
+        "id": 1315
+      },
+      {
+        "dx": 14,
+        "dy": 2,
+        "id": 1315
+      },
+      {
+        "dx": 12,
+        "dy": 3,
+        "id": 1315
+      },
+      {
+        "dx": 15,
+        "dy": 4,
+        "id": 1315
+      },
+      {
+        "dx": 14,
+        "dy": 6,
+        "id": 1315
+      },
+      {
+        "dx": 14,
+        "dy": 5,
+        "id": 1315
+      },
+      {
+        "dx": 12,
+        "dy": 6,
+        "id": 1315
+      },
+      {
+        "dx": 11,
+        "dy": 8,
+        "id": 1315
+      },
+      {
+        "dx": 12,
+        "dy": 7,
+        "id": 1315
+      },
+      {
+        "dx": 14,
+        "dy": 9,
+        "id": 1315
+      },
+      {
+        "dx": 15,
+        "dy": 8,
+        "id": 1315
+      },
+      {
+        "dx": 4,
+        "dy": 9,
+        "id": 3215
+      },
+      {
+        "dx": 5,
+        "dy": 9,
+        "id": 3215
+      },
+      {
+        "dx": 14,
+        "dy": 8,
+        "id": 1314
+      },
+      {
+        "dx": 12,
+        "dy": 8,
+        "id": 1314
+      },
+      {
+        "dx": 11,
+        "dy": 6,
+        "id": 1314
+      },
+      {
+        "dx": 13,
+        "dy": 5,
+        "id": 1314
+      },
+      {
+        "dx": 12,
+        "dy": 5,
+        "id": 1314
+      },
+      {
+        "dx": 13,
+        "dy": 3,
+        "id": 1314
+      },
+      {
+        "dx": 14,
+        "dy": 4,
+        "id": 1314
+      },
+      {
+        "dx": 15,
+        "dy": 2,
+        "id": 1314
+      },
+      {
+        "dx": 12,
+        "dy": 1,
+        "id": 1314
+      },
+      {
+        "dx": 13,
+        "dy": -1,
+        "id": 1314
+      },
+      {
+        "dx": 14,
+        "dy": -2,
+        "id": 1314
+      },
+      {
+        "dx": 12,
+        "dy": -3,
+        "id": 1314
+      },
+      {
+        "dx": 11,
+        "dy": -2,
+        "id": 1314
+      },
+      {
+        "dx": 10,
+        "dy": -3,
+        "id": 1314
+      },
+      {
+        "dx": 9,
+        "dy": -3,
+        "id": 1314
+      },
+      {
+        "dx": 8,
+        "dy": -3,
+        "id": 1314
+      },
+      {
+        "dx": 8,
+        "dy": -2,
+        "id": 1314
+      },
+      {
+        "dx": 6,
+        "dy": -1,
+        "id": 1314
+      },
+      {
+        "dx": 6,
+        "dy": -3,
+        "id": 1314
+      },
+      {
+        "dx": 4,
+        "dy": -3,
+        "id": 1314
+      },
+      {
+        "dx": 12,
+        "dy": 0,
+        "id": 1314
+      },
+      {
+        "dx": 12,
+        "dy": 9,
+        "id": 1313
+      },
+      {
+        "dx": 13,
+        "dy": 8,
+        "id": 1313
+      },
+      {
+        "dx": 13,
+        "dy": 6,
+        "id": 1313
+      },
+      {
+        "dx": 11,
+        "dy": 4,
+        "id": 1313
+      },
+      {
+        "dx": 13,
+        "dy": 4,
+        "id": 1313
+      },
+      {
+        "dx": 14,
+        "dy": 3,
+        "id": 1313
+      },
+      {
+        "dx": 12,
+        "dy": 2,
+        "id": 1313
+      },
+      {
+        "dx": 13,
+        "dy": 0,
+        "id": 1313
+      },
+      {
+        "dx": 14,
+        "dy": 0,
+        "id": 1313
+      },
+      {
+        "dx": 15,
+        "dy": -2,
+        "id": 1313
+      },
+      {
+        "dx": 13,
+        "dy": -2,
+        "id": 1313
+      },
+      {
+        "dx": 11,
+        "dy": -3,
+        "id": 1313
+      },
+      {
+        "dx": 9,
+        "dy": -2,
+        "id": 1313
+      },
+      {
+        "dx": 7,
+        "dy": -3,
+        "id": 1313
+      },
+      {
+        "dx": 5,
+        "dy": -2,
+        "id": 1313
+      },
+      {
+        "dx": 11,
+        "dy": 9,
+        "id": 1309
+      },
+      {
+        "dx": 11,
+        "dy": 7,
+        "id": 1309
+      },
+      {
+        "dx": 11,
+        "dy": 5,
+        "id": 1309
+      },
+      {
+        "dx": 11,
+        "dy": 3,
+        "id": 1309
+      },
+      {
+        "dx": 11,
+        "dy": 1,
+        "id": 1309
+      },
+      {
+        "dx": 11,
+        "dy": -1,
+        "id": 1309
+      },
+      {
+        "dx": 15,
+        "dy": -3,
+        "id": 1309
+      },
+      {
+        "dx": 15,
+        "dy": -1,
+        "id": 1309
+      },
+      {
+        "dx": 15,
+        "dy": 1,
+        "id": 1309
+      },
+      {
+        "dx": 15,
+        "dy": 3,
+        "id": 1309
+      },
+      {
+        "dx": 15,
+        "dy": 5,
+        "id": 1309
+      },
+      {
+        "dx": 15,
+        "dy": 7,
+        "id": 1309
+      },
+      {
+        "dx": 15,
+        "dy": 9,
+        "id": 1309
+      },
+      {
+        "dx": 9,
+        "dy": -1,
+        "id": 1309
+      },
+      {
+        "dx": 7,
+        "dy": -1,
+        "id": 1309
+      },
+      {
+        "dx": 5,
+        "dy": -1,
+        "id": 1309
+      },
+      {
+        "dx": 5,
+        "dy": 2,
+        "id": 2861
+      },
+      {
+        "dx": 6,
+        "dy": 2,
+        "id": 2861
+      },
+      {
+        "dx": 7,
+        "dy": 2,
+        "id": 2861
+      },
+      {
+        "dx": 5,
+        "dy": 7,
+        "id": 2861
+      },
+      {
+        "dx": 6,
+        "dy": 7,
+        "id": 2861
+      },
+      {
+        "dx": 7,
+        "dy": 7,
+        "id": 2861
+      },
+      {
+        "dx": 8,
+        "dy": 3,
+        "id": 2860
+      },
+      {
+        "dx": 8,
+        "dy": 4,
+        "id": 2860
+      },
+      {
+        "dx": 8,
+        "dy": 5,
+        "id": 2860
+      },
+      {
+        "dx": 8,
+        "dy": 6,
+        "id": 2860
+      },
+      {
+        "dx": 4,
+        "dy": 1,
+        "id": 3203
+      },
+      {
+        "dx": 5,
+        "dy": 1,
+        "id": 3203
+      },
+      {
+        "dx": 6,
+        "dy": 1,
+        "id": 3203
+      },
+      {
+        "dx": 7,
+        "dy": 1,
+        "id": 3203
+      },
+      {
+        "dx": 8,
+        "dy": 1,
+        "id": 3203
+      },
+      {
+        "dx": 9,
+        "dy": 1,
+        "id": 3203
+      },
+      {
+        "dx": 9,
+        "dy": 2,
+        "id": 3203
+      },
+      {
+        "dx": 9,
+        "dy": 3,
+        "id": 3203
+      },
+      {
+        "dx": 9,
+        "dy": 5,
+        "id": 3203
+      },
+      {
+        "dx": 9,
+        "dy": 4,
+        "id": 3203
+      },
+      {
+        "dx": 9,
+        "dy": 6,
+        "id": 3203
+      },
+      {
+        "dx": 9,
+        "dy": 7,
+        "id": 3203
+      },
+      {
+        "dx": 8,
+        "dy": 8,
+        "id": 3203
+      },
+      {
+        "dx": 9,
+        "dy": 8,
+        "id": 3203
+      },
+      {
+        "dx": 7,
+        "dy": 8,
+        "id": 3203
+      },
+      {
+        "dx": 6,
+        "dy": 8,
+        "id": 3203
+      },
+      {
+        "dx": 4,
+        "dy": 8,
+        "id": 3203
+      },
+      {
+        "dx": 5,
+        "dy": 8,
+        "id": 3203
+      }
+    ]
+  },
+  "spiral-staircase-topper": {
+    "name": "Spiral Staircase",
+    "servuoClasses": ["SpiralStaircaseAddon", "SpiralStaircaseDeed", "TeleporterComponent", "IRewardOption"],
+    "linkTeleporters": true,
+    "components": [
+      { "dx": 0, "dy": 1, "id": 42319 },
+      { "dx": 1, "dy": 0, "id": 42320 },
+      { "dx": 1, "dy": 1, "dz": 20, "id": 42333 },
+      { "dx": 0, "dy": 1, "dz": 20, "id": 42334 },
+      { "dx": 1, "dy": 0, "dz": 20, "id": 42335 },
+      { "dx": 0, "dy": 0, "dz": 20, "id": 42336, "script": "teleporter" },
+      { "dx": 1, "dy": 1, "id": 42318, "script": "teleporter" }
+    ]
+  },
+  "spiral-staircase": {
+    "name": "Spiral Staircase",
+    "servuoClasses": ["SpiralStaircaseAddon", "SpiralStaircaseDeed", "TeleporterComponent", "IRewardOption"],
+    "linkTeleporters": true,
+    "components": [
+      { "dx": 0, "dy": 0, "id": 42321, "script": "teleporter" },
+      { "dx": 0, "dy": 1, "id": 42319 },
+      { "dx": 1, "dy": 0, "id": 42320 },
+      { "dx": 1, "dy": 1, "id": 42318, "script": "teleporter" }
+    ]
+  }
+}

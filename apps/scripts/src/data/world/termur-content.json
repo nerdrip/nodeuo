@@ -1,0 +1,596 @@
+[
+  {
+    "id": "tomb-kings-anteroom",
+    "expansion": "tomb-kings",
+    "name": "Tomb of Kings — Anteroom",
+    "rooms": [
+      {
+        "id": "tk-r1",
+        "spawns": [
+          "undead-pharaoh-guard",
+          "tomb-guard"
+        ],
+        "count": 6
+      },
+      {
+        "id": "tk-r2",
+        "spawns": [
+          "serpentine-curator"
+        ],
+        "count": 3
+      }
+    ],
+    "minibosses": [
+      "high-curator"
+    ],
+    "finalBoss": "sapped-sphynx",
+    "artifactPool": [
+      "jagged-blade-of-kings",
+      "pharaoh-mask",
+      "serpentine-cuirass"
+    ]
+  },
+  {
+    "id": "tomb-kings-throne",
+    "expansion": "tomb-kings",
+    "name": "Tomb of Kings — Throne Hall",
+    "rooms": [
+      {
+        "id": "tk-throne",
+        "spawns": [
+          "cursed-mummy",
+          "mummy-lord"
+        ],
+        "count": 8
+      }
+    ],
+    "minibosses": [
+      "mummy-pharaoh"
+    ],
+    "finalBoss": "the-untrodden",
+    "artifactPool": [
+      "untrodden-crown",
+      "tomb-key-of-kings"
+    ]
+  },
+  {
+    "id": "underworld-tunnels",
+    "expansion": "underworld",
+    "name": "Underworld Tunnels",
+    "rooms": [
+      {
+        "id": "uw-r1",
+        "spawns": [
+          "cavern-troll",
+          "cavern-orc"
+        ],
+        "count": 7
+      },
+      {
+        "id": "uw-r2",
+        "spawns": [
+          "minotaur"
+        ],
+        "count": 4
+      }
+    ],
+    "minibosses": [
+      "minotaur-captain"
+    ],
+    "finalBoss": "maul-the-undying",
+    "artifactPool": [
+      "minotaur-greataxe",
+      "maul-greaves",
+      "cavern-cloak"
+    ]
+  },
+  {
+    "id": "underworld-deep",
+    "expansion": "underworld",
+    "name": "Underworld Deep",
+    "rooms": [
+      {
+        "id": "uw-deep",
+        "spawns": [
+          "shadowstrider",
+          "voidling"
+        ],
+        "count": 6
+      }
+    ],
+    "minibosses": [
+      "void-watcher"
+    ],
+    "finalBoss": "primal-shadowmother",
+    "artifactPool": [
+      "shadow-blade",
+      "voidling-shroud",
+      "primal-eye"
+    ]
+  },
+  {
+    "id": "deep-corgul-isle",
+    "expansion": "exploring-deep",
+    "name": "Corgul's Isle",
+    "rooms": [
+      {
+        "id": "cor-r1",
+        "spawns": [
+          "storm-elemental",
+          "water-elemental-greater"
+        ],
+        "count": 5
+      }
+    ],
+    "minibosses": [
+      "storm-thrall"
+    ],
+    "finalBoss": "corgul-the-soulbinder-redux",
+    "artifactPool": [
+      "corgul-soul-chain",
+      "whirlpool-amulet"
+    ]
+  },
+  {
+    "id": "deep-undersea",
+    "expansion": "exploring-deep",
+    "name": "Undersea Caverns",
+    "rooms": [
+      {
+        "id": "us-r1",
+        "spawns": [
+          "kraken-spawn",
+          "sea-serpent-greater"
+        ],
+        "count": 6
+      }
+    ],
+    "minibosses": [
+      "leviathan-spawn"
+    ],
+    "finalBoss": "charybdis",
+    "artifactPool": [
+      "charybdis-pearl",
+      "kraken-tongue",
+      "sea-witch-mantle"
+    ]
+  },
+  {
+    "id": "tomb-kings-sphynx-hall",
+    "expansion": "tomb-kings",
+    "name": "Sphynx Hall",
+    "rooms": [
+      {
+        "id": "tk-sphynx",
+        "spawns": [
+          "sphynx-guardian"
+        ],
+        "count": 4
+      }
+    ],
+    "minibosses": [
+      "sphynx-greater"
+    ],
+    "finalBoss": "sphynx-of-prophecy",
+    "artifactPool": [
+      "sphynx-amulet",
+      "prophecy-scroll"
+    ]
+  },
+  {
+    "id": "tomb-kings-treasury",
+    "expansion": "tomb-kings",
+    "name": "Tomb Treasury",
+    "rooms": [
+      {
+        "id": "tk-tr",
+        "spawns": [
+          "tomb-zombie",
+          "tomb-skeleton"
+        ],
+        "count": 8
+      }
+    ],
+    "minibosses": [
+      "treasury-keeper"
+    ],
+    "finalBoss": "ancient-pharaoh-spawn",
+    "artifactPool": [
+      "ancient-pharaoh-mask",
+      "tomb-key"
+    ]
+  },
+  {
+    "id": "underworld-caverns",
+    "expansion": "underworld",
+    "name": "Underworld Caverns",
+    "rooms": [
+      {
+        "id": "uw-c-r1",
+        "spawns": [
+          "cave-bat",
+          "cavern-troll"
+        ],
+        "count": 8
+      }
+    ],
+    "minibosses": [
+      "troll-shaman"
+    ],
+    "finalBoss": "cavern-warlord",
+    "artifactPool": [
+      "cavern-cloak-greater",
+      "troll-warlord-axe"
+    ]
+  },
+  {
+    "id": "underworld-minotaur",
+    "expansion": "underworld",
+    "name": "Minotaur Labyrinth",
+    "rooms": [
+      {
+        "id": "uw-m-r1",
+        "spawns": [
+          "minotaur",
+          "minotaur-captain"
+        ],
+        "count": 7
+      }
+    ],
+    "minibosses": [
+      "labyrinth-runner"
+    ],
+    "finalBoss": "minotaur-king",
+    "artifactPool": [
+      "minotaur-king-axe",
+      "labyrinth-key"
+    ]
+  },
+  {
+    "id": "underworld-shadow",
+    "expansion": "underworld",
+    "name": "Underworld Shadow",
+    "rooms": [
+      {
+        "id": "uw-s-r1",
+        "spawns": [
+          "shadowstrider",
+          "voidling"
+        ],
+        "count": 7
+      }
+    ],
+    "minibosses": [
+      "shadow-warden"
+    ],
+    "finalBoss": "shadowmother-prime",
+    "artifactPool": [
+      "shadowmother-tear",
+      "voidling-essence",
+      "shadowstrider-cloak"
+    ]
+  },
+  {
+    "id": "underworld-fey-court",
+    "expansion": "underworld",
+    "name": "Fey Court Caverns",
+    "rooms": [
+      {
+        "id": "uw-fey-r1",
+        "spawns": [
+          "fey-warrior-summoned",
+          "fey-mage"
+        ],
+        "count": 6
+      }
+    ],
+    "minibosses": [
+      "fey-knight"
+    ],
+    "finalBoss": "queen-of-the-fey-court",
+    "artifactPool": [
+      "fey-court-tiara",
+      "feywild-blade"
+    ]
+  },
+  {
+    "id": "deep-pirate-galleon",
+    "expansion": "exploring-deep",
+    "name": "Lost Pirate Galleon",
+    "rooms": [
+      {
+        "id": "eod-pg-r1",
+        "spawns": [
+          "pirate-spectre",
+          "pirate-skeleton"
+        ],
+        "count": 8
+      }
+    ],
+    "minibosses": [
+      "pirate-captain-skeleton"
+    ],
+    "finalBoss": "admiral-davy-jones",
+    "artifactPool": [
+      "admiral-tricorn",
+      "jones-cutlass"
+    ]
+  },
+  {
+    "id": "deep-merfolk-court",
+    "expansion": "exploring-deep",
+    "name": "Merfolk Court",
+    "rooms": [
+      {
+        "id": "eod-mc-r1",
+        "spawns": [
+          "merfolk-warrior",
+          "merfolk-mage"
+        ],
+        "count": 6
+      }
+    ],
+    "minibosses": [
+      "merfolk-noble"
+    ],
+    "finalBoss": "merfolk-queen-ariella",
+    "artifactPool": [
+      "merfolk-tridon",
+      "queen-pearl-necklace"
+    ]
+  },
+  {
+    "id": "deep-abyssal-trench",
+    "expansion": "exploring-deep",
+    "name": "Abyssal Trench",
+    "rooms": [
+      {
+        "id": "eod-at-r1",
+        "spawns": [
+          "abyssal-eel",
+          "abyssal-leviathan"
+        ],
+        "count": 5
+      }
+    ],
+    "minibosses": [
+      "trench-watcher"
+    ],
+    "finalBoss": "trench-leviathan",
+    "artifactPool": [
+      "leviathan-eye",
+      "trench-coral-shield",
+      "abyssal-blade"
+    ]
+  },
+  {
+    "id": "deep-cursed-island",
+    "expansion": "exploring-deep",
+    "name": "Cursed Island",
+    "rooms": [
+      {
+        "id": "eod-ci-r1",
+        "spawns": [
+          "cursed-pirate",
+          "voodoo-priest"
+        ],
+        "count": 6
+      }
+    ],
+    "minibosses": [
+      "voodoo-king"
+    ],
+    "finalBoss": "cursed-pirate-king",
+    "artifactPool": [
+      "voodoo-doll-pristine",
+      "pirate-king-coat"
+    ]
+  },
+  {
+    "id": "deep-storm-cliffs",
+    "expansion": "exploring-deep",
+    "name": "Storm Cliffs",
+    "rooms": [
+      {
+        "id": "eod-sc-r1",
+        "spawns": [
+          "storm-harpie",
+          "thunderbird"
+        ],
+        "count": 6
+      }
+    ],
+    "minibosses": [
+      "storm-elder"
+    ],
+    "finalBoss": "thunderbird-emperor",
+    "artifactPool": [
+      "thunderbird-feather-cloak",
+      "storm-rod"
+    ]
+  },
+  {
+    "id": "deep-coral-palace",
+    "expansion": "exploring-deep",
+    "name": "Coral Palace",
+    "rooms": [
+      {
+        "id": "eod-cp-r1",
+        "spawns": [
+          "coral-warrior",
+          "coral-mage"
+        ],
+        "count": 6
+      }
+    ],
+    "minibosses": [
+      "palace-guard"
+    ],
+    "finalBoss": "coral-king",
+    "artifactPool": [
+      "coral-king-crown",
+      "coral-palace-key"
+    ]
+  },
+  {
+    "id": "termur-holy-city-vault",
+    "expansion": "tomb-kings",
+    "name": "Holy City Vault",
+    "rooms": [
+      {
+        "id": "hcv-r1",
+        "spawns": [
+          "holy-mummy",
+          "holy-warder"
+        ],
+        "count": 7
+      }
+    ],
+    "minibosses": [
+      "vault-warden"
+    ],
+    "finalBoss": "high-vault-mage",
+    "artifactPool": [
+      "holy-vault-key",
+      "sacred-mage-staff"
+    ]
+  },
+  {
+    "id": "termur-royal-throne-defense",
+    "expansion": "tomb-kings",
+    "name": "Royal Throne Defense",
+    "rooms": [
+      {
+        "id": "rtd-r1",
+        "spawns": [
+          "rebel-gargoyle",
+          "rebel-shaman"
+        ],
+        "count": 7
+      }
+    ],
+    "minibosses": [
+      "rebel-captain"
+    ],
+    "finalBoss": "rebel-warlord-zhah",
+    "artifactPool": [
+      "royal-defense-medal",
+      "zhah-cuirass"
+    ]
+  },
+  {
+    "id": "termur-sanctuary-bell",
+    "expansion": "tomb-kings",
+    "name": "Sanctuary of Bells",
+    "rooms": [
+      {
+        "id": "sob-r1",
+        "spawns": [
+          "bell-keeper",
+          "bell-warden"
+        ],
+        "count": 6
+      }
+    ],
+    "minibosses": [
+      "bellringer"
+    ],
+    "finalBoss": "silent-bell-prime",
+    "artifactPool": [
+      "silent-bell",
+      "bell-cloak"
+    ]
+  },
+  {
+    "id": "termur-dust-desert",
+    "expansion": "tomb-kings",
+    "name": "Dust Desert",
+    "rooms": [
+      {
+        "id": "dd-r1",
+        "spawns": [
+          "dust-djinn",
+          "sand-elemental"
+        ],
+        "count": 6
+      }
+    ],
+    "minibosses": [
+      "dust-storm-elemental"
+    ],
+    "finalBoss": "desert-pharaoh-spirit",
+    "artifactPool": [
+      "djinn-lamp",
+      "desert-pharaoh-staff"
+    ]
+  },
+  {
+    "id": "termur-acidic-pools",
+    "expansion": "underworld",
+    "name": "Acidic Pools",
+    "rooms": [
+      {
+        "id": "ap-r1",
+        "spawns": [
+          "acid-slime",
+          "acid-elemental"
+        ],
+        "count": 6
+      }
+    ],
+    "minibosses": [
+      "acidic-greater"
+    ],
+    "finalBoss": "pool-mother-of-acid",
+    "artifactPool": [
+      "acid-mother-charm",
+      "corroded-throne"
+    ]
+  },
+  {
+    "id": "termur-soulforge-trial",
+    "expansion": "tomb-kings",
+    "name": "Soulforge Trial",
+    "rooms": [
+      {
+        "id": "sf-r1",
+        "spawns": [
+          "imbuer-spectre",
+          "soul-shard-elemental"
+        ],
+        "count": 6
+      }
+    ],
+    "minibosses": [
+      "imbuer-master-spirit"
+    ],
+    "finalBoss": "soulforge-keeper",
+    "artifactPool": [
+      "soulforge-essence",
+      "keeper-imbuing-rod"
+    ]
+  },
+  {
+    "id": "termur-ancient-cistern",
+    "expansion": "tomb-kings",
+    "name": "Ancient Cistern",
+    "rooms": [
+      {
+        "id": "ac-r1",
+        "spawns": [
+          "cistern-leech",
+          "cistern-bat"
+        ],
+        "count": 7
+      }
+    ],
+    "minibosses": [
+      "cistern-overseer"
+    ],
+    "finalBoss": "cistern-king-leech",
+    "artifactPool": [
+      "cistern-key",
+      "leech-king-cloak"
+    ]
+  }
+]

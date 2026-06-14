@@ -1,0 +1,4878 @@
+[
+  {
+    "name": "gold",
+    "itemId": 3821,
+    "stackable": true,
+    "label": "gold coins"
+  },
+  {
+    "name": "wooden-shield",
+    "itemId": 7026,
+    "label": "a wooden shield",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "shield"
+  },
+  {
+    "name": "metal-shield",
+    "itemId": 7028,
+    "label": "a metal shield",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "shield"
+  },
+  {
+    "name": "broadsword",
+    "itemId": 5118,
+    "label": "a broadsword",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon"
+  },
+  {
+    "name": "cutlass",
+    "itemId": 5185,
+    "label": "a cutlass",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon"
+  },
+  {
+    "name": "dagger",
+    "itemId": 3922,
+    "label": "a dagger",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon"
+  },
+  {
+    "name": "kryss",
+    "itemId": 5121,
+    "label": "a kryss",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon"
+  },
+  {
+    "name": "mace",
+    "itemId": 5040,
+    "label": "a mace",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon"
+  },
+  {
+    "name": "gnarled-staff",
+    "itemId": 5112,
+    "label": "a gnarled staff",
+    "clothing": true,
+    "equipLayer": 2,
+    "slot": "weapon"
+  },
+  {
+    "name": "raw-ribs",
+    "itemId": 2427,
+    "label": "raw ribs",
+    "stackable": true
+  },
+  {
+    "name": "bone",
+    "itemId": 3966,
+    "label": "a bone",
+    "stackable": true
+  },
+  {
+    "name": "ruby",
+    "itemId": 4217,
+    "label": "a ruby",
+    "stackable": true
+  },
+  {
+    "name": "sapphire",
+    "itemId": 4218,
+    "label": "a sapphire",
+    "stackable": true
+  },
+  {
+    "name": "emerald",
+    "itemId": 4220,
+    "label": "an emerald",
+    "stackable": true
+  },
+  {
+    "name": "diamond",
+    "itemId": 4216,
+    "label": "a diamond",
+    "stackable": true
+  },
+  {
+    "name": "recall-rune",
+    "itemId": 7956,
+    "label": "a recall rune",
+    "script": "recall-rune"
+  },
+  {
+    "name": "marked-rune",
+    "itemId": 7956,
+    "hue": 71,
+    "label": "a marked recall rune",
+    "script": "recall-rune"
+  },
+  {
+    "name": "scroll",
+    "itemId": 7956,
+    "label": "a magic scroll",
+    "stackable": true,
+    "script": "magic-scroll"
+  },
+  {
+    "name": "leather",
+    "itemId": 4225,
+    "label": "a piece of leather",
+    "stackable": true
+  },
+  {
+    "name": "dragon-scale",
+    "itemId": 7120,
+    "label": "a dragon scale",
+    "stackable": true
+  },
+  {
+    "name": "bandage",
+    "itemId": 3617,
+    "label": "a clean bandage",
+    "stackable": true,
+    "script": "bandage"
+  },
+  {
+    "name": "enhanced-bandage",
+    "itemId": 3617,
+    "hue": 2213,
+    "label": "enhanced bandage",
+    "stackable": true,
+    "script": "bandage",
+    "bandageHealingBonus": 10,
+    "servuoClass": "EnhancedBandage",
+    "servuoClasses": [
+      "EnhancedBandage",
+      "Bandage",
+      "ICommodity"
+    ]
+  },
+  {
+    "name": "reagent-black-pearl",
+    "itemId": 3962,
+    "label": "black pearl",
+    "stackable": true
+  },
+  {
+    "name": "reagent-nightshade",
+    "itemId": 3973,
+    "label": "nightshade",
+    "stackable": true
+  },
+  {
+    "name": "reagent-mandrake",
+    "itemId": 3974,
+    "label": "mandrake root",
+    "stackable": true
+  },
+  {
+    "name": "reagent-garlic",
+    "itemId": 3972,
+    "label": "garlic",
+    "stackable": true
+  },
+  {
+    "name": "reagent-ginseng",
+    "itemId": 3977,
+    "label": "ginseng",
+    "stackable": true
+  },
+  {
+    "name": "reagent-blood-moss",
+    "itemId": 3963,
+    "label": "blood moss",
+    "stackable": true
+  },
+  {
+    "name": "reagent-spider-silk",
+    "itemId": 3981,
+    "label": "spiders' silk",
+    "stackable": true
+  },
+  {
+    "name": "reagent-sulfurous-ash",
+    "itemId": 3980,
+    "label": "sulfurous ash",
+    "stackable": true
+  },
+  {
+    "name": "reagent-bat-wing",
+    "itemId": 3960,
+    "label": "bat wing",
+    "stackable": true
+  },
+  {
+    "name": "reagent-grave-dust",
+    "itemId": 3983,
+    "label": "grave dust",
+    "stackable": true
+  },
+  {
+    "name": "reagent-daemon-blood",
+    "itemId": 3965,
+    "label": "daemon blood",
+    "stackable": true
+  },
+  {
+    "name": "reagent-nox-crystal",
+    "itemId": 3982,
+    "label": "nox crystal",
+    "stackable": true
+  },
+  {
+    "name": "reagent-pig-iron",
+    "itemId": 3978,
+    "label": "pig iron",
+    "stackable": true
+  },
+  {
+    "name": "reagent-bone",
+    "itemId": 3966,
+    "label": "bone reagent",
+    "stackable": true
+  },
+  {
+    "name": "reagent-bloodmoss",
+    "itemId": 3963,
+    "label": "blood moss",
+    "stackable": true
+  },
+  {
+    "name": "reagent-fertile-dirt",
+    "itemId": 3969,
+    "label": "fertile dirt",
+    "stackable": true
+  },
+  {
+    "name": "reagent-dragonblood",
+    "itemId": 3970,
+    "label": "dragon blood",
+    "stackable": true
+  },
+  {
+    "name": "iron-ingot",
+    "itemId": 7146,
+    "label": "iron ingot",
+    "stackable": true
+  },
+  {
+    "name": "copper-ingot",
+    "itemId": 7146,
+    "label": "copper ingot",
+    "stackable": true,
+    "defaultHue": 2413
+  },
+  {
+    "name": "silver-ingot",
+    "itemId": 7146,
+    "label": "silver ingot",
+    "stackable": true,
+    "defaultHue": 1154
+  },
+  {
+    "name": "gold-ingot",
+    "itemId": 7146,
+    "label": "gold ingot",
+    "stackable": true,
+    "defaultHue": 2213
+  },
+  {
+    "name": "iron-ore",
+    "itemId": 6583,
+    "label": "iron ore",
+    "stackable": true
+  },
+  {
+    "name": "log",
+    "itemId": 7133,
+    "label": "logs",
+    "stackable": true
+  },
+  {
+    "name": "board",
+    "itemId": 7127,
+    "label": "boards",
+    "stackable": true
+  },
+  {
+    "name": "wooden-shaft",
+    "itemId": 7124,
+    "label": "wooden shafts",
+    "stackable": true
+  },
+  {
+    "name": "feathers",
+    "itemId": 7121,
+    "label": "feathers",
+    "stackable": true
+  },
+  {
+    "name": "raw-fish",
+    "itemId": 2508,
+    "label": "a raw fish",
+    "stackable": true
+  },
+  {
+    "name": "cooked-fish",
+    "itemId": 2427,
+    "label": "a cooked fish steak",
+    "script": "food"
+  },
+  {
+    "name": "raw-bird",
+    "itemId": 2489,
+    "label": "a raw bird"
+  },
+  {
+    "name": "cooked-bird",
+    "itemId": 2487,
+    "label": "a roasted bird",
+    "script": "food"
+  },
+  {
+    "name": "apple",
+    "itemId": 2512,
+    "label": "an apple",
+    "stackable": true,
+    "script": "food"
+  },
+  {
+    "name": "bread-loaf",
+    "itemId": 4155,
+    "label": "a loaf of bread",
+    "script": "food"
+  },
+  {
+    "name": "wine",
+    "itemId": 2459,
+    "label": "a bottle of wine",
+    "script": "drink"
+  },
+  {
+    "name": "message-in-bottle",
+    "itemId": 2463,
+    "label": "a message in a bottle",
+    "script": "message-in-bottle",
+    "weight": 1
+  },
+  {
+    "name": "waterstained-sos",
+    "itemId": 5358,
+    "label": "a waterstained SOS",
+    "script": "sos",
+    "weight": 1
+  },
+  {
+    "name": "ancient-sos",
+    "itemId": 5358,
+    "hue": 1153,
+    "label": "an ancient SOS",
+    "script": "sos",
+    "weight": 1
+  },
+  {
+    "name": "torch",
+    "itemId": 3947,
+    "label": "a torch",
+    "script": "torch",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon"
+  },
+  {
+    "name": "lantern",
+    "itemId": 2594,
+    "label": "a lantern",
+    "script": "lantern",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon"
+  },
+  {
+    "name": "kindling",
+    "itemId": 3553,
+    "label": "kindling",
+    "stackable": true
+  },
+  {
+    "name": "shirt",
+    "itemId": 5399,
+    "label": "a shirt",
+    "clothing": true,
+    "equipLayer": 5,
+    "slot": "shirt",
+    "defaultHue": 904
+  },
+  {
+    "name": "fancy-shirt",
+    "itemId": 7933,
+    "label": "a fancy shirt",
+    "clothing": true,
+    "equipLayer": 5,
+    "slot": "shirt",
+    "defaultHue": 1109
+  },
+  {
+    "name": "doublet",
+    "itemId": 8059,
+    "label": "a doublet",
+    "clothing": true,
+    "equipLayer": 5,
+    "slot": "shirt",
+    "defaultHue": 68
+  },
+  {
+    "name": "tunic",
+    "itemId": 8097,
+    "label": "a tunic",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "tunic",
+    "defaultHue": 902
+  },
+  {
+    "name": "long-pants",
+    "itemId": 5433,
+    "label": "long pants",
+    "clothing": true,
+    "equipLayer": 4,
+    "slot": "pants",
+    "defaultHue": 954
+  },
+  {
+    "name": "short-pants",
+    "itemId": 5435,
+    "label": "short pants",
+    "clothing": true,
+    "equipLayer": 4,
+    "slot": "pants",
+    "defaultHue": 902
+  },
+  {
+    "name": "skirt",
+    "itemId": 5398,
+    "label": "a skirt",
+    "clothing": true,
+    "equipLayer": 4,
+    "slot": "pants",
+    "defaultHue": 1109
+  },
+  {
+    "name": "kilt",
+    "itemId": 5431,
+    "label": "a kilt",
+    "clothing": true,
+    "equipLayer": 4,
+    "slot": "pants",
+    "defaultHue": 1175
+  },
+  {
+    "name": "shoes",
+    "itemId": 5901,
+    "label": "shoes",
+    "clothing": true,
+    "equipLayer": 3,
+    "slot": "feet",
+    "defaultHue": 68
+  },
+  {
+    "name": "sandals",
+    "itemId": 5899,
+    "label": "sandals",
+    "clothing": true,
+    "equipLayer": 3,
+    "slot": "feet",
+    "defaultHue": 1107
+  },
+  {
+    "name": "boots",
+    "itemId": 5905,
+    "label": "boots",
+    "clothing": true,
+    "equipLayer": 3,
+    "slot": "feet",
+    "defaultHue": 0
+  },
+  {
+    "name": "leather-tunic",
+    "itemId": 5068,
+    "label": "leather tunic",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "tunic"
+  },
+  {
+    "name": "leather-leggings",
+    "itemId": 5067,
+    "label": "leather leggings",
+    "clothing": true,
+    "equipLayer": 24,
+    "slot": "innerlegs"
+  },
+  {
+    "name": "leather-cap",
+    "itemId": 7609,
+    "label": "leather cap",
+    "clothing": true,
+    "equipLayer": 6,
+    "slot": "head"
+  },
+  {
+    "name": "studded-tunic",
+    "itemId": 5083,
+    "label": "studded leather tunic",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "tunic"
+  },
+  {
+    "name": "fur-boots",
+    "itemId": 8989,
+    "label": "fur boots",
+    "clothing": true,
+    "equipLayer": 3,
+    "slot": "feet"
+  },
+  {
+    "name": "thigh-boots",
+    "itemId": 5905,
+    "label": "thigh boots",
+    "clothing": true,
+    "equipLayer": 3,
+    "slot": "feet"
+  },
+  {
+    "name": "robe",
+    "itemId": 7939,
+    "label": "a robe",
+    "clothing": true,
+    "equipLayer": 22,
+    "slot": "outertorso",
+    "defaultHue": 68
+  },
+  {
+    "name": "gm-robe",
+    "itemId": 7939,
+    "label": "a robe of the GM",
+    "clothing": true,
+    "equipLayer": 22,
+    "slot": "outertorso",
+    "defaultHue": 88
+  },
+  {
+    "name": "cloak",
+    "itemId": 5397,
+    "label": "a cloak",
+    "clothing": true,
+    "equipLayer": 20,
+    "slot": "cloak",
+    "defaultHue": 0
+  },
+  {
+    "name": "tricorne",
+    "itemId": 5915,
+    "label": "a tricorne hat",
+    "clothing": true,
+    "equipLayer": 6,
+    "slot": "head"
+  },
+  {
+    "name": "wizard-hat",
+    "itemId": 5912,
+    "label": "a wizards hat",
+    "clothing": true,
+    "equipLayer": 6,
+    "slot": "head",
+    "defaultHue": 38
+  },
+  {
+    "name": "skullcap",
+    "itemId": 5444,
+    "label": "a skullcap",
+    "clothing": true,
+    "equipLayer": 6,
+    "slot": "head"
+  },
+  {
+    "name": "bandana",
+    "itemId": 5440,
+    "label": "a bandana",
+    "clothing": true,
+    "equipLayer": 6,
+    "slot": "head",
+    "defaultHue": 37
+  },
+  {
+    "name": "feathered-hat",
+    "itemId": 5913,
+    "label": "a feathered hat",
+    "clothing": true,
+    "equipLayer": 6,
+    "slot": "head"
+  },
+  {
+    "name": "wide-brim-hat",
+    "itemId": 5910,
+    "label": "a wide brimmed hat",
+    "clothing": true,
+    "equipLayer": 6,
+    "slot": "head"
+  },
+  {
+    "name": "bonnet",
+    "itemId": 5916,
+    "label": "a bonnet",
+    "clothing": true,
+    "equipLayer": 6,
+    "slot": "head"
+  },
+  {
+    "name": "half-apron",
+    "itemId": 5435,
+    "label": "a half-apron",
+    "clothing": true,
+    "equipLayer": 4,
+    "slot": "pants",
+    "defaultHue": 68
+  },
+  {
+    "name": "full-apron",
+    "itemId": 5462,
+    "label": "a full apron",
+    "clothing": true,
+    "equipLayer": 22,
+    "slot": "outertorso",
+    "defaultHue": 68
+  },
+  {
+    "name": "body-sash",
+    "itemId": 5441,
+    "label": "a body sash",
+    "clothing": true,
+    "equipLayer": 12,
+    "slot": "waist",
+    "defaultHue": 37
+  },
+  {
+    "name": "first-aid-belt",
+    "itemId": 41462,
+    "label": "First Aid Belt",
+    "clothing": true,
+    "equipLayer": 12,
+    "slot": "waist",
+    "script": "first-aid-belt",
+    "container": true,
+    "gumpId": 60,
+    "capacity": 1,
+    "maxWeight": 100,
+    "firstAidBelt": true,
+    "firstAidMaxBandages": 1000,
+    "firstAidHealingBonus": 0,
+    "firstAidWeightReduction": 0,
+    "servuoClass": "FirstAidBelt",
+    "servuoClasses": [
+      "FirstAidBelt",
+      "Bandage",
+      "EnhancedBandage"
+    ],
+    "weight": 2
+  },
+  {
+    "name": "khaldun-first-aid-belt",
+    "itemId": 41462,
+    "label": "Khaldun First Aid Belt",
+    "clothing": true,
+    "equipLayer": 12,
+    "slot": "waist",
+    "script": "first-aid-belt",
+    "container": true,
+    "gumpId": 60,
+    "capacity": 1,
+    "maxWeight": 100,
+    "firstAidBelt": true,
+    "firstAidMaxBandages": 1000,
+    "firstAidHealingBonus": 10,
+    "firstAidWeightReduction": 50,
+    "attributes": {
+      "regenHits": 2
+    },
+    "blessed": true,
+    "newbied": true,
+    "servuoClass": "KhaldunFirstAidBelt",
+    "servuoClasses": [
+      "KhaldunFirstAidBelt",
+      "FirstAidBelt",
+      "Bandage",
+      "EnhancedBandage"
+    ],
+    "weight": 2
+  },
+  {
+    "name": "longsword",
+    "itemId": 3937,
+    "label": "a longsword",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon"
+  },
+  {
+    "name": "katana",
+    "itemId": 5118,
+    "label": "a katana",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon"
+  },
+  {
+    "name": "scimitar",
+    "itemId": 5046,
+    "label": "a scimitar",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon"
+  },
+  {
+    "name": "halberd",
+    "itemId": 5182,
+    "label": "a halberd",
+    "clothing": true,
+    "equipLayer": 2,
+    "slot": "weapon"
+  },
+  {
+    "name": "war-mace",
+    "itemId": 5127,
+    "label": "a war mace",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon"
+  },
+  {
+    "name": "battle-axe",
+    "itemId": 5115,
+    "label": "a battle axe",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon"
+  },
+  {
+    "name": "war-hammer",
+    "itemId": 5177,
+    "label": "a war hammer",
+    "clothing": true,
+    "equipLayer": 2,
+    "slot": "weapon"
+  },
+  {
+    "name": "bow",
+    "itemId": 5042,
+    "label": "a bow",
+    "clothing": true,
+    "equipLayer": 2,
+    "slot": "weapon"
+  },
+  {
+    "name": "crossbow",
+    "itemId": 3920,
+    "label": "a crossbow",
+    "clothing": true,
+    "equipLayer": 2,
+    "slot": "weapon"
+  },
+  {
+    "name": "heavy-crossbow",
+    "itemId": 5117,
+    "label": "a heavy crossbow",
+    "clothing": true,
+    "equipLayer": 2,
+    "slot": "weapon"
+  },
+  {
+    "name": "arrow",
+    "itemId": 3903,
+    "label": "an arrow",
+    "stackable": true
+  },
+  {
+    "name": "crossbow-bolt",
+    "itemId": 7163,
+    "label": "a crossbow bolt",
+    "stackable": true
+  },
+  {
+    "name": "plate-helm",
+    "itemId": 5145,
+    "label": "a plate helm",
+    "clothing": true,
+    "equipLayer": 6,
+    "slot": "head"
+  },
+  {
+    "name": "plate-chest",
+    "itemId": 5141,
+    "label": "plate armor",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "tunic"
+  },
+  {
+    "name": "plate-arms",
+    "itemId": 5136,
+    "label": "plate arms",
+    "clothing": true,
+    "equipLayer": 19,
+    "slot": "arms"
+  },
+  {
+    "name": "plate-legs",
+    "itemId": 5137,
+    "label": "plate legs",
+    "clothing": true,
+    "equipLayer": 24,
+    "slot": "innerlegs"
+  },
+  {
+    "name": "plate-gorget",
+    "itemId": 5139,
+    "label": "a plate gorget",
+    "clothing": true,
+    "equipLayer": 10,
+    "slot": "neck"
+  },
+  {
+    "name": "plate-gloves",
+    "itemId": 5140,
+    "label": "plate gloves",
+    "clothing": true,
+    "equipLayer": 7,
+    "slot": "gloves"
+  },
+  {
+    "name": "kite-shield",
+    "itemId": 7012,
+    "label": "a kite shield",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "shield"
+  },
+  {
+    "name": "heater-shield",
+    "itemId": 7014,
+    "label": "a heater shield",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "shield"
+  },
+  {
+    "name": "potion-heal",
+    "itemId": 3852,
+    "label": "a healing potion",
+    "script": "potion-heal"
+  },
+  {
+    "name": "potion-cure",
+    "itemId": 3847,
+    "label": "a cure potion",
+    "script": "potion-cure"
+  },
+  {
+    "name": "potion-poison",
+    "itemId": 3850,
+    "label": "a poison potion"
+  },
+  {
+    "name": "potion-strength",
+    "itemId": 3849,
+    "label": "a strength potion"
+  },
+  {
+    "name": "potion-refresh",
+    "itemId": 3851,
+    "label": "a refresh potion",
+    "script": "potion-refresh"
+  },
+  {
+    "name": "potion-explosion",
+    "itemId": 3853,
+    "label": "an explosion potion"
+  },
+  {
+    "name": "lockpick",
+    "itemId": 5372,
+    "label": "a lockpick",
+    "stackable": true
+  },
+  {
+    "name": "disguise-kit",
+    "itemId": 3589,
+    "label": "a disguise kit",
+    "script": "disguise-kit",
+    "weight": 1
+  },
+  {
+    "name": "spellbook",
+    "itemId": 3834,
+    "label": "a spellbook",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "spellbook": true
+  },
+  {
+    "name": "blank-scroll",
+    "itemId": 3636,
+    "label": "a blank scroll",
+    "stackable": true
+  },
+  {
+    "name": "map",
+    "itemId": 5355,
+    "label": "a map"
+  },
+  {
+    "name": "treasure-map",
+    "itemId": 5356,
+    "label": "a treasure map"
+  },
+  {
+    "name": "fishing-pole",
+    "itemId": 3520,
+    "label": "a fishing pole",
+    "clothing": true,
+    "equipLayer": 2,
+    "slot": "weapon",
+    "script": "fishing-pole"
+  },
+  {
+    "name": "pickaxe",
+    "itemId": 3717,
+    "label": "a pickaxe",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "script": "pickaxe"
+  },
+  {
+    "name": "hatchet",
+    "itemId": 3907,
+    "label": "a hatchet",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "script": "hatchet"
+  },
+  {
+    "name": "shovel",
+    "itemId": 3897,
+    "label": "a shovel",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "script": "shovel"
+  },
+  {
+    "name": "sextant",
+    "itemId": 4184,
+    "label": "a sextant",
+    "script": "sextant"
+  },
+  {
+    "name": "soulstone",
+    "itemId": 10899,
+    "label": "a soulstone",
+    "script": "soulstone"
+  },
+  {
+    "name": "soulstone-fragment",
+    "itemId": 10913,
+    "label": "a soulstone fragment",
+    "script": "soulstone"
+  },
+  {
+    "name": "lap-harp",
+    "itemId": 3762,
+    "label": "a lap harp",
+    "script": "instrument"
+  },
+  {
+    "name": "lute",
+    "itemId": 3763,
+    "label": "a lute",
+    "script": "instrument"
+  },
+  {
+    "name": "drum",
+    "itemId": 3740,
+    "label": "a drum",
+    "script": "instrument"
+  },
+  {
+    "name": "tambourine",
+    "itemId": 3742,
+    "label": "a tambourine",
+    "script": "instrument"
+  },
+  {
+    "name": "key",
+    "itemId": 4112,
+    "label": "a key"
+  },
+  {
+    "name": "skull",
+    "itemId": 6882,
+    "label": "a skull"
+  },
+  {
+    "name": "candle",
+    "itemId": 2598,
+    "label": "a candle"
+  },
+  {
+    "name": "fur",
+    "itemId": 4596,
+    "label": "a piece of fur",
+    "stackable": true
+  },
+  {
+    "name": "wool",
+    "itemId": 3576,
+    "label": "wool",
+    "stackable": true
+  },
+  {
+    "name": "cotton",
+    "itemId": 3577,
+    "label": "cotton",
+    "stackable": true
+  },
+  {
+    "name": "cloth-bolt",
+    "itemId": 3989,
+    "label": "a bolt of cloth"
+  },
+  {
+    "name": "backpack",
+    "itemId": 3701,
+    "label": "a backpack",
+    "gumpId": 60
+  },
+  {
+    "name": "pouch",
+    "itemId": 3705,
+    "label": "a pouch",
+    "gumpId": 63
+  },
+  {
+    "name": "small-bag",
+    "itemId": 3702,
+    "label": "a bag",
+    "gumpId": 61
+  },
+  {
+    "name": "wooden-chest",
+    "itemId": 3708,
+    "label": "a wooden chest",
+    "gumpId": 73
+  },
+  {
+    "name": "metal-chest",
+    "itemId": 3650,
+    "label": "a metal chest",
+    "gumpId": 74
+  },
+  {
+    "name": "treasure-chest",
+    "itemId": 3712,
+    "label": "a treasure chest",
+    "gumpId": 66
+  },
+  {
+    "name": "barrel",
+    "itemId": 3705,
+    "label": "a barrel",
+    "gumpId": 62
+  },
+  {
+    "name": "assassin-spike",
+    "itemId": 11553,
+    "label": "a assassin spike",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 11565,
+    "weight": 4,
+    "dmgMin": 10,
+    "dmgMax": 12,
+    "speed": 50,
+    "strReq": 15,
+    "primaryAbility": "InfectiousStrike",
+    "secondaryAbility": "ShadowStrike"
+  },
+  {
+    "name": "axe",
+    "itemId": 3913,
+    "label": "a axe",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 3914,
+    "weight": 4,
+    "dmgMin": 6,
+    "dmgMax": 33,
+    "speed": 37,
+    "strReq": 35,
+    "primaryAbility": "CrushingBlow",
+    "secondaryAbility": "Dismount"
+  },
+  {
+    "name": "bardiche",
+    "itemId": 3917,
+    "label": "a bardiche",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 3918,
+    "weight": 7,
+    "dmgMin": 5,
+    "dmgMax": 43,
+    "speed": 26,
+    "strReq": 40,
+    "primaryAbility": "ParalyzingBlow",
+    "secondaryAbility": "Dismount"
+  },
+  {
+    "name": "black-staff",
+    "itemId": 3568,
+    "label": "a black staff",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 3568,
+    "weight": 6,
+    "dmgMin": 8,
+    "dmgMax": 33,
+    "speed": 35,
+    "strReq": 35,
+    "primaryAbility": "WhirlwindAttack",
+    "secondaryAbility": "ParalyzingBlow"
+  },
+  {
+    "name": "bladed-staff",
+    "itemId": 9917,
+    "label": "a bladed staff",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 9927,
+    "weight": 4,
+    "dmgMin": 14,
+    "dmgMax": 16,
+    "speed": 37,
+    "strReq": 40,
+    "primaryAbility": "ArmorIgnore",
+    "secondaryAbility": "Dismount"
+  },
+  {
+    "name": "blood-blade",
+    "itemId": 2302,
+    "label": "a blood blade",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 16498,
+    "weight": 2,
+    "dmgMin": 3,
+    "dmgMax": 28,
+    "speed": 53,
+    "strReq": 10,
+    "primaryAbility": "BleedAttack",
+    "secondaryAbility": "ParalyzingBlow"
+  },
+  {
+    "name": "bokuto",
+    "itemId": 10152,
+    "label": "a bokuto",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 10227,
+    "weight": 7,
+    "dmgMin": 9,
+    "dmgMax": 11,
+    "speed": 53,
+    "strReq": 20,
+    "primaryAbility": "Feint",
+    "secondaryAbility": "NerveStrike"
+  },
+  {
+    "name": "bone-harvester",
+    "itemId": 9915,
+    "label": "a bone harvester",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 9925,
+    "weight": 3,
+    "dmgMin": 13,
+    "dmgMax": 15,
+    "speed": 36,
+    "strReq": 25,
+    "primaryAbility": "ParalyzingBlow",
+    "secondaryAbility": "MortalStrike"
+  },
+  {
+    "name": "boomerang",
+    "itemId": 2303,
+    "label": "a boomerang",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "weight": 4,
+    "dmgMin": 9,
+    "dmgMax": 41,
+    "speed": 20,
+    "strReq": 20,
+    "primaryAbility": "MysticArc",
+    "secondaryAbility": "ConcussionBlow"
+  },
+  {
+    "name": "butcher-knife",
+    "itemId": 5110,
+    "label": "a butcher knife",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 5111,
+    "weight": 1,
+    "dmgMin": 2,
+    "dmgMax": 14,
+    "speed": 40,
+    "strReq": 5,
+    "primaryAbility": "InfectiousStrike",
+    "secondaryAbility": "Disarm"
+  },
+  {
+    "name": "cleaver",
+    "itemId": 3779,
+    "label": "a cleaver",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 3778,
+    "weight": 2,
+    "dmgMin": 2,
+    "dmgMax": 13,
+    "speed": 40,
+    "strReq": 10,
+    "primaryAbility": "BleedAttack",
+    "secondaryAbility": "InfectiousStrike"
+  },
+  {
+    "name": "club",
+    "itemId": 5044,
+    "label": "a club",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 5043,
+    "weight": 9,
+    "dmgMin": 8,
+    "dmgMax": 24,
+    "speed": 40,
+    "strReq": 10,
+    "primaryAbility": "CrushingBlow",
+    "secondaryAbility": "Dismount"
+  },
+  {
+    "name": "composite-bow",
+    "itemId": 9922,
+    "label": "a composite bow",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 9932,
+    "weight": 5,
+    "dmgMin": 15,
+    "dmgMax": 17,
+    "speed": 25,
+    "strReq": 45,
+    "primaryAbility": "ArmorIgnore",
+    "secondaryAbility": "MovingShot"
+  },
+  {
+    "name": "crescent-blade",
+    "itemId": 9921,
+    "label": "a crescent blade",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 9931,
+    "weight": 1,
+    "dmgMin": 11,
+    "dmgMax": 14,
+    "speed": 47,
+    "strReq": 55,
+    "primaryAbility": "DoubleStrike",
+    "secondaryAbility": "MortalStrike"
+  },
+  {
+    "name": "cyclone",
+    "itemId": 2305,
+    "label": "a cyclone",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "weight": 6,
+    "dmgMin": 9,
+    "dmgMax": 41,
+    "speed": 20,
+    "strReq": 20,
+    "primaryAbility": "MovingShot",
+    "secondaryAbility": "InfusedThrow"
+  },
+  {
+    "name": "daisho",
+    "itemId": 10153,
+    "label": "a daisho",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 10228,
+    "weight": 8,
+    "dmgMin": 13,
+    "dmgMax": 15,
+    "speed": 40,
+    "strReq": 40,
+    "primaryAbility": "Feint",
+    "secondaryAbility": "DoubleStrike"
+  },
+  {
+    "name": "diamond-mace",
+    "itemId": 11556,
+    "label": "a diamond mace",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 11568,
+    "weight": 10,
+    "dmgMin": 14,
+    "dmgMax": 17,
+    "speed": 37,
+    "strReq": 35,
+    "primaryAbility": "ConcussionBlow",
+    "secondaryAbility": "CrushingBlow"
+  },
+  {
+    "name": "disc-mace",
+    "itemId": 2307,
+    "label": "a disc mace",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 16494,
+    "weight": 17,
+    "dmgMin": 10,
+    "dmgMax": 30,
+    "speed": 32,
+    "strReq": 30,
+    "primaryAbility": "ArmorIgnore",
+    "secondaryAbility": "Disarm"
+  },
+  {
+    "name": "double-axe",
+    "itemId": 3915,
+    "label": "a double axe",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 3916,
+    "weight": 8,
+    "dmgMin": 5,
+    "dmgMax": 35,
+    "speed": 37,
+    "strReq": 45,
+    "primaryAbility": "DoubleStrike",
+    "secondaryAbility": "WhirlwindAttack"
+  },
+  {
+    "name": "double-bladed-staff",
+    "itemId": 9919,
+    "label": "a double bladed staff",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 9929,
+    "weight": 2,
+    "dmgMin": 12,
+    "dmgMax": 13,
+    "speed": 49,
+    "strReq": 50,
+    "primaryAbility": "DoubleStrike",
+    "secondaryAbility": "InfectiousStrike"
+  },
+  {
+    "name": "dread-sword",
+    "itemId": 2315,
+    "label": "a dread sword",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 16500,
+    "weight": 7,
+    "dmgMin": 5,
+    "dmgMax": 33,
+    "speed": 35,
+    "strReq": 25,
+    "primaryAbility": "CrushingBlow",
+    "secondaryAbility": "ConcussionBlow"
+  },
+  {
+    "name": "dual-pointed-spear",
+    "itemId": 2308,
+    "label": "a dual pointed spear",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 16493,
+    "weight": 7,
+    "dmgMin": 2,
+    "dmgMax": 36,
+    "speed": 46,
+    "strReq": 30,
+    "primaryAbility": "DoubleStrike",
+    "secondaryAbility": "Disarm"
+  },
+  {
+    "name": "dual-short-axes",
+    "itemId": 2301,
+    "label": "a dual short axes",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 16488,
+    "weight": 8,
+    "dmgMin": 5,
+    "dmgMax": 35,
+    "speed": 37,
+    "strReq": 45,
+    "primaryAbility": "DoubleStrike",
+    "secondaryAbility": "InfectiousStrike"
+  },
+  {
+    "name": "elven-composite-longbow",
+    "itemId": 11550,
+    "label": "a elven composite longbow",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 11562,
+    "weight": 8,
+    "dmgMin": 12,
+    "dmgMax": 16,
+    "speed": 27,
+    "strReq": 45,
+    "primaryAbility": "ForceArrow",
+    "secondaryAbility": "SerpentArrow"
+  },
+  {
+    "name": "elven-machete",
+    "itemId": 11573,
+    "label": "a elven machete",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 11561,
+    "weight": 6,
+    "dmgMin": 13,
+    "dmgMax": 15,
+    "speed": 41,
+    "strReq": 20,
+    "primaryAbility": "DefenseMastery",
+    "secondaryAbility": "Bladeweave"
+  },
+  {
+    "name": "elven-spellblade",
+    "itemId": 11552,
+    "label": "a elven spellblade",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 11564,
+    "weight": 5,
+    "dmgMin": 12,
+    "dmgMax": 14,
+    "speed": 44,
+    "strReq": 35,
+    "primaryAbility": "PsychicAttack",
+    "secondaryAbility": "BleedAttack"
+  },
+  {
+    "name": "executioners-axe",
+    "itemId": 3909,
+    "label": "a executioners axe",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 3910,
+    "weight": 8,
+    "dmgMin": 6,
+    "dmgMax": 33,
+    "speed": 37,
+    "strReq": 35,
+    "primaryAbility": "BleedAttack",
+    "secondaryAbility": "MortalStrike"
+  },
+  {
+    "name": "gargish-axe",
+    "itemId": 18610,
+    "label": "a gargish axe",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 18611,
+    "weight": 4,
+    "dmgMin": 6,
+    "dmgMax": 33,
+    "speed": 37,
+    "strReq": 35,
+    "primaryAbility": "CrushingBlow",
+    "secondaryAbility": "Dismount"
+  },
+  {
+    "name": "gargish-bardiche",
+    "itemId": 18612,
+    "label": "a gargish bardiche",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 18613,
+    "weight": 7,
+    "dmgMin": 5,
+    "dmgMax": 43,
+    "speed": 26,
+    "strReq": 40,
+    "primaryAbility": "ParalyzingBlow",
+    "secondaryAbility": "Dismount"
+  },
+  {
+    "name": "gargish-battle-axe",
+    "itemId": 18608,
+    "label": "a gargish battle axe",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 18609,
+    "weight": 4,
+    "dmgMin": 6,
+    "dmgMax": 38,
+    "speed": 30,
+    "strReq": 40,
+    "primaryAbility": "BleedAttack",
+    "secondaryAbility": "ConcussionBlow"
+  },
+  {
+    "name": "gargish-bone-harvester",
+    "itemId": 18630,
+    "label": "a gargish bone harvester",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 18631,
+    "weight": 3,
+    "dmgMin": 13,
+    "dmgMax": 15,
+    "speed": 36,
+    "strReq": 25,
+    "primaryAbility": "ParalyzingBlow",
+    "secondaryAbility": "MortalStrike"
+  },
+  {
+    "name": "gargish-butcher-knife",
+    "itemId": 18614,
+    "label": "a gargish butcher knife",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 18615,
+    "weight": 1,
+    "dmgMin": 2,
+    "dmgMax": 14,
+    "speed": 40,
+    "strReq": 5,
+    "primaryAbility": "InfectiousStrike",
+    "secondaryAbility": "Disarm"
+  },
+  {
+    "name": "gargish-cleaver",
+    "itemId": 18606,
+    "label": "a gargish cleaver",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 18607,
+    "weight": 2,
+    "dmgMin": 2,
+    "dmgMax": 13,
+    "speed": 40,
+    "strReq": 10,
+    "primaryAbility": "BleedAttack",
+    "secondaryAbility": "InfectiousStrike"
+  },
+  {
+    "name": "gargish-dagger",
+    "itemId": 2306,
+    "label": "a gargish dagger",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 16490,
+    "weight": 1,
+    "dmgMin": 3,
+    "dmgMax": 15,
+    "speed": 55,
+    "strReq": 1,
+    "primaryAbility": "ShadowStrike",
+    "secondaryAbility": "InfectiousStrike"
+  },
+  {
+    "name": "gargish-daisho",
+    "itemId": 18640,
+    "label": "a gargish daisho",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 18641,
+    "weight": 8,
+    "dmgMin": 13,
+    "dmgMax": 15,
+    "speed": 40,
+    "strReq": 40,
+    "primaryAbility": "Feint",
+    "secondaryAbility": "DoubleStrike"
+  },
+  {
+    "name": "gargish-gnarled-staff",
+    "itemId": 18616,
+    "label": "a gargish gnarled staff",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 18617,
+    "weight": 3,
+    "dmgMin": 10,
+    "dmgMax": 30,
+    "speed": 33,
+    "strReq": 20,
+    "primaryAbility": "ConcussionBlow",
+    "secondaryAbility": "ForceOfNature"
+  },
+  {
+    "name": "gargish-katana",
+    "itemId": 18618,
+    "label": "a gargish katana",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 18619,
+    "weight": 6,
+    "dmgMin": 5,
+    "dmgMax": 26,
+    "speed": 58,
+    "strReq": 10,
+    "primaryAbility": "DoubleStrike",
+    "secondaryAbility": "ArmorIgnore"
+  },
+  {
+    "name": "gargish-kryss",
+    "itemId": 18620,
+    "label": "a gargish kryss",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 18621,
+    "weight": 2,
+    "dmgMin": 3,
+    "dmgMax": 28,
+    "speed": 53,
+    "strReq": 10,
+    "primaryAbility": "ArmorIgnore",
+    "secondaryAbility": "InfectiousStrike"
+  },
+  {
+    "name": "gargish-lance",
+    "itemId": 18634,
+    "label": "a gargish lance",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 18635,
+    "weight": 12,
+    "dmgMin": 17,
+    "dmgMax": 18,
+    "speed": 24,
+    "strReq": 95,
+    "primaryAbility": "Dismount",
+    "secondaryAbility": "ConcussionBlow"
+  },
+  {
+    "name": "gargish-maul",
+    "itemId": 18626,
+    "label": "a gargish maul",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 18627,
+    "weight": 10,
+    "dmgMin": 10,
+    "dmgMax": 30,
+    "speed": 30,
+    "strReq": 20,
+    "primaryAbility": "DoubleStrike",
+    "secondaryAbility": "ConcussionBlow"
+  },
+  {
+    "name": "gargish-pike",
+    "itemId": 18632,
+    "label": "a gargish pike",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 18633,
+    "weight": 8,
+    "dmgMin": 14,
+    "dmgMax": 16,
+    "speed": 37,
+    "strReq": 50,
+    "primaryAbility": "ParalyzingBlow",
+    "secondaryAbility": "InfectiousStrike"
+  },
+  {
+    "name": "gargish-scythe",
+    "itemId": 18628,
+    "label": "a gargish scythe",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 18629,
+    "weight": 5,
+    "dmgMin": 15,
+    "dmgMax": 18,
+    "speed": 32,
+    "strReq": 45,
+    "primaryAbility": "BleedAttack",
+    "secondaryAbility": "ParalyzingBlow"
+  },
+  {
+    "name": "gargish-talwar",
+    "itemId": 2312,
+    "label": "a gargish talwar",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 16501,
+    "weight": 16,
+    "dmgMin": 5,
+    "dmgMax": 49,
+    "speed": 25,
+    "strReq": 45,
+    "primaryAbility": "WhirlwindAttack",
+    "secondaryAbility": "Dismount"
+  },
+  {
+    "name": "gargish-tekagi",
+    "itemId": 18638,
+    "label": "a gargish tekagi",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 18639,
+    "weight": 5,
+    "dmgMin": 10,
+    "dmgMax": 12,
+    "speed": 53,
+    "strReq": 10,
+    "primaryAbility": "DualWield",
+    "secondaryAbility": "TalonStrike"
+  },
+  {
+    "name": "gargish-tessen",
+    "itemId": 18636,
+    "label": "a gargish tessen",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 18637,
+    "weight": 6,
+    "dmgMin": 10,
+    "dmgMax": 12,
+    "speed": 50,
+    "strReq": 10,
+    "primaryAbility": "Feint",
+    "secondaryAbility": "DualWield"
+  },
+  {
+    "name": "gargish-war-fork",
+    "itemId": 18622,
+    "label": "a gargish war fork",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 18623,
+    "weight": 9,
+    "dmgMin": 4,
+    "dmgMax": 32,
+    "speed": 45,
+    "strReq": 35,
+    "primaryAbility": "BleedAttack",
+    "secondaryAbility": "Disarm"
+  },
+  {
+    "name": "gargish-war-hammer",
+    "itemId": 18624,
+    "label": "a gargish war hammer",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 1153,
+    "weight": 10,
+    "dmgMin": 8,
+    "dmgMax": 36,
+    "speed": 31,
+    "strReq": 40,
+    "primaryAbility": "WhirlwindAttack",
+    "secondaryAbility": "CrushingBlow"
+  },
+  {
+    "name": "glass-staff",
+    "itemId": 2309,
+    "label": "a glass staff",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 16496,
+    "weight": 4,
+    "dmgMin": 8,
+    "dmgMax": 33,
+    "speed": 35,
+    "strReq": 35,
+    "primaryAbility": "DoubleStrike",
+    "secondaryAbility": "MortalStrike"
+  },
+  {
+    "name": "glass-sword",
+    "itemId": 2316,
+    "label": "a glass sword",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 16499,
+    "weight": 6,
+    "dmgMin": 5,
+    "dmgMax": 26,
+    "speed": 58,
+    "strReq": 10,
+    "primaryAbility": "BleedAttack",
+    "secondaryAbility": "MortalStrike"
+  },
+  {
+    "name": "hammer-pick",
+    "itemId": 5181,
+    "label": "a hammer pick",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 5180,
+    "weight": 9,
+    "dmgMin": 6,
+    "dmgMax": 33,
+    "speed": 30,
+    "strReq": 35,
+    "primaryAbility": "ArmorIgnore",
+    "secondaryAbility": "MortalStrike"
+  },
+  {
+    "name": "kama",
+    "itemId": 10157,
+    "label": "a kama",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 10232,
+    "weight": 7,
+    "dmgMin": 9,
+    "dmgMax": 11,
+    "speed": 55,
+    "strReq": 15,
+    "primaryAbility": "WhirlwindAttack",
+    "secondaryAbility": "DefenseMastery"
+  },
+  {
+    "name": "lajatang",
+    "itemId": 10151,
+    "label": "a lajatang",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 10226,
+    "weight": 12,
+    "dmgMin": 16,
+    "dmgMax": 18,
+    "speed": 55,
+    "strReq": 65,
+    "primaryAbility": "DefenseMastery",
+    "secondaryAbility": "FrenziedWhirlwind"
+  },
+  {
+    "name": "lance",
+    "itemId": 9920,
+    "label": "a lance",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 9930,
+    "weight": 12,
+    "dmgMin": 17,
+    "dmgMax": 18,
+    "speed": 24,
+    "strReq": 95,
+    "primaryAbility": "Dismount",
+    "secondaryAbility": "ConcussionBlow"
+  },
+  {
+    "name": "leafblade",
+    "itemId": 11554,
+    "label": "a leafblade",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 11566,
+    "weight": 8,
+    "dmgMin": 13,
+    "dmgMax": 15,
+    "speed": 42,
+    "strReq": 20,
+    "primaryAbility": "Feint",
+    "secondaryAbility": "ArmorIgnore"
+  },
+  {
+    "name": "magical-shortbow",
+    "itemId": 11563,
+    "label": "a magical shortbow",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 11551,
+    "weight": 6,
+    "dmgMin": 9,
+    "dmgMax": 13,
+    "speed": 38,
+    "strReq": 45,
+    "primaryAbility": "LightningArrow",
+    "secondaryAbility": "PsychicAttack"
+  },
+  {
+    "name": "magic-wand",
+    "itemId": 3570,
+    "label": "a magic wand",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "weight": 1,
+    "dmgMin": 2,
+    "dmgMax": 6,
+    "speed": 35,
+    "strReq": 0,
+    "primaryAbility": "Dismount",
+    "secondaryAbility": "Disarm"
+  },
+  {
+    "name": "maul",
+    "itemId": 5179,
+    "label": "a maul",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 5178,
+    "weight": 10,
+    "dmgMin": 10,
+    "dmgMax": 30,
+    "speed": 30,
+    "strReq": 20,
+    "primaryAbility": "DoubleStrike",
+    "secondaryAbility": "ConcussionBlow"
+  },
+  {
+    "name": "no-dachi",
+    "itemId": 10146,
+    "label": "a no dachi",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 10221,
+    "weight": 10,
+    "dmgMin": 16,
+    "dmgMax": 18,
+    "speed": 35,
+    "strReq": 40,
+    "primaryAbility": "CrushingBlow",
+    "secondaryAbility": "RidingSwipe"
+  },
+  {
+    "name": "nunchaku",
+    "itemId": 10158,
+    "label": "a nunchaku",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 10233,
+    "weight": 5,
+    "dmgMin": 11,
+    "dmgMax": 13,
+    "speed": 47,
+    "strReq": 15,
+    "primaryAbility": "Block",
+    "secondaryAbility": "DoubleStrike"
+  },
+  {
+    "name": "ornate-axe",
+    "itemId": 11560,
+    "label": "a ornate axe",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 11572,
+    "weight": 12,
+    "dmgMin": 18,
+    "dmgMax": 20,
+    "speed": 26,
+    "strReq": 45,
+    "primaryAbility": "Disarm",
+    "secondaryAbility": "CrushingBlow"
+  },
+  {
+    "name": "paladin-sword",
+    "itemId": 9934,
+    "label": "a paladin sword",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 9935,
+    "weight": 6,
+    "primaryAbility": "WhirlwindAttack",
+    "secondaryAbility": "Disarm"
+  },
+  {
+    "name": "pike",
+    "itemId": 9918,
+    "label": "a pike",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 9928,
+    "weight": 8,
+    "dmgMin": 14,
+    "dmgMax": 16,
+    "speed": 37,
+    "strReq": 50,
+    "primaryAbility": "ParalyzingBlow",
+    "secondaryAbility": "InfectiousStrike"
+  },
+  {
+    "name": "pitchfork",
+    "itemId": 3719,
+    "label": "a pitchfork",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 3720,
+    "weight": 11,
+    "dmgMin": 4,
+    "dmgMax": 16,
+    "speed": 45,
+    "strReq": 15,
+    "primaryAbility": "BleedAttack",
+    "secondaryAbility": "Dismount"
+  },
+  {
+    "name": "quarter-staff",
+    "itemId": 3721,
+    "label": "a quarter staff",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 3722,
+    "weight": 4,
+    "dmgMin": 8,
+    "dmgMax": 28,
+    "speed": 48,
+    "strReq": 30,
+    "primaryAbility": "DoubleStrike",
+    "secondaryAbility": "ConcussionBlow"
+  },
+  {
+    "name": "radiant-scimitar",
+    "itemId": 11571,
+    "label": "a radiant scimitar",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 11559,
+    "weight": 9,
+    "dmgMin": 12,
+    "dmgMax": 14,
+    "speed": 43,
+    "strReq": 20,
+    "primaryAbility": "WhirlwindAttack",
+    "secondaryAbility": "Bladeweave"
+  },
+  {
+    "name": "repeating-crossbow",
+    "itemId": 9923,
+    "label": "a repeating crossbow",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 9933,
+    "weight": 6,
+    "dmgMin": 10,
+    "dmgMax": 12,
+    "speed": 41,
+    "strReq": 30,
+    "primaryAbility": "DoubleStrike",
+    "secondaryAbility": "MovingShot"
+  },
+  {
+    "name": "rune-blade",
+    "itemId": 11570,
+    "label": "a rune blade",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 11558,
+    "weight": 7,
+    "dmgMin": 15,
+    "dmgMax": 17,
+    "speed": 35,
+    "strReq": 30,
+    "primaryAbility": "Disarm",
+    "secondaryAbility": "Bladeweave"
+  },
+  {
+    "name": "sai",
+    "itemId": 10159,
+    "label": "a sai",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 10234,
+    "weight": 7,
+    "dmgMin": 9,
+    "dmgMax": 11,
+    "speed": 55,
+    "strReq": 15,
+    "primaryAbility": "DualWield",
+    "secondaryAbility": "ArmorPierce"
+  },
+  {
+    "name": "scepter",
+    "itemId": 9916,
+    "label": "a scepter",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 9926,
+    "weight": 8,
+    "dmgMin": 14,
+    "dmgMax": 17,
+    "speed": 30,
+    "strReq": 40,
+    "primaryAbility": "CrushingBlow",
+    "secondaryAbility": "MortalStrike"
+  },
+  {
+    "name": "scythe",
+    "itemId": 9914,
+    "label": "a scythe",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 9924,
+    "weight": 5,
+    "dmgMin": 15,
+    "dmgMax": 18,
+    "speed": 32,
+    "strReq": 45,
+    "primaryAbility": "BleedAttack",
+    "secondaryAbility": "ParalyzingBlow"
+  },
+  {
+    "name": "serpent-stone-staff",
+    "itemId": 2310,
+    "label": "a serpent stone staff",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 16495,
+    "weight": 3,
+    "dmgMin": 10,
+    "dmgMax": 30,
+    "speed": 33,
+    "strReq": 20,
+    "primaryAbility": "CrushingBlow",
+    "secondaryAbility": "Dismount"
+  },
+  {
+    "name": "shepherds-crook",
+    "itemId": 3713,
+    "label": "a shepherds crook",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 3714,
+    "weight": 4,
+    "dmgMin": 3,
+    "dmgMax": 12,
+    "speed": 30,
+    "strReq": 10,
+    "primaryAbility": "CrushingBlow",
+    "secondaryAbility": "Disarm"
+  },
+  {
+    "name": "shortblade",
+    "itemId": 2311,
+    "label": "a shortblade",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 16502,
+    "weight": 9,
+    "dmgMin": 4,
+    "dmgMax": 32,
+    "speed": 45,
+    "strReq": 35,
+    "primaryAbility": "ArmorIgnore",
+    "secondaryAbility": "MortalStrike"
+  },
+  {
+    "name": "short-spear",
+    "itemId": 5123,
+    "label": "a short spear",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 5122,
+    "weight": 4,
+    "dmgMin": 4,
+    "dmgMax": 32,
+    "speed": 50,
+    "strReq": 15,
+    "primaryAbility": "ShadowStrike",
+    "secondaryAbility": "MortalStrike"
+  },
+  {
+    "name": "skinning-knife",
+    "itemId": 3780,
+    "label": "a skinning knife",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 3781,
+    "weight": 1,
+    "dmgMin": 1,
+    "dmgMax": 10,
+    "speed": 40,
+    "strReq": 5,
+    "primaryAbility": "ShadowStrike",
+    "secondaryAbility": "BleedAttack"
+  },
+  {
+    "name": "soul-glaive",
+    "itemId": 2314,
+    "label": "a soul glaive",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "weight": 8,
+    "dmgMin": 9,
+    "dmgMax": 41,
+    "speed": 20,
+    "strReq": 20,
+    "primaryAbility": "ArmorIgnore",
+    "secondaryAbility": "MortalStrike"
+  },
+  {
+    "name": "spear",
+    "itemId": 3938,
+    "label": "a spear",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 3939,
+    "weight": 7,
+    "dmgMin": 2,
+    "dmgMax": 36,
+    "speed": 46,
+    "strReq": 30,
+    "primaryAbility": "ArmorIgnore",
+    "secondaryAbility": "ParalyzingBlow"
+  },
+  {
+    "name": "stone-war-sword",
+    "itemId": 2304,
+    "label": "a stone war sword",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 16497,
+    "weight": 6,
+    "dmgMin": 6,
+    "dmgMax": 34,
+    "speed": 30,
+    "strReq": 40,
+    "primaryAbility": "ArmorIgnore",
+    "secondaryAbility": "ParalyzingBlow"
+  },
+  {
+    "name": "tekagi",
+    "itemId": 10155,
+    "label": "a tekagi",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 10230,
+    "weight": 5,
+    "dmgMin": 10,
+    "dmgMax": 12,
+    "speed": 53,
+    "strReq": 10,
+    "primaryAbility": "DualWield",
+    "secondaryAbility": "TalonStrike"
+  },
+  {
+    "name": "tessen",
+    "itemId": 10147,
+    "label": "a tessen",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 10222,
+    "weight": 6,
+    "dmgMin": 10,
+    "dmgMax": 12,
+    "speed": 50,
+    "strReq": 10,
+    "primaryAbility": "Feint",
+    "secondaryAbility": "DualWield"
+  },
+  {
+    "name": "tetsubo",
+    "itemId": 10150,
+    "label": "a tetsubo",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 10225,
+    "weight": 8,
+    "dmgMin": 12,
+    "dmgMax": 14,
+    "speed": 45,
+    "strReq": 35,
+    "primaryAbility": "FrenziedWhirlwind",
+    "secondaryAbility": "CrushingBlow"
+  },
+  {
+    "name": "thin-longsword",
+    "itemId": 5048,
+    "label": "a thin longsword",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 5047,
+    "weight": 1,
+    "dmgMin": 5,
+    "dmgMax": 33,
+    "speed": 35,
+    "strReq": 25
+  },
+  {
+    "name": "tribal-spear",
+    "itemId": 3938,
+    "label": "a tribal spear",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 3939,
+    "weight": 7,
+    "dmgMin": 2,
+    "dmgMax": 36,
+    "speed": 46,
+    "strReq": 30,
+    "primaryAbility": "ArmorIgnore",
+    "secondaryAbility": "ParalyzingBlow"
+  },
+  {
+    "name": "two-handed-axe",
+    "itemId": 5187,
+    "label": "a two handed axe",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 5186,
+    "weight": 8,
+    "dmgMin": 5,
+    "dmgMax": 39,
+    "speed": 30,
+    "strReq": 35,
+    "primaryAbility": "DoubleStrike",
+    "secondaryAbility": "ShadowStrike"
+  },
+  {
+    "name": "viking-sword",
+    "itemId": 5049,
+    "label": "a viking sword",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 5050,
+    "weight": 6,
+    "dmgMin": 6,
+    "dmgMax": 34,
+    "speed": 30,
+    "strReq": 40,
+    "primaryAbility": "CrushingBlow",
+    "secondaryAbility": "ParalyzingBlow"
+  },
+  {
+    "name": "wakizashi",
+    "itemId": 10148,
+    "label": "a wakizashi",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 10223,
+    "weight": 5,
+    "dmgMin": 11,
+    "dmgMax": 13,
+    "speed": 44,
+    "strReq": 20,
+    "primaryAbility": "FrenziedWhirlwind",
+    "secondaryAbility": "DoubleStrike"
+  },
+  {
+    "name": "war-cleaver",
+    "itemId": 11567,
+    "label": "a war cleaver",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 11555,
+    "weight": 10,
+    "dmgMin": 9,
+    "dmgMax": 11,
+    "speed": 48,
+    "strReq": 15,
+    "primaryAbility": "Disarm",
+    "secondaryAbility": "Bladeweave"
+  },
+  {
+    "name": "war-fork",
+    "itemId": 5125,
+    "label": "a war fork",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 5124,
+    "weight": 9,
+    "dmgMin": 4,
+    "dmgMax": 32,
+    "speed": 45,
+    "strReq": 35,
+    "primaryAbility": "BleedAttack",
+    "secondaryAbility": "Disarm"
+  },
+  {
+    "name": "wild-staff",
+    "itemId": 11557,
+    "label": "a wild staff",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 11569,
+    "weight": 8,
+    "dmgMin": 10,
+    "dmgMax": 12,
+    "speed": 48,
+    "strReq": 15,
+    "primaryAbility": "Block",
+    "secondaryAbility": "ForceOfNature"
+  },
+  {
+    "name": "yumi",
+    "itemId": 10149,
+    "label": "a yumi",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "weapon",
+    "flipId": 10224,
+    "weight": 8,
+    "dmgMin": 18,
+    "dmgMax": 20,
+    "speed": 25,
+    "strReq": 35,
+    "primaryAbility": "ArmorPierce",
+    "secondaryAbility": "DoubleShot"
+  },
+  {
+    "name": "bascinet",
+    "itemId": 5132,
+    "label": "a bascinet",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 5
+  },
+  {
+    "name": "bone-arms",
+    "itemId": 5198,
+    "label": "a bone arms",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 5203,
+    "weight": 2
+  },
+  {
+    "name": "bone-chest",
+    "itemId": 5199,
+    "label": "a bone chest",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 5204,
+    "weight": 6
+  },
+  {
+    "name": "bone-gloves",
+    "itemId": 5200,
+    "label": "a bone gloves",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 5205,
+    "weight": 2
+  },
+  {
+    "name": "bone-helm",
+    "itemId": 5201,
+    "label": "a bone helm",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 5206,
+    "weight": 3
+  },
+  {
+    "name": "bone-legs",
+    "itemId": 5202,
+    "label": "a bone legs",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 5207,
+    "weight": 3
+  },
+  {
+    "name": "buckler",
+    "itemId": 7027,
+    "label": "a buckler",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "shield",
+    "weight": 5
+  },
+  {
+    "name": "chain-chest",
+    "itemId": 5055,
+    "label": "a chain chest",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 5060,
+    "weight": 7
+  },
+  {
+    "name": "chain-coif",
+    "itemId": 5051,
+    "label": "a chain coif",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 5056,
+    "weight": 1
+  },
+  {
+    "name": "chain-hatsuburi",
+    "itemId": 10100,
+    "label": "a chain hatsuburi",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 7
+  },
+  {
+    "name": "chain-legs",
+    "itemId": 5054,
+    "label": "a chain legs",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 5059,
+    "weight": 7
+  },
+  {
+    "name": "chaos-shield",
+    "itemId": 7107,
+    "label": "a chaos shield",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "shield",
+    "weight": 5
+  },
+  {
+    "name": "circlet",
+    "itemId": 11118,
+    "label": "a circlet",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 12645,
+    "weight": 2
+  },
+  {
+    "name": "close-helm",
+    "itemId": 5128,
+    "label": "a close helm",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 5
+  },
+  {
+    "name": "decorative-plate-kabuto",
+    "itemId": 10104,
+    "label": "a decorative plate kabuto",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 6
+  },
+  {
+    "name": "dragon-arms",
+    "itemId": 9815,
+    "label": "a dragon arms",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 9816,
+    "weight": 5
+  },
+  {
+    "name": "dragon-chest",
+    "itemId": 9793,
+    "label": "a dragon chest",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 9794,
+    "weight": 10
+  },
+  {
+    "name": "dragon-gloves",
+    "itemId": 9795,
+    "label": "a dragon gloves",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 9796,
+    "weight": 2
+  },
+  {
+    "name": "dragon-helm",
+    "itemId": 9797,
+    "label": "a dragon helm",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 5
+  },
+  {
+    "name": "dragon-legs",
+    "itemId": 9799,
+    "label": "a dragon legs",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 9800,
+    "weight": 6
+  },
+  {
+    "name": "dragon-turtle-hide-arms",
+    "itemId": 30766,
+    "label": "a dragon turtle hide arms",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 3
+  },
+  {
+    "name": "dragon-turtle-hide-bustier",
+    "itemId": 30763,
+    "label": "a dragon turtle hide bustier",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 6
+  },
+  {
+    "name": "dragon-turtle-hide-chest",
+    "itemId": 30762,
+    "label": "a dragon turtle hide chest",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 8
+  },
+  {
+    "name": "dragon-turtle-hide-helm",
+    "itemId": 30765,
+    "label": "a dragon turtle hide helm",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 2
+  },
+  {
+    "name": "dragon-turtle-hide-legs",
+    "itemId": 30764,
+    "label": "a dragon turtle hide legs",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 5
+  },
+  {
+    "name": "elegant-collar",
+    "itemId": 41999,
+    "label": "a elegant collar",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 3
+  },
+  {
+    "name": "female-gargish-leather-arms",
+    "itemId": 769,
+    "label": "a female gargish leather arms",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 4
+  },
+  {
+    "name": "female-gargish-leather-chest",
+    "itemId": 771,
+    "label": "a female gargish leather chest",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 8
+  },
+  {
+    "name": "female-gargish-leather-kilt",
+    "itemId": 784,
+    "label": "a female gargish leather kilt",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 5
+  },
+  {
+    "name": "female-gargish-leather-legs",
+    "itemId": 773,
+    "label": "a female gargish leather legs",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 5
+  },
+  {
+    "name": "female-gargish-plate-arms",
+    "itemId": 775,
+    "label": "a female gargish plate arms",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 5
+  },
+  {
+    "name": "female-gargish-plate-chest",
+    "itemId": 777,
+    "label": "a female gargish plate chest",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 10
+  },
+  {
+    "name": "female-gargish-plate-kilt",
+    "itemId": 779,
+    "label": "a female gargish plate kilt",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 5
+  },
+  {
+    "name": "female-gargish-plate-legs",
+    "itemId": 781,
+    "label": "a female gargish plate legs",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 7
+  },
+  {
+    "name": "female-gargish-stone-arms",
+    "itemId": 643,
+    "label": "a female gargish stone arms",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 10
+  },
+  {
+    "name": "female-gargish-stone-chest",
+    "itemId": 645,
+    "label": "a female gargish stone chest",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 15
+  },
+  {
+    "name": "female-gargish-stone-kilt",
+    "itemId": 647,
+    "label": "a female gargish stone kilt",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 10
+  },
+  {
+    "name": "female-gargish-stone-legs",
+    "itemId": 649,
+    "label": "a female gargish stone legs",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 15
+  },
+  {
+    "name": "female-leaf-chest",
+    "itemId": 12235,
+    "label": "a female leaf chest",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 12673,
+    "weight": 2
+  },
+  {
+    "name": "female-leather-chest",
+    "itemId": 7174,
+    "label": "a female leather chest",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 7175,
+    "weight": 1
+  },
+  {
+    "name": "female-plate-chest",
+    "itemId": 7172,
+    "label": "a female plate chest",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 7173,
+    "weight": 4
+  },
+  {
+    "name": "female-studded-chest",
+    "itemId": 7170,
+    "label": "a female studded chest",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 7171,
+    "weight": 6
+  },
+  {
+    "name": "female-elven-plate-chest",
+    "itemId": 11117,
+    "label": "a female elven plate chest",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 12644,
+    "weight": 8
+  },
+  {
+    "name": "gargish-chaos-shield",
+    "itemId": 16936,
+    "label": "a gargish chaos shield",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "shield",
+    "flipId": 16937,
+    "weight": 5
+  },
+  {
+    "name": "gargish-cloth-arms-armor",
+    "itemId": 1028,
+    "label": "a gargish cloth arms armor",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 2
+  },
+  {
+    "name": "gargish-kite-shield",
+    "itemId": 16897,
+    "label": "a gargish kite shield",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "shield",
+    "flipId": 16902,
+    "weight": 7
+  },
+  {
+    "name": "gargish-leather-arms",
+    "itemId": 770,
+    "label": "a gargish leather arms",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 4
+  },
+  {
+    "name": "gargish-leather-chest",
+    "itemId": 772,
+    "label": "a gargish leather chest",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 8
+  },
+  {
+    "name": "gargish-leather-kilt",
+    "itemId": 785,
+    "label": "a gargish leather kilt",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 5
+  },
+  {
+    "name": "gargish-leather-legs",
+    "itemId": 773,
+    "label": "a gargish leather legs",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 5
+  },
+  {
+    "name": "gargish-leather-wing-armor",
+    "itemId": 17790,
+    "label": "a gargish leather wing armor",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 17791,
+    "weight": 2
+  },
+  {
+    "name": "gargish-order-shield",
+    "itemId": 16938,
+    "label": "a gargish order shield",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "shield",
+    "flipId": 16940,
+    "weight": 7
+  },
+  {
+    "name": "gargish-plate-arms",
+    "itemId": 776,
+    "label": "a gargish plate arms",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 5
+  },
+  {
+    "name": "gargish-plate-chest",
+    "itemId": 778,
+    "label": "a gargish plate chest",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 10
+  },
+  {
+    "name": "gargish-plate-kilt",
+    "itemId": 780,
+    "label": "a gargish plate kilt",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 5
+  },
+  {
+    "name": "gargish-plate-legs",
+    "itemId": 782,
+    "label": "a gargish plate legs",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 7
+  },
+  {
+    "name": "gargish-stone-arms",
+    "itemId": 644,
+    "label": "a gargish stone arms",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 10
+  },
+  {
+    "name": "gargish-stone-chest",
+    "itemId": 646,
+    "label": "a gargish stone chest",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 15
+  },
+  {
+    "name": "gargish-stone-kilt",
+    "itemId": 648,
+    "label": "a gargish stone kilt",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 10
+  },
+  {
+    "name": "gargish-stone-legs",
+    "itemId": 650,
+    "label": "a gargish stone legs",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 15
+  },
+  {
+    "name": "gemmed-circlet",
+    "itemId": 11120,
+    "label": "a gemmed circlet",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 12647,
+    "weight": 2
+  },
+  {
+    "name": "heavy-plate-jingasa",
+    "itemId": 10103,
+    "label": "a heavy plate jingasa",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 5
+  },
+  {
+    "name": "helmet",
+    "itemId": 5130,
+    "label": "a helmet",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 5
+  },
+  {
+    "name": "hide-chest",
+    "itemId": 11124,
+    "label": "a hide chest",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 12651,
+    "weight": 6
+  },
+  {
+    "name": "hide-female-chest",
+    "itemId": 11129,
+    "label": "a hide female chest",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 12656,
+    "weight": 6
+  },
+  {
+    "name": "hide-gloves",
+    "itemId": 11125,
+    "label": "a hide gloves",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 12652,
+    "weight": 2
+  },
+  {
+    "name": "hide-gorget",
+    "itemId": 11126,
+    "label": "a hide gorget",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 12653,
+    "weight": 3
+  },
+  {
+    "name": "hide-pants",
+    "itemId": 11128,
+    "label": "a hide pants",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 12655,
+    "weight": 5
+  },
+  {
+    "name": "hide-pauldrons",
+    "itemId": 11127,
+    "label": "a hide pauldrons",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 12654,
+    "weight": 4
+  },
+  {
+    "name": "large-plate-shield",
+    "itemId": 16900,
+    "label": "a large plate shield",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "shield",
+    "flipId": 16904
+  },
+  {
+    "name": "large-stone-shield",
+    "itemId": 16901,
+    "label": "a large stone shield",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "shield",
+    "flipId": 16907,
+    "weight": 5
+  },
+  {
+    "name": "leaf-arms",
+    "itemId": 12232,
+    "label": "a leaf arms",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 12670,
+    "weight": 2
+  },
+  {
+    "name": "leaf-chest",
+    "itemId": 12229,
+    "label": "a leaf chest",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 12667,
+    "weight": 2
+  },
+  {
+    "name": "leaf-gloves",
+    "itemId": 12230,
+    "label": "a leaf gloves",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 2
+  },
+  {
+    "name": "leaf-gorget",
+    "itemId": 12231,
+    "label": "a leaf gorget",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 2
+  },
+  {
+    "name": "leaf-legs",
+    "itemId": 12233,
+    "label": "a leaf legs",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 12671,
+    "weight": 2
+  },
+  {
+    "name": "leaf-tonlet",
+    "itemId": 12234,
+    "label": "a leaf tonlet",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 12672,
+    "weight": 2
+  },
+  {
+    "name": "leather-arms",
+    "itemId": 5069,
+    "label": "a leather arms",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 5061,
+    "weight": 2
+  },
+  {
+    "name": "leather-bustier-arms",
+    "itemId": 7178,
+    "label": "a leather bustier arms",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 7179,
+    "weight": 1
+  },
+  {
+    "name": "leather-do",
+    "itemId": 10182,
+    "label": "a leather do",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 6
+  },
+  {
+    "name": "leather-gloves",
+    "itemId": 5062,
+    "label": "a leather gloves",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 1
+  },
+  {
+    "name": "leather-gorget",
+    "itemId": 5063,
+    "label": "a leather gorget",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 1
+  },
+  {
+    "name": "leather-haidate",
+    "itemId": 10122,
+    "label": "a leather haidate",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 4
+  },
+  {
+    "name": "leather-hiro-sode",
+    "itemId": 10110,
+    "label": "a leather hiro sode",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 1
+  },
+  {
+    "name": "leather-jingasa",
+    "itemId": 10102,
+    "label": "a leather jingasa",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 3
+  },
+  {
+    "name": "leather-mempo",
+    "itemId": 10106,
+    "label": "a leather mempo",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 2
+  },
+  {
+    "name": "leather-ninja-hood",
+    "itemId": 10126,
+    "label": "a leather ninja hood",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 2
+  },
+  {
+    "name": "leather-ninja-jacket",
+    "itemId": 10131,
+    "label": "a leather ninja jacket",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 5
+  },
+  {
+    "name": "leather-ninja-mitts",
+    "itemId": 10130,
+    "label": "a leather ninja mitts",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 2
+  },
+  {
+    "name": "leather-ninja-pants",
+    "itemId": 10129,
+    "label": "a leather ninja pants",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 3
+  },
+  {
+    "name": "leather-shorts",
+    "itemId": 7168,
+    "label": "a leather shorts",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 7169,
+    "weight": 3
+  },
+  {
+    "name": "leather-skirt",
+    "itemId": 7176,
+    "label": "a leather skirt",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 7177,
+    "weight": 1
+  },
+  {
+    "name": "leather-suneate",
+    "itemId": 10118,
+    "label": "a leather suneate",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 4
+  },
+  {
+    "name": "light-plate-jingasa",
+    "itemId": 10113,
+    "label": "a light plate jingasa",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 5
+  },
+  {
+    "name": "medium-plate-shield",
+    "itemId": 16899,
+    "label": "a medium plate shield",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "shield",
+    "flipId": 16905,
+    "weight": 6
+  },
+  {
+    "name": "norse-helm",
+    "itemId": 5134,
+    "label": "a norse helm",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 5
+  },
+  {
+    "name": "orc-helm",
+    "itemId": 7947,
+    "label": "a orc helm",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor"
+  },
+  {
+    "name": "order-shield",
+    "itemId": 7108,
+    "label": "a order shield",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "shield",
+    "weight": 7
+  },
+  {
+    "name": "plate-battle-kabuto",
+    "itemId": 10117,
+    "label": "a plate battle kabuto",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 6
+  },
+  {
+    "name": "plate-do",
+    "itemId": 10109,
+    "label": "a plate do",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 10
+  },
+  {
+    "name": "plate-haidate",
+    "itemId": 10125,
+    "label": "a plate haidate",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 7
+  },
+  {
+    "name": "plate-hatsuburi",
+    "itemId": 10101,
+    "label": "a plate hatsuburi",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 5
+  },
+  {
+    "name": "plate-hiro-sode",
+    "itemId": 10112,
+    "label": "a plate hiro sode",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 3
+  },
+  {
+    "name": "plate-mempo",
+    "itemId": 10105,
+    "label": "a plate mempo",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 3
+  },
+  {
+    "name": "plate-suneate",
+    "itemId": 10120,
+    "label": "a plate suneate",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 7
+  },
+  {
+    "name": "raven-helm",
+    "itemId": 11121,
+    "label": "a raven helm",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 12648,
+    "weight": 5
+  },
+  {
+    "name": "ringmail-arms",
+    "itemId": 5102,
+    "label": "a ringmail arms",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 5103,
+    "weight": 15
+  },
+  {
+    "name": "ringmail-chest",
+    "itemId": 5100,
+    "label": "a ringmail chest",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 5101,
+    "weight": 15
+  },
+  {
+    "name": "ringmail-gloves",
+    "itemId": 5099,
+    "label": "a ringmail gloves",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 5106,
+    "weight": 2
+  },
+  {
+    "name": "ringmail-legs",
+    "itemId": 5104,
+    "label": "a ringmail legs",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 5105,
+    "weight": 15
+  },
+  {
+    "name": "royal-circlet",
+    "itemId": 11119,
+    "label": "a royal circlet",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 12646,
+    "weight": 2
+  },
+  {
+    "name": "small-plate-jingasa",
+    "itemId": 10116,
+    "label": "a small plate jingasa",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 5
+  },
+  {
+    "name": "small-plate-shield",
+    "itemId": 16898,
+    "label": "a small plate shield",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "shield",
+    "flipId": 16906,
+    "weight": 6
+  },
+  {
+    "name": "standard-plate-kabuto",
+    "itemId": 10121,
+    "label": "a standard plate kabuto",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 6
+  },
+  {
+    "name": "studded-arms",
+    "itemId": 5084,
+    "label": "a studded arms",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 5076,
+    "weight": 4
+  },
+  {
+    "name": "studded-bustier-arms",
+    "itemId": 7180,
+    "label": "a studded bustier arms",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 7181,
+    "weight": 1
+  },
+  {
+    "name": "studded-do",
+    "itemId": 10183,
+    "label": "a studded do",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 8
+  },
+  {
+    "name": "studded-gloves",
+    "itemId": 5077,
+    "label": "a studded gloves",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 5085,
+    "weight": 1
+  },
+  {
+    "name": "studded-gorget",
+    "itemId": 5078,
+    "label": "a studded gorget",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 1
+  },
+  {
+    "name": "studded-haidate",
+    "itemId": 10123,
+    "label": "a studded haidate",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 5
+  },
+  {
+    "name": "studded-hiro-sode",
+    "itemId": 10111,
+    "label": "a studded hiro sode",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 1
+  },
+  {
+    "name": "studded-legs",
+    "itemId": 5082,
+    "label": "a studded legs",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 5089,
+    "weight": 5
+  },
+  {
+    "name": "studded-mempo",
+    "itemId": 10141,
+    "label": "a studded mempo",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 2
+  },
+  {
+    "name": "studded-suneate",
+    "itemId": 10194,
+    "label": "a studded suneate",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 5
+  },
+  {
+    "name": "tiger-pelt-bustier",
+    "itemId": 30755,
+    "label": "a tiger pelt bustier",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 6
+  },
+  {
+    "name": "tiger-pelt-chest",
+    "itemId": 30754,
+    "label": "a tiger pelt chest",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 6
+  },
+  {
+    "name": "tiger-pelt-collar",
+    "itemId": 30761,
+    "label": "a tiger pelt collar",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 1
+  },
+  {
+    "name": "tiger-pelt-helm",
+    "itemId": 30760,
+    "label": "a tiger pelt helm",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 2
+  },
+  {
+    "name": "tiger-pelt-legs",
+    "itemId": 30756,
+    "label": "a tiger pelt legs",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 2
+  },
+  {
+    "name": "tiger-pelt-long-skirt",
+    "itemId": 30758,
+    "label": "a tiger pelt long skirt",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 1
+  },
+  {
+    "name": "tiger-pelt-shorts",
+    "itemId": 30757,
+    "label": "a tiger pelt shorts",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 3
+  },
+  {
+    "name": "tiger-pelt-skirt",
+    "itemId": 30759,
+    "label": "a tiger pelt skirt",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "weight": 1
+  },
+  {
+    "name": "vulture-helm",
+    "itemId": 11122,
+    "label": "a vulture helm",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 12649,
+    "weight": 5
+  },
+  {
+    "name": "winged-helm",
+    "itemId": 11123,
+    "label": "a winged helm",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 12650,
+    "weight": 5
+  },
+  {
+    "name": "wooden-kite-shield",
+    "itemId": 7032,
+    "label": "a wooden kite shield",
+    "clothing": true,
+    "equipLayer": 1,
+    "slot": "shield",
+    "weight": 5
+  },
+  {
+    "name": "woodland-arms",
+    "itemId": 11116,
+    "label": "a woodland arms",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 12643,
+    "weight": 5
+  },
+  {
+    "name": "woodland-chest",
+    "itemId": 11111,
+    "label": "a woodland chest",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 12638,
+    "weight": 8
+  },
+  {
+    "name": "woodland-gloves",
+    "itemId": 11114,
+    "label": "a woodland gloves",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 12641,
+    "weight": 2
+  },
+  {
+    "name": "woodland-gorget",
+    "itemId": 11113,
+    "label": "a woodland gorget",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 12640
+  },
+  {
+    "name": "woodland-legs",
+    "itemId": 11115,
+    "label": "a woodland legs",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor",
+    "flipId": 12642,
+    "weight": 8
+  },
+  {
+    "name": "dagger-belt",
+    "itemId": 41998,
+    "label": "a dagger belt",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "clothing",
+    "weight": 3
+  },
+  {
+    "name": "leather-ninja-belt",
+    "itemId": 10128,
+    "label": "a leather ninja belt",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "clothing",
+    "flipId": 10203,
+    "weight": 1
+  },
+  {
+    "name": "mace-belt",
+    "itemId": 41996,
+    "label": "a mace belt",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "clothing",
+    "weight": 3
+  },
+  {
+    "name": "sword-belt",
+    "itemId": 41997,
+    "label": "a sword belt",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "clothing",
+    "weight": 3
+  },
+  {
+    "name": "gargish-bracelet",
+    "itemId": 16913,
+    "label": "a gargish bracelet",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "jewelry",
+    "weight": 0.1
+  },
+  {
+    "name": "gargish-earrings",
+    "itemId": 16915,
+    "label": "a gargish earrings",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor"
+  },
+  {
+    "name": "gargish-necklace",
+    "itemId": 16912,
+    "label": "a gargish necklace",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "armor"
+  },
+  {
+    "name": "gargish-ring",
+    "itemId": 16914,
+    "label": "a gargish ring",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "jewelry",
+    "weight": 0.1
+  },
+  {
+    "name": "staff-ring",
+    "itemId": 4234,
+    "label": "a staff ring",
+    "clothing": true,
+    "equipLayer": 13,
+    "slot": "jewelry"
+  },
+  {
+    "name": "ankh-west",
+    "itemId": 4479,
+    "label": "a ankh west",
+    "slot": "world",
+    "role": "ankh",
+    "movable": false,
+    "script": "ankh"
+  },
+  {
+    "name": "anvil",
+    "itemId": 4015,
+    "label": "a anvil",
+    "slot": "world",
+    "role": "anvil",
+    "flipId": 4016,
+    "movable": false,
+    "script": "anvil"
+  },
+  {
+    "name": "aquarium-food",
+    "itemId": 3836,
+    "label": "a aquarium food",
+    "slot": "world",
+    "role": "decorative",
+    "addon": true,
+    "kind": "aquarium-food",
+    "servuoClass": "AquariumFood"
+  },
+  {
+    "name": "fish-bowl",
+    "itemId": 9244,
+    "hue": 1150,
+    "label": "a fish bowl",
+    "slot": "world",
+    "role": "container",
+    "script": "fish-bowl",
+    "container": true,
+    "gumpId": 61,
+    "capacity": 1,
+    "maxWeight": 10,
+    "labelNumber": 1074499,
+    "servuoClass": "FishBowl",
+    "servuoClasses": ["FishBowl", "RemoveCreature"]
+  },
+  {
+    "name": "aquarium-fishing-net",
+    "itemId": 3528,
+    "label": "an aquarium fishing net",
+    "slot": "world",
+    "role": "tool",
+    "script": "aquarium-fishing-net",
+    "labelNumber": 1074463,
+    "servuoClass": "AquariumFishingNet",
+    "servuoClasses": ["AquariumFishingNet", "AquariumFishNet", "SpecialFishingNet"]
+  },
+  {
+    "name": "aquarium-message",
+    "itemId": 2463,
+    "label": "a message in a bottle",
+    "slot": "world",
+    "role": "decorative",
+    "kind": "aquarium-decoration",
+    "aquariumDecoration": true,
+    "labelNumber": 1073894,
+    "servuoClass": "AquariumMessage"
+  },
+  {
+    "name": "captain-blackhearts-fishing-pole",
+    "itemId": 3520,
+    "label": "Captain Blackheart's Fishing Pole",
+    "slot": "world",
+    "role": "tool",
+    "script": "fishing-pole",
+    "kind": "tool",
+    "aquariumDecoration": true,
+    "labelNumber": 1074571,
+    "servuoClass": "CaptainBlackheartsFishingPole"
+  },
+  {
+    "name": "coral",
+    "itemId": 15101,
+    "label": "coral",
+    "slot": "world",
+    "role": "decorative",
+    "kind": "aquarium-fish",
+    "aquariumFish": true,
+    "fishKind": "coral",
+    "servuoClass": "Coral",
+    "servuoBaseClass": "BaseFish"
+  },
+  {
+    "name": "aquarium-shell",
+    "itemId": 15122,
+    "label": "a shell",
+    "slot": "world",
+    "role": "decorative",
+    "kind": "aquarium-decoration",
+    "aquariumDecoration": true,
+    "labelNumber": 1074598,
+    "servuoClass": "Shell"
+  },
+  {
+    "name": "arcane-book-shelf-addon-east",
+    "itemId": 12422,
+    "label": "a arcane book shelf addon east",
+    "slot": "world",
+    "role": "bookshelf",
+    "addon": true,
+    "script": "bookshelf"
+  },
+  {
+    "name": "arcane-book-shelf-addon-south",
+    "itemId": 12420,
+    "label": "a arcane book shelf addon south",
+    "slot": "world",
+    "role": "bookshelf",
+    "addon": true,
+    "script": "bookshelf"
+  },
+  {
+    "name": "automaton-actuator",
+    "itemId": 40169,
+    "label": "a automaton actuator",
+    "slot": "world",
+    "role": "decorative"
+  },
+  {
+    "name": "awesome-disturbing-portrait-addon",
+    "itemId": 10845,
+    "label": "a awesome disturbing portrait addon",
+    "slot": "world",
+    "role": "decorative",
+    "addon": true
+  },
+  {
+    "name": "ballot-box-addon",
+    "itemId": 2472,
+    "label": "a ballot box addon",
+    "slot": "world",
+    "role": "decorative",
+    "addon": true
+  },
+  {
+    "name": "banner",
+    "itemId": 5360,
+    "label": "a banner",
+    "slot": "world",
+    "role": "banner",
+    "weight": 1,
+    "movable": false,
+    "addon": true
+  },
+  {
+    "name": "bird-lamp",
+    "itemId": 19524,
+    "label": "a bird lamp",
+    "slot": "world",
+    "role": "light",
+    "weight": 0,
+    "movable": false,
+    "addon": true
+  },
+  {
+    "name": "blackrock-moonstone",
+    "itemId": 40106,
+    "label": "a blackrock moonstone",
+    "slot": "world",
+    "role": "decorative"
+  },
+  {
+    "name": "bone-throne-addon",
+    "itemId": 10840,
+    "label": "a bone throne addon",
+    "slot": "world",
+    "role": "chair",
+    "addon": true
+  },
+  {
+    "name": "broken-armoire-addon",
+    "itemId": 3090,
+    "label": "a broken armoire addon",
+    "slot": "world",
+    "role": "decorative",
+    "addon": true
+  },
+  {
+    "name": "broken-automaton-head",
+    "itemId": 40369,
+    "label": "a broken automaton head",
+    "slot": "world",
+    "role": "decorative",
+    "flipId": 40370,
+    "weight": 1
+  },
+  {
+    "name": "broken-bookcase-addon",
+    "itemId": 3092,
+    "label": "a broken bookcase addon",
+    "slot": "world",
+    "role": "bookshelf",
+    "addon": true,
+    "script": "bookshelf"
+  },
+  {
+    "name": "broken-chest-of-drawers-addon",
+    "itemId": 3108,
+    "label": "a broken chest of drawers addon",
+    "slot": "world",
+    "role": "container",
+    "addon": true
+  },
+  {
+    "name": "broken-covered-chair-addon",
+    "itemId": 3095,
+    "label": "a broken covered chair addon",
+    "slot": "world",
+    "role": "chair",
+    "addon": true
+  },
+  {
+    "name": "broken-fallen-chair-addon",
+    "itemId": 3097,
+    "label": "a broken fallen chair addon",
+    "slot": "world",
+    "role": "chair",
+    "addon": true
+  },
+  {
+    "name": "campfire",
+    "itemId": 3555,
+    "label": "a campfire",
+    "slot": "world",
+    "role": "campfire",
+    "movable": false,
+    "script": "campfire"
+  },
+  {
+    "name": "chicken-coop",
+    "itemId": 17683,
+    "label": "a chicken coop",
+    "slot": "world",
+    "role": "decorative",
+    "flipId": 17684,
+    "weight": 20,
+    "script": "chicken-coop",
+    "servuoClass": "ChickenCoop",
+    "servuoClasses": ["ChickenCoop", "ClaimAllEntry"]
+  },
+  {
+    "name": "chicken-lizard-egg",
+    "itemId": 16829,
+    "label": "a chicken lizard egg",
+    "slot": "world",
+    "role": "decorative"
+  },
+  {
+    "name": "colored-anvil",
+    "itemId": 4015,
+    "label": "a colored anvil",
+    "slot": "world",
+    "role": "anvil",
+    "weight": 20,
+    "addon": true,
+    "script": "anvil"
+  },
+  {
+    "name": "coral-the-owl",
+    "itemId": 39579,
+    "label": "a coral the owl",
+    "slot": "world",
+    "role": "decorative"
+  },
+  {
+    "name": "craftable-house-item",
+    "itemId": 5360,
+    "label": "a craftable house item",
+    "slot": "world",
+    "role": "table",
+    "movable": false
+  },
+  {
+    "name": "creepy-portrait-addon",
+    "itemId": 10857,
+    "label": "a creepy portrait addon",
+    "slot": "world",
+    "role": "decorative",
+    "addon": true
+  },
+  {
+    "name": "dawns-music-box",
+    "itemId": 11001,
+    "label": "a dawns music box",
+    "slot": "world",
+    "role": "decorative",
+    "weight": 1,
+    "addon": true
+  },
+  {
+    "name": "dawns-music-gear",
+    "itemId": 4179,
+    "label": "a dawns music gear",
+    "slot": "world",
+    "role": "decorative",
+    "weight": 1,
+    "addon": true
+  },
+  {
+    "name": "deceit-brazier",
+    "itemId": 3633,
+    "label": "a deceit brazier",
+    "slot": "world",
+    "role": "light",
+    "movable": false
+  },
+  {
+    "name": "decorative-shield",
+    "itemId": 5360,
+    "label": "a decorative shield",
+    "slot": "world",
+    "role": "decorative",
+    "weight": 1,
+    "movable": false,
+    "addon": true
+  },
+  {
+    "name": "disturbing-portrait-addon",
+    "itemId": 10845,
+    "label": "a disturbing portrait addon",
+    "slot": "world",
+    "role": "decorative",
+    "addon": true
+  },
+  {
+    "name": "dragon-lantern",
+    "itemId": 19520,
+    "label": "a dragon lantern",
+    "slot": "world",
+    "role": "light",
+    "weight": 0,
+    "movable": false,
+    "addon": true
+  },
+  {
+    "name": "dressform-front",
+    "itemId": 3782,
+    "label": "a dressform front",
+    "slot": "world",
+    "role": "decorative",
+    "weight": 10,
+    "addon": true
+  },
+  {
+    "name": "dungeon-hitching-post",
+    "itemId": 5351,
+    "label": "a dungeon hitching post",
+    "slot": "world",
+    "role": "decorative",
+    "flipId": 5352,
+    "movable": false,
+    "addon": true,
+    "script": "hitching-post",
+    "servuoClass": "DungeonHitchingPost",
+    "servuoClasses": ["DungeonHitchingPost", "ClaimAllEntry"]
+  },
+  {
+    "name": "elven-dresser-addon-east",
+    "itemId": 12516,
+    "label": "a elven dresser addon east",
+    "slot": "world",
+    "role": "decorative",
+    "addon": true
+  },
+  {
+    "name": "elven-dresser-addon-south",
+    "itemId": 12518,
+    "label": "a elven dresser addon south",
+    "slot": "world",
+    "role": "decorative",
+    "addon": true
+  },
+  {
+    "name": "elven-wash-basin-east-addon-with-drawer",
+    "itemId": 12512,
+    "label": "a elven wash basin east addon with drawer",
+    "slot": "world",
+    "role": "decorative",
+    "addon": true
+  },
+  {
+    "name": "elven-wash-basin-south-addon-with-drawer",
+    "itemId": 12514,
+    "label": "a elven wash basin south addon with drawer",
+    "slot": "world",
+    "role": "decorative",
+    "addon": true
+  },
+  {
+    "name": "enormous-venus-flytrap-addon",
+    "itemId": 39271,
+    "label": "a enormous venus flytrap addon",
+    "slot": "world",
+    "role": "decorative",
+    "addon": true
+  },
+  {
+    "name": "ethereal-retouching-tool",
+    "itemId": 17094,
+    "label": "a ethereal retouching tool",
+    "slot": "world",
+    "role": "decorative"
+  },
+  {
+    "name": "fish-bones",
+    "itemId": 15116,
+    "label": "a fish bones",
+    "slot": "world",
+    "role": "decorative",
+    "addon": true
+  },
+  {
+    "name": "flaming-head-deed",
+    "itemId": 5360,
+    "label": "a flaming head deed",
+    "slot": "world",
+    "role": "decorative",
+    "weight": 1,
+    "movable": false,
+    "addon": true
+  },
+  {
+    "name": "fountain-of-life",
+    "itemId": 10944,
+    "label": "a fountain of life",
+    "slot": "world",
+    "role": "decorative",
+    "script": "fountain-of-life",
+    "container": true,
+    "gumpId": 1156,
+    "capacity": 125,
+    "maxWeight": 400,
+    "fountainCharges": 10,
+    "fountainMaxCharges": 10,
+    "servuoClass": "FountainOfLife",
+    "servuoClasses": [
+      "FountainOfLife",
+      "FountainOfLifeDeed",
+      "EnhancedBandage",
+      "BaseAddonContainer"
+    ],
+    "flipId": 10947,
+    "addon": true
+  },
+  {
+    "name": "goblin-floor-trap-kit",
+    "itemId": 16388,
+    "label": "a goblin floor trap kit",
+    "slot": "world",
+    "role": "decorative"
+  },
+  {
+    "name": "goblin-topiary",
+    "itemId": 18713,
+    "label": "a goblin topiary",
+    "slot": "world",
+    "role": "decorative",
+    "flipId": 18714,
+    "weight": 1,
+    "addon": true
+  },
+  {
+    "name": "grinder",
+    "itemId": 39575,
+    "label": "a grinder",
+    "slot": "world",
+    "role": "decorative"
+  },
+  {
+    "name": "guildstone",
+    "itemId": 5360,
+    "label": "a guildstone",
+    "slot": "world",
+    "role": "decorative",
+    "weight": 1,
+    "movable": false,
+    "addon": true
+  },
+  {
+    "name": "guillotine-addon",
+    "itemId": 4702,
+    "label": "a guillotine addon",
+    "slot": "world",
+    "role": "decorative",
+    "addon": true
+  },
+  {
+    "name": "hanging-skeleton",
+    "itemId": 5360,
+    "label": "a hanging skeleton",
+    "slot": "world",
+    "role": "decorative",
+    "weight": 1,
+    "movable": false,
+    "addon": true
+  },
+  {
+    "name": "harpsichord-roll",
+    "itemId": 19361,
+    "label": "a harpsichord roll",
+    "slot": "world",
+    "role": "decorative",
+    "addon": true
+  },
+  {
+    "name": "haunter-mirror-addon",
+    "itemId": 10875,
+    "label": "a haunter mirror addon",
+    "slot": "world",
+    "role": "decorative",
+    "addon": true
+  },
+  {
+    "name": "hitching-post",
+    "itemId": 5351,
+    "label": "a hitching post",
+    "slot": "world",
+    "role": "decorative",
+    "flipId": 5352,
+    "weight": 10,
+    "addon": true,
+    "script": "hitching-post",
+    "servuoClass": "DungeonHitchingPost",
+    "servuoClasses": ["DungeonHitchingPost", "ClaimAllEntry"]
+  },
+  {
+    "name": "holiday-potted-plant",
+    "itemId": 5360,
+    "label": "a holiday potted plant",
+    "slot": "world",
+    "role": "decorative",
+    "addon": true
+  },
+  {
+    "name": "house-raffle-stone",
+    "itemId": 3805,
+    "label": "a house raffle stone",
+    "slot": "world",
+    "role": "decorative",
+    "flipId": 3806,
+    "movable": false
+  },
+  {
+    "name": "incubator",
+    "itemId": 16508,
+    "label": "a incubator",
+    "slot": "world",
+    "role": "decorative",
+    "flipId": 16509
+  },
+  {
+    "name": "inoperative-automaton-head",
+    "itemId": 40369,
+    "label": "a inoperative automaton head",
+    "slot": "world",
+    "role": "decorative",
+    "flipId": 40370
+  },
+  {
+    "name": "island-statue",
+    "itemId": 15119,
+    "label": "a island statue",
+    "slot": "world",
+    "role": "statue",
+    "addon": true
+  },
+  {
+    "name": "jewelry-box",
+    "itemId": 40732,
+    "label": "a jewelry box",
+    "slot": "world",
+    "role": "decorative",
+    "flipId": 40733,
+    "weight": 10
+  },
+  {
+    "name": "koi-lamp",
+    "itemId": 19529,
+    "label": "a koi lamp",
+    "slot": "world",
+    "role": "light",
+    "weight": 0,
+    "movable": false,
+    "addon": true
+  },
+  {
+    "name": "kotl-automaton-head",
+    "itemId": 40369,
+    "label": "a kotl automaton head",
+    "slot": "world",
+    "role": "decorative",
+    "flipId": 40370
+  },
+  {
+    "name": "large-fishing-net-addon",
+    "itemId": 15758,
+    "label": "a large fishing net addon",
+    "slot": "world",
+    "role": "decorative",
+    "addon": true
+  },
+  {
+    "name": "large-forge-west",
+    "itemId": 6554,
+    "label": "a large forge west",
+    "slot": "world",
+    "role": "forge",
+    "movable": false,
+    "script": "forge"
+  },
+  {
+    "name": "llama-topiary",
+    "itemId": 18715,
+    "label": "a llama topiary",
+    "slot": "world",
+    "role": "decorative",
+    "flipId": 18736,
+    "weight": 1,
+    "addon": true
+  },
+  {
+    "name": "mounted-pixie-blue-addon",
+    "itemId": 10869,
+    "label": "a mounted pixie blue addon",
+    "slot": "world",
+    "role": "decorative",
+    "addon": true
+  },
+  {
+    "name": "mounted-pixie-green-addon",
+    "itemId": 10865,
+    "label": "a mounted pixie green addon",
+    "slot": "world",
+    "role": "decorative",
+    "addon": true
+  },
+  {
+    "name": "mounted-pixie-lime-addon",
+    "itemId": 10871,
+    "label": "a mounted pixie lime addon",
+    "slot": "world",
+    "role": "decorative",
+    "addon": true
+  },
+  {
+    "name": "mounted-pixie-orange-addon",
+    "itemId": 10867,
+    "label": "a mounted pixie orange addon",
+    "slot": "world",
+    "role": "decorative",
+    "addon": true
+  },
+  {
+    "name": "mounted-pixie-white-addon",
+    "itemId": 10873,
+    "label": "a mounted pixie white addon",
+    "slot": "world",
+    "role": "decorative",
+    "addon": true
+  },
+  {
+    "name": "music-box-gears",
+    "itemId": 4179,
+    "label": "a music box gears",
+    "slot": "world",
+    "role": "decorative",
+    "weight": 1,
+    "addon": true
+  },
+  {
+    "name": "ornate-elven-chest-east-addon",
+    "itemId": 12442,
+    "label": "a ornate elven chest east addon",
+    "slot": "world",
+    "role": "container",
+    "addon": true
+  },
+  {
+    "name": "ornate-elven-chest-south-addon",
+    "itemId": 12440,
+    "label": "a ornate elven chest south addon",
+    "slot": "world",
+    "role": "container",
+    "addon": true
+  },
+  {
+    "name": "ostard-topiary",
+    "itemId": 18813,
+    "label": "a ostard topiary",
+    "slot": "world",
+    "role": "decorative",
+    "flipId": 18814,
+    "weight": 1,
+    "addon": true
+  },
+  {
+    "name": "paroxysmus-iron-gate",
+    "itemId": 8314,
+    "label": "a paroxysmus iron gate",
+    "slot": "world",
+    "role": "door",
+    "movable": false
+  },
+  {
+    "name": "parrot-item",
+    "itemId": 8430,
+    "label": "a parrot item",
+    "slot": "world",
+    "role": "decorative",
+    "weight": 1,
+    "addon": true
+  },
+  {
+    "name": "posed-goblin-topiary",
+    "itemId": 18784,
+    "label": "a posed goblin topiary",
+    "slot": "world",
+    "role": "decorative",
+    "flipId": 18790,
+    "weight": 1,
+    "addon": true
+  },
+  {
+    "name": "power-generator",
+    "itemId": 3036,
+    "label": "a power generator",
+    "slot": "world",
+    "role": "decorative"
+  },
+  {
+    "name": "primeval-lich-puzzle-lever",
+    "itemId": 4236,
+    "label": "a primeval lich puzzle lever",
+    "slot": "world",
+    "role": "decorative",
+    "movable": false
+  },
+  {
+    "name": "prism-of-light-pillar",
+    "itemId": 8710,
+    "label": "a prism of light pillar",
+    "slot": "world",
+    "role": "decorative",
+    "movable": false
+  },
+  {
+    "name": "public-moongate",
+    "itemId": 3948,
+    "label": "a public moongate",
+    "slot": "world",
+    "role": "door",
+    "movable": false
+  },
+  {
+    "name": "reward-brazier",
+    "itemId": 5360,
+    "label": "a reward brazier",
+    "slot": "world",
+    "role": "light",
+    "weight": 10,
+    "movable": false,
+    "addon": true
+  },
+  {
+    "name": "reward-potted-cactus",
+    "itemId": 5360,
+    "label": "a reward potted cactus",
+    "slot": "world",
+    "role": "decorative",
+    "weight": 5,
+    "addon": true
+  },
+  {
+    "name": "sacrificial-altar-addon",
+    "itemId": 10907,
+    "label": "a sacrificial altar addon",
+    "slot": "world",
+    "role": "altar",
+    "addon": true
+  },
+  {
+    "name": "scarecrow-addon",
+    "itemId": 7732,
+    "label": "a scarecrow addon",
+    "slot": "world",
+    "role": "decorative",
+    "addon": true
+  },
+  {
+    "name": "serpent-nest",
+    "itemId": 8755,
+    "label": "a serpent nest",
+    "slot": "world",
+    "role": "decorative",
+    "movable": false
+  },
+  {
+    "name": "serpent-pillar",
+    "itemId": 9023,
+    "label": "a serpent pillar",
+    "slot": "world",
+    "role": "decorative",
+    "movable": false
+  },
+  {
+    "name": "serpents-jawbone",
+    "itemId": 40820,
+    "label": "a serpents jawbone",
+    "slot": "world",
+    "role": "decorative"
+  },
+  {
+    "name": "small-fishing-net-addon",
+    "itemId": 7843,
+    "label": "a small fishing net addon",
+    "slot": "world",
+    "role": "decorative",
+    "addon": true
+  },
+  {
+    "name": "standing-broken-chair-addon",
+    "itemId": 3099,
+    "label": "a standing broken chair addon",
+    "slot": "world",
+    "role": "chair",
+    "addon": true
+  },
+  {
+    "name": "suit-of-gold-armor-addon",
+    "itemId": 15786,
+    "label": "a suit of gold armor addon",
+    "slot": "world",
+    "role": "decorative",
+    "addon": true
+  },
+  {
+    "name": "suit-of-silver-armor-addon",
+    "itemId": 15750,
+    "label": "a suit of silver armor addon",
+    "slot": "world",
+    "role": "decorative",
+    "addon": true
+  },
+  {
+    "name": "tall-lamp",
+    "itemId": 19538,
+    "label": "a tall lamp",
+    "slot": "world",
+    "role": "light",
+    "weight": 0,
+    "movable": false,
+    "addon": true
+  },
+  {
+    "name": "tapestry-of-sosaria",
+    "itemId": 9038,
+    "label": "a tapestry of sosaria",
+    "slot": "world",
+    "role": "decorative",
+    "flipId": 9039,
+    "weight": 1,
+    "addon": true
+  },
+  {
+    "name": "toy-boat",
+    "itemId": 5364,
+    "label": "a toy boat",
+    "slot": "world",
+    "role": "decorative",
+    "flipId": 5364,
+    "addon": true
+  },
+  {
+    "name": "unsettling-portrait-addon",
+    "itemId": 10853,
+    "label": "a unsettling portrait addon",
+    "slot": "world",
+    "role": "decorative",
+    "addon": true
+  },
+  {
+    "name": "vacation-wafer",
+    "itemId": 2419,
+    "label": "a vacation wafer",
+    "slot": "world",
+    "role": "decorative",
+    "addon": true
+  },
+  {
+    "name": "wall-safe",
+    "itemId": 35727,
+    "label": "a wall safe",
+    "slot": "world",
+    "role": "decorative",
+    "movable": false
+  },
+  {
+    "name": "wall-torch-addon",
+    "itemId": 15768,
+    "label": "a wall torch addon",
+    "slot": "world",
+    "role": "light",
+    "addon": true
+  },
+  {
+    "name": "weathered-bronze-archer-addon",
+    "itemId": 40238,
+    "label": "a weathered bronze archer addon",
+    "slot": "world",
+    "role": "decorative",
+    "addon": true
+  },
+  {
+    "name": "weathered-bronze-fairy-sculpture-addon",
+    "itemId": 40201,
+    "label": "a weathered bronze fairy sculpture addon",
+    "slot": "world",
+    "role": "decorative",
+    "addon": true
+  },
+  {
+    "name": "weathered-bronze-man-on-abench-addon",
+    "itemId": 40197,
+    "label": "a weathered bronze man on abench addon",
+    "slot": "world",
+    "role": "chair",
+    "addon": true
+  },
+  {
+    "name": "wreath-addon",
+    "itemId": 9004,
+    "label": "a wreath addon",
+    "slot": "world",
+    "role": "decorative",
+    "weight": 1,
+    "movable": false,
+    "addon": true
+  }
+]

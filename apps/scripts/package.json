@@ -1,0 +1,10 @@
+{
+  "name": "@uo/scripts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Gameplay content scripts (items, commands, spells). Loaded by @uo/server at startup.",
+  "dependencies": {
+    "@uo/protocol": "workspace:*"
+  }
+}

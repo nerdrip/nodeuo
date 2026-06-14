@@ -1,0 +1,40 @@
+{
+  "name": "ultima-online",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Ultima Online shard (ServUO port) + browser client (ClassicUO port), Node.js + WebSocket",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "packageManager": "pnpm@9.12.0",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "scripts": {
+    "build": "pnpm -r --filter=./packages/* --filter=./apps/* run build",
+    "test": "pnpm -r run test",
+    "lint": "eslint .",
+    "server": "pnpm --filter @uo/server start",
+    "client": "pnpm --filter @uo/client dev",
+    "client:perf-smoke": "pnpm --filter @uo/client run client:perf-smoke",
+    "client:profile": "pnpm --filter @uo/client run client:profile",
+    "extract": "pnpm --filter @uo/extractor run extract",
+    "extract:ktx2": "pnpm --filter @uo/extractor run ktx2",
+    "extract:ktx2:tool:check": "pnpm --filter @uo/extractor run ktx2:tool:check",
+    "extract:ktx2:tool:install": "pnpm --filter @uo/extractor run ktx2:tool:install",
+    "audit:servuo": "node tools/audit/servuo-server-audit.mjs",
+    "audit:servuo:addons": "node tools/audit/servuo-addon-extract.mjs",
+    "audit:servuo:books": "node tools/audit/servuo-book-extract.mjs",
+    "audit:servuo:map": "node tools/audit/servuo-class-map.mjs --summary",
+    "audit:servuo:map:json": "node tools/audit/servuo-class-map.mjs --json artifacts/servuo-server-parity.json",
+    "audit:servuo:map:check": "node tools/audit/servuo-class-map.mjs --json artifacts/servuo-server-parity.json --fail-open --limit 40"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.19",
+    "eslint": "^9.39.4",
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.9"
+  },
+  "dependencies": {
+    "sharp": "^0.34.5"
+  }
+}

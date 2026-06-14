@@ -1,0 +1,46 @@
+{
+  "_comment": "Master Storyteller tale pool — broadcasted line-by-line every 30s.",
+  "lineDelayMs": 30000,
+  "stories": [
+    {
+      "title": "Lord British and the Black Stone",
+      "lines": [
+        "\"Long before the Fellowship rose,\" the bard begins, \"Lord British discovered a black stone deep in Dungeon Despise.\"",
+        "\"Whoever touched it was struck with a vision — the future of Britannia, or its ruin.\"",
+        "\"He sealed the stone in a vault below the castle, and forbade any to speak of it.\"",
+        "\"Yet on some nights, when the moons align, the vault doors are found open…\"",
+        "\"…and the stone is missing.\""
+      ]
+    },
+    {
+      "title": "The Last Voyage of Captain Stenmark",
+      "lines": [
+        "\"They say Captain Stenmark sailed past the Lost Lands chasing rumors of a treasure island.\"",
+        "\"His ship was found three weeks later, intact and drifting — but every soul aboard was gone.\"",
+        "\"The hold was packed with gold and silver. The maps showed an island that no chart records.\"",
+        "\"His logbook contained a single final entry: 'They are below the keel.'\"",
+        "\"To this day, no captain will sail those waters at night.\""
+      ]
+    },
+    {
+      "title": "The Reapers of Yew",
+      "lines": [
+        "\"In the deep forest of Yew, the trees themselves can move.\"",
+        "\"A logger named Tomek swore he saw one walk — a reaper, bent and ancient.\"",
+        "\"It plucked a deer from the brush as easily as you would pluck a flower.\"",
+        "\"He fled, of course. They always do.\"",
+        "\"But the trees remember. Even now, when you fell one in Yew, the others lean closer to listen.\""
+      ]
+    },
+    {
+      "title": "Mondain's Final Apprentice",
+      "lines": [
+        "\"Mondain had three known apprentices — and one whose name the Council struck from every record.\"",
+        "\"This fourth was no mage. She was a child the sorcerer raised from the moment of her first scream.\"",
+        "\"When the great wizard fell, the apprentices scattered. But she… she went looking.\"",
+        "\"For what? For HIM. And the rumour is — she still walks the lands.\"",
+        "\"Listen close at the next moongate. If you hear a girl singing, do not turn around.\""
+      ]
+    }
+  ]
+}

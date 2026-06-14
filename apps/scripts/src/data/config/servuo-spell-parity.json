@@ -1,0 +1,1636 @@
+[
+  {
+    "servuoClass": "SpecialMoveContext",
+    "kind": "infrastructure",
+    "system": "special-moves"
+  },
+  {
+    "servuoClass": "AnimTimer",
+    "kind": "infrastructure",
+    "system": "spell-animation"
+  },
+  {
+    "servuoClass": "DefensiveSpell",
+    "kind": "infrastructure",
+    "system": "defensive-spell"
+  },
+  {
+    "servuoClass": "TransformationSpellHelper",
+    "kind": "infrastructure",
+    "system": "transformations"
+  },
+  {
+    "servuoClass": "TransformContext",
+    "kind": "infrastructure",
+    "system": "transformations"
+  },
+  {
+    "servuoClass": "TransformTimer",
+    "kind": "infrastructure",
+    "system": "transformations"
+  },
+  {
+    "servuoClass": "Initializer",
+    "kind": "infrastructure",
+    "system": "spell-registry"
+  },
+  {
+    "servuoClass": "CloseWoundsSpell",
+    "spellId": 202,
+    "servuoRegistryId": 201,
+    "slug": "close-wounds",
+    "aliases": [
+      "close-wounds-spell"
+    ]
+  },
+  {
+    "servuoClass": "EnemyOfOneSpell",
+    "spellId": 206,
+    "servuoRegistryId": 205,
+    "slug": "enemy-of-one",
+    "aliases": [
+      "enemy-of-one-spell"
+    ]
+  },
+  {
+    "servuoClass": "RemoveCurseSpell",
+    "spellId": 209,
+    "servuoRegistryId": 208,
+    "slug": "remove-curse",
+    "aliases": [
+      "remove-curse-spell"
+    ]
+  },
+  {
+    "servuoClass": "SacredJourneySpell",
+    "spellId": 210,
+    "servuoRegistryId": 209,
+    "slug": "sacred-journey",
+    "aliases": [
+      "sacred-journey-spell"
+    ]
+  },
+  {
+    "servuoClass": "ResurrectionSpell",
+    "spellId": 59,
+    "servuoRegistryId": 58,
+    "slug": "resurrection",
+    "aliases": [
+      "resurrection-spell"
+    ]
+  },
+  {
+    "servuoClass": "IncognitoSpell",
+    "spellId": 35,
+    "servuoRegistryId": 34,
+    "slug": "incognito",
+    "aliases": [
+      "incognito-spell"
+    ]
+  },
+  {
+    "servuoClass": "MagicReflectSpell",
+    "spellId": 36,
+    "servuoRegistryId": 35,
+    "slug": "magic-reflection",
+    "aliases": [
+      "magic-reflect",
+      "magic-reflect-spell"
+    ]
+  },
+  {
+    "servuoClass": "ClumsySpell",
+    "spellId": 1,
+    "servuoRegistryId": 0,
+    "slug": "clumsy",
+    "aliases": [
+      "clumsy-spell"
+    ]
+  },
+  {
+    "servuoClass": "WeakenSpell",
+    "spellId": 8,
+    "servuoRegistryId": 7,
+    "slug": "weaken",
+    "aliases": [
+      "weaken-spell"
+    ]
+  },
+  {
+    "servuoClass": "ArchCureSpell",
+    "spellId": 25,
+    "servuoRegistryId": 24,
+    "slug": "arch-cure",
+    "aliases": [
+      "arch-cure-spell"
+    ]
+  },
+  {
+    "servuoClass": "ArchProtectionSpell",
+    "spellId": 26,
+    "servuoRegistryId": 25,
+    "slug": "arch-protection",
+    "aliases": [
+      "arch-protection-spell"
+    ]
+  },
+  {
+    "servuoClass": "FlySpell",
+    "spellId": 900,
+    "servuoRegistryId": 900,
+    "slug": "gargoyle-flight",
+    "aliases": [
+      "fly",
+      "fly-spell"
+    ]
+  },
+  {
+    "servuoClass": "EnchantSpell",
+    "spellId": 680,
+    "servuoRegistryId": 680,
+    "slug": "enchant",
+    "aliases": [
+      "enchant-spell"
+    ]
+  },
+  {
+    "servuoClass": "EnchantmentTimer",
+    "spellId": 680,
+    "servuoRegistryId": 680,
+    "slug": "enchant",
+    "aliases": [
+      "enchantment-timer"
+    ]
+  },
+  {
+    "servuoClass": "PurgeMagicSpell",
+    "spellId": 679,
+    "servuoRegistryId": 679,
+    "slug": "purge",
+    "aliases": [
+      "purge-magic",
+      "purge-magic-spell"
+    ]
+  },
+  {
+    "servuoClass": "ImmuneTimer",
+    "spellId": 679,
+    "servuoRegistryId": 679,
+    "slug": "purge",
+    "aliases": [
+      "immune-timer"
+    ]
+  },
+  {
+    "servuoClass": "CurseTimer",
+    "spellId": 679,
+    "servuoRegistryId": 679,
+    "slug": "purge",
+    "aliases": [
+      "curse-timer"
+    ]
+  },
+  {
+    "servuoClass": "SleepTimer",
+    "spellId": 681,
+    "servuoRegistryId": 681,
+    "slug": "sleep",
+    "aliases": [
+      "sleep-timer"
+    ]
+  },
+  {
+    "servuoClass": "SpellPlagueSpell",
+    "spellId": 689,
+    "servuoRegistryId": 689,
+    "slug": "spell-plague",
+    "aliases": [
+      "spell-plague-spell"
+    ]
+  },
+  {
+    "servuoClass": "SpellPlagueTimer",
+    "spellId": 689,
+    "servuoRegistryId": 689,
+    "slug": "spell-plague",
+    "aliases": [
+      "spell-plague-timer"
+    ]
+  },
+  {
+    "servuoClass": "SpellTriggerSpell",
+    "spellId": 685,
+    "servuoRegistryId": 685,
+    "slug": "spell-trigger",
+    "aliases": [
+      "spell-trigger-spell"
+    ]
+  },
+  {
+    "servuoClass": "SpellTriggerDef",
+    "spellId": 685,
+    "servuoRegistryId": 685,
+    "slug": "spell-trigger",
+    "aliases": [
+      "spell-trigger-def"
+    ]
+  },
+  {
+    "servuoClass": "CreatureGroup",
+    "spellId": 101,
+    "servuoRegistryId": 100,
+    "slug": "animate-dead",
+    "aliases": [
+      "creature-group"
+    ]
+  },
+  {
+    "servuoClass": "HorrificBeastSpell",
+    "spellId": 106,
+    "servuoRegistryId": 105,
+    "slug": "horrific-beast",
+    "aliases": [
+      "horrific-beast-spell"
+    ]
+  },
+  {
+    "servuoClass": "MRExpireTimer",
+    "spellId": 108,
+    "servuoRegistryId": 107,
+    "slug": "mind-rot",
+    "aliases": [
+      "mr-expire-timer"
+    ]
+  },
+  {
+    "servuoClass": "MRBucket",
+    "spellId": 108,
+    "servuoRegistryId": 107,
+    "slug": "mind-rot",
+    "aliases": [
+      "mr-bucket"
+    ]
+  },
+  {
+    "servuoClass": "VengefulSpiritSpell",
+    "spellId": 114,
+    "servuoRegistryId": 113,
+    "slug": "vengeful-spirit",
+    "aliases": [
+      "vengeful-spirit-spell"
+    ]
+  },
+  {
+    "servuoClass": "AnimalFormContext",
+    "spellId": 503,
+    "servuoRegistryId": 502,
+    "slug": "animal-form",
+    "aliases": [
+      "animal-form-context"
+    ]
+  },
+  {
+    "servuoClass": "AnimalFormTimer",
+    "spellId": 503,
+    "servuoRegistryId": 502,
+    "slug": "animal-form",
+    "aliases": [
+      "animal-form-timer"
+    ]
+  },
+  {
+    "servuoClass": "AgilitySpell",
+    "spellId": 9,
+    "servuoRegistryId": 8,
+    "slug": "agility",
+    "aliases": [
+      "agility-spell"
+    ]
+  },
+  {
+    "servuoClass": "CunningSpell",
+    "spellId": 10,
+    "servuoRegistryId": 9,
+    "slug": "cunning",
+    "aliases": [
+      "cunning-spell"
+    ]
+  },
+  {
+    "servuoClass": "MagicTrapSpell",
+    "spellId": 13,
+    "servuoRegistryId": 12,
+    "slug": "magic-trap",
+    "aliases": [
+      "magic-trap-spell"
+    ]
+  },
+  {
+    "servuoClass": "ProtectionSpell",
+    "spellId": 15,
+    "servuoRegistryId": 14,
+    "slug": "protection",
+    "aliases": [
+      "protection-spell"
+    ]
+  },
+  {
+    "servuoClass": "ExplosionSpell",
+    "spellId": 43,
+    "servuoRegistryId": 42,
+    "slug": "explosion",
+    "aliases": [
+      "explosion-spell"
+    ]
+  },
+  {
+    "servuoClass": "MarkSpell",
+    "spellId": 45,
+    "servuoRegistryId": 44,
+    "slug": "mark",
+    "aliases": [
+      "mark-spell"
+    ]
+  },
+  {
+    "servuoClass": "MassCurseSpell",
+    "spellId": 46,
+    "servuoRegistryId": 45,
+    "slug": "mass-curse",
+    "aliases": [
+      "mass-curse-spell"
+    ]
+  },
+  {
+    "servuoClass": "RevealSpell",
+    "spellId": 48,
+    "servuoRegistryId": 47,
+    "slug": "reveal",
+    "aliases": [
+      "reveal-spell"
+    ]
+  },
+  {
+    "servuoClass": "TelekinesisSpell",
+    "spellId": 21,
+    "servuoRegistryId": 20,
+    "slug": "telekinesis",
+    "aliases": [
+      "telekinesis-spell"
+    ]
+  },
+  {
+    "servuoClass": "TeleportSpell",
+    "spellId": 22,
+    "servuoRegistryId": 21,
+    "slug": "teleport",
+    "aliases": [
+      "teleport-spell"
+    ]
+  },
+  {
+    "servuoClass": "BlessSpell",
+    "spellId": 17,
+    "servuoRegistryId": 16,
+    "slug": "bless",
+    "aliases": [
+      "bless-spell"
+    ]
+  },
+  {
+    "servuoClass": "UnlockSpell",
+    "spellId": 23,
+    "servuoRegistryId": 22,
+    "slug": "unlock",
+    "aliases": [
+      "unlock-spell"
+    ]
+  },
+  {
+    "servuoClass": "WallOfStoneSpell",
+    "spellId": 24,
+    "servuoRegistryId": 23,
+    "slug": "wall-of-stone",
+    "aliases": [
+      "wall-of-stone-spell"
+    ]
+  },
+  {
+    "servuoClass": "RecallSpell",
+    "spellId": 32,
+    "servuoRegistryId": 31,
+    "slug": "recall",
+    "aliases": [
+      "recall-spell"
+    ]
+  },
+  {
+    "servuoClass": "InvisibilitySpell",
+    "spellId": 44,
+    "servuoRegistryId": 43,
+    "slug": "invisibility",
+    "aliases": [
+      "invisibility-spell"
+    ]
+  },
+  {
+    "servuoClass": "PolymorphSpell",
+    "spellId": 56,
+    "servuoRegistryId": 55,
+    "slug": "polymorph",
+    "aliases": [
+      "polymorph-spell"
+    ]
+  },
+  {
+    "servuoClass": "DespairSpell",
+    "spellId": 720,
+    "servuoRegistryId": 705,
+    "slug": "despair",
+    "aliases": [
+      "despair-spell"
+    ]
+  },
+  {
+    "servuoClass": "InspireSpell",
+    "spellId": 721,
+    "servuoRegistryId": 700,
+    "slug": "inspire",
+    "aliases": [
+      "inspire-spell"
+    ]
+  },
+  {
+    "servuoClass": "PerseveranceSpell",
+    "spellId": 723,
+    "servuoRegistryId": 703,
+    "slug": "perseverance",
+    "aliases": [
+      "perseverance-spell"
+    ]
+  },
+  {
+    "servuoClass": "ResilienceSpell",
+    "spellId": 724,
+    "servuoRegistryId": 702,
+    "slug": "resilience",
+    "aliases": [
+      "resilience-spell"
+    ]
+  },
+  {
+    "servuoClass": "TribulationSpell",
+    "spellId": 725,
+    "servuoRegistryId": 704,
+    "slug": "tribulation",
+    "aliases": [
+      "tribulation-spell"
+    ]
+  },
+  {
+    "servuoClass": "WhisperingSpell",
+    "spellId": 726,
+    "servuoRegistryId": 742,
+    "slug": "whispering",
+    "aliases": [
+      "whispering-spell"
+    ]
+  },
+  {
+    "servuoClass": "CalledShotSpell",
+    "spellId": 901,
+    "servuoRegistryId": 731,
+    "slug": "called-shot",
+    "mastery": "CalledShot",
+    "aliases": [
+      "called-shot-spell"
+    ]
+  },
+  {
+    "servuoClass": "ConduitSpell",
+    "spellId": 902,
+    "servuoRegistryId": 711,
+    "slug": "conduit",
+    "mastery": "Conduit",
+    "aliases": [
+      "conduit-spell"
+    ]
+  },
+  {
+    "servuoClass": "UpkeepTimer",
+    "kind": "infrastructure",
+    "system": "skill-mastery-upkeep"
+  },
+  {
+    "servuoClass": "DeathRaySpell",
+    "spellId": 903,
+    "servuoRegistryId": 706,
+    "slug": "death-ray",
+    "mastery": "DeathRay",
+    "aliases": [
+      "death-ray-spell"
+    ]
+  },
+  {
+    "servuoClass": "FocusedEyeSpell",
+    "spellId": 904,
+    "servuoRegistryId": 729,
+    "slug": "focused-eye",
+    "mastery": "FocusedEye",
+    "aliases": [
+      "focused-eye-spell"
+    ]
+  },
+  {
+    "servuoClass": "HeightenedSensesSpell",
+    "spellId": 709,
+    "servuoRegistryId": 735,
+    "slug": "heighten-senses",
+    "mastery": "HeightenSenses",
+    "aliases": [
+      "heightened-senses",
+      "heightened-senses-spell"
+    ]
+  },
+  {
+    "servuoClass": "OnslaughtSpell",
+    "spellId": 704,
+    "servuoRegistryId": 728,
+    "slug": "onslaught",
+    "mastery": "Onslaught",
+    "aliases": [
+      "onslaught-spell"
+    ]
+  },
+  {
+    "servuoClass": "RampageContext",
+    "spellId": 703,
+    "servuoRegistryId": 739,
+    "slug": "rampage",
+    "mastery": "Rampage",
+    "aliases": [
+      "rampage-context"
+    ]
+  },
+  {
+    "servuoClass": "RejuvinateSpell",
+    "spellId": 905,
+    "servuoRegistryId": 718,
+    "slug": "rejuvinate",
+    "mastery": "Rejuvinate",
+    "aliases": [
+      "rejuvenate",
+      "rejuvinate-spell"
+    ]
+  },
+  {
+    "servuoClass": "StaggerSpell",
+    "spellId": 706,
+    "servuoRegistryId": 726,
+    "slug": "stagger",
+    "mastery": "Stagger",
+    "aliases": [
+      "stagger-spell"
+    ]
+  },
+  {
+    "servuoClass": "ThrustSpell",
+    "spellId": 906,
+    "servuoRegistryId": 724,
+    "slug": "thrust",
+    "mastery": "Thrust",
+    "aliases": [
+      "thrust-spell"
+    ]
+  },
+  {
+    "servuoClass": "ToleranceSpell",
+    "spellId": 907,
+    "servuoRegistryId": 736,
+    "slug": "tolerance",
+    "mastery": "Tolerance",
+    "aliases": [
+      "tolerance-spell"
+    ]
+  },
+  {
+    "servuoClass": "ToughnessSpell",
+    "spellId": 707,
+    "servuoRegistryId": 727,
+    "slug": "toughness",
+    "mastery": "Toughness",
+    "aliases": [
+      "toughness-spell"
+    ]
+  },
+  {
+    "servuoClass": "WarcrySpell",
+    "spellId": 908,
+    "servuoRegistryId": 716,
+    "slug": "warcry",
+    "mastery": "Warcry",
+    "aliases": [
+      "warcry-spell"
+    ]
+  },
+  {
+    "servuoClass": "WhiteTigerFormSpell",
+    "spellId": 909,
+    "servuoRegistryId": 721,
+    "slug": "white-tiger-form",
+    "mastery": "WhiteTigerForm",
+    "aliases": [
+      "white-tiger-form-spell"
+    ]
+  },
+  {
+    "servuoClass": "DryadAllureSpell",
+    "spellId": 612,
+    "servuoRegistryId": 611,
+    "slug": "dryad-allure",
+    "aliases": [
+      "dryad-allure-spell"
+    ]
+  },
+  {
+    "servuoClass": "ArcaneFiend",
+    "spellId": 608,
+    "servuoRegistryId": 607,
+    "slug": "summon-fiend",
+    "mobileKind": "arcane-fiend",
+    "aliases": [
+      "arcane-fiend"
+    ]
+  },
+  {
+    "servuoClass": "WordOfDeathSpell",
+    "spellId": 614,
+    "servuoRegistryId": 613,
+    "slug": "word-of-death",
+    "aliases": [
+      "word-of-death-spell"
+    ]
+  },
+  {
+    "servuoClass": "ArcaneEmpowermentSpell",
+    "spellId": 616,
+    "servuoRegistryId": 615,
+    "slug": "arcane-empowerment",
+    "aliases": [
+      "arcane-empowerment-spell"
+    ]
+  },
+  {
+    "servuoClass": "GiftOfRenewalSpell",
+    "spellId": 602,
+    "servuoRegistryId": 601,
+    "slug": "gift-of-renewal",
+    "aliases": [
+      "gift-of-renewal-spell"
+    ]
+  },
+  {
+    "servuoClass": "StoneFormSpell",
+    "spellId": 684,
+    "servuoRegistryId": 684,
+    "slug": "stone-form",
+    "aliases": [
+      "stone-form-spell"
+    ]
+  },
+  {
+    "servuoClass": "SpellCircle",
+    "kind": "spell-data",
+    "system": "spell-registry"
+  },
+  {
+    "servuoClass": "ArcaneFocus",
+    "kind": "spellweaving-item",
+    "system": "spellweaving"
+  },
+  {
+    "servuoClass": "ArcanistSpell",
+    "kind": "infrastructure",
+    "system": "spellweaving"
+  },
+  {
+    "servuoClass": "CleanseByFireSpell",
+    "spellId": 201,
+    "servuoRegistryId": 201,
+    "slug": "cleanse-by-fire",
+    "aliases": [
+      "cleanse-by-fire-spell",
+      "cleanse-by-fire"
+    ]
+  },
+  {
+    "servuoClass": "ConsecrateWeaponSpell",
+    "spellId": 203,
+    "servuoRegistryId": 203,
+    "slug": "consecrate-weapon",
+    "aliases": [
+      "consecrate-weapon-spell",
+      "consecrate-weapon"
+    ]
+  },
+  {
+    "servuoClass": "DispelEvilSpell",
+    "spellId": 204,
+    "servuoRegistryId": 204,
+    "slug": "dispel-evil",
+    "aliases": [
+      "dispel-evil-spell",
+      "dispel-evil"
+    ]
+  },
+  {
+    "servuoClass": "DivineFurySpell",
+    "spellId": 205,
+    "servuoRegistryId": 205,
+    "slug": "divine-fury",
+    "aliases": [
+      "divine-fury-spell",
+      "divine-fury"
+    ]
+  },
+  {
+    "servuoClass": "HolyLightSpell",
+    "spellId": 207,
+    "servuoRegistryId": 207,
+    "slug": "holy-light",
+    "aliases": [
+      "holy-light-spell",
+      "holy-light"
+    ]
+  },
+  {
+    "servuoClass": "NobleSacrificeSpell",
+    "spellId": 208,
+    "servuoRegistryId": 208,
+    "slug": "noble-sacrifice",
+    "aliases": [
+      "noble-sacrifice-spell",
+      "noble-sacrifice"
+    ]
+  },
+  {
+    "servuoClass": "AirElementalSpell",
+    "spellId": 60,
+    "servuoRegistryId": 60,
+    "slug": "summon-air-elemental",
+    "aliases": [
+      "air-elemental-spell",
+      "air-elemental"
+    ]
+  },
+  {
+    "servuoClass": "EarthElementalSpell",
+    "spellId": 62,
+    "servuoRegistryId": 62,
+    "slug": "summon-earth-elemental",
+    "aliases": [
+      "earth-elemental-spell",
+      "earth-elemental"
+    ]
+  },
+  {
+    "servuoClass": "EarthquakeSpell",
+    "spellId": 57,
+    "servuoRegistryId": 57,
+    "slug": "earthquake",
+    "aliases": [
+      "earthquake-spell",
+      "earthquake"
+    ]
+  },
+  {
+    "servuoClass": "EnergyVortexSpell",
+    "spellId": 58,
+    "servuoRegistryId": 58,
+    "slug": "energy-vortex",
+    "aliases": [
+      "energy-vortex-spell",
+      "energy-vortex"
+    ]
+  },
+  {
+    "servuoClass": "FireElementalSpell",
+    "spellId": 63,
+    "servuoRegistryId": 63,
+    "slug": "summon-fire-elemental",
+    "aliases": [
+      "fire-elemental-spell",
+      "fire-elemental"
+    ]
+  },
+  {
+    "servuoClass": "SummonDaemonSpell",
+    "spellId": 61,
+    "servuoRegistryId": 61,
+    "slug": "summon-daemon",
+    "aliases": [
+      "summon-daemon-spell",
+      "summon-daemon"
+    ]
+  },
+  {
+    "servuoClass": "WaterElementalSpell",
+    "spellId": 64,
+    "servuoRegistryId": 64,
+    "slug": "summon-water-elemental",
+    "aliases": [
+      "water-elemental-spell",
+      "water-elemental"
+    ]
+  },
+  {
+    "servuoClass": "BladeSpiritsSpell",
+    "spellId": 33,
+    "servuoRegistryId": 33,
+    "slug": "blade-spirits",
+    "aliases": [
+      "blade-spirits-spell",
+      "blade-spirits"
+    ]
+  },
+  {
+    "servuoClass": "DispelFieldSpell",
+    "spellId": 34,
+    "servuoRegistryId": 34,
+    "slug": "dispel-field",
+    "aliases": [
+      "dispel-field-spell",
+      "dispel-field"
+    ]
+  },
+  {
+    "servuoClass": "MindBlastSpell",
+    "spellId": 37,
+    "servuoRegistryId": 37,
+    "slug": "mind-blast",
+    "aliases": [
+      "mind-blast-spell",
+      "mind-blast"
+    ]
+  },
+  {
+    "servuoClass": "ParalyzeSpell",
+    "spellId": 38,
+    "servuoRegistryId": 38,
+    "slug": "paralyze",
+    "aliases": [
+      "paralyze-spell",
+      "paralyze"
+    ]
+  },
+  {
+    "servuoClass": "PoisonFieldSpell",
+    "spellId": 39,
+    "servuoRegistryId": 39,
+    "slug": "poison-field",
+    "aliases": [
+      "poison-field-spell",
+      "poison-field"
+    ]
+  },
+  {
+    "servuoClass": "SummonCreatureSpell",
+    "spellId": 40,
+    "servuoRegistryId": 40,
+    "slug": "summon-creature",
+    "aliases": [
+      "summon-creature-spell",
+      "summon-creature"
+    ]
+  },
+  {
+    "servuoClass": "CreateFoodSpell",
+    "spellId": 2,
+    "servuoRegistryId": 2,
+    "slug": "create-food",
+    "aliases": [
+      "create-food-spell",
+      "create-food"
+    ]
+  },
+  {
+    "servuoClass": "FeeblemindSpell",
+    "spellId": 3,
+    "servuoRegistryId": 3,
+    "slug": "feeblemind",
+    "aliases": [
+      "feeblemind-spell",
+      "feeblemind"
+    ]
+  },
+  {
+    "servuoClass": "HealSpell",
+    "spellId": 4,
+    "servuoRegistryId": 4,
+    "slug": "heal",
+    "aliases": [
+      "heal-spell",
+      "heal"
+    ]
+  },
+  {
+    "servuoClass": "MagicArrowSpell",
+    "spellId": 5,
+    "servuoRegistryId": 5,
+    "slug": "magic-arrow",
+    "aliases": [
+      "magic-arrow-spell",
+      "magic-arrow"
+    ]
+  },
+  {
+    "servuoClass": "NightSightSpell",
+    "spellId": 6,
+    "servuoRegistryId": 6,
+    "slug": "night-sight",
+    "aliases": [
+      "night-sight-spell",
+      "night-sight"
+    ]
+  },
+  {
+    "servuoClass": "ReactiveArmorSpell",
+    "spellId": 7,
+    "servuoRegistryId": 7,
+    "slug": "reactive-armor",
+    "aliases": [
+      "reactive-armor-spell",
+      "reactive-armor"
+    ]
+  },
+  {
+    "servuoClass": "CurseSpell",
+    "spellId": 27,
+    "servuoRegistryId": 27,
+    "slug": "curse",
+    "aliases": [
+      "curse-spell",
+      "curse"
+    ]
+  },
+  {
+    "servuoClass": "FireFieldSpell",
+    "spellId": 28,
+    "servuoRegistryId": 28,
+    "slug": "fire-field",
+    "aliases": [
+      "fire-field-spell",
+      "fire-field"
+    ]
+  },
+  {
+    "servuoClass": "GreaterHealSpell",
+    "spellId": 29,
+    "servuoRegistryId": 29,
+    "slug": "greater-heal",
+    "aliases": [
+      "greater-heal-spell",
+      "greater-heal"
+    ]
+  },
+  {
+    "servuoClass": "LightningSpell",
+    "spellId": 30,
+    "servuoRegistryId": 30,
+    "slug": "lightning",
+    "aliases": [
+      "lightning-spell",
+      "lightning"
+    ]
+  },
+  {
+    "servuoClass": "ManaDrainSpell",
+    "spellId": 31,
+    "servuoRegistryId": 31,
+    "slug": "mana-drain",
+    "aliases": [
+      "mana-drain-spell",
+      "mana-drain"
+    ]
+  },
+  {
+    "servuoClass": "AnimatedWeaponSpell",
+    "spellId": 683,
+    "servuoRegistryId": 683,
+    "slug": "animated-weapon",
+    "aliases": [
+      "animated-weapon-spell",
+      "animated-weapon"
+    ]
+  },
+  {
+    "servuoClass": "BombardSpell",
+    "spellId": 688,
+    "servuoRegistryId": 688,
+    "slug": "bombard",
+    "aliases": [
+      "bombard-spell",
+      "bombard"
+    ]
+  },
+  {
+    "servuoClass": "CleansingWindsSpell",
+    "spellId": 687,
+    "servuoRegistryId": 687,
+    "slug": "cleansing-winds",
+    "aliases": [
+      "cleansing-winds-spell",
+      "cleansing-winds"
+    ]
+  },
+  {
+    "servuoClass": "EagleStrikeSpell",
+    "spellId": 682,
+    "servuoRegistryId": 682,
+    "slug": "eagle-strike",
+    "aliases": [
+      "eagle-strike-spell",
+      "eagle-strike"
+    ]
+  },
+  {
+    "servuoClass": "HailStormSpell",
+    "spellId": 690,
+    "servuoRegistryId": 690,
+    "slug": "hail-storm",
+    "aliases": [
+      "hail-storm-spell",
+      "hail-storm"
+    ]
+  },
+  {
+    "servuoClass": "HealingStoneSpell",
+    "spellId": 678,
+    "servuoRegistryId": 678,
+    "slug": "healing-stone",
+    "aliases": [
+      "healing-stone-spell",
+      "healing-stone"
+    ]
+  },
+  {
+    "servuoClass": "MassSleepSpell",
+    "spellId": 686,
+    "servuoRegistryId": 686,
+    "slug": "mass-sleep",
+    "aliases": [
+      "mass-sleep-spell",
+      "mass-sleep"
+    ]
+  },
+  {
+    "servuoClass": "NetherBoltSpell",
+    "spellId": 677,
+    "servuoRegistryId": 677,
+    "slug": "nether-bolt",
+    "aliases": [
+      "nether-bolt-spell",
+      "nether-bolt"
+    ]
+  },
+  {
+    "servuoClass": "NetherCycloneSpell",
+    "spellId": 691,
+    "servuoRegistryId": 691,
+    "slug": "nether-cyclone",
+    "aliases": [
+      "nether-cyclone-spell",
+      "nether-cyclone"
+    ]
+  },
+  {
+    "servuoClass": "RisingColossusSpell",
+    "spellId": 692,
+    "servuoRegistryId": 692,
+    "slug": "rising-colossus",
+    "aliases": [
+      "rising-colossus-spell",
+      "rising-colossus"
+    ]
+  },
+  {
+    "servuoClass": "SleepSpell",
+    "spellId": 681,
+    "servuoRegistryId": 681,
+    "slug": "sleep",
+    "aliases": [
+      "sleep-spell",
+      "sleep"
+    ]
+  },
+  {
+    "servuoClass": "AnimateDeadSpell",
+    "spellId": 101,
+    "servuoRegistryId": 101,
+    "slug": "animate-dead",
+    "aliases": [
+      "animate-dead-spell",
+      "animate-dead"
+    ]
+  },
+  {
+    "servuoClass": "BloodOathSpell",
+    "spellId": 102,
+    "servuoRegistryId": 102,
+    "slug": "blood-oath",
+    "aliases": [
+      "blood-oath-spell",
+      "blood-oath"
+    ]
+  },
+  {
+    "servuoClass": "CorpseSkinSpell",
+    "spellId": 103,
+    "servuoRegistryId": 103,
+    "slug": "corpse-skin",
+    "aliases": [
+      "corpse-skin-spell",
+      "corpse-skin"
+    ]
+  },
+  {
+    "servuoClass": "CurseWeaponSpell",
+    "spellId": 104,
+    "servuoRegistryId": 104,
+    "slug": "curse-weapon",
+    "aliases": [
+      "curse-weapon-spell",
+      "curse-weapon"
+    ]
+  },
+  {
+    "servuoClass": "EvilOmenSpell",
+    "spellId": 105,
+    "servuoRegistryId": 105,
+    "slug": "evil-omen",
+    "aliases": [
+      "evil-omen-spell",
+      "evil-omen"
+    ]
+  },
+  {
+    "servuoClass": "ExorcismSpell",
+    "spellId": 117,
+    "servuoRegistryId": 117,
+    "slug": "exorcism",
+    "aliases": [
+      "exorcism-spell",
+      "exorcism"
+    ]
+  },
+  {
+    "servuoClass": "LichFormSpell",
+    "spellId": 107,
+    "servuoRegistryId": 107,
+    "slug": "lich-form",
+    "aliases": [
+      "lich-form-spell",
+      "lich-form"
+    ]
+  },
+  {
+    "servuoClass": "MindRotSpell",
+    "spellId": 108,
+    "servuoRegistryId": 108,
+    "slug": "mind-rot",
+    "aliases": [
+      "mind-rot-spell",
+      "mind-rot"
+    ]
+  },
+  {
+    "servuoClass": "PainSpikeSpell",
+    "spellId": 109,
+    "servuoRegistryId": 109,
+    "slug": "pain-spike",
+    "aliases": [
+      "pain-spike-spell",
+      "pain-spike"
+    ]
+  },
+  {
+    "servuoClass": "PoisonStrikeSpell",
+    "spellId": 110,
+    "servuoRegistryId": 110,
+    "slug": "poison-strike",
+    "aliases": [
+      "poison-strike-spell",
+      "poison-strike"
+    ]
+  },
+  {
+    "servuoClass": "StrangleSpell",
+    "spellId": 111,
+    "servuoRegistryId": 111,
+    "slug": "strangle",
+    "aliases": [
+      "strangle-spell",
+      "strangle"
+    ]
+  },
+  {
+    "servuoClass": "SummonFamiliarSpell",
+    "spellId": 112,
+    "servuoRegistryId": 112,
+    "slug": "summon-familiar",
+    "aliases": [
+      "summon-familiar-spell",
+      "summon-familiar"
+    ]
+  },
+  {
+    "servuoClass": "VampiricEmbraceSpell",
+    "spellId": 113,
+    "servuoRegistryId": 113,
+    "slug": "vampiric-embrace",
+    "aliases": [
+      "vampiric-embrace-spell",
+      "vampiric-embrace"
+    ]
+  },
+  {
+    "servuoClass": "WitherSpell",
+    "spellId": 115,
+    "servuoRegistryId": 115,
+    "slug": "wither",
+    "aliases": [
+      "wither-spell",
+      "wither"
+    ]
+  },
+  {
+    "servuoClass": "WraithFormSpell",
+    "spellId": 116,
+    "servuoRegistryId": 116,
+    "slug": "wraith-form",
+    "aliases": [
+      "wraith-form-spell",
+      "wraith-form"
+    ]
+  },
+  {
+    "servuoClass": "CureSpell",
+    "spellId": 11,
+    "servuoRegistryId": 11,
+    "slug": "cure",
+    "aliases": [
+      "cure-spell",
+      "cure"
+    ]
+  },
+  {
+    "servuoClass": "HarmSpell",
+    "spellId": 12,
+    "servuoRegistryId": 12,
+    "slug": "harm",
+    "aliases": [
+      "harm-spell",
+      "harm"
+    ]
+  },
+  {
+    "servuoClass": "StrengthSpell",
+    "spellId": 16,
+    "servuoRegistryId": 16,
+    "slug": "strength",
+    "aliases": [
+      "strength-spell",
+      "strength"
+    ]
+  },
+  {
+    "servuoClass": "ChainLightningSpell",
+    "spellId": 49,
+    "servuoRegistryId": 49,
+    "slug": "chain-lightning",
+    "aliases": [
+      "chain-lightning-spell",
+      "chain-lightning"
+    ]
+  },
+  {
+    "servuoClass": "EnergyFieldSpell",
+    "spellId": 50,
+    "servuoRegistryId": 50,
+    "slug": "energy-field",
+    "aliases": [
+      "energy-field-spell",
+      "energy-field"
+    ]
+  },
+  {
+    "servuoClass": "FlameStrikeSpell",
+    "spellId": 51,
+    "servuoRegistryId": 51,
+    "slug": "flame-strike",
+    "aliases": [
+      "flame-strike-spell",
+      "flame-strike"
+    ]
+  },
+  {
+    "servuoClass": "GateTravelSpell",
+    "spellId": 52,
+    "servuoRegistryId": 52,
+    "slug": "gate-travel",
+    "aliases": [
+      "gate-travel-spell",
+      "gate-travel"
+    ]
+  },
+  {
+    "servuoClass": "ManaVampireSpell",
+    "spellId": 53,
+    "servuoRegistryId": 53,
+    "slug": "mana-vampire",
+    "aliases": [
+      "mana-vampire-spell",
+      "mana-vampire"
+    ]
+  },
+  {
+    "servuoClass": "MassDispelSpell",
+    "spellId": 54,
+    "servuoRegistryId": 54,
+    "slug": "mass-dispel",
+    "aliases": [
+      "mass-dispel-spell",
+      "mass-dispel"
+    ]
+  },
+  {
+    "servuoClass": "MeteorSwarmSpell",
+    "spellId": 55,
+    "servuoRegistryId": 55,
+    "slug": "meteor-swarm",
+    "aliases": [
+      "meteor-swarm-spell",
+      "meteor-swarm"
+    ]
+  },
+  {
+    "servuoClass": "DispelSpell",
+    "spellId": 41,
+    "servuoRegistryId": 41,
+    "slug": "dispel",
+    "aliases": [
+      "dispel-spell",
+      "dispel"
+    ]
+  },
+  {
+    "servuoClass": "EnergyBoltSpell",
+    "spellId": 42,
+    "servuoRegistryId": 42,
+    "slug": "energy-bolt",
+    "aliases": [
+      "energy-bolt-spell",
+      "energy-bolt"
+    ]
+  },
+  {
+    "servuoClass": "ParalyzeFieldSpell",
+    "spellId": 47,
+    "servuoRegistryId": 47,
+    "slug": "paralyze-field",
+    "aliases": [
+      "paralyze-field-spell",
+      "paralyze-field"
+    ]
+  },
+  {
+    "servuoClass": "InvigorateSpell",
+    "spellId": 722,
+    "servuoRegistryId": 722,
+    "slug": "invigorate",
+    "aliases": [
+      "invigorate-spell",
+      "invigorate"
+    ]
+  },
+  {
+    "servuoClass": "BodyGuardSpell",
+    "spellId": 710,
+    "servuoRegistryId": 710,
+    "slug": "body-guard",
+    "aliases": [
+      "body-guard-spell",
+      "body-guard"
+    ]
+  },
+  {
+    "servuoClass": "CombatTrainingSpell",
+    "spellId": 701,
+    "servuoRegistryId": 701,
+    "slug": "combat-training",
+    "aliases": [
+      "combat-training-spell",
+      "combat-training"
+    ]
+  },
+  {
+    "servuoClass": "HolyFistSpell",
+    "spellId": 700,
+    "servuoRegistryId": 700,
+    "slug": "holy-fist",
+    "aliases": [
+      "holy-fist-spell",
+      "holy-fist"
+    ]
+  },
+  {
+    "servuoClass": "ManaShieldSpell",
+    "spellId": 702,
+    "servuoRegistryId": 702,
+    "slug": "mana-shield",
+    "aliases": [
+      "mana-shield-spell",
+      "mana-shield"
+    ]
+  },
+  {
+    "servuoClass": "MysticWeaponSpell",
+    "spellId": 708,
+    "servuoRegistryId": 708,
+    "slug": "mystic-weapon",
+    "aliases": [
+      "mystic-weapon-spell",
+      "mystic-weapon"
+    ]
+  },
+  {
+    "servuoClass": "PierceSpell",
+    "spellId": 705,
+    "servuoRegistryId": 705,
+    "slug": "pierce",
+    "aliases": [
+      "pierce-spell",
+      "pierce"
+    ]
+  },
+  {
+    "servuoClass": "RampageSpell",
+    "spellId": 703,
+    "servuoRegistryId": 703,
+    "slug": "rampage",
+    "aliases": [
+      "rampage-spell",
+      "rampage"
+    ]
+  },
+  {
+    "servuoClass": "ArcaneCircleSpell",
+    "spellId": 601,
+    "servuoRegistryId": 601,
+    "slug": "arcane-circle",
+    "aliases": [
+      "arcane-circle-spell",
+      "arcane-circle"
+    ]
+  },
+  {
+    "servuoClass": "AttuneWeaponSpell",
+    "spellId": 604,
+    "servuoRegistryId": 604,
+    "slug": "attune-weapon",
+    "aliases": [
+      "attune-weapon-spell",
+      "attune-weapon"
+    ]
+  },
+  {
+    "servuoClass": "EssenceOfWindSpell",
+    "spellId": 611,
+    "servuoRegistryId": 611,
+    "slug": "essence-of-wind",
+    "aliases": [
+      "essence-of-wind-spell",
+      "essence-of-wind"
+    ]
+  },
+  {
+    "servuoClass": "EtherealVoyageSpell",
+    "spellId": 613,
+    "servuoRegistryId": 613,
+    "slug": "ethereal-voyage",
+    "aliases": [
+      "ethereal-voyage-spell",
+      "ethereal-voyage"
+    ]
+  },
+  {
+    "servuoClass": "GiftOfLifeSpell",
+    "spellId": 615,
+    "servuoRegistryId": 615,
+    "slug": "gift-of-life",
+    "aliases": [
+      "gift-of-life-spell",
+      "gift-of-life"
+    ]
+  },
+  {
+    "servuoClass": "ImmolatingWeaponSpell",
+    "spellId": 603,
+    "servuoRegistryId": 603,
+    "slug": "immolating-weapon",
+    "aliases": [
+      "immolating-weapon-spell",
+      "immolating-weapon"
+    ]
+  },
+  {
+    "servuoClass": "NatureFurySpell",
+    "spellId": 606,
+    "servuoRegistryId": 606,
+    "slug": "nature-fury",
+    "aliases": [
+      "nature-fury-spell",
+      "nature-fury"
+    ]
+  },
+  {
+    "servuoClass": "ReaperFormSpell",
+    "spellId": 609,
+    "servuoRegistryId": 609,
+    "slug": "reaper-form",
+    "aliases": [
+      "reaper-form-spell",
+      "reaper-form"
+    ]
+  },
+  {
+    "servuoClass": "SummonFeySpell",
+    "spellId": 607,
+    "servuoRegistryId": 607,
+    "slug": "summon-fey",
+    "aliases": [
+      "summon-fey-spell",
+      "summon-fey"
+    ]
+  },
+  {
+    "servuoClass": "SummonFiendSpell",
+    "spellId": 608,
+    "servuoRegistryId": 608,
+    "slug": "summon-fiend",
+    "aliases": [
+      "summon-fiend-spell",
+      "summon-fiend"
+    ]
+  },
+  {
+    "servuoClass": "ThunderstormSpell",
+    "spellId": 605,
+    "servuoRegistryId": 605,
+    "slug": "thunderstorm",
+    "aliases": [
+      "thunderstorm-spell",
+      "thunderstorm"
+    ]
+  },
+  {
+    "servuoClass": "WildfireSpell",
+    "spellId": 610,
+    "servuoRegistryId": 610,
+    "slug": "wildfire",
+    "aliases": [
+      "wildfire-spell",
+      "wildfire"
+    ]
+  },
+  {
+    "servuoClass": "FireballSpell",
+    "spellId": 18,
+    "servuoRegistryId": 18,
+    "slug": "fireball",
+    "aliases": [
+      "fireball-spell",
+      "fireball"
+    ]
+  },
+  {
+    "servuoClass": "MagicLockSpell",
+    "spellId": 19,
+    "servuoRegistryId": 19,
+    "slug": "magic-lock",
+    "aliases": [
+      "magic-lock-spell",
+      "magic-lock"
+    ]
+  },
+  {
+    "servuoClass": "PoisonSpell",
+    "spellId": 20,
+    "servuoRegistryId": 20,
+    "slug": "poison",
+    "aliases": [
+      "poison-spell",
+      "poison"
+    ]
+  }
+]

@@ -1,0 +1,13 @@
+{
+  "name": "@uo/control-panel",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Electron desktop launcher for the UO-Node stack — start/stop server, client, admin, bridge from one window with tabbed logs.",
+  "main": "./src/main.cjs",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^33.4.11"
+  }
+}

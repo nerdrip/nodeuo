@@ -1,0 +1,705 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Data Editor — UO Node</title>
+<style>
+  :root {
+    --bg: #0a0805; --panel: #14100a; --panel-2: #1a1408; --border: #4a3818;
+    --text: #e8d8b0; --text-dim: #a89878; --accent: #ffd080;
+    --string: #b0e080; --number: #ffd080; --boolean: #c0a0ff; --null: #808080;
+    --key: #88ccff; --selected: #2a3a1a; --hover: #1f1810; --error: #ff6060;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+               font: 13px/1.4 'Segoe UI', system-ui, sans-serif; }
+  body { display: grid; grid-template-columns: 280px 1fr; grid-template-rows: 38px 1fr; height: 100vh; }
+  .topbar {
+    grid-column: 1 / -1; grid-row: 1; display: flex; align-items: center;
+    gap: 12px; padding: 0 14px; background: var(--panel); border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .topbar a { color: var(--accent); text-decoration: none; }
+  .topbar a:hover { text-decoration: underline; }
+  .topbar .spacer { flex: 1; }
+  .topbar .badge { font-size: 11px; opacity: 0.7; }
+  .topbar button {
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+    padding: 4px 12px; border-radius: 3px; cursor: pointer; font-size: 12px;
+  }
+  .topbar button:hover { background: var(--hover); }
+  .topbar button.primary { background: #2a3a1a; color: #b0e080; border-color: #5a8030; font-weight: bold; }
+  .topbar button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .topbar input { background: var(--bg); color: var(--text); border: 1px solid var(--border);
+                  padding: 4px 8px; border-radius: 3px; font: inherit; }
+  .sidebar {
+    grid-row: 2; background: var(--panel); border-right: 1px solid var(--border);
+    overflow-y: auto; font-size: 12px;
+  }
+  .sidebar .section-title { padding: 6px 12px; font-size: 11px; text-transform: uppercase;
+                            color: var(--text-dim); letter-spacing: 0.5px; border-bottom: 1px solid var(--border); }
+  .file-node { padding: 4px 12px 4px 24px; cursor: pointer; white-space: nowrap;
+               overflow: hidden; text-overflow: ellipsis; }
+  .file-node:hover { background: var(--hover); }
+  .file-node.active { background: var(--selected); color: var(--accent); }
+  .file-node.dir { padding-left: 12px; color: var(--text-dim); font-weight: bold; }
+  .file-node .size { float: right; font-size: 10px; opacity: 0.5; }
+  .file-tree { padding-bottom: 16px; }
+  .main { grid-row: 2; overflow: hidden; display: flex; flex-direction: column; }
+  .breadcrumb { padding: 8px 14px; background: var(--panel); border-bottom: 1px solid var(--border);
+                font-size: 11px; color: var(--text-dim); overflow-x: auto; white-space: nowrap; }
+  .breadcrumb .crumb { color: var(--accent); cursor: pointer; }
+  .breadcrumb .crumb:hover { text-decoration: underline; }
+  .breadcrumb .sep { margin: 0 4px; opacity: 0.4; }
+  .tree { flex: 1; overflow: auto; padding: 8px 14px; font-family: 'Consolas', 'Monaco', monospace; font-size: 12px; }
+  .empty { text-align: center; padding: 40px; color: var(--text-dim); }
+  .empty .small { font-size: 11px; margin-top: 6px; }
+  .row { display: flex; align-items: flex-start; gap: 6px; padding: 1px 0; min-height: 20px; }
+  .row.search-hit { background: rgba(255, 220, 120, 0.10); }
+  .row:hover { background: var(--hover); }
+  .toggle { width: 14px; height: 18px; display: inline-flex; align-items: center; justify-content: center;
+            cursor: pointer; color: var(--text-dim); user-select: none; flex-shrink: 0; }
+  .toggle:hover { color: var(--accent); }
+  .key { color: var(--key); font-weight: bold; cursor: text; }
+  .key:hover { background: rgba(136, 204, 255, 0.10); }
+  .punct { color: var(--text-dim); }
+  .val-string { color: var(--string); }
+  .val-number { color: var(--number); }
+  .val-boolean { color: var(--boolean); }
+  .val-null { color: var(--null); font-style: italic; }
+  .val-string, .val-number, .val-boolean, .val-null { cursor: text; padding: 0 3px; border-radius: 2px; }
+  .val-string:hover, .val-number:hover, .val-boolean:hover, .val-null:hover { background: rgba(255,255,255,0.05); }
+  .val-meta { color: var(--text-dim); font-style: italic; font-size: 11px; }
+  .actions { display: none; gap: 4px; margin-left: 8px; }
+  .row:hover .actions { display: inline-flex; }
+  .actions button {
+    background: transparent; border: 1px solid var(--border); color: var(--text-dim);
+    padding: 0 5px; font-size: 10px; cursor: pointer; border-radius: 2px; height: 16px; line-height: 14px;
+  }
+  .actions button:hover { color: var(--accent); border-color: var(--accent); }
+  .actions button.delete:hover { color: var(--error); border-color: var(--error); }
+  .children { padding-left: 16px; border-left: 1px dotted var(--border); margin-left: 7px; }
+  .edit-input {
+    background: var(--bg); color: var(--text); border: 1px solid var(--accent);
+    padding: 1px 4px; border-radius: 2px; font: inherit; min-width: 60px; outline: none;
+  }
+  .edit-input.string { color: var(--string); }
+  .edit-input.number { color: var(--number); }
+  .toast {
+    position: fixed; bottom: 20px; right: 20px; background: var(--panel-2);
+    border: 1px solid var(--border); padding: 10px 16px; border-radius: 4px;
+    box-shadow: 0 4px 12px #000a; z-index: 1000; max-width: 360px; font-size: 12px;
+  }
+  .toast.error { border-color: var(--error); color: var(--error); }
+  .toast.success { border-color: #5a8030; color: var(--string); }
+  .virtualised-warn {
+    padding: 6px 12px; background: var(--panel-2); color: var(--accent);
+    font-size: 11px; border-bottom: 1px solid var(--border);
+  }
+  .add-pane {
+    margin-top: 4px; padding: 4px 0 4px 24px; display: flex; gap: 6px; align-items: center;
+  }
+  .add-pane input { background: var(--bg); color: var(--text); border: 1px solid var(--border);
+                    padding: 2px 6px; border-radius: 2px; font: inherit; }
+  .add-pane select { background: var(--bg); color: var(--text); border: 1px solid var(--border);
+                     padding: 2px; border-radius: 2px; font: inherit; }
+  .add-pane button { background: var(--panel-2); color: var(--accent); border: 1px solid var(--border);
+                     padding: 2px 10px; border-radius: 2px; font: inherit; cursor: pointer; }
+  .add-pane button:hover { background: var(--hover); }
+  .raw-toggle { font-size: 10px; opacity: 0.6; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="/">← Admin</a>
+  <strong>Data Editor</strong>
+  <span class="badge" id="file-info"></span>
+  <span class="spacer"></span>
+  <input id="search" type="text" placeholder="Search keys/values… (Ctrl+F)" style="width:240px" />
+  <button id="btn-collapse-all" title="Collapse every object/array (Ctrl+Shift+C)">Collapse</button>
+  <button id="btn-expand-all" title="Expand every object/array (Ctrl+Shift+E)">Expand</button>
+  <button id="btn-revert" title="Discard unsaved edits and reload from disk">Revert</button>
+  <button id="btn-save" class="primary" title="Save changes to disk (Ctrl+S)">Save</button>
+</div>
+
+<div class="sidebar">
+  <div class="section-title">apps/scripts/src/data</div>
+  <div id="file-tree" class="file-tree">
+    <div class="empty">loading…</div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="breadcrumb" id="breadcrumb"></div>
+  <div class="tree" id="tree">
+    <div class="empty">
+      Select a JSON file from the left sidebar.
+      <div class="small">Tip: large arrays (>500 items) are virtualised; expand a slice with the "show more" controls.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ============================================================================
+// STATE
+// ============================================================================
+const state = {
+  tree: [],                  // sidebar file tree
+  currentPath: null,         // string path of currently-loaded file
+  data: null,                // the JSON value being edited (mutable)
+  pristine: null,            // JSON.stringified snapshot for dirty/revert
+  fileInfo: null,            // { size, mtime }
+  search: '',                // active search filter (lowercased)
+  // Expansion state — keyed by a path string we compute from the value tree.
+  expanded: new Set(['']),   // root always expanded
+  // Pagination — for arrays larger than CHUNK, only render first N items
+  // with a "show more" affordance.
+  pages: new Map(),          // pathKey → number of items revealed
+};
+const CHUNK = 100;
+
+const $ = (id) => document.getElementById(id);
+
+function isDirty() {
+  return state.data != null && JSON.stringify(state.data) !== state.pristine;
+}
+function setDirty() {
+  $('btn-save').disabled = !isDirty();
+  $('btn-revert').disabled = !isDirty();
+  document.title = (isDirty() ? '• ' : '') + 'Data Editor — UO Node';
+}
+
+function toast(msg, kind = 'info') {
+  const el = document.createElement('div');
+  el.className = 'toast ' + kind;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+// ============================================================================
+// SIDEBAR — file tree
+// ============================================================================
+async function loadFileTree() {
+  const r = await fetch('/api/data-tree/files').then((x) => x.json()).catch(() => ({ tree: [] }));
+  state.tree = r.tree ?? [];
+  renderFileTree();
+}
+function fmtSize(n) {
+  if (n < 1024) return `${n}B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)}K`;
+  return `${(n / 1024 / 1024).toFixed(2)}M`;
+}
+function renderFileTree() {
+  const root = $('file-tree');
+  root.innerHTML = '';
+  function walk(nodes, depth = 0) {
+    for (const n of nodes) {
+      const el = document.createElement('div');
+      el.className = 'file-node ' + (n.type === 'dir' ? 'dir' : '');
+      el.style.paddingLeft = (12 + depth * 14) + 'px';
+      if (n.type === 'dir') {
+        el.textContent = '📁 ' + n.name;
+        root.appendChild(el);
+        if (n.children) walk(n.children, depth + 1);
+      } else {
+        el.innerHTML = `<span>📄 ${escapeHtml(n.name)}</span><span class="size">${fmtSize(n.size)}</span>`;
+        el.dataset.path = n.path;
+        if (state.currentPath === n.path) el.classList.add('active');
+        el.addEventListener('click', () => openFile(n.path));
+        root.appendChild(el);
+      }
+    }
+  }
+  walk(state.tree);
+}
+
+// ============================================================================
+// FILE LOAD / SAVE
+// ============================================================================
+async function openFile(p) {
+  if (isDirty() && !confirm('Discard unsaved edits?')) return;
+  const r = await fetch('/api/data-tree/file?path=' + encodeURIComponent(p)).then((x) => x.json());
+  if (r.error) { toast(r.error, 'error'); return; }
+  state.currentPath = p;
+  state.data = r.data;
+  state.pristine = JSON.stringify(r.data);
+  state.fileInfo = { size: r.size, mtime: r.mtime };
+  state.expanded = new Set(['']);                // collapse all but root on new file
+  state.pages.clear();
+  // Auto-expand the root container so the operator sees structure immediately.
+  if (state.data && typeof state.data === 'object') state.expanded.add('');
+  renderFileTree();
+  renderTree();
+  updateBreadcrumb([]);
+  $('file-info').textContent = `${p} · ${fmtSize(r.size)} · ${new Date(r.mtime).toLocaleString()}`;
+  setDirty();
+}
+
+async function saveFile() {
+  if (!state.currentPath || !isDirty()) return;
+  try {
+    const r = await fetch('/api/data-tree/file?path=' + encodeURIComponent(state.currentPath), {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: state.data }),
+    }).then((x) => x.json());
+    if (r.error) { toast(r.error, 'error'); return; }
+    state.pristine = JSON.stringify(state.data);
+    state.fileInfo = { size: r.size, mtime: r.mtime };
+    $('file-info').textContent = `${state.currentPath} · ${fmtSize(r.size)} · ${new Date(r.mtime).toLocaleString()}`;
+    toast('Saved (backup written as .bak.<timestamp>)', 'success');
+    setDirty();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+function revertFile() {
+  if (!state.currentPath || !isDirty()) return;
+  if (!confirm('Discard unsaved edits and reload from disk?')) return;
+  openFile(state.currentPath);
+}
+
+// ============================================================================
+// JSON TREE RENDERER
+// ============================================================================
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (c) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
+}
+function isObj(v)   { return v !== null && typeof v === 'object' && !Array.isArray(v); }
+function isArr(v)   { return Array.isArray(v); }
+function typeOf(v) {
+  if (v === null) return 'null';
+  if (Array.isArray(v)) return 'array';
+  return typeof v;
+}
+function pathKey(parts) { return parts.join('\x00'); }
+
+// Walk to the node at a given path; returns { parent, key, value } so we
+// can mutate via `parent[key] = …`. The root case returns a synthetic
+// container so callers don't special-case it.
+function resolvePath(parts) {
+  if (!parts.length) return { parent: state, key: 'data', value: state.data };
+  let cur = state.data;
+  for (let i = 0; i < parts.length - 1; i++) {
+    if (cur == null) return null;
+    cur = cur[parts[i]];
+  }
+  if (cur == null || typeof cur !== 'object') return null;
+  return { parent: cur, key: parts[parts.length - 1], value: cur[parts[parts.length - 1]] };
+}
+
+function renderTree() {
+  const root = $('tree');
+  root.innerHTML = '';
+  if (state.data === null || state.data === undefined) {
+    root.innerHTML = '<div class="empty">No file loaded.</div>';
+    return;
+  }
+  root.appendChild(renderNode([], state.data, /* rootKey */ ''));
+}
+
+function renderNode(parts, value, displayKey) {
+  const key = pathKey(parts);
+  const wrap = document.createElement('div');
+  const row = document.createElement('div');
+  row.className = 'row';
+  const type = typeOf(value);
+  const isContainer = type === 'object' || type === 'array';
+  const expanded = state.expanded.has(key);
+
+  // Toggle (only for containers)
+  const toggle = document.createElement('span');
+  toggle.className = 'toggle';
+  toggle.textContent = isContainer ? (expanded ? '▼' : '▶') : '';
+  if (isContainer) {
+    toggle.addEventListener('click', () => {
+      if (state.expanded.has(key)) state.expanded.delete(key);
+      else state.expanded.add(key);
+      renderTree();
+    });
+  }
+  row.appendChild(toggle);
+
+  // Key label (skip for root)
+  if (parts.length > 0) {
+    const k = document.createElement('span');
+    k.className = 'key';
+    k.textContent = JSON.stringify(displayKey);
+    k.title = 'Click to rename key';
+    // Renaming only makes sense inside an object — array indices are positional.
+    const grandParts = parts.slice(0, -1);
+    const grandResolved = resolvePath(grandParts.length ? grandParts : []);
+    const grandIsObj = grandParts.length === 0
+      ? isObj(state.data)
+      : isObj(grandResolved?.value);
+    if (grandIsObj) {
+      k.addEventListener('click', (e) => {
+        e.stopPropagation();
+        editKeyInline(k, parts);
+      });
+    } else {
+      k.style.cursor = 'default';
+      k.title = 'Array index — positional';
+    }
+    row.appendChild(k);
+    const colon = document.createElement('span');
+    colon.className = 'punct';
+    colon.textContent = ': ';
+    row.appendChild(colon);
+  }
+
+  // Value
+  if (isContainer) {
+    const meta = document.createElement('span');
+    meta.className = 'val-meta';
+    const n = type === 'array' ? value.length : Object.keys(value).length;
+    meta.textContent = type === 'array' ? `[${n} item${n === 1 ? '' : 's'}]` : `{${n} key${n === 1 ? '' : 's'}}`;
+    row.appendChild(meta);
+    const actions = document.createElement('span');
+    actions.className = 'actions';
+    const addBtn = document.createElement('button');
+    addBtn.textContent = type === 'array' ? '+ item' : '+ key';
+    addBtn.addEventListener('click', (e) => { e.stopPropagation(); openAddPane(parts, type, wrap); });
+    actions.appendChild(addBtn);
+    if (parts.length > 0) {
+      const delBtn = document.createElement('button');
+      delBtn.className = 'delete';
+      delBtn.textContent = '×';
+      delBtn.title = 'Delete this node';
+      delBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteNode(parts); });
+      actions.appendChild(delBtn);
+    }
+    row.appendChild(actions);
+  } else {
+    const v = document.createElement('span');
+    v.className = 'val-' + type;
+    v.textContent = type === 'string' ? JSON.stringify(value)
+                  : type === 'null'   ? 'null'
+                  : String(value);
+    v.title = 'Click to edit';
+    v.addEventListener('click', (e) => { e.stopPropagation(); editValueInline(v, parts); });
+    row.appendChild(v);
+    if (parts.length > 0) {
+      const actions = document.createElement('span');
+      actions.className = 'actions';
+      const delBtn = document.createElement('button');
+      delBtn.className = 'delete';
+      delBtn.textContent = '×';
+      delBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteNode(parts); });
+      actions.appendChild(delBtn);
+      row.appendChild(actions);
+    }
+  }
+
+  // Search highlighting
+  if (state.search) {
+    const hay = (String(displayKey) + ' ' + JSON.stringify(value)).toLowerCase();
+    if (hay.includes(state.search)) row.classList.add('search-hit');
+  }
+
+  wrap.appendChild(row);
+
+  if (isContainer && expanded) {
+    const kids = document.createElement('div');
+    kids.className = 'children';
+    if (type === 'array') {
+      const len = value.length;
+      const revealed = state.pages.get(key) ?? Math.min(CHUNK, len);
+      if (len > CHUNK) {
+        const warn = document.createElement('div');
+        warn.className = 'virtualised-warn';
+        warn.innerHTML = `Showing <strong>${revealed}</strong> of <strong>${len}</strong> items. <button onclick="loadMore(${JSON.stringify(parts).replace(/"/g,'&quot;')})">+ Show ${Math.min(CHUNK, len - revealed)} more</button> · <button onclick="loadAll(${JSON.stringify(parts).replace(/"/g,'&quot;')})">Show all (${len - revealed} more)</button>`;
+        kids.appendChild(warn);
+      }
+      for (let i = 0; i < revealed; i++) {
+        kids.appendChild(renderNode([...parts, i], value[i], i));
+      }
+    } else {
+      for (const k of Object.keys(value)) {
+        kids.appendChild(renderNode([...parts, k], value[k], k));
+      }
+    }
+    wrap.appendChild(kids);
+  }
+
+  return wrap;
+}
+
+window.loadMore = (parts) => {
+  const key = pathKey(parts);
+  const r = resolvePath(parts);
+  if (!r || !Array.isArray(r.value)) return;
+  const cur = state.pages.get(key) ?? Math.min(CHUNK, r.value.length);
+  state.pages.set(key, Math.min(r.value.length, cur + CHUNK));
+  renderTree();
+};
+window.loadAll = (parts) => {
+  const key = pathKey(parts);
+  const r = resolvePath(parts);
+  if (!r || !Array.isArray(r.value)) return;
+  state.pages.set(key, r.value.length);
+  renderTree();
+};
+
+// ============================================================================
+// INLINE EDIT — values
+// ============================================================================
+function editValueInline(span, parts) {
+  const r = resolvePath(parts);
+  if (!r) return;
+  const type = typeOf(r.value);
+  const input = document.createElement('input');
+  input.className = 'edit-input ' + type;
+  input.value = type === 'string' ? String(r.value)
+              : type === 'null' ? ''
+              : String(r.value);
+  input.placeholder = type === 'null' ? 'null (leave empty to keep null)' : '';
+  span.replaceWith(input);
+  input.focus();
+  input.select();
+  const finish = (commit) => {
+    if (!commit) { renderTree(); return; }
+    let next;
+    if (type === 'number') {
+      const n = Number(input.value);
+      if (!Number.isFinite(n)) { toast('not a number', 'error'); renderTree(); return; }
+      next = n;
+    } else if (type === 'boolean') {
+      next = /^(true|1|yes|on)$/i.test(input.value.trim());
+    } else if (type === 'null') {
+      next = input.value.trim() === '' ? null : input.value;
+    } else {
+      next = input.value;
+    }
+    r.parent[r.key] = next;
+    setDirty();
+    renderTree();
+  };
+  input.addEventListener('blur', () => finish(true));
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+  });
+}
+
+// ============================================================================
+// INLINE EDIT — keys (rename)
+// ============================================================================
+function editKeyInline(span, parts) {
+  const oldKey = parts[parts.length - 1];
+  const parentParts = parts.slice(0, -1);
+  const pr = parentParts.length === 0
+    ? { parent: state, key: 'data', value: state.data }
+    : resolvePath(parentParts);
+  const obj = parentParts.length === 0 ? state.data : pr?.value;
+  if (!isObj(obj)) return;
+  const input = document.createElement('input');
+  input.className = 'edit-input';
+  input.value = oldKey;
+  span.replaceWith(input);
+  input.focus();
+  input.select();
+  const finish = (commit) => {
+    if (!commit) { renderTree(); return; }
+    const newKey = input.value.trim();
+    if (!newKey || newKey === oldKey) { renderTree(); return; }
+    if (newKey in obj) { toast(`Key "${newKey}" already exists`, 'error'); renderTree(); return; }
+    // Preserve insertion order: rebuild the object with the renamed key in place.
+    const out = {};
+    for (const k of Object.keys(obj)) {
+      if (k === oldKey) out[newKey] = obj[oldKey];
+      else out[k] = obj[k];
+    }
+    if (parentParts.length === 0) state.data = out;
+    else pr.parent[pr.key] = out;
+    setDirty();
+    renderTree();
+  };
+  input.addEventListener('blur', () => finish(true));
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+  });
+}
+
+// ============================================================================
+// ADD / DELETE
+// ============================================================================
+function openAddPane(parts, containerType, anchor) {
+  // Remove any existing add-pane in the document.
+  document.querySelectorAll('.add-pane').forEach((p) => p.remove());
+  const pane = document.createElement('div');
+  pane.className = 'add-pane';
+  const typeSel = document.createElement('select');
+  for (const t of ['string', 'number', 'boolean', 'null', 'object', 'array']) {
+    const o = document.createElement('option');
+    o.value = t; o.textContent = t;
+    typeSel.appendChild(o);
+  }
+  let keyInput = null;
+  if (containerType === 'object') {
+    keyInput = document.createElement('input');
+    keyInput.placeholder = 'new key';
+    pane.appendChild(keyInput);
+  }
+  pane.appendChild(typeSel);
+  const valInput = document.createElement('input');
+  valInput.placeholder = 'value';
+  pane.appendChild(valInput);
+  const ok = document.createElement('button');
+  ok.textContent = 'Add';
+  pane.appendChild(ok);
+  const cancel = document.createElement('button');
+  cancel.textContent = '×';
+  cancel.addEventListener('click', () => pane.remove());
+  pane.appendChild(cancel);
+  anchor.appendChild(pane);
+  (keyInput ?? valInput).focus();
+
+  const commit = () => {
+    const target = parts.length === 0 ? state.data : resolvePath(parts)?.value;
+    if (target == null) return;
+    let v;
+    switch (typeSel.value) {
+      case 'string':  v = valInput.value; break;
+      case 'number':  v = Number(valInput.value); if (!Number.isFinite(v)) { toast('not a number', 'error'); return; } break;
+      case 'boolean': v = /^(true|1|yes|on)$/i.test(valInput.value.trim()); break;
+      case 'null':    v = null; break;
+      case 'object':  v = {}; break;
+      case 'array':   v = []; break;
+    }
+    if (containerType === 'object') {
+      const k = keyInput.value.trim();
+      if (!k) { toast('key required', 'error'); return; }
+      if (k in target) { toast(`key "${k}" exists`, 'error'); return; }
+      target[k] = v;
+    } else {
+      target.push(v);
+    }
+    state.expanded.add(pathKey(parts));     // ensure container is expanded
+    pane.remove();
+    setDirty();
+    renderTree();
+  };
+  ok.addEventListener('click', commit);
+  [keyInput, valInput].filter(Boolean).forEach((i) => {
+    i.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); commit(); }
+      if (e.key === 'Escape') { e.preventDefault(); pane.remove(); }
+    });
+  });
+}
+
+function deleteNode(parts) {
+  if (parts.length === 0) return;
+  const parentParts = parts.slice(0, -1);
+  const parentResolved = parentParts.length === 0
+    ? { parent: state, key: 'data', value: state.data }
+    : resolvePath(parentParts);
+  const parent = parentParts.length === 0 ? state.data : parentResolved?.value;
+  const key = parts[parts.length - 1];
+  if (parent == null) return;
+  if (!confirm(`Delete ${Array.isArray(parent) ? `index [${key}]` : `key "${key}"`}?`)) return;
+  if (Array.isArray(parent)) parent.splice(key, 1);
+  else delete parent[key];
+  setDirty();
+  renderTree();
+}
+
+// ============================================================================
+// BREADCRUMB
+// ============================================================================
+function updateBreadcrumb(parts) {
+  const bc = $('breadcrumb');
+  bc.innerHTML = '';
+  const root = document.createElement('span');
+  root.className = 'crumb';
+  root.textContent = state.currentPath ?? '/';
+  bc.appendChild(root);
+  for (let i = 0; i < parts.length; i++) {
+    const sep = document.createElement('span');
+    sep.className = 'sep';
+    sep.textContent = '›';
+    bc.appendChild(sep);
+    const c = document.createElement('span');
+    c.className = 'crumb';
+    c.textContent = parts[i];
+    bc.appendChild(c);
+  }
+}
+
+// ============================================================================
+// SEARCH
+// ============================================================================
+$('search').addEventListener('input', (e) => {
+  state.search = e.target.value.trim().toLowerCase();
+  renderTree();
+});
+
+// ============================================================================
+// EXPAND / COLLAPSE BULK
+// ============================================================================
+function walkAllPaths(value, parts, out) {
+  if (value === null || typeof value !== 'object') return;
+  out.push(pathKey(parts));
+  if (Array.isArray(value)) {
+    for (let i = 0; i < Math.min(value.length, CHUNK); i++) walkAllPaths(value[i], [...parts, i], out);
+  } else {
+    for (const k of Object.keys(value)) walkAllPaths(value[k], [...parts, k], out);
+  }
+}
+$('btn-expand-all').addEventListener('click', () => {
+  if (state.data == null) return;
+  const all = [];
+  walkAllPaths(state.data, [], all);
+  state.expanded = new Set(all);
+  renderTree();
+});
+$('btn-collapse-all').addEventListener('click', () => {
+  state.expanded = new Set(['']);
+  renderTree();
+});
+
+// ============================================================================
+// SAVE / REVERT
+// ============================================================================
+$('btn-save').addEventListener('click', saveFile);
+$('btn-revert').addEventListener('click', revertFile);
+
+window.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    e.preventDefault();
+    saveFile();
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+    e.preventDefault();
+    $('search').focus();
+    $('search').select();
+  }
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'e' || e.key === 'E')) {
+    e.preventDefault();
+    $('btn-expand-all').click();
+  }
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'c' || e.key === 'C')) {
+    e.preventDefault();
+    $('btn-collapse-all').click();
+  }
+});
+
+window.addEventListener('beforeunload', (e) => {
+  if (isDirty()) { e.preventDefault(); e.returnValue = ''; return ''; }
+});
+
+// ============================================================================
+// BOOT
+// ============================================================================
+setDirty();
+loadFileTree();
+</script>
+
+</body>
+</html>

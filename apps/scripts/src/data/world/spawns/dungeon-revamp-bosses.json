@@ -1,0 +1,59 @@
+{
+  "_comment": "Revamped dungeon boss encounters. `region` is a regex source string, runtime: new RegExp(src, 'i'). Hex literals converted to decimal.",
+  "encounters": [
+    {
+      "name": "hythloth",
+      "region": "Hythloth",
+      "boss": { "kind": "hythloth-lord", "hp": 17000, "fame": 19000 },
+      "waves": [
+        { "kinds": ["gargoyle", "gargoyle-enforcer"], "count": 5 },
+        { "kinds": ["demon", "imp"],                  "count": 4 }
+      ],
+      "spawn":   { "x": 5904, "y": 41, "z": 0, "map": 1 },
+      "bossPos": { "x": 5914, "y": 41, "z": 0, "map": 1 },
+      "minor": [
+        { "name": "Crown of Hythloth",   "itemId": 5132, "hue": 1161 },
+        { "name": "Cracked Daemon Mask", "itemId": 5445, "hue": 33 },
+        { "name": "Sulfurous Ash Charm", "itemId": 4234, "hue": 33 },
+        { "name": "Imp Whip",            "itemId": 5742, "hue": 33 }
+      ],
+      "major": { "name": "Aegis of the Demon Lord", "itemId": 7026, "hue": 1102 }
+    },
+    {
+      "name": "wrong",
+      "region": "Wrong",
+      "boss": { "kind": "wrong-warden", "hp": 14000, "fame": 15000 },
+      "waves": [
+        { "kinds": ["skeletal-warrior", "zombie"], "count": 6 },
+        { "kinds": ["lich", "bone-magi"],          "count": 3 }
+      ],
+      "spawn":   { "x": 5470, "y": 380, "z": 0, "map": 1 },
+      "bossPos": { "x": 5480, "y": 380, "z": 0, "map": 1 },
+      "minor": [
+        { "name": "Warden's Keychain", "itemId": 4113, "hue": 1161 },
+        { "name": "Manacle Shackles",  "itemId": 4234, "hue": 68 },
+        { "name": "Prisoner's Sash",   "itemId": 5420, "hue": 1150 },
+        { "name": "Headsman's Hood",   "itemId": 5908, "hue": 33 }
+      ],
+      "major": { "name": "Gibbet Keys", "itemId": 4113, "hue": 1150 }
+    },
+    {
+      "name": "despise-lich",
+      "region": "Despise",
+      "boss": { "kind": "despise-lich-king", "hp": 19000, "fame": 21000 },
+      "waves": [
+        { "kinds": ["skeleton", "evil-mage", "lich"], "count": 6 },
+        { "kinds": ["unholy-knight"],                 "count": 3 }
+      ],
+      "spawn":   { "x": 5290, "y": 720, "z": 0, "map": 1 },
+      "bossPos": { "x": 5300, "y": 720, "z": 0, "map": 1 },
+      "minor": [
+        { "name": "Lich Phylactery",      "itemId": 6242, "hue": 1161 },
+        { "name": "Despair Soul Gem",     "itemId": 3877, "hue": 33 },
+        { "name": "Crown of Despair",     "itemId": 5132, "hue": 1150 },
+        { "name": "Black Sash of Wisdom", "itemId": 5420, "hue": 1161 }
+      ],
+      "major": { "name": "Staff of Lord Despise", "itemId": 3569, "hue": 33 }
+    }
+  ]
+}

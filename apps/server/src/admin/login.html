@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>UO-Node Admin — login</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font: 13px/1.45 'Consolas', 'Cascadia Mono', monospace;
+    color: #d8c89a;
+    background:
+      radial-gradient(circle at 50% 20%, #2b1e0e 0%, #1a1410 70%, #0a0805 100%);
+    height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .card {
+    background: #20180e;
+    border: 2px solid #7a5a20;
+    border-radius: 6px;
+    padding: 28px 32px;
+    width: 360px;
+    box-shadow: 0 10px 40px rgba(0,0,0,.6);
+  }
+  h1 {
+    margin: 0 0 4px; text-align: center; color: #ffd070;
+    font-size: 14px; letter-spacing: 6px;
+  }
+  .sub { text-align: center; opacity: .6; font-size: 11px; margin-bottom: 20px; }
+  label { display: block; margin: 12px 0 4px; color: #ffd070; font-size: 11px; letter-spacing: 1px; }
+  input {
+    width: 100%; background: #14100a; color: #d8c89a;
+    border: 1px solid #4a3818; padding: 8px 10px;
+    font: inherit; border-radius: 3px;
+  }
+  input:focus { outline: 1px solid #7a5a20; border-color: #7a5a20; }
+  button {
+    width: 100%; margin-top: 16px;
+    background: #5a3a18; color: #ffd070;
+    border: 1px solid #7a5a20; padding: 10px;
+    font: inherit; cursor: pointer; border-radius: 3px;
+    letter-spacing: 2px;
+  }
+  button:hover { background: #6a4520; }
+  button:disabled { opacity: .5; cursor: wait; }
+  .err {
+    margin-top: 12px; min-height: 18px;
+    color: #ff8060; font-size: 11px; text-align: center;
+  }
+  .hint {
+    margin-top: 18px; padding-top: 12px;
+    border-top: 1px solid #3a2c14;
+    font-size: 10px; opacity: .5; text-align: center; line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+  <form class="card" id="loginForm">
+    <h1>UO·NODE</h1>
+    <div class="sub">administration panel</div>
+    <label for="u">Account name</label>
+    <input id="u" type="text" autocomplete="username" autofocus required />
+    <label for="p">Password</label>
+    <input id="p" type="password" autocomplete="current-password" required />
+    <button type="submit" id="btn">SIGN IN</button>
+    <div class="err" id="err"></div>
+    <div class="hint">
+      Use any shard account whose <b>accessLevel</b> is Admin,<br/>
+      or the env credential (<code>UO_ADMIN_USER</code> / <code>UO_ADMIN_PASS</code>).
+    </div>
+  </form>
+
+<script>
+const form = document.getElementById('loginForm');
+const errEl = document.getElementById('err');
+const btn   = document.getElementById('btn');
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  errEl.textContent = '';
+  btn.disabled = true;
+  try {
+    const r = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        username: document.getElementById('u').value.trim(),
+        password: document.getElementById('p').value,
+      }),
+      credentials: 'same-origin',
+    });
+    const j = await r.json().catch(() => ({}));
+    if (r.ok) { location.href = '/'; return; }
+    errEl.textContent = j.reason || j.error || `HTTP ${r.status}`;
+  } catch (e) { errEl.textContent = e.message; }
+  finally { btn.disabled = false; }
+});
+</script>
+</body>
+</html>

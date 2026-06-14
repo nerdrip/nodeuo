@@ -1,0 +1,467 @@
+[
+  {
+    "name": "shame",
+    "map": 1,
+    "cx": 1496,
+    "cy": 1625,
+    "cz": 0,
+    "radius": 6,
+    "tiers": [
+      {
+        "kinds": [
+          "rat"
+        ],
+        "capAlive": 12,
+        "killsToAdvance": 24
+      },
+      {
+        "kinds": [
+          "skeleton",
+          "orc"
+        ],
+        "capAlive": 8,
+        "killsToAdvance": 16
+      },
+      {
+        "kinds": [
+          "lich",
+          "ettin"
+        ],
+        "capAlive": 4,
+        "killsToAdvance": 8
+      }
+    ],
+    "bossKind": "dragon"
+  },
+  {
+    "name": "destard",
+    "map": 1,
+    "cx": 1300,
+    "cy": 600,
+    "cz": 0,
+    "radius": 6,
+    "tiers": [
+      {
+        "kinds": [
+          "rat"
+        ],
+        "capAlive": 12,
+        "killsToAdvance": 24
+      },
+      {
+        "kinds": [
+          "troll",
+          "ogre"
+        ],
+        "capAlive": 8,
+        "killsToAdvance": 16
+      },
+      {
+        "kinds": [
+          "gazer",
+          "lich"
+        ],
+        "capAlive": 4,
+        "killsToAdvance": 8
+      }
+    ],
+    "bossKind": "dragon"
+  },
+  {
+    "name": "despise",
+    "map": 1,
+    "cx": 1300,
+    "cy": 200,
+    "cz": 0,
+    "radius": 6,
+    "tiers": [
+      {
+        "kinds": [
+          "orc"
+        ],
+        "capAlive": 12,
+        "killsToAdvance": 24
+      },
+      {
+        "kinds": [
+          "ogre",
+          "ettin"
+        ],
+        "capAlive": 8,
+        "killsToAdvance": 16
+      },
+      {
+        "kinds": [
+          "evil-mage",
+          "lich"
+        ],
+        "capAlive": 4,
+        "killsToAdvance": 8
+      }
+    ],
+    "bossKind": "lich"
+  },
+  {
+    "name": "rikktor",
+    "map": 1,
+    "cx": 5176,
+    "cy": 729,
+    "cz": 5,
+    "radius": 8,
+    "tiers": [
+      {
+        "kinds": [
+          "LavaLizard",
+          "Lizardman"
+        ],
+        "capAlive": 12,
+        "killsToAdvance": 32
+      },
+      {
+        "kinds": [
+          "Drake",
+          "WhiteWyrm"
+        ],
+        "capAlive": 8,
+        "killsToAdvance": 24
+      },
+      {
+        "kinds": [
+          "Dragon",
+          "WhiteDragon",
+          "SkeletalDragon"
+        ],
+        "capAlive": 4,
+        "killsToAdvance": 12
+      }
+    ],
+    "bossKind": "Rikktor",
+    "rewardKind": "powerScroll"
+  },
+  {
+    "name": "barracoon",
+    "map": 1,
+    "cx": 5564,
+    "cy": 1352,
+    "cz": 5,
+    "radius": 8,
+    "tiers": [
+      {
+        "kinds": [
+          "Ratman",
+          "GiantRat"
+        ],
+        "capAlive": 12,
+        "killsToAdvance": 32
+      },
+      {
+        "kinds": [
+          "RatmanArcher",
+          "RatmanShaman"
+        ],
+        "capAlive": 8,
+        "killsToAdvance": 24
+      },
+      {
+        "kinds": [
+          "ChaosDragoon",
+          "ChaosDragoonElite"
+        ],
+        "capAlive": 4,
+        "killsToAdvance": 12
+      }
+    ],
+    "bossKind": "Barracoon",
+    "rewardKind": "powerScroll"
+  },
+  {
+    "name": "mephitis",
+    "map": 1,
+    "cx": 5258,
+    "cy": 705,
+    "cz": 0,
+    "radius": 8,
+    "tiers": [
+      {
+        "kinds": [
+          "GiantSpider",
+          "Scorpion"
+        ],
+        "capAlive": 12,
+        "killsToAdvance": 32
+      },
+      {
+        "kinds": [
+          "TerathanWarrior",
+          "TerathanDrone"
+        ],
+        "capAlive": 8,
+        "killsToAdvance": 24
+      },
+      {
+        "kinds": [
+          "TerathanAvenger",
+          "TerathanMatriarch"
+        ],
+        "capAlive": 4,
+        "killsToAdvance": 12
+      }
+    ],
+    "bossKind": "Mephitis",
+    "rewardKind": "powerScroll"
+  },
+  {
+    "name": "neira",
+    "map": 1,
+    "cx": 4111,
+    "cy": 432,
+    "cz": 8,
+    "radius": 8,
+    "tiers": [
+      {
+        "kinds": [
+          "Skeleton",
+          "Zombie"
+        ],
+        "capAlive": 12,
+        "killsToAdvance": 32
+      },
+      {
+        "kinds": [
+          "BoneKnight",
+          "Mummy"
+        ],
+        "capAlive": 8,
+        "killsToAdvance": 24
+      },
+      {
+        "kinds": [
+          "Lich",
+          "LichLord",
+          "AncientLich"
+        ],
+        "capAlive": 4,
+        "killsToAdvance": 12
+      }
+    ],
+    "bossKind": "Neira",
+    "rewardKind": "powerScroll"
+  },
+  {
+    "name": "semidar",
+    "map": 1,
+    "cx": 5814,
+    "cy": 1350,
+    "cz": 0,
+    "radius": 8,
+    "tiers": [
+      {
+        "kinds": [
+          "Imp",
+          "GazerLarva"
+        ],
+        "capAlive": 12,
+        "killsToAdvance": 32
+      },
+      {
+        "kinds": [
+          "Daemon",
+          "Succubus"
+        ],
+        "capAlive": 8,
+        "killsToAdvance": 24
+      },
+      {
+        "kinds": [
+          "ArcaneDaemon",
+          "Balron"
+        ],
+        "capAlive": 4,
+        "killsToAdvance": 12
+      }
+    ],
+    "bossKind": "Semidar",
+    "rewardKind": "powerScroll"
+  },
+  {
+    "name": "lord-oaks",
+    "map": 1,
+    "cx": 2076,
+    "cy": 1376,
+    "cz": 0,
+    "radius": 8,
+    "tiers": [
+      {
+        "kinds": [
+          "Pixie",
+          "CentaurForest"
+        ],
+        "capAlive": 12,
+        "killsToAdvance": 32
+      },
+      {
+        "kinds": [
+          "Wisp",
+          "EvilFairyWisp"
+        ],
+        "capAlive": 8,
+        "killsToAdvance": 24
+      },
+      {
+        "kinds": [
+          "Centaur",
+          "Treefellow",
+          "CorruptedTreefellow"
+        ],
+        "capAlive": 4,
+        "killsToAdvance": 12
+      }
+    ],
+    "bossKind": "LordOaks",
+    "rewardKind": "powerScroll"
+  },
+  {
+    "name": "twaulo",
+    "map": 1,
+    "cx": 5571,
+    "cy": 1418,
+    "cz": 0,
+    "radius": 6,
+    "tiers": [
+      {
+        "kinds": [
+          "ForestOstard",
+          "GiantSerpent"
+        ],
+        "capAlive": 10,
+        "killsToAdvance": 20
+      },
+      {
+        "kinds": [
+          "StoneHarpy",
+          "Wisp"
+        ],
+        "capAlive": 6,
+        "killsToAdvance": 16
+      },
+      {
+        "kinds": [
+          "Centaur",
+          "EvilFairyWisp"
+        ],
+        "capAlive": 4,
+        "killsToAdvance": 10
+      }
+    ],
+    "bossKind": "TwauloOfTheGlade",
+    "rewardKind": "minorScroll"
+  },
+  {
+    "name": "maximus",
+    "map": 1,
+    "cx": 5400,
+    "cy": 24,
+    "cz": 0,
+    "radius": 6,
+    "tiers": [
+      {
+        "kinds": [
+          "Lizardman",
+          "Snake"
+        ],
+        "capAlive": 10,
+        "killsToAdvance": 20
+      },
+      {
+        "kinds": [
+          "OphidianWarrior",
+          "OphidianMage"
+        ],
+        "capAlive": 6,
+        "killsToAdvance": 16
+      },
+      {
+        "kinds": [
+          "OphidianKnight",
+          "OphidianAvenger"
+        ],
+        "capAlive": 4,
+        "killsToAdvance": 10
+      }
+    ],
+    "bossKind": "Maximus",
+    "rewardKind": "minorScroll"
+  },
+  {
+    "name": "serado",
+    "map": 4,
+    "cx": 712,
+    "cy": 1075,
+    "cz": 12,
+    "radius": 6,
+    "tiers": [
+      {
+        "kinds": [
+          "Kappa",
+          "YomotsuPriest"
+        ],
+        "capAlive": 10,
+        "killsToAdvance": 20
+      },
+      {
+        "kinds": [
+          "Ronin",
+          "YomotsuWarrior"
+        ],
+        "capAlive": 6,
+        "killsToAdvance": 16
+      },
+      {
+        "kinds": [
+          "Oni",
+          "YomotsuElder"
+        ],
+        "capAlive": 4,
+        "killsToAdvance": 10
+      }
+    ],
+    "bossKind": "Serado",
+    "rewardKind": "powerScroll"
+  },
+  {
+    "name": "ilhenir",
+    "map": 5,
+    "cx": 1018,
+    "cy": 1062,
+    "cz": -42,
+    "radius": 6,
+    "tiers": [
+      {
+        "kinds": [
+          "Gargoyle",
+          "StoneGargoyle"
+        ],
+        "capAlive": 10,
+        "killsToAdvance": 20
+      },
+      {
+        "kinds": [
+          "StoneGargoyleEnforcer",
+          "GargoyleEnforcer"
+        ],
+        "capAlive": 6,
+        "killsToAdvance": 16
+      },
+      {
+        "kinds": [
+          "Lich",
+          "AncientLich"
+        ],
+        "capAlive": 4,
+        "killsToAdvance": 10
+      }
+    ],
+    "bossKind": "Ilhenir",
+    "rewardKind": "powerScroll"
+  }
+]
