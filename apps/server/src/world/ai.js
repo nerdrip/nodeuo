@@ -154,12 +154,10 @@ export class AIScheduler {
     // also nothing testing it, and unit tests (which don't simulate
     // players) need the legacy run-every-tick behaviour.
     const sectors = this.world.sectors;
-    let anyOnline = false;
-    if (sectors?.mobileSerialsNear) {
-      for (const m of this.world.mobiles.values()) {
-        if (m.client) { anyOnline = true; break; }
-      }
-    }
+    const anyOnline = sectors?.mobileSerialsNear
+      ? (this.world.hasOnlineMobiles?.()
+        ?? [...this.world.mobiles.values()].some((m) => !!m.client))
+      : false;
     const hibernateEnabled = anyOnline && !!sectors?.mobileSerialsNear;
     for (const [serial, binding] of this.bindings) {
       const mob = this.world.mobiles.get(serial);

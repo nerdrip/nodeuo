@@ -291,15 +291,9 @@ export class GameScene extends Scene {
     // is idempotent so re-entering the scene won't duplicate parents.
     nameOverheadManager.install(this._worldLayer);
     worldTextManager.install(this._worldLayer);
-    // Spawn a damage number whenever the server reports combat damage.
-    // The bus event already includes serial + amount; we consult the
-    // mobile cache to position the number above its sprite.
-    this._unsubs.push(
-      bus.on('combat:damage', ({ serial, amount, damageType, type }) => {
-        if (!serial || !amount) return;
-        worldTextManager.damage(serial, amount, damageType ?? type ?? 'phys');
-      }),
-    );
+    // Damage feedback is centralized on `damage:apply` in WorldTextManager
+    // and MobileRenderer. Both legacy 0x0B and AOS 0x22 feed that event;
+    // keeping a second combat:damage listener here rendered two numbers.
     // Single-click LookReq → 0x98 AllNamesAck → `entity:name` bus event.
     // Pin a 5-second floating label so the player sees what they clicked.
     this._unsubs.push(
@@ -3524,7 +3518,7 @@ export class GameScene extends Scene {
 
   _onMovementAck({ sequence, notoriety }) {
     const pending = this._pendingMoves.get(sequence);
-    walker.onAck();
+    walker.onAck(sequence);
     if (walker.resyncRequested) walker.clearResync();
     // The client already simulated this step in `_sendMove`. Just
     // drop the pending entry and accept the notoriety byte the server

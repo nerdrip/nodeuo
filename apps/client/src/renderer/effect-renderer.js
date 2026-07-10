@@ -24,6 +24,7 @@ import { applyHueTo } from './hue-filter.js';
 import { bus } from '../core/event-bus.js';
 import { world } from '../world/world.js';
 import { acquireSprite, releaseSprite } from './sprite-pool.js';
+import { effectLifetimeMs } from './effect-timing.js';
 
 class ActiveEffect {
   constructor(info) {
@@ -39,7 +40,7 @@ class ActiveEffect {
     /** @type {Sprite | null} */
     this.sprite = null;
     /** ms total flight time / display time */
-    this.lifetime = Math.max(200, (info.duration | 0) * 50 + 200);
+    this.lifetime = effectLifetimeMs(info);
     this.sprite = null;
     this._lightning = null;
     this._drag = null;
@@ -47,6 +48,12 @@ class ActiveEffect {
     this._burstSeed = 0;
     this._lightningPts = null;
     this._lastLightningAt = -Infinity;
+    this._renderedGraphic = -1;
+    this._pendingGraphic = 0;
+    this._sourceX = Number(info.sx) || 0;
+    this._sourceY = Number(info.sy) || 0;
+    this._sourceZ = Number(info.sz) || 0;
+    this._exploded = false;
     this._disposed = false;
     this._token = (this._token + 1) >>> 0;
     return this;
@@ -134,6 +141,10 @@ export class EffectRenderer {
     e._burstSeed = 0;
     e._lightningPts = null;
     e._lastLightningAt = -Infinity;
+    e._renderedGraphic = -1;
+    e._pendingGraphic = 0;
+    e._sourceX = e._sourceY = e._sourceZ = 0;
+    e._exploded = false;
     if (recycle && this._effectPool.length < EffectRenderer.MAX_EFFECT_POOL) {
       this._effectPool.push(e);
     }
@@ -252,6 +263,22 @@ export class EffectRenderer {
       this._dropOldestEffect();
     }
     const eff = this._acquireEffect(info);
+    const source = world.mobiles.get((info.sourceSerial ?? 0) >>> 0);
+    if (source) {
+      eff._sourceX = source.x;
+      eff._sourceY = source.y;
+      eff._sourceZ = source.z;
+    }
+    const target = world.mobiles.get((info.targetSerial ?? 0) >>> 0);
+    eff.lifetime = effectLifetimeMs({
+      ...info,
+      sx: eff._sourceX,
+      sy: eff._sourceY,
+      sz: eff._sourceZ,
+      tx: target?.x ?? info.tx,
+      ty: target?.y ?? info.ty,
+      tz: target?.z ?? info.tz,
+    });
     this.effects.push(eff);
     const token = eff._token;
 
@@ -275,7 +302,11 @@ export class EffectRenderer {
       this._removeQueuedEffect(eff);
       return;
     }
-    const tex = assets.staticTextureSync?.(info.graphic) ?? await assets.staticTexture(info.graphic);
+    // Effect art is animated through animdata even when tiledata does not
+    // carry the Static.Animation flag. Start at the effect's first frame,
+    // matching GameEffect.AnimIndex = 0 in ClassicUO.
+    const firstGraphic = assets.currentAnimatedGraphic?.(info.graphic, 0) ?? info.graphic;
+    const tex = assets.staticTextureSync?.(firstGraphic) ?? await assets.staticTexture(firstGraphic);
     if (eff._disposed || eff._token !== token || !this.effects.includes(eff)) return;
     if (!tex) {
       this._removeQueuedEffect(eff);
@@ -307,7 +338,51 @@ export class EffectRenderer {
     }
     if (info.scale) sp.scale.set(info.scale);
     eff.sprite = sp;
+    eff._renderedGraphic = firstGraphic;
     this.parent.addChild(sp);
+  }
+
+  _updateAnimatedGraphic(eff) {
+    const baseGraphic = eff.info?.graphic | 0;
+    if (!baseGraphic || !eff.sprite) return;
+    const graphic = assets.currentAnimatedGraphic?.(baseGraphic, eff.elapsed) ?? baseGraphic;
+    if (graphic === eff._renderedGraphic) return;
+    const cached = assets.staticTextureSync?.(graphic);
+    if (cached) {
+      eff.sprite.texture = cached;
+      eff._renderedGraphic = graphic;
+      eff._pendingGraphic = 0;
+      return;
+    }
+    if (eff._pendingGraphic === graphic) return;
+    eff._pendingGraphic = graphic;
+    const token = eff._token;
+    assets.staticTexture(graphic).then((texture) => {
+      if (!texture || eff._disposed || eff._token !== token || !eff.sprite) return;
+      eff.sprite.texture = texture;
+      eff._renderedGraphic = graphic;
+    }).finally(() => {
+      if (eff._token === token && eff._pendingGraphic === graphic) eff._pendingGraphic = 0;
+    }).catch(() => {});
+  }
+
+  _queueExplosion(info) {
+    const graphic = (info.explodeEffect | 0) || 0x36CB;
+    const target = world.mobiles.get((info.targetSerial ?? 0) >>> 0);
+    const x = target?.x ?? info.tx ?? info.sx;
+    const y = target?.y ?? info.ty ?? info.sy;
+    const z = target?.z ?? info.tz ?? info.sz;
+    queueMicrotask(() => bus.emit('fx:graphic', {
+      type: 2,
+      graphic,
+      hue: info.hue ?? 0,
+      renderMode: info.renderMode ?? 0,
+      sx: x, sy: y, sz: z,
+      tx: x, ty: y, tz: z,
+      duration: 8,
+      speed: 0,
+      explode: 0,
+    }));
   }
 
   /** Per-frame tick: advance projectiles + cull expired effects. */
@@ -342,12 +417,16 @@ export class EffectRenderer {
       // limbo at the last known position. CUO `EffectManager` checks
       // `world.GetOrCreateMobile(source) == null` per tick.
       const info = eff.info;
-      if (info.type === 3 && (info.source || info.sourceSerial || info.targetSerial)) {
-        const hostSerial = info.sourceSerial || info.targetSerial || info.source;
+      if (info.type === 3 && (info.attachedSerial || info.source || info.sourceSerial || info.targetSerial)) {
+        const hostSerial = info.attachedSerial || info.sourceSerial || info.targetSerial || info.source;
         const host = world.mobiles.get(hostSerial >>> 0);
         if (!host) eff.elapsed = eff.lifetime;
       }
       if (eff.elapsed >= eff.lifetime) {
+        if (info.type === 0 && !eff._exploded && (info.explode || info.explodes)) {
+          eff._exploded = true;
+          this._queueExplosion(info);
+        }
         this._destroyEffect(eff);
         continue;
       }
@@ -445,31 +524,40 @@ export class EffectRenderer {
         this.effects[write++] = eff;
         continue;
       }
+      this._updateAnimatedGraphic(eff);
       let wx, wy, wz;
-      if (info.type === 0 && (info.tx || info.ty)) {
+      if (info.type === 0 && (Number.isFinite(info.tx) || Number.isFinite(info.ty) || info.targetSerial)) {
         // Moving projectile.
         const t = Math.min(1, eff.elapsed / eff.lifetime);
         eff.t = t;
-        wx = info.sx + (info.tx - info.sx) * t;
-        wy = info.sy + (info.ty - info.sy) * t;
-        wz = info.sz + (info.tz - info.sz) * t;
+        const target = world.mobiles.get((info.targetSerial ?? 0) >>> 0);
+        const tx = target?.x ?? info.tx;
+        const ty = target?.y ?? info.ty;
+        const tz = target?.z ?? info.tz;
+        wx = eff._sourceX + (tx - eff._sourceX) * t;
+        wy = eff._sourceY + (ty - eff._sourceY) * t;
+        wz = eff._sourceZ + (tz - eff._sourceZ) * t;
         // Rotate sprite to face the motion vector. Optional — caller
         // can disable with `info.fixedRotation = true`.
-        if (!info.fixedRotation) {
-          const dx = info.tx - info.sx;
-          const dy = info.ty - info.sy;
-          eff.sprite.rotation = Math.atan2(dy, dx);
+        if (!(info.fixedRotation || info.fixedDirection || info.fixed)) {
+          const screenDx = worldToScreenX(tx, ty) - worldToScreenX(eff._sourceX, eff._sourceY);
+          const screenDy = worldToScreenY(tx, ty, tz)
+            - worldToScreenY(eff._sourceX, eff._sourceY, eff._sourceZ);
+          eff.sprite.rotation = Math.atan2(screenDy, screenDx);
         }
-      } else if (info.type === 3 && (info.sourceSerial || info.targetSerial)) {
+      } else if (info.type === 3 && (info.attachedSerial || info.sourceSerial || info.targetSerial)) {
         // Animation attached to a mobile serial — track its position.
         // Audit #34 P2 #8: was reading dead `info.attachedSerial`.
-        const serial = info.targetSerial || info.sourceSerial;
+        const serial = info.attachedSerial || info.targetSerial || info.sourceSerial;
         const m = world.mobiles.get(serial);
         wx = m?.x ?? info.tx; wy = m?.y ?? info.ty; wz = m?.z ?? info.tz;
       } else {
-        wx = info.tx || info.sx;
-        wy = info.ty || info.sy;
-        wz = info.tz || info.sz;
+        // FixedXYZ / FixedFrom use the protocol's source coordinates.
+        // Target coordinates belong to Moving effects and can legitimately
+        // contain unrelated/non-zero values on custom shards.
+        wx = Number.isFinite(info.sx) ? info.sx : info.tx;
+        wy = Number.isFinite(info.sy) ? info.sy : info.ty;
+        wz = Number.isFinite(info.sz) ? info.sz : info.tz;
       }
       const projX = worldToScreenX(wx, wy);
       const projY = worldToScreenY(wx, wy, wz);

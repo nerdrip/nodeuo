@@ -80,6 +80,10 @@ class Walker {
   constructor() {
     this._seq = 0;
     this._inFlight = 0;
+    /** Sequence -> reservation timestamp. ACKs release the matching request,
+     * so a newer ACK cannot hide an older missing one. */
+    this._pending = new Map();
+    this._inFlightSinceMs = 0;
     this._fastWalk = new Uint32Array(FASTWALK_STACK_SIZE);
     this._fwTop = 0;             // wraps mod FASTWALK_STACK_SIZE
     this._lastStepAt = 0;
@@ -110,6 +114,14 @@ class Walker {
     });
   }
 
+  _syncInFlight() {
+    this._inFlight = this._pending.size;
+    this._inFlightSinceMs = this._pending.size > 0
+      ? this._pending.values().next().value
+      : 0;
+    movementStats.pending = this._inFlight;
+  }
+
   /** True when the manager is allowed to emit another 0x02. */
   canStep(now = performance.now()) {
     if (this.resyncRequested) return false;
@@ -121,13 +133,12 @@ class Walker {
         && this._inFlightSinceMs
         && (now - this._inFlightSinceMs) > 3000) {
       const stalledFor = now - this._inFlightSinceMs;
-      this._inFlight = 0;
-      this._inFlightSinceMs = 0;
+      this._pending.clear();
+      this._syncInFlight();
       this.resyncRequested = true;
       movementStats.staleResyncs++;
       movementStats.resyncRequests++;
       movementStats.lastStallMs = stalledFor;
-      movementStats.pending = 0;
       recordMovementTrace('stall-resync', { ageMs: movementStats.lastStallMs | 0 }, now);
       // Throttle the chat-system notice — when the server is wedged
       // (WS dropped, server crashed, every step times out), canStep is
@@ -178,16 +189,10 @@ class Walker {
         break;
       }
     }
-    this._inFlight++;
+    this._pending.set(seq, now);
+    this._syncInFlight();
     movementStats.reserved++;
-    movementStats.pending = this._inFlight;
     if (this._inFlight > movementStats.maxPending) movementStats.maxPending = this._inFlight;
-    // Client audit #3 #4 — track when the oldest unacked step was sent so
-    // canStep() can detect a >3 s ack stall and force a self-resync
-    // instead of locking the player out indefinitely.
-    if (!this._inFlightSinceMs || this._inFlight === 1) {
-      this._inFlightSinceMs = now;
-    }
     let delayMs;
     if (directionOnly) delayMs = TURN_DELAY;
     else if (mounted)  delayMs = run ? MOUNT_RUN_DELAY : MOUNT_WALK_DELAY;
@@ -210,10 +215,9 @@ class Walker {
    *  reservation, so reusing the number is safe. */
   releaseToTurn(reservation) {
     if (!reservation) return;
-    if (this._inFlight > 0) this._inFlight--;
-    if (this._inFlight === 0) this._inFlightSinceMs = 0;
+    this._pending.delete(reservation.sequence & 0xff);
+    this._syncInFlight();
     movementStats.released++;
-    movementStats.pending = this._inFlight;
     // Rewind seq so the next reservation reuses this number — server
     // never saw it. Skip the rewind if a fresher reservation already
     // overtook this one (defensive: don't yank the future).
@@ -235,12 +239,12 @@ class Walker {
   }
 
   /** 0x22 MovementAck — server confirms a previously-sent step. */
-  onAck() {
-    if (this._inFlight > 0) this._inFlight--;
-    if (this._inFlight === 0) this._inFlightSinceMs = 0;
-    else this._inFlightSinceMs = performance.now();
+  onAck(sequence) {
+    const seq = sequence & 0xff;
+    const matched = this._pending.delete(seq);
+    this._syncInFlight();
     movementStats.acks++;
-    movementStats.pending = this._inFlight;
+    recordMovementTrace(matched ? 'ack-release' : 'ack-unmatched', { seq });
   }
 
   /** 0x21 MovementRej — server snapped us back. Drain the in-flight
@@ -248,12 +252,11 @@ class Walker {
    *  the player sprite, and clear queued predicted steps.  CUO does this
    *  in `WalkerManager.RejectMovement` → `Mobile.Position = rejPos`. */
   onRej(rejPayload = null) {
-    this._inFlight = 0;
-    this._inFlightSinceMs = 0;
+    this._pending.clear();
+    this._syncInFlight();
     this.resyncRequested = true;
     movementStats.rejects++;
     movementStats.resyncRequests++;
-    movementStats.pending = 0;
     movementStats.lastRejectSeq = rejPayload?.sequence | 0;
     movementStats.lastRejectAt = performance.now();
     recordMovementTrace('reject', rejPayload);
@@ -268,22 +271,20 @@ class Walker {
   /** After the caller has applied a server resync, clear the flag so
    *  movement can resume. */
   clearResync() {
-    this._inFlight = 0;
-    this._inFlightSinceMs = 0;
+    this._pending.clear();
+    this._syncInFlight();
     this.resyncRequested = false;
-    movementStats.pending = 0;
     recordMovementTrace('clear-resync');
   }
 
   reset() {
     this._seq = 0;
-    this._inFlight = 0;
-    this._inFlightSinceMs = 0;
+    this._pending.clear();
+    this._syncInFlight();
     this._fastWalk.fill(0);
     this._fwTop = 0;
     this._lastStepAt = 0;
     this.resyncRequested = false;
-    movementStats.pending = 0;
     recordMovementTrace('reset');
   }
 }

@@ -103,10 +103,21 @@ const LOW_GROUP = {   // animals
   walk: 0, run: 1, idle: 2, fidget: 9, attack: 5,
   die1: 8, die2: 12,
 };
+const USE_UOP_ANIMATION = 0x10000;
+// Modern UOP monsters/animals use dedicated peaceful movement groups.
+// ClassicUO selects 22/24/25 for walk/run/idle and keeps 0/1 for the
+// corresponding war-mode poses.
+const UOP_HIGH_GROUP = {
+  walk: 22, walkWar: 0, run: 24,
+  idle: 25, idleWar: 1,
+  fidget: 17, attack: 4, cast: 12, getHit: 13,
+  die1: 2, die2: 3,
+};
 const GROUP_NAME = new Map([
   [PEOPLE_GROUP, 'people'],
   [LOW_GROUP, 'low'],
   [HIGH_GROUP, 'high'],
+  [UOP_HIGH_GROUP, 'uop'],
 ]);
 
 const HUMAN_REMAP = Object.freeze({
@@ -162,6 +173,26 @@ const SEMANTIC_FALLBACK_KEYS = Object.freeze({
 });
 
 function tableForBody(body) {
+  const info = typeof assets.mobileBodyInfo === 'function'
+    ? assets.mobileBodyInfo(body)
+    : null;
+  switch (String(info?.type ?? '').toUpperCase()) {
+    case 'HUMAN':
+    case 'EQUIPMENT':
+      return PEOPLE_GROUP;
+    case 'ANIMAL':
+      return ((info?.flags ?? 0) & USE_UOP_ANIMATION) !== 0
+        ? UOP_HIGH_GROUP
+        : LOW_GROUP;
+    case 'MONSTER':
+    case 'SEA':
+    case 'SEAMONSTER':
+      return ((info?.flags ?? 0) & USE_UOP_ANIMATION) !== 0
+        ? UOP_HIGH_GROUP
+        : HIGH_GROUP;
+    default:
+      break;
+  }
   if (body >= 400) return PEOPLE_GROUP;
   if (body >= 200) return LOW_GROUP;
   return HIGH_GROUP;
@@ -191,6 +222,9 @@ function resolveActionKey(body, label, ctx = null) {
       if (key === 'walk')                    key = 'walkArmed';
       else if (key === 'run')                key = 'runArmed';
     }
+  } else if (table === UOP_HIGH_GROUP && ctx?.inWarMode) {
+    if (key === 'walk') key = 'walkWar';
+    else if (key === 'idle') key = 'idleWar';
   }
   return { table, key };
 }
@@ -204,11 +238,13 @@ function pushUnique(out, value) {
 function labelGroupCandidates(body, label, ctx = null) {
   const resolved = resolveActionKey(body, label, ctx);
   if (!resolved) return [];
-  const tables = resolved.table === HIGH_GROUP
-    ? [HIGH_GROUP, LOW_GROUP, PEOPLE_GROUP]
+  const tables = resolved.table === UOP_HIGH_GROUP
+    ? [UOP_HIGH_GROUP, HIGH_GROUP, LOW_GROUP, PEOPLE_GROUP]
+    : resolved.table === HIGH_GROUP
+    ? [HIGH_GROUP, UOP_HIGH_GROUP, LOW_GROUP, PEOPLE_GROUP]
     : resolved.table === LOW_GROUP
-      ? [LOW_GROUP, HIGH_GROUP, PEOPLE_GROUP]
-      : [PEOPLE_GROUP, HIGH_GROUP, LOW_GROUP];
+      ? [LOW_GROUP, HIGH_GROUP, UOP_HIGH_GROUP, PEOPLE_GROUP]
+      : [PEOPLE_GROUP, HIGH_GROUP, LOW_GROUP, UOP_HIGH_GROUP];
   const out = [];
   pushUnique(out, resolved.table[resolved.key]);
   for (const table of tables) {
@@ -224,11 +260,12 @@ function labelGroupCandidates(body, label, ctx = null) {
 function numericGroupCandidates(body, group) {
   const g = group | 0;
   const out = [g];
-  if (body >= 400) {
+  const table = tableForBody(body);
+  if (table === PEOPLE_GROUP) {
     pushUnique(out, HUMAN_REMAP[g] ?? 4);
     pushUnique(out, g % 35);
     pushUnique(out, PEOPLE_GROUP.idle);
-  } else if (body >= 200) {
+  } else if (table === LOW_GROUP) {
     pushUnique(out, ANIMAL_REMAP[g] ?? SEA_REMAP[g] ?? 2);
     pushUnique(out, g % 13);
     pushUnique(out, LOW_GROUP.idle);
@@ -236,6 +273,7 @@ function numericGroupCandidates(body, group) {
     pushUnique(out, LOW_TO_HIGH_REMAP[g]);
     pushUnique(out, ANIMAL_REMAP[g]);
     pushUnique(out, g % 22);
+    pushUnique(out, table === UOP_HIGH_GROUP ? UOP_HIGH_GROUP.idle : HIGH_GROUP.idle);
     pushUnique(out, HIGH_GROUP.idle);
     pushUnique(out, LOW_GROUP.idle);
   }

@@ -2708,9 +2708,7 @@ function handleMovementReq(state, pkt) {
   // sequence — replay protection. Bug-hunt #2 C3.
   const expected = ((state._lastMoveSeq | 0) + 1) & 0xff || 1;
   if (sequence !== 0 && sequence !== expected
-      && state._lastMoveSeq != null
-      && state.account?.accessLevel !== 'GM'
-      && state.account?.accessLevel !== 'Admin') {
+      && state._lastMoveSeq != null) {
     // Out-of-order seq → snap-back + reset the counter. Don't disconnect
     // (a brief packet reorder over jittery WiFi can trip this).
     trace('move', `net#${state.id} REJECT seq: got=${sequence} expected=${expected}`);
@@ -5957,7 +5955,13 @@ export const combat = {
    */
   tick(world, onKill) {
     const now = Date.now();
-    for (const mob of world.mobiles.values()) {
+    // ServUO processes combatants/NetStates, not every NPC in Map.Mobiles.
+    // The server already maintains an authoritative online-mobile index;
+    // use it here because this loop runs at 10 Hz on populated shards.
+    const online = typeof world.onlineMobiles === 'function'
+      ? world.onlineMobiles()
+      : world.mobiles.values();
+    for (const mob of online) {
       const state = mob.client;
       if (!state || state.stage !== Stage.InWorld) continue;
       const combatant = state.combatant >>> 0;

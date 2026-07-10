@@ -53,6 +53,23 @@ describe('frameIncoming', () => {
     expect(() => frameIncoming(new Uint8Array([0xFF, 0x00, 0x00]))).toThrow();
   });
 
+  it('exposes the valid packet prefix when a malformed tail follows it', () => {
+    const buf = new Uint8Array([
+      0x02, 0x07, 0x40, 0x2b, 0xfb, 0x96, 0x02,
+      0x26,
+    ]);
+
+    try {
+      frameIncoming(buf);
+      throw new Error('expected framing to fail');
+    } catch (error) {
+      expect(error.offset).toBe(7);
+      expect(error.consumed).toBe(7);
+      expect(error.packets).toHaveLength(1);
+      expect(Array.from(error.packets[0])).toEqual(Array.from(buf.subarray(0, 7)));
+    }
+  });
+
   it('size table includes critical login opcodes', () => {
     expect(INCOMING_OPCODES[0x80].size).toBe(62);
     expect(INCOMING_OPCODES[0x91].size).toBe(65);

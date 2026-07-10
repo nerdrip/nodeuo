@@ -21,7 +21,7 @@
 // drawing garbage pixels because the per-frame (u, v, w, h) rect now
 // pointed into an OLD atlas page on disk). Format:
 //   uo-assets-<timestamp> — millis since epoch, monotonically increasing.
-const CACHE_VERSION = 'uo-assets-v1779748338358';
+const CACHE_VERSION = 'uo-assets-v1783717764451';
 const ASSET_PATH    = /^\/assets\/.+\.(png|bin|mp3|ktx2)$/;
 
 self.addEventListener('install', (e) => {

@@ -132,7 +132,11 @@ export function opcodeInfo(opcode) {
  *
  * The caller keeps the unconsumed tail for the next call.
  *
- * Throws on unknown opcodes (protocol error — the socket must be closed).
+ * Throws on malformed input. The error carries the complete packet prefix in
+ * `packets` and its byte count in `consumed`, allowing a stream owner to
+ * dispatch packets that preceded the malformed tail before discarding that
+ * tail. This is important for movement: `[MovementReq][bad byte]` must not
+ * lose the valid request (and therefore its ACK).
  *
  * @param {Uint8Array} input
  * @param {{ dropReqSize?: 14 | 15 }} [options]
@@ -149,8 +153,12 @@ export function frameIncoming(input, options = {}) {
       // matching opcode byte (the prior heuristic) lied whenever the
       // unknown byte happened to appear repeatedly inside other packets.
       const err = new Error(`Unknown incoming opcode 0x${opcode.toString(16).toUpperCase().padStart(2, '0')} at offset ${offset}`);
-      // @ts-ignore — extra field the caller reads.
+      // @ts-ignore — diagnostic/recovery fields consumed by NetState.
       err.offset = offset;
+      // @ts-ignore
+      err.consumed = offset;
+      // @ts-ignore
+      err.packets = packets;
       throw err;
     }
     let size = (opcode === 0x08 && options.dropReqSize === 14) ? 14 : info.size;
@@ -159,8 +167,12 @@ export function frameIncoming(input, options = {}) {
       size = (input[offset + 1] << 8) | input[offset + 2];
       if (size < 3) {
         const err = new Error(`Variable packet 0x${opcode.toString(16)} has invalid size ${size} at offset ${offset}`);
-        // @ts-ignore
+        // @ts-ignore — diagnostic/recovery fields consumed by NetState.
         err.offset = offset;
+        // @ts-ignore
+        err.consumed = offset;
+        // @ts-ignore
+        err.packets = packets;
         throw err;
       }
     }

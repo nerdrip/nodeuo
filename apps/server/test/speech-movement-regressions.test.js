@@ -120,4 +120,20 @@ describe('speech and movement regressions', () => {
     expect(itemIndex).toBeGreaterThanOrEqual(0);
     expect(ackIndex).toBeLessThan(itemIndex);
   });
+
+  it('validates movement sequence integrity for staff accounts too', () => {
+    const world = new World();
+    const sent = [];
+    const player = world.createMobile({ name: 'admin', x: 1000, y: 1000, z: 0, map: 1, direction: 2 });
+    const state = makeState(world, player, sent);
+    state.account.accessLevel = 'Admin';
+    state._lastMoveSeq = 1;
+
+    buildHandlers()[0x02](state, movementReq(0x02, 3));
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0][0]).toBe(0x21);
+    expect(sent[0][1]).toBe(3);
+    expect(state._lastMoveSeq).toBe(3);
+  });
 });

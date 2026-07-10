@@ -35,6 +35,14 @@ assets.mobilesAtlas = {
     400: action(0, 4, 9, 16, 20, 21, 22, 30),
     // Gargoyle-ish body with real SA fly idle.
     666: action(4, 19, 62, 64),
+    // Modern body: logical UOP actions alias a physical stored group.
+    717: {
+      ...action(1, 11),
+      actionAliases: { 22: 11, 24: 11, 25: 11 },
+    },
+  },
+  mobTypes: {
+    717: { type: 'MONSTER', flags: 0x10000 },
   },
 };
 assets.prefetchMobileCycle = async () => {};
@@ -47,6 +55,12 @@ assert.equal(resolveRenderableGroup(226, 17, null, 0), 9, 'server High fidget ma
 assert.equal(resolveRenderableGroup(400, 2, null, 0), 21, 'server High die1 maps to People die1');
 assert.equal(resolveRenderableGroup(400, 15, null, 0), 30, 'server High walk-warmode maps to People turn');
 assert.equal(resolveRenderableGroup(9, 19, null, 0), 19, 'monster fly stays on High fly when present');
+assert.equal(resolveGroup(717, Action.Walk), 22, 'UOP monster uses peaceful walk group');
+assert.equal(resolveGroup(717, Action.Run), 24, 'UOP monster uses dedicated run group');
+assert.equal(resolveGroup(717, Action.Idle), 25, 'UOP monster uses peaceful idle group');
+assert.equal(resolveGroup(717, Action.Idle, { inWarMode: true }), 1, 'UOP monster uses war idle group');
+assert.equal(resolveRenderableGroup(717, Action.Idle, null, 0), 25, 'logical UOP alias remains renderable');
+assert.equal(assets._tryMobileFrame(717, 25, 0, 0).action, 11, 'asset lookup follows physical action alias');
 
 const anim = new MobileAnimation();
 anim.setBody(6);

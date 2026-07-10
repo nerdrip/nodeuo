@@ -143,6 +143,22 @@ export class World {
     }
   }
 
+  /** O(1) online presence check once the explicit index is enabled. */
+  hasOnlineMobiles() {
+    if (this._onlineMobilesAuthoritative) {
+      for (const serial of this._onlineMobiles) {
+        const mob = this.mobiles.get(serial);
+        if (mob?.client) return true;
+        this._onlineMobiles.delete(serial);
+      }
+      return false;
+    }
+    for (const mob of this.mobiles.values()) {
+      if (mob.client) return true;
+    }
+    return false;
+  }
+
   /**
    * Create a new mobile and allocate its serial.
    * @param {Partial<Mobile>} data

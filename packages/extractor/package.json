@@ -6,6 +6,7 @@
   "main": "./extract.js",
   "scripts": {
     "extract": "node ./extract.js",
+    "test": "node --test ./test/*.test.mjs",
     "ktx2": "node ./ktx2.js",
     "ktx2:dry-run": "node ./ktx2.js --dry-run --limit 5",
     "ktx2:tool:check": "node ./ktx2-tool.js --check",

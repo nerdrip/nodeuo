@@ -30,6 +30,8 @@ const EQUIP_ANIM_CACHE_MAX = 8192;
 const EQUIP_ANIM_CACHE_TRIM = 512;
 const ATLAS_BOOT_PRELOAD_CONCURRENCY = 4;
 const ATLAS_PRELOAD_MAX_PER_IDLE = 2;
+const ATLAS_BOOT_STATIC_PAGE_LIMIT = 2;
+const ATLAS_BOOT_MOBILE_PAGE_LIMIT = 2;
 const MOBILE_CYCLE_PREFETCH_CONCURRENCY = 2;
 const ATLAS_PAGE_CACHE_MAX = 96;
 const ATLAS_PAGE_CACHE_TRIM = 8;
@@ -75,12 +77,10 @@ function waitForAssetIdle(timeout = 24) {
 }
 
 // ---- Body fallback table -------------------------------------------------
-// Bodies whose frames in `anim.mul / anim2.mul / anim3.mul / anim4.mul /
-// anim5.mul` are stub-sized (a few hundred bytes encoding a 1×1 pixel
-// placeholder) because the real frames live in `AnimationFrame*.uop`
-// containers our extractor doesn't read yet. Until UOP-anim support
-// lands, render these as a visually-similar substitute so the user
-// sees a creature instead of "two pixels of hair".
+// Safety substitutions for stale/incomplete generated atlases. The v2
+// extractor reads AnimationFrame*.uop + AnimationSequence.uop, but a user can
+// still run with an older atlas or a slim UO install missing those archives.
+// In that case render a visually-similar substitute instead of a tiny stub.
 //
 // The substitute should be the closest stylistic match available in
 // anim.mul (no UOP needed). Verified by hand against the live atlas —
@@ -523,7 +523,15 @@ class AssetManager {
       return set;
     };
     for (const p of usedPages(landAtlas))    addPreload('land', p);
-    for (const p of usedPages(staticAtlas))  addPreload('static', p);
+    // A generated static atlas currently has 135 × 2048² pages. Preloading
+    // every page transfers ~60 MB but expands beyond 2 GB in RGBA GPU memory,
+    // stalls login, and immediately fights the LRU. Pages are already loaded
+    // concurrently on demand by ChunkVisual.populate(), so only warm the first
+    // low-id pages here (the packer preserves graphic-id order).
+    const eagerStaticPages = [...usedPages(staticAtlas)]
+      .sort((a, b) => a - b)
+      .slice(0, ATLAS_BOOT_STATIC_PAGE_LIMIT);
+    for (const p of eagerStaticPages) addPreload('static', p);
     for (const p of usedPages(texmapAtlas))  addPreload('texmap', p);
     if (mobilesAtlas?.pageCount) {
       // Mobile atlas pages are huge (~7 MB / page × 59 pages = ~420 MB)
@@ -535,31 +543,39 @@ class AssetManager {
       // lazily resolves; we just stop preloading every page).
       const eagerPages = new Set();
       const eagerBodies = [
-        0x000C, 0x000D, 0x0190, 0x0191, 0x0192, 0x0193, // human m/f
+        0x0190, 0x0191, 0x0192, 0x0193,                 // human m/f first
+        0x000C, 0x000D,
         0x00C8, 0x00E2, 0x00E4, 0x00CC, 0x0035,         // horses + warhorse
       ];
       const bodies = mobilesAtlas?.bodies ?? mobilesAtlas?.frames ?? null;
       if (bodies) {
-        for (const id of eagerBodies) {
+        eagerBodyScan: for (const id of eagerBodies) {
           const body = bodies[id] ?? bodies[String(id)];
           if (!body) continue;
           // Each body is { actions: { [action]: { dirs: { [dir]: { frames: [{ page, ... }] } } } } }
           for (const act of Object.values(body.actions ?? body)) {
             for (const dir of Object.values(act?.dirs ?? act ?? {})) {
-              for (const fr of (dir?.frames ?? [])) {
+              const frames = Array.isArray(dir) ? dir : (dir?.frames ?? []);
+              for (const fr of frames) {
                 if (typeof fr?.page === 'number') eagerPages.add(fr.page);
+                if (eagerPages.size >= ATLAS_BOOT_MOBILE_PAGE_LIMIT) break eagerBodyScan;
               }
             }
           }
         }
       }
-      // Fallback: at least the first 2 pages so something animates
-      // immediately even if the manifest shape doesn't match.
+      // A 4096² mobile page expands to ~64 MB RGBA on the GPU. A body's
+      // frames are height-packed across many pages, so preloading every page
+      // touched by common bodies can otherwise select 59/63 pages (>3.5 GB).
+      const selectedMobilePages = [...eagerPages]
+        .slice(0, ATLAS_BOOT_MOBILE_PAGE_LIMIT);
+      // Fallback: at least the first pages so something animates immediately
+      // even if the manifest shape doesn't match.
       if (eagerPages.size === 0) {
-        eagerPages.add(0);
-        if (mobilesAtlas.pageCount > 1) eagerPages.add(1);
+        selectedMobilePages.push(0);
+        if (mobilesAtlas.pageCount > 1) selectedMobilePages.push(1);
       }
-      for (const p of eagerPages) addPreload('mobiles', p);
+      for (const p of selectedMobilePages) addPreload('mobiles', p);
     }
     // Per-page progress: increment as each page settles. Splash bar
     // shows real granular progress instead of jumping straight from
@@ -839,7 +855,14 @@ class AssetManager {
     while (map.size > max) {
       const k = map.keys().next().value;
       const t = map.get(k);
-      try { t?.destroy?.(false); } catch { /* ignore */ }
+      const texture = t?.texture ?? t;
+      const pageKey = texture?._uoAtlasPageKey;
+      try { texture?.destroy?.(false); } catch { /* ignore */ }
+      if (pageKey) {
+        const refs = Math.max(0, (this._atlasPageUseCounts.get(pageKey) || 0) - 1);
+        if (refs === 0) this._atlasPageUseCounts.delete(pageKey);
+        else this._atlasPageUseCounts.set(pageKey, refs);
+      }
       map.delete(k);
     }
   }
@@ -1389,7 +1412,8 @@ class AssetManager {
     const realBody = alias?.body ?? alias?.trueBody ?? body;
     const b = this.mobilesAtlas?.bodies?.[realBody];
     if (!b) return null;
-    let actionEntry = b.actions?.[action];
+    const resolvedAction = this._resolveMobileActionAlias(b, action);
+    let actionEntry = b.actions?.[resolvedAction];
     if (!actionEntry) actionEntry = b.actions?.['2'] ?? b.actions?.['0'];
     if (!actionEntry) {
       // Last-ditch: take whichever action this body DOES have.
@@ -1407,7 +1431,27 @@ class AssetManager {
     }
     const meta = dirFrames[frame] ?? dirFrames[0];
     if (!meta) return null;
-    return { realBody, action, direction, frame, meta, frameCount: dirFrames.length };
+    return {
+      realBody,
+      action: actionEntry === b.actions?.[resolvedAction] ? resolvedAction : action,
+      direction,
+      frame,
+      meta,
+      frameCount: dirFrames.length,
+    };
+  }
+
+  _resolveMobileActionAlias(bodyEntry, action) {
+    let resolved = action | 0;
+    const aliases = bodyEntry?.actionAliases;
+    // A small loop also tolerates chained mappings from older generated
+    // manifests while preventing malformed data from cycling forever.
+    for (let i = 0; i < 4; i++) {
+      const next = aliases?.[resolved];
+      if (!Number.isInteger(next) || next === resolved) break;
+      resolved = next;
+    }
+    return resolved;
   }
 
   _mobileBodyEntry(body) {
@@ -1418,6 +1462,16 @@ class AssetManager {
     return b ? { realBody, body: b } : null;
   }
 
+  /** Body animation type/flags from mobtypes.txt, emitted by the extractor. */
+  mobileBodyInfo(body) {
+    if (!this.mobilesAtlas) return null;
+    const alias = this.mobilesAtlas.aliases?.[body];
+    const realBody = alias?.body ?? alias?.trueBody ?? body;
+    return this.mobilesAtlas.mobTypes?.[body]
+      ?? this.mobilesAtlas.mobTypes?.[realBody]
+      ?? null;
+  }
+
   /** Exact manifest probe for animation group selection. Unlike
    *  `_tryMobileFrame()`, this does not fall back to stand/walk/any-action:
    *  callers use it to pick the best CUO group remap before texture lookup.
@@ -1426,7 +1480,7 @@ class AssetManager {
     const entry = this._mobileBodyEntry(body);
     if (!entry) return false;
     const actions = entry.body.actions ?? {};
-    const actionKey = String(action | 0);
+    const actionKey = String(this._resolveMobileActionAlias(entry.body, action));
     if (!Object.prototype.hasOwnProperty.call(actions, actionKey)) return false;
     if (direction == null) return true;
     const dirs = actions[actionKey]?.dirs ?? {};
@@ -1542,7 +1596,8 @@ class AssetManager {
     const realBody = alias?.body ?? alias?.trueBody ?? body;
     const b = this.mobilesAtlas.bodies?.[realBody];
     if (!b) return;
-    const actionEntry = b.actions?.[action] ?? b.actions?.['2'] ?? b.actions?.['0'];
+    const resolvedAction = this._resolveMobileActionAlias(b, action);
+    const actionEntry = b.actions?.[resolvedAction] ?? b.actions?.['2'] ?? b.actions?.['0'];
     if (!actionEntry) return;
     const dirFrames = actionEntry.dirs?.[direction] ?? actionEntry.dirs?.['0'];
     if (!dirFrames) return;

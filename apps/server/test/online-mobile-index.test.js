@@ -21,10 +21,12 @@ describe('online mobile index', () => {
 
     world.enableOnlineMobileIndex();
     expect([...world.onlineMobiles()].map((m) => m.serial)).toEqual([player.serial]);
+    expect(world.hasOnlineMobiles()).toBe(true);
 
     player.client = null;
     world.markMobileOffline(player);
 
     expect([...world.onlineMobiles()]).toEqual([]);
+    expect(world.hasOnlineMobiles()).toBe(false);
   });
 });

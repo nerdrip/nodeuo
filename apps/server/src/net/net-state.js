@@ -14,6 +14,13 @@
 
 import { frameIncoming, opcodeInfo, huffmanCompress, unicodeMessage, worldItemSA, removeEntity } from '@uo/protocol';
 import * as chatChannels from '../chat-channels.js';
+import { nearbyClients } from '../world/visibility.js';
+
+// ServUO bounds each NetState send queue. WebSocket.bufferedAmount is the
+// browser/Node equivalent; an ordered game stream cannot safely drop packets,
+// so disconnect a client that falls this far behind instead of retaining an
+// unbounded queue for it.
+export const MAX_PENDING_SEND_BYTES = 4 * 1024 * 1024;
 
 /** @enum {string} */
 export const Stage = Object.freeze({
@@ -64,6 +71,8 @@ export class NetState {
     /** @type {Uint8Array} */
     this._rx = new Uint8Array(0);
     this._closed = false;
+    this._closing = false;
+    this._cleanupDone = false;
 
     ws.binaryType = 'arraybuffer';
     ws.on('message', (data, isBinary) => {
@@ -113,105 +122,41 @@ export class NetState {
       return;
     }
 
-    // Iterative framing — previously a recursive `this._feed(new Uint8Array(0))`
-    // re-entered after every skipped byte, which on a structurally-drifted
-    // buffer produced one stack frame + log line per junk byte. Hundreds of
-    // unknown bytes (a 0x12 cast packet that lost its terminator can spawn
-    // 4..7) burned the event loop and left the rest of the players unable
-    // to move. The loop here drains the same buffer in one shot with a
-    // cap on how many "skip 1" warnings we emit so log spam can't hang us.
-    // Defensive prefix-drop: an in-world stream that starts with a
-    // pre-login opcode (e.g. 0x00 CreateCharacter, declared 104 bytes)
-    // is almost certainly drift from a prior packet leaving a stray
-    // byte in `_rx`. The framer would happily consume 104 bytes as a
-    // "valid" CreateCharacter, then trip on whatever opcode sits at
-    // offset 104 — user report 2026-05-18 saw `Unknown 0x51 at rx[104]`
-    // every login because a 0x00 leftover at offset 0 ate the next 3
-    // MovementReqs and a Resynchronize as if they were one big char-
-    // create blob. While `ingame === false` packets ARE valid at boot,
-    // by the time `stage === InWorld` only `ingame === true` opcodes
-    // should ever appear; drop any leading byte that mismatches the
-    // stage and let the framer try again with the trailing bytes.
-    const inWorld = this.stage === Stage.InWorld;
-    while (inWorld && merged.length > 0) {
-      const head = opcodeInfo(merged[0]);
-      if (head && head.ingame === false) {
-        merged = merged.subarray(1);
-        continue;
+    let packets = [];
+    let consumed = 0;
+    try {
+      ({ packets, consumed } = frameIncoming(merged, { dropReqSize: this.dropReqSize }));
+      this._rx = merged.subarray(consumed);
+    } catch (e) {
+      const offRaw = (typeof e.offset === 'number' && e.offset >= 0) ? e.offset : -1;
+      if (offRaw < 0) {
+        console.warn(`[net#${this.id}] protocol error: ${e.message} — dropping connection`);
+        this.close('protocol error');
+        return;
       }
-      // Defensive: 0x02 MovementReq is a hot drift bait — fixed 7
-      // bytes, the canonical direction byte uses only the low 3 bits
-      // (+ 0x80 run flag), so anything with `direction & 0x78` set
-      // is garbage from a prior packet boundary. Eating the 7 bytes
-      // as a MovementReq would gobble the first 6 bytes of the next
-      // (real) packet — exactly the failure mode in the user's
-      // 2026-05-19 log (`02 b1 00 25 ...` ate the 0xB1 GumpResponse
-      // header). Drop the lone byte instead and let the next packet
-      // frame cleanly. Requires the full header (≥2 bytes) to inspect.
-      if (merged[0] === 0x02 && merged.length >= 2 && (merged[1] & 0x78) !== 0) {
-        merged = merged.subarray(1);
-        continue;
-      }
-      break;
-    }
-    if (merged.length === 0) { this._rx = merged; return; }
-    let packets;
-    let consumed;
-    let skipBudget = 32;          // hard cap per _feed invocation
-    while (true) {
-      try {
-        ({ packets, consumed } = frameIncoming(merged, { dropReqSize: this.dropReqSize }));
-        break;                    // success — fall through to dispatch loop
-      } catch (e) {
-        const offRaw = (typeof e.offset === 'number' && e.offset >= 0) ? e.offset : -1;
-        if (offRaw < 0) {
-          console.warn(`[net#${this.id}] protocol error: ${e.message} — dropping connection`);
-          this.close();
-          return;
-        }
-        if (skipBudget-- <= 0) {
-          // Drift is structural — kick rather than spend more CPU on it.
-          console.warn(`[net#${this.id}] protocol drift exceeded skip budget; dropping connection`);
-          this.close();
-          return;
-        }
-        const start = Math.max(0, offRaw - 16);
-        const end = Math.min(merged.length, offRaw + 32);
-        const hex = Array.from(merged.subarray(start, end))
-          .map((b, i) => ((start + i) === offRaw ? '>' : '') + b.toString(16).padStart(2, '0'))
-          .join(' ');
-        console.warn(
-          `[net#${this.id}] protocol error: ${e.message} at rx[${offRaw}] of ${merged.length} bytes; window=${hex} — skipping 1 byte and continuing`,
-        );
-        // Drop everything UP TO and INCLUDING the bad byte and re-try
-        // framing on the tail. The previous code dropped only the bytes
-        // BEFORE the bad byte, so anything the framer had already
-        // consumed leaked into the next attempt's buffer prefix and
-        // routinely produced a second false error one byte later.
-        merged = merged.subarray(offRaw + 1);
-        if (merged.length === 0) { this._rx = merged; return; }
-        // Same prefix-drop as before the framer call — a freshly-skipped
-        // byte may expose a stale pre-login opcode that would otherwise
-        // get consumed as a giant frame. Also re-apply the 0x02 drift
-        // guard (see pre-frame check above) — once we've skipped a
-        // garbage byte, the next byte might be another junk 0x02.
-        while (inWorld && merged.length > 0) {
-          const head = opcodeInfo(merged[0]);
-          if (head && head.ingame === false) {
-            merged = merged.subarray(1);
-            continue;
-          }
-          if (merged[0] === 0x02 && merged.length >= 2 && (merged[1] & 0x78) !== 0) {
-            merged = merged.subarray(1);
-            continue;
-          }
-          break;
-        }
-        if (merged.length === 0) { this._rx = merged; return; }
-      }
-    }
 
-    this._rx = merged.subarray(consumed);
+      // `ingame=false` follows ServUO semantics: the handler does not
+      // REQUIRE a logged-in Mobile. It does not mean the packet becomes
+      // illegal after login. In particular PingReq (0x73) remains valid in
+      // world, so never strip opcodes based on that flag.
+      //
+      // Preserve the already-framed prefix. A byte-wise scan for the next
+      // plausible opcode is unsafe because ordinary payload bytes often look
+      // like opcodes and can consume subsequent movement packets at the wrong
+      // boundary. Discard the malformed remainder of this receive batch and
+      // resume cleanly with the next batch.
+      packets = Array.isArray(e.packets) ? e.packets : [];
+      consumed = typeof e.consumed === 'number' ? e.consumed : offRaw;
+      const start = Math.max(0, offRaw - 16);
+      const end = Math.min(merged.length, offRaw + 32);
+      const hex = Array.from(merged.subarray(start, end))
+        .map((b, i) => ((start + i) === offRaw ? '>' : '') + b.toString(16).padStart(2, '0'))
+        .join(' ');
+      console.warn(
+        `[net#${this.id}] protocol error: ${e.message} at rx[${offRaw}] of ${merged.length} bytes; window=${hex} — dispatched ${packets.length} valid prefix packet(s), discarded malformed tail`,
+      );
+      this._rx = new Uint8Array(0);
+    }
 
     for (const pkt of packets) {
       const op = pkt[0];
@@ -253,6 +198,12 @@ export class NetState {
    */
   send(packet) {
     if (this._closed || this.ws.readyState !== 1 /* OPEN */) return;
+    const pending = Number(this.ws.bufferedAmount) || 0;
+    if (pending > MAX_PENDING_SEND_BYTES) {
+      console.warn(`[net#${this.id}] slow client buffered ${pending}B → closing`);
+      this.close('send queue overflow');
+      return;
+    }
     if (this.ctx.config.logPackets) {
       console.log(`[net#${this.id}] >> 0x${packet[0].toString(16).padStart(2, '0')} (${packet.length} bytes) stage=${this.stage}`);
     }
@@ -263,9 +214,13 @@ export class NetState {
   }
 
   close(reason) {
-    if (this._closed) return;
+    if (this._closing || this._cleanupDone) return;
+    this._closing = true;
     this._closed = true;
     try { this.ws.close(1000, reason); } catch { /* ignore */ }
+    // WebSocket 'close' can be delayed (or never arrive for a broken
+    // adapter). Run cleanup now; the eventual event is idempotent.
+    this._onClose();
   }
 
   /** Convenience: push a system message to this client. Accepts an
@@ -300,7 +255,8 @@ export class NetState {
   }
 
   _onClose() {
-    if (this._closed) return;
+    if (this._cleanupDone) return;
+    this._cleanupDone = true;
     this._closed = true;
     if (this.mobile) {
       const mob = this.mobile;
@@ -326,10 +282,7 @@ export class NetState {
         // BUGFIX #65 (FAZA CW): visibility-gate. A logout on Felucca
         // doesn't need to ping every player in Trammel about the
         // backpack item drop.
-        for (const other of this.ctx.world.mobiles.values()) {
-          if (other === mob || !other.client) continue;
-          if (other.map !== it.map) continue;
-          if (Math.abs(other.x - it.x) > 18 || Math.abs(other.y - it.y) > 18) continue;
+        for (const other of nearbyClients(this.ctx.world, it, mob)) {
           other.client.send(msg);
         }
       }
@@ -346,7 +299,16 @@ export class NetState {
                           ?? this.ctx?.handlers?.petStable;
         const stable = stableModule?.stable ?? stableModule;
         const now = Date.now();
-        for (const candidate of this.ctx.world.mobiles.values()) {
+        const petSerials = this.ctx.world._pets;
+        const candidates = petSerials?.size
+          ? (function* (world, serials) {
+              for (const serial of serials) {
+                const candidate = world.mobiles.get(serial);
+                if (candidate) yield candidate;
+              }
+            })(this.ctx.world, petSerials)
+          : this.ctx.world.mobiles.values();
+        for (const candidate of candidates) {
           if (candidate === mob) continue;
           if (candidate.controlMaster !== mob.serial) continue;
           if (candidate.bonded) {
@@ -357,9 +319,7 @@ export class NetState {
             const r = stable.deposit(null, mob, candidate);
             if (r?.ok) {
               // Hide the now-stabled pet from nearby clients.
-              for (const other of this.ctx.world.mobiles.values()) {
-                if (!other.client || other.map !== candidate.map) continue;
-                if (Math.abs(other.x - candidate.x) > 18 || Math.abs(other.y - candidate.y) > 18) continue;
+              for (const other of nearbyClients(this.ctx.world, candidate, candidate)) {
                 other.client.sendRemove?.(candidate.serial);
               }
               // Remove from the world map so it doesn't tick AI.
@@ -372,11 +332,7 @@ export class NetState {
       }
       // Tell nearby clients to drop this mobile from their world view.
       // BUGFIX #65: visibility-gate.
-      for (const other of this.ctx.world.mobiles.values()) {
-        if (other === mob) continue;
-        if (!other.client) continue;
-        if (other.map !== mob.map) continue;
-        if (Math.abs(other.x - mob.x) > 18 || Math.abs(other.y - mob.y) > 18) continue;
+      for (const other of nearbyClients(this.ctx.world, mob, mob)) {
         other.client.sendRemove(mob.serial);
       }
       // Keep `mob` in `world.mobiles` so the next login on the same account

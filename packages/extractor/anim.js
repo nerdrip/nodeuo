@@ -34,6 +34,11 @@ import { join } from 'node:path';
 import sharp from 'sharp';
 import { loadBodyConfig, resolveIdxIndex, pickAnimFile } from './body-config.js';
 import { loadAnimUopFiles } from './anim-uop.js';
+import {
+  MAX_UOP_ACTIONS,
+  loadAnimationSequence,
+  resolveUopAction,
+} from './animation-sequence.js';
 
 const ATLAS_W = 4096;
 const ATLAS_H = 4096;
@@ -63,11 +68,16 @@ const MAX_BODY = 2048;
 // Earlier the extractor pulled [0,1,2,3,6,8,21,22] which had NO Stand
 // pose for humans (group 4). Without it the client played group 2
 // (RunUnarmed) as "Idle" — the avatar looked like it was perpetually
-// running in place. Pulling 0..22 covers Stand, all attacks, casts,
-// AttackBow/Crossbow, GetHit, both die anims, plus the LOW set.
-const ACTIONS = [];
-for (let i = 0; i <= 22; i++) ACTIONS.push(i);
+// running in place. The legacy range now continues through 34 so mounted
+// movement/combat is also present; UOP bodies expose their full 0..79 range.
+// Legacy People animations continue through group 34 (mounted movement and
+// combat included). UOP bodies can address as many as 80 logical groups.
+// The old 0..22 limit silently omitted every mounted animation and all
+// high-numbered SA groups used for modern creature walk/run/idle states.
+const LEGACY_ACTIONS = Array.from({ length: 35 }, (_v, i) => i);
+const UOP_ACTIONS = Array.from({ length: MAX_UOP_ACTIONS }, (_v, i) => i);
 const DIRECTIONS = 5;
+const USE_UOP_ANIMATION = 0x10000;
 
 export async function extractAnim(srcDir, outDir) {
   const cfg = loadBodyConfig(srcDir);
@@ -118,11 +128,61 @@ export async function extractAnim(srcDir, outDir) {
   // closes the gap.
   const uop = await loadAnimUopFiles(srcDir);
   console.log(`[anim]    UOP fallback ${uop.available ? 'enabled' : 'disabled (no AnimationFrame*.uop in src)'}`);
+  const sequence = await loadAnimationSequence(srcDir);
+  console.log(`[anim]    AnimationSequence ${sequence.available ? `enabled (${sequence.mappings.size} bodies)` : 'disabled'}`);
   let uopHits = 0;
+  let uopRemaps = 0;
+  const actionAliasesByBody = new Map();
+
+  const equipmentBodies = new Set();
+  for (const conversions of cfg.equipConv.values()) {
+    for (const value of conversions.values()) {
+      if (value.animBody > 0) equipmentBodies.add(value.animBody);
+    }
+  }
 
   for (const body of bodyList) {
     let touched = false;
-    for (const action of ACTIONS) {
+    const mobType = cfg.mobTypes.get(body);
+    const useUop = uop.available && ((mobType?.flags ?? 0) & USE_UOP_ANIMATION) !== 0;
+    const equipment = mobType?.type === 'EQUIPMENT' || equipmentBodies.has(body);
+    const actionAliases = {};
+
+    if (useUop) {
+      // Group every logical action by the physical UOP group it resolves to.
+      // Extract each physical group once and retain lightweight aliases in
+      // the manifest instead of duplicating identical sprites in the atlas.
+      const plans = new Map();
+      for (const requestedAction of UOP_ACTIONS) {
+        const physicalAction = resolveUopAction(sequence.mappings, body, requestedAction);
+        let requested = plans.get(physicalAction);
+        if (!requested) plans.set(physicalAction, requested = []);
+        requested.push(requestedAction);
+      }
+      for (const [physicalAction, requestedActions] of plans) {
+        let actionTouched = false;
+        for (let dir = 0; dir < DIRECTIONS; dir++) {
+          const frames = await uop.read(body, physicalAction, dir, { equipment });
+          if (!frames?.length) continue;
+          actionTouched = true;
+          uopHits++;
+          for (let f = 0; f < frames.length; f++) {
+            const fr = frames[f];
+            if (!fr || fr.w <= 0 || fr.h <= 0) continue;
+            sprites.push({ ...fr, body, action: physicalAction, dir, frame: f });
+          }
+        }
+        if (!actionTouched) continue;
+        touched = true;
+        for (const requestedAction of requestedActions) {
+          if (requestedAction === physicalAction) continue;
+          actionAliases[requestedAction] = physicalAction;
+          uopRemaps++;
+        }
+      }
+    } else for (const action of LEGACY_ACTIONS) {
+      /** @type {({ pixels:Uint8Array,w:number,h:number,cx:number,cy:number }[] | null)[]} */
+      const mulFrames = new Array(DIRECTIONS).fill(null);
       for (let dir = 0; dir < DIRECTIONS; dir++) {
         const fileIndex = pickAnimFile(body, cfg.bodyConv, cfg.mobTypes);
         const fh = handles[fileIndex];
@@ -139,47 +199,81 @@ export async function extractAnim(srcDir, outDir) {
                 const buf = Buffer.alloc(size);
                 await fh.mulFd.read(buf, 0, size, pos);
                 frames = decodeFrames(buf);
+                mulFrames[dir] = frames;
               }
             }
           }
         }
-        // Reject placeholder frames (UO devs zeroed out moved bodies
-        // to a 1×1 chunk so the file size stayed stable). Anything
-        // that decodes to <16 px on a side gets replaced by the UOP
-        // payload if one exists.
-        const isStub = !frames || !frames.length
-          || frames.every((f) => !f || (f.w < 16 && f.h < 16));
-        if (isStub && uop.available) {
-          const uopFrames = await uop.read(body, action, dir);
-          if (uopFrames?.length) {
-            frames = uopFrames;
-            uopHits++;
+      }
+
+      // Reject placeholder actions as a unit. Mixing valid MUL directions
+      // with remapped UOP directions under one alias produces direction-
+      // dependent action ids and broken mirroring.
+      const isStub = mulFrames.some((frames) => !frames || !frames.length
+        || frames.every((f) => !f || (f.w < 16 && f.h < 16)));
+      let outputAction = action;
+      let selectedFrames = mulFrames;
+      if (isStub && uop.available) {
+        const physicalAction = resolveUopAction(sequence.mappings, body, action);
+        const uopFrames = await Promise.all(
+          Array.from({ length: DIRECTIONS }, (_v, dir) => (
+            uop.read(body, physicalAction, dir, { equipment })
+          )),
+        );
+        if (uopFrames.some((frames) => frames?.length)) {
+          selectedFrames = uopFrames;
+          outputAction = physicalAction;
+          uopHits += uopFrames.filter((frames) => frames?.length).length;
+          if (physicalAction !== action) {
+            actionAliases[action] = physicalAction;
+            uopRemaps++;
           }
         }
+      }
+
+      for (let dir = 0; dir < DIRECTIONS; dir++) {
+        const frames = selectedFrames[dir];
         if (!frames || !frames.length) continue;
         touched = true;
         for (let f = 0; f < frames.length; f++) {
           const fr = frames[f];
           if (!fr || fr.w <= 0 || fr.h <= 0) continue;
-          sprites.push({ ...fr, body, action, dir, frame: f });
+          sprites.push({ ...fr, body, action: outputAction, dir, frame: f });
         }
       }
+    }
+    if (Object.keys(actionAliases).length) {
+      // `registerFrame` creates the body entry later during atlas packing.
+      // Keep the aliases temporarily; they are attached after packing.
+      actionAliasesByBody.set(body, actionAliases);
     }
     if (touched) bodiesSeen++;
   }
   for (const fh of handles) if (fh) await fh.mulFd.close();
   await uop.close();
-  console.log(`[anim]    bodiesSeen=${bodiesSeen} entries=${entriesScanned} sprites=${sprites.length} uopHits=${uopHits}`);
+  console.log(`[anim]    bodiesSeen=${bodiesSeen} entries=${entriesScanned} sprites=${sprites.length} uopHits=${uopHits} uopRemaps=${uopRemaps}`);
 
   // ---------------- shelf-pack into atlas pages ----------------
-  // Sort by descending height for better packing.
-  sprites.sort((a, b) => b.h - a.h);
+  // Keep every body's frames adjacent, then sort by height within the body.
+  // The previous global height sort spread one human across as many as 59
+  // 4096² pages; a single walk cycle could therefore stream gigabytes of
+  // decoded GPU textures. Body-local packing trades a little empty atlas
+  // space for stable, bounded runtime page residency.
+  sprites.sort(compareAnimationPackingOrder);
   const pages = [];
   /** @type {Record<number, any>} */
   const bodies = {};
+  let packingBody = -1;
+  let bodyPageIndices = [];
   for (const sp of sprites) {
+    if (sp.body !== packingBody) {
+      packingBody = sp.body;
+      // Let a new body reuse only the most recent page. If it spills, all
+      // additional pages are dedicated to that same body until it is done.
+      bodyPageIndices = pages.length ? [pages.length - 1] : [];
+    }
     let placed = false;
-    for (let pi = 0; pi < pages.length; pi++) {
+    for (const pi of bodyPageIndices) {
       const p = pages[pi];
       const shelf = p.shelf;
       if (shelf.x + sp.w <= ATLAS_W && sp.h <= shelf.rowH) {
@@ -201,7 +295,12 @@ export async function extractAnim(srcDir, outDir) {
       blit(buf, ATLAS_W, sp.pixels, sp.w, sp.h, 0, 0);
       registerFrame(bodies, sp, pages.length, 0, 0);
       pages.push({ buf, shelf: { x: sp.w, y: 0, rowH: sp.h } });
+      bodyPageIndices.push(pages.length - 1);
     }
+  }
+
+  for (const [body, actionAliases] of actionAliasesByBody) {
+    if (bodies[body]) bodies[body].actionAliases = actionAliases;
   }
 
   for (let i = 0; i < pages.length; i++) {
@@ -226,13 +325,26 @@ export async function extractAnim(srcDir, outDir) {
   const corpseConv = {};
   for (const [k, v] of cfg.corpseConv) corpseConv[k] = v;
 
+  /** @type {Record<number,{type:string,flags:number}>} */
+  const mobTypes = {};
+  for (const [body, value] of cfg.mobTypes) mobTypes[body] = value;
+
   await writeFilePromise(join(outDir, 'mobiles-atlas.json'), JSON.stringify({
+    schemaVersion: 2,
     pageCount: pages.length, atlasW: ATLAS_W, atlasH: ATLAS_H,
-    actions: ACTIONS, directions: DIRECTIONS,
-    aliases, equipConv, corpseConv, bodies,
+    actions: LEGACY_ACTIONS, uopActions: UOP_ACTIONS, directions: DIRECTIONS,
+    aliases, equipConv, corpseConv, mobTypes, bodies,
   }));
 
   return { count: bodiesSeen, sprites: sprites.length, pages: pages.length };
+}
+
+export function compareAnimationPackingOrder(a, b) {
+  return (a.body - b.body)
+    || (b.h - a.h)
+    || (a.action - b.action)
+    || (a.dir - b.dir)
+    || (a.frame - b.frame);
 }
 
 function registerFrame(bodies, sp, page, u, v) {

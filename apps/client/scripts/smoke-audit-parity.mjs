@@ -403,6 +403,21 @@ assert.deepEqual(rewind.value, { x: 55, y: 66, z: 7, direction: 5 });
 assert.equal(walker.resyncRequested, true, 'movement reject should latch resyncRequested');
 walker.clearResync();
 
+// A newer ACK must release only its own reservation and must not refresh the
+// age of an older missing ACK. Otherwise continuous walking can mask the lost
+// request until the five-slot movement window stays full forever.
+walker.reset();
+const oldestMissing = walker.reserve(false, false, 1000);
+const newerAcked = walker.reserve(false, false, 1400);
+assert.ok(oldestMissing && newerAcked, 'walker should track multiple movement reservations');
+walker.onAck(newerAcked.sequence);
+assert.equal(movementStats.pending, 1, 'newer ACK should leave the older request pending');
+const maskedAckResync = once('net:resync-request');
+assert.equal(walker.canStep(4001), false, 'oldest missing ACK should still trigger the stall timeout');
+maskedAckResync.off();
+assert.equal(maskedAckResync.value, true, 'oldest missing ACK should request a network resync');
+walker.clearResync();
+
 walker.reset();
 assert.equal(walker.reserve(false, false, 1000, false)?.delayMs, 400, 'unmounted walk should use CUO walk delay');
 walker.reset();

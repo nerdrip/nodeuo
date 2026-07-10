@@ -79,6 +79,9 @@ const bodyIds = Object.keys(atlas.bodies ?? {}).map((id) => Number(id)).filter(N
 const aliasCount = Object.keys(atlas.aliases ?? {}).length;
 const equipConvCount = Object.keys(atlas.equipConv ?? {}).length;
 const corpseConvCount = Object.keys(atlas.corpseConv ?? {}).length;
+const modernUopSchema = (atlas.schemaVersion | 0) >= 2
+  && atlas.mobTypes
+  && atlas.uopActions;
 
 let totalFrames = 0;
 const emptyBodies = [];
@@ -119,6 +122,9 @@ for (const [label, bodyId, result] of raceResults) {
 console.log(`[body-coverage] pages=${atlas.pageCount} bodies=${bodyIds.length} frames=${totalFrames}`);
 console.log(`[body-coverage] aliases=${aliasCount} fallback=${fallback.size} equipConv=${equipConvCount} corpseConv=${corpseConvCount}`);
 console.log(`[body-coverage] emptyBodies=${emptyBodies.length} tinyBodies=${tinyBodies.length}`);
+if (!modernUopSchema) {
+  console.warn('[body-coverage] WARNING: generated atlas predates AnimationSequence/UOP schema v2; re-run the extractor from a legal UO install.');
+}
 for (const [label, bodyId, result] of raceResults) {
   const chain = result.chain.map((id) => `0x${id.toString(16)}`).join(' -> ');
   console.log(`[body-coverage] ${label}: ${chain} (${result.via})`);

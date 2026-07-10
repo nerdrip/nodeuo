@@ -52,7 +52,7 @@ import { assets } from '../assets/asset-manager.js';
 import { corpseManager } from '../managers/corpse-manager.js';
 import { walker } from '../managers/walker.js';
 import { profile } from '../managers/profile-manager.js';
-import { DIR_DX, DIR_DY, DIR_MASK, DIR_RUNNING_BIT } from '../shared/directions.js';
+import { DIR_DX, DIR_DY, DIR_MASK, DIR_RUNNING_BIT, directionFromDelta } from '../shared/directions.js';
 
 /** ServUO answers 0x09 LookReq with a 0x1C/0xAE speech packet whose
  *  `name` header is "You see" and whose `text` is the target's display
@@ -659,9 +659,17 @@ export function registerHandlers(net) {
     }
     bus.emit('player:warmode', info);
   });
+  const _emitCombatDamage = (info) => {
+    if (!info || info.amount <= 0) return;
+    // Keep one canonical combat event for state/music/macros and one visual
+    // event for hit flash/recoil/world text. Both legacy 0x0B and AOS 0x22
+    // must take this path; previously each drove only half of the feedback.
+    bus.emit('combat:damage', info);
+    bus.emit('damage:apply', info);
+  };
   net.on(0x0B, (pkt) => {
     const info = decodeDamage(pkt);
-    if (info.amount > 0) bus.emit('damage:apply', info);
+    _emitCombatDamage(info);
   });
   // Spell-effect → matching SFX. The classic UO PlayMagicEffect path
   // bundles a sound with each graphic effect (CUO `MagicEffectsLoader`).
@@ -935,7 +943,19 @@ export function registerHandlers(net) {
         info.serial.toString(16), prevHue, info.hue, info.layer);
     }
   });
-  net.on(0x2F, (pkt) => bus.emit('combat:swing', decodeSwing(pkt)));
+  net.on(0x2F, (pkt) => {
+    const info = decodeSwing(pkt);
+    const player = world.player;
+    const inWarMode = player?.warMode ?? (((player?.flags ?? 0) & 0x40) !== 0);
+    if (player && info.attacker === (player.serial >>> 0) && inWarMode) {
+      const defender = world.mobiles.get(info.defender >>> 0);
+      if (defender) {
+        player.direction = directionFromDelta(defender.x - player.x, defender.y - player.y);
+      }
+    }
+    bus.emit('combat:swing', info);
+    _markInCombat();
+  });
 
   net.on(0x97, (pkt) => {
     // Server-forced movement: turn/walk one step regardless of seq.
@@ -1542,7 +1562,7 @@ export function registerHandlers(net) {
       // Audit #30 P1 #1 — 0x22 DisplayDamage. CUO `PacketHandlers.cs` skips a
       // leading filler byte, then reads u32 serial + u8 amount. Was offset 0
       // → serial low-byte became "amount", damage floated over wrong mob.
-      case 0x0022: bus.emit('combat:damage',  { serial: u32(ext.payload, 1), amount: ext.payload[5] | 0 }); break;
+      case 0x0022: _emitCombatDamage({ serial: u32(ext.payload, 1), amount: ext.payload[5] | 0 }); break;
       // Audit #30 P1 #2 — 0x25 SetSpellMode. CUO reads ushort spellId + bool.
       // Was `u32 & 0xffff` (big-endian) which kept the LOW 16 bits — bytes
       // 2-3, colliding with the `active` byte. Active icon highlight never

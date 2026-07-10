@@ -29,6 +29,7 @@ This directory keeps documentation that is larger than the root quickstart.
 | --- | --- |
 | [../packages/extractor/ktx2-readme.md](../packages/extractor/ktx2-readme.md) | KTX2/Basis post-processing |
 | [../apps/client/CLIENT_OPTIMIZATION_BACKLOG.md](../apps/client/CLIENT_OPTIMIZATION_BACKLOG.md) | client performance backlog |
+| [uo-client-server-runtime-audit.md](uo-client-server-runtime-audit.md) | ClassicUO/ServUO behavior and runtime audit |
 
 ## Maintenance Rules
 

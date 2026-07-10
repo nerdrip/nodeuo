@@ -48,6 +48,14 @@ try {
     assert.ok(assets._atlasPages.has(`static:${i}`), 'used atlas page should stay resident');
   }
 
+  const subTextures = new Map([
+    [1, { _uoAtlasPageKey: 'static:0', destroy: () => {} }],
+    [2, { _uoAtlasPageKey: 'static:0', destroy: () => {} }],
+  ]);
+  assets._atlasPageUseCounts.set('static:0', 2);
+  assets._capCache(subTextures, 1);
+  assert.equal(assets._atlasPageUseCounts.get('static:0'), 1, 'sub-texture eviction releases its page reference');
+
   assets.landAtlas = { tiles: {} };
   assets.staticAtlas = { tiles: {} };
   assets.gumpAtlas = { tiles: {} };
@@ -103,6 +111,11 @@ try {
     "`${BASE}/${stem}.ktx2`",
     "`${BASE}/${stem}.png`",
     "fetch(url, { method: 'HEAD' })",
+    'ATLAS_BOOT_STATIC_PAGE_LIMIT = 2',
+    '.slice(0, ATLAS_BOOT_STATIC_PAGE_LIMIT)',
+    'ATLAS_BOOT_MOBILE_PAGE_LIMIT = 2',
+    '.slice(0, ATLAS_BOOT_MOBILE_PAGE_LIMIT)',
+    'Array.isArray(dir) ? dir',
   ]) {
     assert.ok(assetSource.includes(needle), `asset manager should keep heavy manifest worker path: ${needle}`);
   }

@@ -45,8 +45,8 @@
 import { open } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { inflateSync } from 'node:zlib';
 import { hashFileName } from './hash.js';
+import { readEntryContent } from './uop.js';
 
 // AnimationFrame*.uop entries are keyed by Bob Jenkins hashlittle2
 // (same as art/gump UOPs) — verified empirically against
@@ -131,7 +131,7 @@ export async function loadAnimUopFiles(srcDir) {
   }
   return {
     available: true,
-    read: async (body, action, dir) => {
+    read: async (body, action, dir, options = {}) => {
       // CUO maps body→file via bodyconv but if MUL is empty we don't
       // know which file to consult. The hash for `build/.../{body:06d}/
       // {action:02d}.bin` is the SAME across files (filename is the
@@ -143,9 +143,9 @@ export async function loadAnimUopFiles(srcDir) {
         const entry = f.byHash.get(key);
         if (!entry) continue;
         try {
-          const decoded = await readEntry(f.fd, entry);
+          const decoded = await readEntryContent(f.fd, entry);
           if (!decoded) continue;
-          const frames = decodeUopAnimEntry(decoded, dir);
+          const frames = decodeUopAnimEntry(decoded, dir, options);
           if (frames?.length) return frames;
         } catch (e) {
           console.warn(`[anim-uop] decode body=${body} action=${action} dir=${dir} failed: ${e.message}`);
@@ -202,18 +202,6 @@ async function openUopForAnim(path) {
   return { fd, byHash };
 }
 
-async function readEntry(fd, entry) {
-  if (entry.compressedSize <= 0) return null;
-  const raw = Buffer.alloc(entry.compressedSize);
-  await fd.read(raw, 0, raw.length, entry.dataOffset + entry.headerLength);
-  if (entry.compressionFlag === 0) return raw;
-  // zlib flag 1; the AnimationFrame UOPs use real zlib (with 0x78 magic).
-  try { return inflateSync(raw); }
-  catch (e) {
-    throw new Error(`zlib decompress failed: ${e.message}`);
-  }
-}
-
 // ---- Entry decoder -------------------------------------------------------
 
 /**
@@ -222,8 +210,9 @@ async function readEntry(fd, entry) {
  *
  * @param {Buffer} buf
  * @param {number} requestedDir   0..4
+ * @param {{ equipment?: boolean }} [options]
  */
-function decodeUopAnimEntry(buf, requestedDir) {
+export function decodeUopAnimEntry(buf, requestedDir, options = {}) {
   if (buf.length < 32 + 8) return null;
   let pos = 32;                                // skip engine signature
   const frameCount = buf.readUInt32LE(pos); pos += 4;
@@ -234,7 +223,10 @@ function decodeUopAnimEntry(buf, requestedDir) {
   // Frame metadata table.
   /** @type {{group:number,frameId:number,absPos:number,pixelOffset:number}[]} */
   const meta = [];
-  let metaPos = pos;
+  // `dataStart` points at the metadata table. It is commonly 40, but some
+  // client versions insert extra header bytes; reading from `pos` corrupts
+  // group/frame ids and ultimately produces tiny or empty sprites.
+  let metaPos = dataStart;
   for (let i = 0; i < frameCount; i++) {
     if (metaPos + 16 > buf.length) return null;
     const group       = buf.readUInt16LE(metaPos);
@@ -250,7 +242,7 @@ function decodeUopAnimEntry(buf, requestedDir) {
   // 1..N frameId range with empty slots.
   /** @type {(typeof meta[number] | { absPos: 0, frameId: number, pixelOffset: 0, group: 0 })[]} */
   const expanded = [];
-  let lastFrameId = 0;
+  let lastFrameId = 1;
   for (const f of meta) {
     while (f.frameId - lastFrameId > 1) {
       lastFrameId += 1;
@@ -262,7 +254,10 @@ function decodeUopAnimEntry(buf, requestedDir) {
   if (!expanded.length) return null;
 
   const maxFrameCount = expanded.length;
-  const framesPerDir  = Math.max(1, Math.round(maxFrameCount / 5));
+  const normalFramesPerDir = Math.max(1, Math.round(maxFrameCount / 5));
+  const framesPerDir = options.equipment
+    ? Math.max(10, normalFramesPerDir)
+    : normalFramesPerDir;
 
   // Walk frames belonging to the requested direction. CUO: dir =
   // (frameId - 1) / framesPerDir; idx = (frameId - 1) % framesPerDir.
@@ -280,9 +275,13 @@ function decodeUopAnimEntry(buf, requestedDir) {
     if (framePos + 512 + 8 > buf.length) continue;
     out[idx] = decodeFramePixels(buf, framePos);
   }
-  // Compact: trim trailing nulls (some directions have fewer real frames
-  // than framesPerDir, which left null padding at the tail).
-  while (out.length && !out[out.length - 1]) out.pop();
+  if (!out.some(Boolean)) return null;
+  // Equipment must retain CUO's ten-frame minimum so body and equipped
+  // overlays share frame indices. Other animation types can discard null
+  // tail padding to keep manifests compact.
+  if (!options.equipment) {
+    while (out.length && !out[out.length - 1]) out.pop();
+  }
   return out;
 }
 

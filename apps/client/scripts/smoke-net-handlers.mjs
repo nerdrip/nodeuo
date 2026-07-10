@@ -169,5 +169,29 @@ assert.equal(world.player.x, 11, '0x97 east should move player x by +1');
 assert.equal(world.player.y, 10, '0x97 east should not move player y');
 assert.equal(world.player.direction, 2, '0x97 should update player facing');
 
+world.player.flags = 0x40;
+const defender = world.ensureMobile(0x00000002);
+defender.x = 9;
+defender.y = 10;
+const swing = once('combat:swing');
+net.handlers.get(0x2F)(new Uint8Array([
+  0x2F, 0x00,
+  0x40, 0x00, 0x00, 0x01,
+  0x00, 0x00, 0x00, 0x02,
+]));
+swing.off();
+assert.deepEqual(swing.value, { attacker: 0x40000001, defender: 2 });
+assert.equal(world.player.direction, 6, 'war-mode swing should face the acknowledged defender');
+
+const legacyCombatDamage = once('combat:damage');
+const legacyVisualDamage = once('damage:apply');
+net.handlers.get(0x0B)(new Uint8Array([
+  0x0B, 0x00, 0x00, 0x00, 0x02, 0x00, 0x19,
+]));
+legacyCombatDamage.off();
+legacyVisualDamage.off();
+assert.deepEqual(legacyCombatDamage.value, { serial: 2, amount: 25 });
+assert.deepEqual(legacyVisualDamage.value, { serial: 2, amount: 25 });
+
 bus.clear();
 console.log('[smoke:net-handlers] ok');
