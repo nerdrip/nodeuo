@@ -76,10 +76,9 @@ function capsFor(foundation) {
 //   - Run owner / co-owner / friend ACL
 //   - Track lockdowns and prevent non-owners from picking them up
 //
-// Persistence: houses are kept in a map keyed by id. The save format
-// (saves/world.json) will pick them up automatically once we extend the
-// persistence layer to walk this registry — currently houses are
-// runtime-only and reset on restart. That's the next concrete TODO.
+// Persistence: houses are kept in a map keyed by id. persistence.js writes
+// the registry to houses.json(.gz), including ACLs, lockdowns, vendors and
+// custom tiles, and restores nextHouseId before the shard accepts clients.
 
 /**
  * @typedef {Object} House
@@ -388,17 +387,70 @@ export class HouseRegistry {
     if (this.roleOf(house, mob.serial) !== 'owner') return false;
     house.tiles ??= [];
     house.editing = {
-      tiles: house.tiles.slice(),
+      tiles: this._cloneCustomTiles(house.tiles),
       backup: null,
       floor: 1,
       revision: (house.revision ?? 0) + 1,
+      history: [this._cloneCustomTiles(house.tiles)],
+      historyIndex: 0,
+      clipboard: null,
     };
     return true;
+  }
+
+  _cloneCustomTiles(tiles) {
+    return (tiles ?? []).map((tile) => ({
+      kind: String(tile.kind ?? 'item'), g: tile.g >>> 0,
+      x: tile.x | 0, y: tile.y | 0, z: tile.z | 0,
+    }));
+  }
+
+  _recordCustom(house) {
+    const editing = house?.editing;
+    if (!editing || editing._suppressHistory) return;
+    editing.history ??= [this._cloneCustomTiles(editing.tiles)];
+    editing.historyIndex ??= editing.history.length - 1;
+    editing.history.splice(editing.historyIndex + 1);
+    editing.history.push(this._cloneCustomTiles(editing.tiles));
+    if (editing.history.length > 100) editing.history.shift();
+    editing.historyIndex = editing.history.length - 1;
+    editing.revision = (editing.revision ?? 0) + 1;
+  }
+
+  undoCustom(house) {
+    const editing = house?.editing;
+    if (!editing?.history?.length || editing.historyIndex <= 0) return false;
+    editing.historyIndex--;
+    editing.tiles = this._cloneCustomTiles(editing.history[editing.historyIndex]);
+    editing.revision = (editing.revision ?? 0) + 1;
+    return true;
+  }
+
+  redoCustom(house) {
+    const editing = house?.editing;
+    if (!editing?.history?.length || editing.historyIndex >= editing.history.length - 1) return false;
+    editing.historyIndex++;
+    editing.tiles = this._cloneCustomTiles(editing.history[editing.historyIndex]);
+    editing.revision = (editing.revision ?? 0) + 1;
+    return true;
+  }
+
+  customHistory(house) {
+    const editing = house?.editing;
+    return {
+      revision: editing?.revision ?? house?.revision ?? 0,
+      tileCount: editing?.tiles?.length ?? house?.tiles?.length ?? 0,
+      canUndo: !!editing && (editing.historyIndex ?? 0) > 0,
+      canRedo: !!editing && (editing.historyIndex ?? 0) < (editing.history?.length ?? 1) - 1,
+      historyLength: editing?.history?.length ?? 0,
+      floor: editing?.floor ?? 1,
+    };
   }
 
   addCustomItem(house, kind, g, x, y, z = 0) {
     if (!house.editing) return false;
     house.editing.tiles.push({ kind, g: g >>> 0, x: x | 0, y: y | 0, z: z | 0 });
+    this._recordCustom(house);
     return true;
   }
 
@@ -407,29 +459,36 @@ export class HouseRegistry {
     const before = house.editing.tiles.length;
     house.editing.tiles = house.editing.tiles.filter((t) =>
       !(t.g === (g >>> 0) && t.x === (x | 0) && t.y === (y | 0) && t.z === (z | 0)));
-    return before - house.editing.tiles.length;
+    const removed = before - house.editing.tiles.length;
+    if (removed) this._recordCustom(house);
+    return removed;
   }
 
   clearCustomTiles(house) {
     if (!house.editing) return;
+    if (!house.editing.tiles.length) return;
     house.editing.tiles.length = 0;
+    this._recordCustom(house);
   }
 
   backupCustom(house) {
     if (!house.editing) return false;
-    house.editing.backup = house.editing.tiles.slice();
+    house.editing.backup = this._cloneCustomTiles(house.editing.tiles);
     return true;
   }
 
   restoreCustom(house) {
     if (!house.editing || !house.editing.backup) return false;
-    house.editing.tiles = house.editing.backup.slice();
+    house.editing.tiles = this._cloneCustomTiles(house.editing.backup);
+    this._recordCustom(house);
     return true;
   }
 
   commitCustom(house) {
     if (!house.editing) return false;
-    house.tiles = house.editing.tiles.slice();
+    const validation = this.validateCustom(house);
+    if (!validation.ok) return false;
+    house.tiles = this._cloneCustomTiles(house.editing.tiles);
     house.revision = (house.revision ?? 0) + 1;
     house.editing = null;
     return true;
@@ -459,6 +518,7 @@ export class HouseRegistry {
     house.editing.tiles = house.editing.tiles.filter((t) =>
       !(t.x === (x | 0) && t.y === (y | 0) && t.z === (z | 0)));
     house.editing.tiles.push({ kind, g: g >>> 0, x: x | 0, y: y | 0, z: z | 0 });
+    this._recordCustom(house);
     return before - house.editing.tiles.length + 1;
   }
 
@@ -475,6 +535,7 @@ export class HouseRegistry {
         moved++;
       }
     }
+    if (moved) this._recordCustom(house);
     return moved;
   }
 
@@ -501,6 +562,7 @@ export class HouseRegistry {
       t.g = next >>> 0;
       rotated++;
     }
+    if (rotated) this._recordCustom(house);
     return rotated;
   }
 
@@ -514,12 +576,106 @@ export class HouseRegistry {
     const xMin = Math.min(x1, x2) | 0, xMax = Math.max(x1, x2) | 0;
     const yMin = Math.min(y1, y2) | 0, yMax = Math.max(y1, y2) | 0;
     let painted = 0;
+    house.editing._suppressHistory = true;
     for (let y = yMin; y <= yMax; y++) {
       for (let x = xMin; x <= xMax; x++) {
         this.replaceTileAt(house, kind, g, x, y, z);
         painted++;
       }
     }
+    house.editing._suppressHistory = false;
+    if (painted) this._recordCustom(house);
     return painted;
+  }
+
+  validateCustom(house) {
+    const tiles = house?.editing?.tiles ?? house?.tiles ?? [];
+    const errors = [];
+    const warnings = [];
+    const allowedKinds = new Set(['item', 'wall', 'door', 'floor', 'stair', 'roof', 'misc', 'teleport']);
+    const seen = new Map();
+    const area = Math.max(1, ((house?.x2 | 0) - (house?.x1 | 0) + 1)
+      * ((house?.y2 | 0) - (house?.y1 | 0) + 1));
+    const maxTiles = Math.max(256, area * 8);
+    if (tiles.length > maxTiles) errors.push(`Tile limit exceeded (${tiles.length}/${maxTiles}).`);
+    for (let i = 0; i < tiles.length; i++) {
+      const tile = tiles[i];
+      if (!allowedKinds.has(String(tile.kind))) errors.push(`Tile ${i}: unsupported kind ${tile.kind}.`);
+      if (!Number.isInteger(tile.g) || tile.g <= 0 || tile.g > 0xffff) errors.push(`Tile ${i}: invalid graphic.`);
+      if (tile.x < house.x1 - 1 || tile.x > house.x2 + 1 || tile.y < house.y1 - 1 || tile.y > house.y2 + 1) {
+        errors.push(`Tile ${i}: outside foundation (${tile.x},${tile.y}).`);
+      }
+      if (tile.z < -20 || tile.z > 100) errors.push(`Tile ${i}: invalid elevation ${tile.z}.`);
+      const key = `${tile.x}|${tile.y}|${tile.z}|${tile.kind}`;
+      const count = (seen.get(key) ?? 0) + 1;
+      seen.set(key, count);
+      if (count === 2) warnings.push(`Overlapping ${tile.kind} tiles at ${tile.x},${tile.y},${tile.z}.`);
+    }
+    return { ok: errors.length === 0, errors: errors.slice(0, 50), warnings: warnings.slice(0, 50), tileCount: tiles.length, maxTiles };
+  }
+
+  copyCustomArea(house, x1, y1, x2, y2, zMin = -20, zMax = 100) {
+    if (!house?.editing) return 0;
+    const minX = Math.min(x1, x2) | 0, minY = Math.min(y1, y2) | 0;
+    const maxX = Math.max(x1, x2) | 0, maxY = Math.max(y1, y2) | 0;
+    const selected = house.editing.tiles.filter((tile) => tile.x >= minX && tile.x <= maxX
+      && tile.y >= minY && tile.y <= maxY && tile.z >= zMin && tile.z <= zMax);
+    house.editing.clipboard = {
+      width: maxX - minX + 1, height: maxY - minY + 1,
+      tiles: selected.map((tile) => ({ ...tile, x: tile.x - minX, y: tile.y - minY })),
+    };
+    return selected.length;
+  }
+
+  pasteCustomArea(house, x, y, zOffset = 0, { replace = false } = {}) {
+    const editing = house?.editing;
+    const clip = editing?.clipboard;
+    if (!clip?.tiles?.length) return 0;
+    editing._suppressHistory = true;
+    if (replace) {
+      const maxX = (x | 0) + clip.width - 1, maxY = (y | 0) + clip.height - 1;
+      editing.tiles = editing.tiles.filter((tile) => tile.x < x || tile.x > maxX || tile.y < y || tile.y > maxY);
+    }
+    for (const tile of clip.tiles) editing.tiles.push({
+      ...tile, x: (x | 0) + tile.x, y: (y | 0) + tile.y, z: tile.z + (zOffset | 0),
+    });
+    editing._suppressHistory = false;
+    this._recordCustom(house);
+    return clip.tiles.length;
+  }
+
+  saveCustomTemplate(house, name, rect = null) {
+    if (!house?.editing) return { ok: false, error: 'not editing' };
+    const key = String(name ?? '').trim().slice(0, 40);
+    if (!/^[\p{L}\p{N} _.-]{1,40}$/u.test(key)) return { ok: false, error: 'invalid template name' };
+    let tiles = this._cloneCustomTiles(house.editing.tiles);
+    if (rect) {
+      const x1 = Math.min(rect.x1, rect.x2), x2 = Math.max(rect.x1, rect.x2);
+      const y1 = Math.min(rect.y1, rect.y2), y2 = Math.max(rect.y1, rect.y2);
+      tiles = tiles.filter((tile) => tile.x >= x1 && tile.x <= x2 && tile.y >= y1 && tile.y <= y2);
+    }
+    if (!tiles.length) return { ok: false, error: 'template is empty' };
+    const minX = Math.min(...tiles.map((tile) => tile.x));
+    const minY = Math.min(...tiles.map((tile) => tile.y));
+    house.customTemplates ??= {};
+    if (!house.customTemplates[key] && Object.keys(house.customTemplates).length >= 20) {
+      return { ok: false, error: 'template limit reached' };
+    }
+    house.customTemplates[key] = {
+      name: key, savedAt: Date.now(),
+      tiles: tiles.map((tile) => ({ ...tile, x: tile.x - minX, y: tile.y - minY })),
+    };
+    return { ok: true, name: key, tileCount: tiles.length };
+  }
+
+  applyCustomTemplate(house, name, x, y, zOffset = 0, options = {}) {
+    const template = house?.customTemplates?.[name];
+    if (!house?.editing || !template) return 0;
+    house.editing.clipboard = {
+      width: Math.max(...template.tiles.map((tile) => tile.x)) + 1,
+      height: Math.max(...template.tiles.map((tile) => tile.y)) + 1,
+      tiles: this._cloneCustomTiles(template.tiles),
+    };
+    return this.pasteCustomArea(house, x, y, zOffset, options);
   }
 }

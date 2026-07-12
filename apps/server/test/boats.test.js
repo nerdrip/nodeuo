@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { World } from '../src/world/world.js';
 import { createItem, destroyItem } from '../src/world/items.js';
-import { placeCannon } from '../src/systems/cannons.js';
+import { applyNavalImpact, placeCannon } from '../src/systems/cannons.js';
 import { placeGalleon, startBoatSystem } from '../src/systems/boats.js';
 
 const running = [];
@@ -150,5 +150,47 @@ describe('boat system parity', () => {
     boat.boat.keys.push(key.serial);
 
     expect(boats.hasPilotRights(boat, crew)).toBe(true);
+  });
+
+  it('applies hull armor, exposes condition stats, and slows a damaged hull', () => {
+    const api = makeApi();
+    const boat = placeGalleon(api, { kind: 'britannian', x: 50, y: 50, map: 1 });
+    const boats = startBoatSystem(api);
+    running.push(boats);
+
+    expect(boats.stats(boat)).toMatchObject({
+      hullKind: 'britannian', hp: 4000, armorPercent: 28, condition: 'sound',
+    });
+    expect(boats.damage(boat, 1000)).toBe(false);
+    expect(boat.boat.lastDamage).toMatchObject({ raw: 1000, applied: 720, damageType: 'physical' });
+    expect(boats.stats(boat)).toMatchObject({ hp: 3280, condition: 'sound' });
+    boats.damage(boat, 2000, { ignoreArmor: true });
+    expect(boats.stats(boat).condition).toBe('damaged');
+    expect(boats.stats(boat).speedMultiplier).toBeLessThan(0.82);
+  });
+
+  it('rotates mounted objects and cannon directions with the hull', () => {
+    const api = makeApi();
+    const boat = placeGalleon(api, { kind: 'tokuno', x: 100, y: 100, map: 1 });
+    const boats = startBoatSystem(api);
+    running.push(boats);
+    const cannon = api.world.items.get(boat.boat.cannons[0]);
+    const before = { dx: cannon.x - boat.x, dy: cannon.y - boat.y, facing: cannon.cannon.facing };
+
+    expect(boats.setFacing(boat, 'E')).toBe(true);
+    expect({ dx: cannon.x - boat.x, dy: cannon.y - boat.y }).toEqual({ dx: -before.dy, dy: before.dx });
+    expect(cannon.cannon.facing).toBe((before.facing + 1) & 3);
+  });
+
+  it('routes cannon splash through armor-aware boat damage', () => {
+    const api = makeApi();
+    const boat = placeGalleon(api, { kind: 'gargish', x: 100, y: 100, map: 1 });
+    const boats = startBoatSystem(api);
+    running.push(boats);
+
+    const hits = applyNavalImpact(api.world, boats, { x: 101, y: 100, map: 1 }, 200, 2, { damageType: 'fire' });
+    expect(hits).toHaveLength(1);
+    expect(hits[0].after.hp).toBeLessThan(hits[0].before.hp);
+    expect(boat.boat.lastDamage.damageType).toBe('fire');
   });
 });

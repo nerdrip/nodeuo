@@ -23,7 +23,7 @@ const ROLE_TABS = [
   { id: 'normal',label: 'Normal',  match: (m) => !m.boss && m.role !== 'named' },
   { id: 'boss',  label: 'Bosses',  match: (m) => !!m.boss && m.role !== 'named' },
   { id: 'named', label: 'Named',   match: (m) => m.role === 'named' },
-  { id: 'tame',  label: 'Tameable',match: (m) => !!m.tamable },
+  { id: 'tame',  label: 'Tameable',match: (m) => !!(m.tamable || m.tameable) },
   { id: 'mage',  label: 'Mage AI', match: (m) => !!m.mageAI },
 ];
 
@@ -73,8 +73,9 @@ export default function register(api) {
     }
     const pos = { x: ctx.sender.x, y: ctx.sender.y, z: ctx.sender.z, map: ctx.sender.map };
     let mob = null;
-    if (api.ctx?.spawnFactory) {
-      try { mob = api.ctx.spawnFactory(world, kind, pos); } catch (e) {
+    const factory = api.ctx?.spawnFactory ?? api.spawnFactory;
+    if (factory) {
+      try { mob = factory(world, kind, pos); } catch (e) {
         api.log?.(`[mobs] spawnFactory threw: ${e?.message}`);
       }
     }
@@ -149,7 +150,7 @@ export default function register(api) {
     const slice = list.slice(page * MOBS_PER_PAGE, (page + 1) * MOBS_PER_PAGE);
 
     const W = 420;
-    const H = 90 + ROWS_PER_PAGE * ROW_H + 40;
+    const H = 118 + ROWS_PER_PAGE * ROW_H + 40;
     const parts = [`{ page 0 }`, `{ resizepic 0 0 5054 ${W} ${H} }`];
     const texts = [];
 
@@ -169,15 +170,24 @@ export default function register(api) {
     parts.push(`{ textentry 70 40 280 22 70 1 ${texts.length - 1} }`);
     parts.push(`{ button 360 40 4011 4012 1 0 2002 }`);
 
+    // Actual category tabs. ROLE_TABS existed before but the UI never
+    // rendered it, so every spawner looked like one enormous flat list.
+    ROLE_TABS.forEach((tab, i) => {
+      const x = 18 + i * 65;
+      parts.push(`{ button ${x} 70 ${tab.id === tabId ? 4006 : 4005} 4007 1 0 ${3000 + i} }`);
+      texts.push(tab.label);
+      parts.push(`{ text ${x + 19} 70 ${tab.id === tabId ? 1153 : 70} ${texts.length - 1} }`);
+    });
+
     // Body — plain name list, one clickable row.
-    const BODY_TOP = 76;
+    const BODY_TOP = 104;
     slice.forEach((row, i) => {
       const y = BODY_TOP + i * ROW_H;
       parts.push(`{ button 18 ${y + 2} 4005 4007 1 0 ${100 + i} }`);
       // Tag suffix gives the GM a hint that this row is a BOSS / tame
       // / named without a dedicated column.
       const tag = row.cfg.boss ? ' [BOSS]'
-        : row.cfg.tamable ? ' [tame]'
+        : (row.cfg.tamable || row.cfg.tameable) ? ' [tame]'
         : row.cfg.role === 'named' ? ' [named]'
         : '';
       texts.push(`${row.cfg.name ?? row.kind}${tag}`);
@@ -210,6 +220,10 @@ export default function register(api) {
         const entry = resp.textEntries?.find?.((e) => e.entryId === 1);
         const next = (entry?.text ?? '').trim();
         openCatalogue(ctx, tabId, 0, next);
+        return;
+      }
+      if (b >= 3000 && b < 3000 + ROLE_TABS.length) {
+        openCatalogue(ctx, ROLE_TABS[b - 3000].id, 0, query);
         return;
       }
       if (b >= 100 && b < 100 + MOBS_PER_PAGE) {

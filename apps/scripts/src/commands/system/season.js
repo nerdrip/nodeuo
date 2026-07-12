@@ -26,6 +26,9 @@ export default function register(api) {
         return;
       }
       const v = Math.max(0, Math.min(4, parseInt(args[0], 10) || 0));
+      // Persist shard-wide season in the authoritative atmosphere state so
+      // clients logging in after this broadcast receive the same season.
+      if (api.dayNight) api.dayNight.season = v;
       const pkt = api.protocol.seasonChange(v, 1);
       const n = sendToOnline(api, pkt);
       ctx.state.sendSystemMessage(`Season → ${NAMES[v]} (broadcast to ${n} client(s)).`);

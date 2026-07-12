@@ -8,6 +8,8 @@
 
 import { worldToScreenX, worldToScreenY } from './iso.js';
 import { bus } from '../core/event-bus.js';
+import { assets } from '../assets/asset-manager.js';
+import { world } from '../world/world.js';
 
 export const GAME_VIEW_MARGIN = 8;
 export const MIN_VIEW_W = 640;
@@ -126,6 +128,7 @@ export class Camera {
   setUserPosition(x, y) {
     this.viewX = Math.max(0, x | 0);
     this.viewY = Math.max(0, y | 0);
+    this._userPositioned = true;
     try { bus.emit('camera:moved', { x: this.viewX, y: this.viewY }); } catch { /* ignore */ }
   }
 
@@ -137,7 +140,11 @@ export class Camera {
     const w = profile?.get?.('ui.gameWindowW');
     const h = profile?.get?.('ui.gameWindowH');
     if (w > 0 && h > 0) this.setUserSize(w, h);
-    if (x >= 0 && y >= 0) { this.viewX = x | 0; this.viewY = y | 0; }
+    if (x >= 0 && y >= 0) {
+      this.viewX = x | 0;
+      this.viewY = y | 0;
+      this._userPositioned = true;
+    }
     this._locked = !!profile?.get?.('ui.gameWindowLock');
   }
   isLocked() { return !!this._locked; }
@@ -220,8 +227,15 @@ export class Camera {
       this.viewW = Math.max(MIN_VIEW_W, browserW - GAME_VIEW_MARGIN * 2);
       this.viewH = Math.max(MIN_VIEW_H, browserH - GAME_VIEW_MARGIN * 2 - 56);
     }
-    this.viewX = GAME_VIEW_MARGIN;
-    this.viewY = GAME_VIEW_MARGIN;
+    if (!this._userPositioned) {
+      this.viewX = GAME_VIEW_MARGIN;
+      this.viewY = GAME_VIEW_MARGIN;
+    } else {
+      // Preserve the profile/user origin across browser resizes, while still
+      // keeping a reachable sliver of the game viewport on a smaller screen.
+      this.viewX = Math.max(0, Math.min(this.viewX, Math.max(0, browserW - 64)));
+      this.viewY = Math.max(0, Math.min(this.viewY, Math.max(0, browserH - 64)));
+    }
   }
 
   // Client audit #5 #6 / #6 — facet edge clamp. UO map is 7168×4096
@@ -232,12 +246,12 @@ export class Camera {
   }
 
   _clampX(x) {
-    const W = 7168;
+    const W = assets.mapMeta?.width || world.mapWidth || 7168;
     return Math.max(0, Math.min(W - 1, x | 0));
   }
 
   _clampY(y) {
-    const H = 4096;
+    const H = assets.mapMeta?.height || world.mapHeight || 4096;
     return Math.max(0, Math.min(H - 1, y | 0));
   }
 

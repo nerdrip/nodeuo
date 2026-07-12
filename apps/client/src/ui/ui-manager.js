@@ -15,6 +15,7 @@
 
 import { bus } from '../core/event-bus.js';
 import { dragDrop } from '../managers/drag-drop.js';
+import { profile } from '../managers/profile-manager.js';
 import { uiManagerInstance } from './ui-manager-singleton.js';
 
 // Audit #46 P2 — convenience accessor used by show-modal helpers
@@ -77,6 +78,15 @@ export class UIManager {
     this._pickCache = null;
     this._pickControlHit = { control: null, lx: 0, ly: 0 };
     this._pickScreenHit = { gump: null, control: null, lx: 0, ly: 0 };
+    this.scale = 1;
+    this.setScale(profile.get('ui.scale'));
+    this._profileUnsubs = [
+      bus.on('profile:changed', ({ path, value } = {}) => {
+        if (path === 'ui.scale') this.setScale(value);
+      }),
+      bus.on('profile:bound', () => this.setScale(profile.get('ui.scale'))),
+      bus.on('profile:reset', () => this.setScale(profile.get('ui.scale'))),
+    ];
 
     // Wire DOM events. We listen on `window` so the UI keeps responding
     // even when the cursor leaves the canvas (drag continues past edge).
@@ -98,7 +108,28 @@ export class UIManager {
     window.removeEventListener('mouseup',   this._onMouseUp);
     window.removeEventListener('keydown',   this._onKeyDown);
     window.removeEventListener('wheel',     this._onWheel);
+    for (const off of this._profileUnsubs ?? []) off?.();
+    this._profileUnsubs = [];
     while (this.gumps.length) this.removeGump(this.gumps[this.gumps.length - 1]);
+    // The Pixi UI container is reused by the next scene. Do not leak an
+    // in-game accessibility zoom into the login scene or loading overlays.
+    this.parent?.scale?.set?.(1);
+  }
+
+  /** Scale the UI overlay in one place while keeping every gump in its
+   * native logical coordinate system. Mouse routing converts back to those
+   * coordinates, so buttons, drops and drag offsets stay exact. */
+  setScale(value) {
+    const n = Number(value);
+    const next = Math.max(0.75, Math.min(2, Number.isFinite(n) ? n : 1.25));
+    this.scale = Math.round(next * 100) / 100;
+    this.parent?.scale?.set?.(this.scale);
+    this._invalidatePickCache?.();
+  }
+
+  _logicalPoint(sx, sy) {
+    const s = this.scale || 1;
+    return { x: sx / s, y: sy / s };
   }
 
   _onWheel = (e) => {
@@ -160,6 +191,10 @@ export class UIManager {
     // położenie na ekranie". `restorePosition` already clamps to the
     // current viewport so a save from a wider monitor still lands the
     // gump on-screen.
+    // Constructors have finished adding their synchronous controls at this
+    // point. Grow local WindowGumps for accidental child overflow so labels
+    // and buttons remain inside their chrome on every DPI/font setup.
+    try { gump.fitContentBounds?.(); } catch { /* best-effort */ }
     try { gump.restorePosition?.(); } catch { /* best-effort */ }
     // Explicit bringToFront — addChild already appends but on Pixi
     // containers with sortableChildren the add order doesn't always
@@ -296,6 +331,9 @@ export class UIManager {
       out.ly = hit.ly;
       return out;
     };
+    const logical = this._logicalPoint(sx, sy);
+    const ux = logical.x;
+    const uy = logical.y;
     // Audit #46 P1#15 — modal gate: when a modal is open, only that
     // gump is hittable. Background clicks fall through to world (or
     // nothing) instead of waking buttons/inputs behind the modal.
@@ -303,10 +341,10 @@ export class UIManager {
       const g = this._modalGump;
       if (!g.node.visible) return null;
       if (g.width > 0 && g.height > 0) {
-        if (sx < g.x || sy < g.y) return null;
-        if (sx >= g.x + g.width || sy >= g.y + g.height) return null;
+        if (ux < g.x || uy < g.y) return null;
+        if (ux >= g.x + g.width || uy >= g.y + g.height) return null;
       }
-      const hit = g.pickAt(sx - g.x, sy - g.y, this._pickControlHit);
+      const hit = g.pickAt(ux - g.x, uy - g.y, this._pickControlHit);
       return remember(screenHit(g, hit));
     }
     for (let i = this.gumps.length - 1; i >= 0; i--) {
@@ -317,10 +355,10 @@ export class UIManager {
       // events that don't hit a gump at all. Cuts the worst-case
       // pickAtScreen from O(gumps × controls) to O(gumps) on idle hovers.
       if (g.width > 0 && g.height > 0) {
-        if (sx < g.x || sy < g.y) continue;
-        if (sx >= g.x + g.width || sy >= g.y + g.height) continue;
+        if (ux < g.x || uy < g.y) continue;
+        if (ux >= g.x + g.width || uy >= g.y + g.height) continue;
       }
-      const hit = g.pickAt(sx - g.x, sy - g.y, this._pickControlHit);
+      const hit = g.pickAt(ux - g.x, uy - g.y, this._pickControlHit);
       if (hit) return remember(screenHit(g, hit));
     }
     return remember(null);
@@ -339,12 +377,13 @@ export class UIManager {
   }
 
   _onMouseMove = (e) => {
-    this.lastMouseX = e.clientX;
-    this.lastMouseY = e.clientY;
+    const pointer = this._logicalPoint(e.clientX, e.clientY);
+    this.lastMouseX = pointer.x;
+    this.lastMouseY = pointer.y;
     if (this._dragging) {
       const g = this._dragging.gump;
       const oldX = g.x | 0, oldY = g.y | 0;
-      g.setPosition(e.clientX - this._dragging.ox, e.clientY - this._dragging.oy);
+      g.setPosition(pointer.x - this._dragging.ox, pointer.y - this._dragging.oy);
       // Audit #46 P2 — emit per-step delta so AnchorManager can move
       // attached children with the parent in real time.
       const dx = (g.x | 0) - oldX;
@@ -398,7 +437,7 @@ export class UIManager {
         }
         if (dragViaAncestor) {
           this._pressed.moved = true;
-          this._dragging = { gump: g, ox: e.clientX - g.x, oy: e.clientY - g.y };
+          this._dragging = { gump: g, ox: pointer.x - g.x, oy: pointer.y - g.y };
           this.bringToFront(g);
         } else if (typeof ctrl.onDragStart === 'function') {
           // The control wants to participate in drag-with-mouse-down:
@@ -553,6 +592,12 @@ export class UIManager {
       if (!claimed) {
         bus.emit('drag:dropped-on-world', { x: e.clientX, y: e.clientY });
       }
+      // Higher-level drag payloads (spells, abilities, future macros) need a
+      // deterministic completion signal after the target had a chance to
+      // consume them. Item dragging keeps using drag:dropped-on-world above.
+      bus.emit('ui:physical-drag-finished', {
+        claimed, x: e.clientX, y: e.clientY,
+      });
     }
     if (!press.moved) {
       // Drop-on-click while holding: if the user lifted an item from the

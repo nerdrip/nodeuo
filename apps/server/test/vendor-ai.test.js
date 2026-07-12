@@ -3,7 +3,7 @@
 // pattern used in healer-ai.test.js / mage-ai.test.js.
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import registerVendor from '../../scripts/src/npcs/vendors/vendor.js';
+import registerVendor, { VENDOR_KINDS } from '../../scripts/src/npcs/vendors/vendor.js';
 
 function makeApi(world) {
   let behavior = null;
@@ -149,5 +149,72 @@ describe('vendor NPC behavior', () => {
     world.mobiles.set(ghost.serial, ghost);
     tick(1000);
     expect(spoken).toHaveLength(0);
+  });
+
+  it('uses ServUO potion art ids and charges through a restored vendor binding', () => {
+    const expectedPotionArt = new Map([
+      ['heal potion', 0x0F0C], ['lesser heal potion', 0x0F0C],
+      ['agility potion', 0x0F08], ['refresh potion', 0x0F0B],
+      ['strength potion', 0x0F09], ['cure potion', 0x0F07],
+      ['poison potion', 0x0F0A],
+    ]);
+    for (const stock of VENDOR_KINDS.alchemist.stock) {
+      if (expectedPotionArt.has(stock.name)) {
+        expect(stock.itemId, stock.name).toBe(expectedPotionArt.get(stock.name));
+      }
+    }
+
+    const restoredVendor = {
+      serial: 0x2200, vendorKind: 'alchemist', name: 'Veronica',
+      x: 100, y: 100, z: 0, map: 1, body: 0x191, direction: 0, hue: 0,
+    };
+    const buyer = { serial: 0x3300, x: 101, y: 100, z: 0, map: 1, client: {} };
+    const pack = { serial: 0x40000100, itemId: 0x0E75, parent: buyer.serial, layer: 21 };
+    const gold = { serial: 0x40000101, itemId: 0x0EED, amount: 60, parent: pack.serial };
+    const bindings = new Map();
+    const delivered = [];
+    const testWorld = {
+      mobiles: new Map([[restoredVendor.serial, restoredVendor], [buyer.serial, buyer]]),
+      items: new Map([[pack.serial, pack], [gold.serial, gold]]),
+    };
+    const restoredApi = {
+      world: testWorld,
+      log() {},
+      ai: { registerBehavior() {}, unregisterBehavior() {}, attach() {} },
+      commands: { register() {}, unregister() {} },
+      vendors: {
+        register(binding) { bindings.set(binding.vendorSerial, binding); },
+        get(serial) { return bindings.get(serial); },
+      },
+      items: { createItem: () => ({}), destroyItem: (_world, serial) => testWorld.items.delete(serial) },
+      game: {
+        inventory: {
+          findBackpack: () => pack,
+          *packItems() { yield gold; },
+        },
+        mobile: {
+          giveItem(_buyer, data) {
+            delivered.push(data);
+            return { serial: 0x40000200, ...data, gridX: 0, gridY: 0 };
+          },
+        },
+      },
+      protocol: {
+        containerContentUpdate: () => new Uint8Array([0x25]),
+        removeEntity: () => new Uint8Array([0x1D]),
+      },
+    };
+    registerVendor(restoredApi);
+    const binding = bindings.get(restoredVendor.serial);
+    const heal = binding.listStock().find((entry) => entry.description === 'heal potion');
+    const messages = [];
+    binding.onBuy({
+      mobile: buyer, account: { accessLevel: 'Player' },
+      send() {}, sendSystemMessage(message) { messages.push(message); },
+    }, [{ serial: heal.serial, amount: 1 }]);
+
+    expect(gold.amount).toBe(10);
+    expect(delivered[0]).toMatchObject({ itemId: 0x0F0C, name: 'heal potion', amount: 1 });
+    expect(messages.at(-1)).toMatch(/paid 50 gp/);
   });
 });

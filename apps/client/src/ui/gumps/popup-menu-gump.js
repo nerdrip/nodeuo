@@ -10,7 +10,6 @@ import { Graphics } from 'pixi.js';
 import { Gump } from '../gump.js';
 import { Control } from '../control.js';
 import { Label } from '../controls/label.js';
-import { GumpPic } from '../controls/gump-pic.js';
 import { net } from '../../net/net-client.js';
 import { buildPopupMenuChoice } from '../../net/outgoing.js';
 import { assets } from '../../assets/asset-manager.js';
@@ -76,21 +75,25 @@ export class PopupMenuGump extends Gump {
     this.entries = entries ?? [];
     // Resolve cliloc text once.
     this._labels = this.entries.map((e) => assets.cl(e.cliloc, '') || `#${e.cliloc}`);
+    const petCommands = new Set([3006107, 3006108, 3006111, 3006114, 3006118]);
+    if (this.entries.filter((entry) => petCommands.has(entry.cliloc)).length >= 3) {
+      this._buildPetRadial(sx, sy);
+      return;
+    }
     const widest = Math.max(80, ...this._labels.map((s) => s.length * 7 + 24));
     const w = Math.min(280, widest);
     const h = this.entries.length * (ROW_H + 2) + PAD * 2;
     this.setPosition(sx, sy);
     this.setSize(w, h);
-    // Canonical UO context-menu background (0x0910 — 296×136 parchment
-    // with brass border baked in). Stretched to fit the menu rect; UO
-    // art tolerates moderate stretching since the chrome is mostly
-    // border + flat fill. Replaces the earlier dark-blue Graphics
-    // rect that read as "Discord context menu", not UO. Marcin asked
-    // for canonical chrome everywhere.
-    const bg = new GumpPic(0x0910, { width: w, height: h });
-    bg.acceptMouseInput = true;
-    bg.isDragHandle = true;
-    this.add(bg);
+    // 0x0910 is a fixed illustration in this client data, not a nine-slice.
+    // Stretching it behind a two-row context menu produced the noisy strip
+    // visible in the screenshot. Paint stable CUO-style leather/parchment
+    // chrome instead; rows remain proper Controls above it.
+    this._bg = new Graphics()
+      .roundRect(0, 0, w, h, 3).fill({ color: 0x17120d, alpha: 0.97 })
+      .roundRect(1, 1, w - 2, h - 2, 3).stroke({ width: 2, color: 0x80602a })
+      .roundRect(4, 4, w - 8, h - 8, 2).stroke({ width: 1, color: 0xc09a55, alpha: 0.55 });
+    this.node.addChild(this._bg);
     let y = PAD;
     /** @type {PopupMenuGump | null} active submenu — closed before opening another */
     this._submenu = null;
@@ -115,6 +118,32 @@ export class PopupMenuGump extends Gump {
     // Auto-close when the user clicks anywhere outside (handled by
     // UIManager when isModal=false; we set a short auto-close timer
     // as a defensive fallback).
+    this._autoCloseAt = performance.now() + 8000;
+  }
+  _buildPetRadial(sx, sy) {
+    const size = 260, cx = size / 2, cy = size / 2;
+    this.setPosition(sx - cx, sy - cy); this.setSize(size, size);
+    this._submenu = null;
+    this._bg = new Graphics()
+      .circle(cx, cy, 68).fill({ color: 0x17120d, alpha: 0.94 })
+      .circle(cx, cy, 68).stroke({ width: 2, color: 0xc09a55, alpha: 0.85 })
+      .circle(cx, cy, 24).fill({ color: 0x3b2b16, alpha: 1 })
+      .circle(cx, cy, 24).stroke({ width: 1, color: 0xffd36a, alpha: 0.9 });
+    this.node.addChild(this._bg);
+    const center = new Label('PET', { fontSize: 10, hue: 0xffd36a });
+    center.setPosition(cx - 10, cy - 6); this.add(center);
+    const count = this.entries.length;
+    for (let i = 0; i < count; i++) {
+      const entry = this.entries[i];
+      const angle = -Math.PI / 2 + i * (Math.PI * 2 / count);
+      const width = 106;
+      const row = new MenuRow(width, this._labels[i] || '?', {
+        disabled: (entry.flags & 0x01) !== 0, colour: entry.colour,
+        onClick: () => this._send(entry.responseId),
+      });
+      row.setPosition(cx + Math.cos(angle) * 94 - width / 2, cy + Math.sin(angle) * 94 - ROW_H / 2);
+      this.add(row);
+    }
     this._autoCloseAt = performance.now() + 8000;
   }
   get type() { return 'popup-menu'; }

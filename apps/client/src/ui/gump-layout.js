@@ -45,6 +45,7 @@ import { ResizePic } from './controls/resize-pic.js';
 import { ItemPic } from './controls/item-pic.js';
 import { StaticPic } from './controls/static-pic.js';
 import { CroppedText } from './controls/cropped-text.js';
+import { HtmlControl } from './controls/html-control.js';
 import { CheckerTrans } from './controls/checker-trans.js';
 import { ensureGumpControlInfo } from './controls/gump-control-info.js';
 import { tooltips } from '../managers/tooltip-manager.js';
@@ -273,8 +274,10 @@ export function parseGumpLayout({ layout, textLines, serverSerial, gumpSerial, x
         }
         case 'htmlgump': {
           const x = num(t, 1), y = num(t, 2), w = num(t, 3), h = num(t, 4), textIdx = num(t, 5);
-          const c = new Label(stripHtml(textLines[textIdx] ?? ''), { hue: 0xfff0c0 });
-          c.setSize(w, h);
+          const c = new HtmlControl({
+            text: textLines[textIdx] ?? '', maxWidth: w, maxHeight: h,
+            background: num(t, 6) === 1, scrollable: num(t, 7) === 1,
+          });
           c.setPosition(x, y); c.page = currentPage;
           g.add(c); break;
         }
@@ -282,8 +285,10 @@ export function parseGumpLayout({ layout, textLines, serverSerial, gumpSerial, x
           // xmfhtmlgump x y w h cliloc bg scrollable
           const x = +t[1], y = +t[2], w = +t[3], h = +t[4];
           const text = assets.cl(+t[5]);
-          const c = new Label(stripHtml(text), { hue: 0xfff0c0, fontSize: 11 });
-          c.setSize(w, h);
+          const c = new HtmlControl({
+            text, maxWidth: w, maxHeight: h, fontSize: 11,
+            background: +t[6] === 1, scrollable: +t[7] === 1,
+          });
           c.setPosition(x, y); c.page = currentPage;
           g.add(c); break;
         }
@@ -296,8 +301,10 @@ export function parseGumpLayout({ layout, textLines, serverSerial, gumpSerial, x
           // sentinel: 0x7FFF means "default white" (0xFFFFFF). Was: passed
           // through `paletteHueToRgb` → random palette colour.
           const rgb = hue === 0x7FFF ? 0xFFFFFF : paletteHueToRgb(hue);
-          const c = new Label(stripHtml(text), { hue: rgb, fontSize: 11 });
-          c.setSize(w, h);
+          const c = new HtmlControl({
+            text, maxWidth: w, maxHeight: h, fontSize: 11, color: rgb,
+            background: +t[6] === 1, scrollable: +t[7] === 1,
+          });
           c.setPosition(x, y); c.page = currentPage;
           g.add(c); break;
         }
@@ -314,8 +321,11 @@ export function parseGumpLayout({ layout, textLines, serverSerial, gumpSerial, x
           const argsRaw = t.slice(9).join(' ');
           const args = argsRaw.replace(/^@|@$/g, '').replace(/@/g, '\t');
           const text = assets.cl(cliloc, args);
-          const c = new Label(stripHtml(text), { hue: paletteHueToRgb(hue), fontSize: 11 });
-          c.setSize(w, h);
+          const c = new HtmlControl({
+            text, maxWidth: w, maxHeight: h, fontSize: 11,
+            color: paletteHueToRgb(hue),
+            background: +t[5] === 1, scrollable: +t[6] === 1,
+          });
           c.setPosition(x, y); c.page = currentPage;
           g.add(c); break;
         }
@@ -459,13 +469,28 @@ export function parseGumpLayout({ layout, textLines, serverSerial, gumpSerial, x
     }
   }
 
-  // Compute gump bounds from children.
-  let maxX = 0, maxY = 0;
+  // Native gump/button textures resolve asynchronously. Their constructors
+  // initially report placeholder bounds (typically 32x32), so a one-shot
+  // calculation here clipped later-loaded art and made controls outside the
+  // stale root rectangle impossible to click. Recalculate whenever a direct
+  // child adopts its natural atlas size.
+  const recalculateBounds = () => {
+    if (g.node?.destroyed) return;
+    let maxX = 0, maxY = 0;
+    for (const c of g.children) {
+      if (c.x + c.width > maxX) maxX = c.x + c.width;
+      if (c.y + c.height > maxY) maxY = c.y + c.height;
+    }
+    g.setSize(Math.max(1, maxX), Math.max(1, maxY));
+  };
   for (const c of g.children) {
-    if (c.x + c.width  > maxX) maxX = c.x + c.width;
-    if (c.y + c.height > maxY) maxY = c.y + c.height;
+    const previousResize = c.onResize;
+    c.onResize = (...args) => {
+      previousResize?.apply?.(c, args);
+      recalculateBounds();
+    };
   }
-  g.setSize(maxX, maxY);
+  recalculateBounds();
   g.setActivePage(0);
   return g;
 }
@@ -477,8 +502,4 @@ function paletteHueToRgb(hue) {
   // tint from the hue id so different gumps stay visually distinct.
   const h = (hue * 0x9E3779B1) >>> 0;
   return ((h & 0x7f) + 0x80) << 16 | (((h >>> 7) & 0x7f) + 0x80) << 8 | (((h >>> 14) & 0x7f) + 0x80);
-}
-
-function stripHtml(s) {
-  return String(s ?? '').replace(/<[^>]*>/g, '').replace(/&[a-z]+;/g, ' ').trim();
 }

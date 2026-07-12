@@ -23,6 +23,11 @@ export function effectLifetimeMs(info = {}) {
   const dy = worldToScreenY(tx, ty, tz) - worldToScreenY(sx, sy, sz);
   const distancePx = Math.hypot(dx, dy);
   const speed = Math.max(1, info.speed | 0);
+  // Protocol speed values are animation ticks, not literal hundreds of
+  // pixels/second. The previous conversion made a typical Fireball live for
+  // only 100 ms — often one or two rendered frames under load, effectively
+  // invisible. Keep projectiles responsive but guarantee enough frames to
+  // read their direction and impact.
   const pixelsPerSecond = (speed + 1) * 100;
-  return Math.max(100, Math.min(10_000, (distancePx / pixelsPerSecond) * 1000));
+  return Math.max(280, Math.min(10_000, (distancePx / pixelsPerSecond) * 1000));
 }

@@ -107,6 +107,13 @@
                      padding: 2px 10px; border-radius: 2px; font: inherit; cursor: pointer; }
   .add-pane button:hover { background: var(--hover); }
   .raw-toggle { font-size: 10px; opacity: 0.6; }
+  .reload-toggle { display: inline-flex; align-items: center; gap: 5px; color: var(--text-dim); font-size: 11px; }
+  @media (max-width: 850px) {
+    body { grid-template-columns: 210px minmax(0, 1fr); }
+    .topbar { gap: 6px; padding: 0 8px; }
+    .topbar input { width: 150px !important; }
+    .topbar .badge { display: none; }
+  }
 </style>
 </head>
 <body>
@@ -120,6 +127,9 @@
   <button id="btn-collapse-all" title="Collapse every object/array (Ctrl+Shift+C)">Collapse</button>
   <button id="btn-expand-all" title="Expand every object/array (Ctrl+Shift+E)">Expand</button>
   <button id="btn-revert" title="Discard unsaved edits and reload from disk">Revert</button>
+  <label class="reload-toggle" title="Reload gameplay scripts after a successful save so JSON changes become live">
+    <input id="reload-on-save" type="checkbox" checked /> apply live
+  </label>
   <button id="btn-save" class="primary" title="Save changes to disk (Ctrl+S)">Save</button>
 </div>
 
@@ -222,7 +232,12 @@ function renderFileTree() {
 // ============================================================================
 async function openFile(p) {
   if (isDirty() && !confirm('Discard unsaved edits?')) return;
-  const r = await fetch('/api/data-tree/file?path=' + encodeURIComponent(p)).then((x) => x.json());
+  let r;
+  try {
+    const response = await fetch('/api/data-tree/file?path=' + encodeURIComponent(p));
+    if (response.status === 401) { location.href = '/login'; return; }
+    r = await response.json();
+  } catch (e) { toast(`Load failed: ${e.message}`, 'error'); return; }
   if (r.error) { toast(r.error, 'error'); return; }
   state.currentPath = p;
   state.data = r.data;
@@ -244,13 +259,22 @@ async function saveFile() {
   try {
     const r = await fetch('/api/data-tree/file?path=' + encodeURIComponent(state.currentPath), {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ data: state.data }),
+      body: JSON.stringify({
+        data: state.data,
+        expectedMtime: state.fileInfo?.mtime,
+        reload: $('reload-on-save').checked,
+      }),
     }).then((x) => x.json());
-    if (r.error) { toast(r.error, 'error'); return; }
+    if (r.error) {
+      if (r.conflict) toast('Save blocked: file changed in another tab or on disk. Revert/reload before editing again.', 'error');
+      else toast(r.error, 'error');
+      return;
+    }
     state.pristine = JSON.stringify(state.data);
     state.fileInfo = { size: r.size, mtime: r.mtime };
     $('file-info').textContent = `${state.currentPath} · ${fmtSize(r.size)} · ${new Date(r.mtime).toLocaleString()}`;
-    toast('Saved (backup written as .bak.<timestamp>)', 'success');
+    const live = r.reloaded ? `; ${r.reloaded.loaded} scripts reloaded in ${r.reloaded.ms}ms` : '';
+    toast(`Saved safely${r.backup ? `; backup ${r.backup}` : ''}${live}`, 'success');
     setDirty();
   } catch (e) { toast(e.message, 'error'); }
 }
@@ -397,7 +421,11 @@ function renderNode(parts, value, displayKey) {
 
   // Search highlighting
   if (state.search) {
-    const hay = (String(displayKey) + ' ' + JSON.stringify(value)).toLowerCase();
+    // Do not stringify an entire nested subtree for every container row.
+    // On decorations.json (80k+ entries) that made search quadratic and
+    // could freeze the tab for seconds.
+    const searchableValue = isContainer ? '' : JSON.stringify(value);
+    const hay = (String(displayKey) + ' ' + searchableValue).toLowerCase();
     if (hay.includes(state.search)) row.classList.add('search-hit');
   }
 
@@ -441,6 +469,9 @@ window.loadAll = (parts) => {
   const key = pathKey(parts);
   const r = resolvePath(parts);
   if (!r || !Array.isArray(r.value)) return;
+  if (r.value.length > 5000 && !confirm(
+    `Rendering ${r.value.length.toLocaleString()} rows at once may freeze the browser. Continue?`,
+  )) return;
   state.pages.set(key, r.value.length);
   renderTree();
 };
@@ -461,7 +492,10 @@ function editValueInline(span, parts) {
   span.replaceWith(input);
   input.focus();
   input.select();
+  let done = false;
   const finish = (commit) => {
+    if (done) return;
+    done = true;
     if (!commit) { renderTree(); return; }
     let next;
     if (type === 'number') {
@@ -503,7 +537,10 @@ function editKeyInline(span, parts) {
   span.replaceWith(input);
   input.focus();
   input.select();
+  let done = false;
   const finish = (commit) => {
+    if (done) return;
+    done = true;
     if (!commit) { renderTree(); return; }
     const newKey = input.value.trim();
     if (!newKey || newKey === oldKey) { renderTree(); return; }

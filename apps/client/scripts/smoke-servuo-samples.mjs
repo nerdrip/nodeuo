@@ -123,7 +123,7 @@ assert.equal(world.viewRange, 0x18);
 const weather = once('atmosphere:weather');
 net.handlers.get(0x65)(samples.find((s) => s.name === 'servuo-weather-cold-rain').pkt);
 weather.off();
-assert.deepEqual(weather.value, { kind: 0, particles: 0x28, temperature: 0xFB });
+assert.deepEqual(weather.value, { kind: 0, particles: 0x28, temperature: -5 });
 
 const season = once('atmosphere:season');
 net.handlers.get(0x7B)(samples.find((s) => s.name === 'legacy-new-season').pkt);

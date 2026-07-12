@@ -173,7 +173,7 @@ class AutoLootManager {
   }
   _save() {
     try {
-      localStorage.setItem(KEY, JSON.stringify(this.rules.map(({ nameLc, ...rule }) => rule)));
+      localStorage.setItem(KEY, JSON.stringify(this.rules.map(({ nameLc: _nameLc, ...rule }) => rule)));
     }
     catch { /* localStorage may be full */ }
   }

@@ -18,6 +18,10 @@ import { world } from '../world/world.js';
 
 const BASE = '/assets';
 
+export function resolveSfxSourceMap(requestedMap, playerMap) {
+  return Number.isFinite(requestedMap) ? requestedMap : playerMap;
+}
+
 class AudioManager {
   constructor() {
     /** @type {AudioContext | null} */
@@ -280,7 +284,7 @@ class AudioManager {
 
   /** Play a SFX by id. Resolves once the buffer is decoded + scheduled.
    *  No-op if id isn't in the manifest. */
-  async play(id) {
+  async play(id, volume = 1) {
     await this._ensureInitialized();
     if (!this.ctx || !this._index) return;
     // Browsers create the AudioContext in 'suspended' state and a
@@ -296,7 +300,15 @@ class AudioManager {
     if (!buffer) return;
     const src = this.ctx.createBufferSource();
     src.buffer = buffer;
-    src.connect(this._sfx);
+    const scalar = Math.max(0, Math.min(1, Number(volume) || 0));
+    if (scalar < 0.999) {
+      const gain = this.ctx.createGain();
+      gain.gain.value = scalar;
+      src.connect(gain);
+      gain.connect(this._sfx);
+    } else {
+      src.connect(this._sfx);
+    }
     src.start();
   }
 
@@ -318,8 +330,9 @@ class AudioManager {
     // it's basically Promise.resolve, but the await still defers playback
     // by a microtask and produces audible cadence drift. Direct ref.
     const me = world?.player;
-    if (me) { px = me.x; py = me.y; pMap = me.map; }
-    if (pMap !== sMap) return;          // wrong facet — never audible
+    if (me) { px = me.x; py = me.y; pMap = me.map ?? world.mapId; }
+    const sourceMap = resolveSfxSourceMap(sMap, pMap);
+    if (pMap !== sourceMap) return;          // wrong facet — never audible
     const dx = sx - px, dy = sy - py;
     const dist = Math.max(Math.abs(dx), Math.abs(dy));
     const MAX = 18;
@@ -425,27 +438,11 @@ class AudioManager {
     }
     if (name === this._ambientName) return;
     if (this._ambientEl) { try { this._ambientEl.pause(); } catch {} }
-    // CUO-derived region → music id mapping (small core set; shards can
-    // extend via the localStorage override hook below).
-    const REGION_TO_MUSIC = {
-      cave:          12, // dungeon1
-      dungeon:       12,
-      'dungeon-1':   12,
-      'dungeon-2':   13,
-      'dungeon-3':   14,
-      cathedral:     15, // sacred
-      shrine:        15,
-      underwater:    20,
-      cemetery:      35, // necro
-      'swamp':       17,
-      'volcano':     19,
-      'jungle':      29,
-      'bazaar':      4,  // britain
-      'tavern':      16, // bg
-      'magincia':    16,
-    };
+    // Music is authoritative from server 0x6D. Do not replace an authored
+    // dungeon/town track merely because the local terrain heuristic says
+    // "cave". A user override remains available for custom shards.
     const overrides = (() => { try { return JSON.parse(localStorage.getItem('uo.regionMusic') ?? '{}'); } catch { return {}; } })();
-    const mid = overrides[name] ?? REGION_TO_MUSIC[name];
+    const mid = overrides[name];
     if (mid != null) {
       this._ambientName = name;
       this._onMusicRequest(mid);

@@ -9,6 +9,7 @@ export default function (api) {
   commands.register({
     name: 'gump',
     help: 'Open a test input gump.',
+    hidden: true,
     run: (ctx) => {
       const state = ctx.state;
       if (!state) return;

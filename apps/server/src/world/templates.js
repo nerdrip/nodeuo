@@ -150,6 +150,7 @@ export function spawn(world, name, overrides) {
   if (t.script)        item.script        = t.script;
   if (t.equipLayer)    item.equipLayer    = t.equipLayer;
   if (t.clothing)      item.clothing      = t.clothing;
+  if (t.spellbook)     item.spellbook     = true;
   if (t.slot)          item.slot          = t.slot;
   if (t.weight != null) item.weight       = t.weight;
   if (t.dyeHues)       item.dyeHues       = t.dyeHues;

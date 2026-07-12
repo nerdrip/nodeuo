@@ -38,6 +38,21 @@ export const Action = {
   FlyAttack:  'flyAttack',
 };
 
+// Higher-priority one-shots cannot be replaced by ordinary locomotion or a
+// lower-priority reaction. ClassicUO keeps server animations active until
+// their repeat counter drains; modelling that explicitly prevents a damage
+// packet from turning a death/cast into a walk frame on the next render tick.
+export const ANIMATION_PRIORITY = Object.freeze({
+  Locomotion: 0,
+  Fidget: 1,
+  Hit: 10,
+  Server: 20,
+  Death: 100,
+});
+
+const MAX_ANIMATION_DELTA_SECONDS = 0.1;
+const MAX_FRAME_ADVANCES_PER_TICK = 4;
+
 // Per-body-type group lookup tables. Mirror CUO
 // `AnimationsLoader.cs:1572-...` enums. Missing entries fall back to
 // the closest sensible default at lookup time.
@@ -371,6 +386,11 @@ export class MobileAnimation {
     this._customDelayMs = 0;
     /** when set, switch back to Idle once the action completes */
     this._oneShot = false;
+    this._priority = ANIMATION_PRIORITY.Locomotion;
+    this._holdLastFrame = false;
+    this._repeatRemaining = 0;
+    this._playReverse = false;
+    this._staticFrame = null;
     /** cached texture for the current frame */
     this._currentTex = null;
     /** cached cx/cy for the current frame (foot-on-tile anchor in src px) */
@@ -382,6 +402,8 @@ export class MobileAnimation {
     this.armed2H = false;
     this.run = false;
     this.isFlying = false;
+    /** Full-tile locomotion duration supplied by the movement predictor. */
+    this.moveDurationMs = 0;
     /** seconds remaining until the next random idle fidget */
     this._idleFidgetIn = 5 + Math.random() * 25;
   }
@@ -406,7 +428,12 @@ export class MobileAnimation {
     if (typeof flags.isFlying === 'boolean' && flags.isFlying !== this.isFlying) {
       this.isFlying = flags.isFlying; changed = true;
     }
-    if (typeof flags.run === 'boolean') this.run = flags.run;
+    if (typeof flags.run === 'boolean' && flags.run !== this.run) {
+      this.run = flags.run; changed = true;
+    }
+    if (Number.isFinite(flags.moveDurationMs)) {
+      this.moveDurationMs = Math.max(0, flags.moveDurationMs);
+    }
     if (changed) {
       this._currentTex = null;
       this._frameCount = 0;
@@ -422,6 +449,16 @@ export class MobileAnimation {
     this.body = body;
     this.action = Action.Idle;
     this.frame = 0;
+    this._oneShot = false;
+    this._priority = ANIMATION_PRIORITY.Locomotion;
+    this._holdLastFrame = false;
+    this._frameAt = 0;
+    this._frameCountOverride = 0;
+    this._repeatCountOverride = 0;
+    this._repeatRemaining = 0;
+    this._customDelayMs = 0;
+    this._playReverse = false;
+    this._staticFrame = null;
     this._currentTex = null;
     this._frameCount = 0;
     this.prefetch();
@@ -461,7 +498,8 @@ export class MobileAnimation {
     if (realDir === this.direction && isMirror === this.mirror) return;
     this.direction = realDir;
     this.mirror = isMirror;
-    this.frame = 0;
+    // CUO changes the directional frame set without resetting AnimIndex.
+    // Preserving the gait phase removes the leg snap on every corner.
     this._currentTex = null;
     this._frameCount = 0;
     this.prefetch();
@@ -476,15 +514,29 @@ export class MobileAnimation {
    *  cadence (key release after sustained run, or auto-run kick-in)
    *  and the gait visibly stuttered. CUO does the same — the same
    *  6-frame cycle is shared across Walk and Run, only the FPS changes. */
-  setAction(action, { oneShot = false, frameCount, repeatCount, delay, reverse = false, staticFrame = null } = {}) {
+  setAction(action, {
+    oneShot = false,
+    frameCount,
+    repeatCount,
+    delay,
+    reverse = false,
+    staticFrame = null,
+    priority = ANIMATION_PRIORITY.Locomotion,
+    holdLastFrame = false,
+  } = {}) {
+    const nextPriority = Number.isFinite(priority) ? priority : ANIMATION_PRIORITY.Locomotion;
+    if (nextPriority < this._priority && (this._oneShot || this._holdLastFrame)) return false;
     if (this.action === action && this._oneShot === oneShot
-        && frameCount == null && delay == null && staticFrame == null
-        && this._staticFrame == null) return;
+        && frameCount == null && repeatCount == null && delay == null && staticFrame == null
+        && this._staticFrame == null && nextPriority === this._priority
+        && !!holdLastFrame === this._holdLastFrame) return true;
     const wasLocomotion = (this.action === Action.Walk || this.action === Action.Run);
     const newLocomotion = (action === Action.Walk || action === Action.Run);
     const keepFrame = wasLocomotion && newLocomotion;
     this.action = action;
     this._oneShot = oneShot;
+    this._priority = nextPriority;
+    this._holdLastFrame = !!holdLastFrame;
     if (!keepFrame) {
       this.frame = 0;
       this._frameAt = 0;
@@ -514,6 +566,7 @@ export class MobileAnimation {
       this._frameAt = 0;
     }
     this.prefetch();
+    return true;
   }
 
   /** Advance the frame timer. */
@@ -532,13 +585,24 @@ export class MobileAnimation {
       this._frameAt = 0;
       return;
     }
-    this._frameAt += dt;
+    const safeDt = Math.min(
+      MAX_ANIMATION_DELTA_SECONDS,
+      Math.max(0, Number.isFinite(dt) ? dt : 0),
+    );
+    this._frameAt += safeDt;
     // Custom-anim delay override (0x6E / 0xE2 per-frame ms). Falls back
     // to the per-action FPS table when none was supplied.
+    const isLocomotion = this.action === Action.Walk || this.action === Action.Run;
+    const locomotionFrames = this._frameCountOverride || this._frameCount || 6;
     const interval = this._customDelayMs > 0
       ? (this._customDelayMs / 1000)
-      : (1 / (ACTION_FPS[this.action] ?? DEFAULT_FPS));
-    while (this._frameAt >= interval) {
+      : (isLocomotion && this.moveDurationMs > 0
+        // One complete gait cycle per tile prevents feet sliding backwards
+        // while interpolation continues (the visible "moonwalk").
+        ? (this.moveDurationMs / 1000 / Math.max(1, locomotionFrames))
+        : (1 / (ACTION_FPS[this.action] ?? DEFAULT_FPS)));
+    let advances = 0;
+    while (this._frameAt >= interval && advances++ < MAX_FRAME_ADVANCES_PER_TICK) {
       this._frameAt -= interval;
       // Audit #40 client P1 #4 — step backwards when `reverse` was
       // set (CUO `Mobile.SetAnimation` mirrors frames for forward=false).
@@ -556,8 +620,23 @@ export class MobileAnimation {
         : (effectiveCount > 0 && this.frame >= effectiveCount);
       if (wrapped) {
         if (this._oneShot) {
+          if (this._repeatRemaining > 1) {
+            this._repeatRemaining -= 1;
+            this.frame = this._playReverse ? Math.max(0, effectiveCount - 1) : 0;
+            this._frameAt = 0;
+            this._currentTex = null;
+            continue;
+          }
+          if (this._holdLastFrame) {
+            this.frame = this._playReverse ? 0 : Math.max(0, effectiveCount - 1);
+            this._frameAt = 0;
+            this._currentTex = null;
+            break;
+          }
           this.action = Action.Idle;
           this._oneShot = false;
+          this._priority = ANIMATION_PRIORITY.Locomotion;
+          this._holdLastFrame = false;
           this._frameCountOverride = 0;
           this._repeatCountOverride = 0;
           this._repeatRemaining = 0;
@@ -578,6 +657,8 @@ export class MobileAnimation {
           this._repeatRemaining -= 1;
           if (this._repeatRemaining <= 0) {
             this.action = Action.Idle;
+            this._priority = ANIMATION_PRIORITY.Locomotion;
+            this._holdLastFrame = false;
             this._frameCountOverride = 0;
             this._repeatCountOverride = 0;
             this._customDelayMs = 0;
@@ -593,14 +674,19 @@ export class MobileAnimation {
       }
       this._currentTex = null; // force refresh
     }
+    // A background-tab resume or a malicious 1 ms custom delay must not make
+    // one render frame chew through hundreds of animation frames.
+    if (advances >= MAX_FRAME_ADVANCES_PER_TICK && this._frameAt >= interval) {
+      this._frameAt %= interval;
+    }
     // Random idle fidget cycle (CUO Mobile.CalculateRandomIdleTime).
     // Static idle bodies otherwise stand frozen — every 5..30 s play
     // a one-shot fidget and return to idle.
     if (this.action === Action.Idle && !this._oneShot && !this.isMounted) {
-      this._idleFidgetIn -= dt;
+      this._idleFidgetIn -= safeDt;
       if (this._idleFidgetIn <= 0) {
         this._idleFidgetIn = 8 + Math.random() * 25;
-        this.setAction(Action.Fidget, { oneShot: true });
+        this.setAction(Action.Fidget, { oneShot: true, priority: ANIMATION_PRIORITY.Fidget });
       }
     }
   }

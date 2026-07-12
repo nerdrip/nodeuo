@@ -30,7 +30,24 @@ import {
   LoginRejectReason,
   clientVersionRequest,
   playSound,
+  extNodeUOCapabilities,
+  NODEUO_CAPABILITIES_ALL,
+  NODEUO_EXT_SUBCOMMAND,
+  NODEUO_SPELL_COMPOSER_SUBCOMMAND,
+  NODEUO_SPECIALIZATION_SUBCOMMAND,
+  NODEUO_HOUSE_TOOLS_SUBCOMMAND,
+  NODEUO_PROTOCOL_MAJOR,
+  NodeUOCapabilityMessage,
+  NodeUOSpellComposerMessage,
+  NodeUOSpecializationMessage,
+  NodeUOCooldownMessage,
+  NodeUOHouseToolsMessage,
+  NodeUOCapability,
+  extNodeUOMovementHint,
+  extNodeUOCooldown,
+  extNodeUOHouseTools,
 } from '@uo/protocol';
+import * as specializations from '../systems/specializations.js';
 import { Stage } from './net-state.js';
 import { SKILL_TO_COMMAND } from './skill-actions.js';
 import { trace } from '../trace.js';
@@ -45,8 +62,7 @@ import { has as hasEffect } from '../status-effects.js';
 import { stamp as stampAggression } from '../aggression.js';
 import { lineOfSight } from '../world/los.js';
 import {
-  containerChildren, createItem, findMergeableStack, mergeStacks, splitStack,
-  totalWeight, wornWeight,
+  containerChildren, createItem, destroyItem, findMergeableStack, mergeStacks, splitStack,
 } from '../world/items.js';
 import { useItem as useTemplateItem, spawn as spawnTemplate, getTemplate } from '../world/templates.js';
 import * as itemsMod from '../world/items.js';
@@ -57,7 +73,10 @@ import { markAttrDirty } from '../world/attributes.js';
 // (audit #2 A5). Returns the item for chaining.
 const setItemParent = itemsMod.setItemParent;
 import { resolveStep, resolveStandingZ } from '../world/movement.js';
-import { assignRace } from '../systems/race.js';
+import {
+  canCarry, encumbrance, maxWeight, pileWeight, totalContainerWeight,
+} from '../world/weight.js';
+import { assignRace, isPaperdollBody } from '../systems/race.js';
 import { dispatchItemEvent, dispatchTileWalkEvents } from '../world/item-scripts.js';
 import {
   hitChance, rollDamage, swingDelayMs, damageRiders, onHitProcs,
@@ -93,8 +112,23 @@ import {
   readProfileRequest, profileResponse,
 } from '@uo/protocol';
 import { attackLimiter } from './attack-limiter.js';
+import { buildEquipmentByOwner, equipmentFor } from './handlers/equipment-visibility.js';
 import * as helpQueue from '../help-queue.js';
 import * as chatChannels from '../chat-channels.js';
+import {
+  bodyForRace,
+  CREATOR_PRESETS,
+  decodeClassicCreateGenderRace,
+  isValidCreatorBeard,
+  isValidCreatorHair,
+  normalizeCreatorSkinHue,
+  parseCreateCharacter,
+  presetFromProfession,
+  raceNameFromCreatorIndex,
+  racePacketId,
+  STARTER_CITIES,
+  validateCharacterName,
+} from './handlers/character-creation.js';
 
 /** @typedef {(state: import('./net-state.js').NetState, pkt: Uint8Array) => void} Handler */
 /** @typedef {Record<number, Handler>} HandlerTable */
@@ -528,8 +562,30 @@ function dispatchCastFromMacro(state, spellId) {
   // the FCR gate at the top of this function.
   const recoveryMs = Math.max(250, 1000 - fcr * 150);
   if (state.mobile) state.mobile._castReadyAt = Date.now() + scaledDelay + recoveryMs;
+  if (state.supportsNodeUO?.(NodeUOCapability.CooldownBars)) {
+    state.send(extNodeUOCooldown({
+      kind: NodeUOCooldownMessage.Start,
+      requestId: spellId >>> 0,
+      payload: {
+        id: `spell:${spellId}`,
+        label: def.name ?? `Spell ${spellId}`,
+        category: 'spell',
+        durationMs: scaledDelay + recoveryMs,
+        serverEndsAt: Date.now() + scaledDelay + recoveryMs,
+      },
+    }));
+  }
 
   if (def.requiresTarget) {
+    // Canonical cast flow: the caster chants and performs the gesture first,
+    // the target cursor appears when that cast preparation completes, and the
+    // selected target receives the effect immediately. Previously the mantra
+    // was emitted only after target selection and castSpell scheduled a
+    // second delay, making every targeted spell feel backwards and laggy.
+    if (def.mantra) {
+      try { deps.broadcastSpellWords(world, state.mobile, def.mantra); }
+      catch { /* presentation must not block targeting */ }
+    }
     try { combat.animate(world, state.mobile,
       def.areaCast ? 0x11 : 0x10, { frameCount: 7, repeatCount: 1 }); }
     catch { /* non-fatal */ }
@@ -555,10 +611,17 @@ function dispatchCastFromMacro(state, spellId) {
             graphic: picked.graphic | 0,
           };
         }
-        const tDeps = { ...deps, animate: undefined, playSoundNear: undefined };
+        const tDeps = {
+          ...deps,
+          animate: undefined,
+          playSoundNear: undefined,
+          broadcastSpellWords: undefined,
+        };
         const r = castSpellDispatch({
           caster: state.mobile, target, world, spellId, deps: tDeps,
           accessLevel: state.account?.accessLevel,
+          // Preparation already elapsed before the target request.
+          instant: true,
         });
         if (!r.ok && r.reason && state.sendSystemMessage) {
           state.sendSystemMessage(`Cast failed: ${r.reason}.`);
@@ -1084,7 +1147,7 @@ export function refreshSurroundings(state) {
   // mob's equipmentFor() did its own full O(items) walk and a refresh
   // around 50 mobs × 110k items spent ~5.5M iterations on equipment
   // lookups alone.
-  const equipByOwner = buildEquipByOwner(state.ctx.world);
+  const equipByOwner = buildEquipmentByOwner(state.ctx.world);
 
   state.send(mobileIncoming({
     serial: mob.serial, body: mob.body, x: mob.x, y: mob.y, z: mob.z,
@@ -1099,23 +1162,46 @@ export function refreshSurroundings(state) {
   state.send(manaUpdate({ serial: mob.serial, current: mob.mana ?? 50, max: mob.manaMax ?? 50 }));
   state.send(staminaUpdate({ serial: mob.serial, current: mob.stam ?? 50, max: mob.stamMax ?? 50 }));
 
-  // Reset the visibility cache — refreshSurroundings is the "I've sent
-  // you everything in range right now" baseline that `streamVisibilityDelta`
-  // diffs against on each subsequent step.
-  state._visibleItems  = new Set();
-  state._visibleMobiles = new Set();
+  // Build the authoritative next window before sending anything. A plain
+  // cache reset used to forget the old serials without emitting 0x1D, so a
+  // teleport, DeleteWorld or RecreateWorld left old doors/statics/NPCs alive
+  // in the client until relog. The generation also cancels an older async
+  // item batch when a second refresh or a movement delta overtakes it.
+  const generation = ((state._visibilityGeneration ?? 0) + 1) >>> 0;
+  state._visibilityGeneration = generation;
+  const previousItems = state._visibleItems ?? new Set();
+  const previousMobiles = state._visibleMobiles ?? new Set();
+  const nextItems = new Set();
+  const nextMobiles = new Set();
+  const nearbyMobSnapshot = Array.from(nearbyMobiles(state.ctx.world, mob, mob));
+  const items = Array.from(nearbyItems(state.ctx.world, mob));
+  for (const other of nearbyMobSnapshot) nextMobiles.add(other.serial >>> 0);
+  for (const item of items) nextItems.add(item.serial >>> 0);
+  for (const serial of previousItems) {
+    if (!nextItems.has(serial)) state.send(removeEntity(serial));
+  }
+  for (const serial of previousMobiles) {
+    if (!nextMobiles.has(serial)) state.send(removeEntity(serial));
+  }
+  // Keep only items the client already knew and that remain in range. Newly
+  // discovered items enter the cache after their batch packet is actually
+  // sent. If movement cancels this batch, streamVisibilityDelta will then
+  // see the unsent serials as new and deliver them instead of losing them.
+  state._visibleItems = new Set(
+    Array.from(previousItems).filter((serial) => nextItems.has(serial)),
+  );
+  state._visibleMobiles = nextMobiles;
   // Unlike initial login (which only streams other players), resync also
   // needs NPCs — the client may have discarded a skeleton's sprite while
   // stalled and there's no movement packet to re-seed it. `nearbyMobiles`
   // yields every in-range mobile regardless of whether it has a client.
-  for (const other of nearbyMobiles(state.ctx.world, mob, mob)) {
+  for (const other of nearbyMobSnapshot) {
     state.send(mobileIncoming({
       serial: other.serial, body: other.body, x: other.x, y: other.y, z: other.z,
       direction: other.direction, hue: other.hue, flags: other.flags, notoriety: other.notoriety,
       equipment: equipmentFor(state.ctx.world, other, equipByOwner),
     }));
     state.send(healthUpdate({ serial: other.serial, current: other.hp ?? 50, max: other.hpMax ?? 50 }));
-    state._visibleMobiles.add(other.serial >>> 0);
   }
   // Item streaming — BATCHED via setImmediate to prevent the client
   // from freezing on a TP into a busy area. Britain Bank has 200+
@@ -1129,14 +1215,13 @@ export function refreshSurroundings(state) {
   // the client side gives the renderer's RAF a chance to fire
   // between bursts. 30 was picked empirically — well under one
   // typical WS frame, two-digit ms of CPU each.
-  const items = [];
-  for (const item of nearbyItems(state.ctx.world, mob)) items.push(item);
   if (items.length === 0) return;
   const BATCH_SIZE = 30;
   let cursor = 0;
   const flushBatch = () => {
     // The state may have closed (logout, disconnect) between batches.
-    if (state._closed || state.stage !== Stage.InWorld) return;
+    if (state._closed || state.stage !== Stage.InWorld
+        || state._visibilityGeneration !== generation) return;
     const end = Math.min(cursor + BATCH_SIZE, items.length);
     for (; cursor < end; cursor++) {
       try {
@@ -1169,6 +1254,10 @@ function handleLogoutReq(state) { state.close('logout'); }
 function streamVisibilityDelta(state, mob, prevX, prevY) {
   const world = state.ctx?.world;
   if (!world) return;
+  // Stop any still-draining refresh batch. This step computes a newer
+  // authoritative window and must not be followed by late packets from the
+  // player's previous tile/facet.
+  state._visibilityGeneration = ((state._visibilityGeneration ?? 0) + 1) >>> 0;
   // Run on every accepted step (not only sector crossing). With large
   // streamed worlds this prevents the "walk a few tiles and see empty
   // horizon until next sector edge" effect after teleports/resync.
@@ -1285,273 +1374,6 @@ function handleCreateCharacter70160(state, pkt) {
 export function _parseCreateCharacterForTest(pkt, extended) {
   return parseCreateCharacter(pkt, extended);
 }
-function parseCreateCharacter(pkt, extended) {
-  const r = new PacketReader(pkt);
-  r.readU8();         // opcode
-  r.readU32();        // patternRevision (or 0xEDEDEDED)
-  r.readU32();        // clientFlag
-  r.readU8();         // unk
-  const name = r.readAsciiFixed(30).replace(/\0+$/, '').trim();
-  r.skip(2);          // unk
-  r.readU32();        // featureFlags
-  r.readU32();        // unk
-  r.readU32();        // loginCount
-  const profession = r.readU8();
-  r.skip(15);         // padding
-  const genderRace = r.readU8();    // 0xF8: 2/3 human, 4/5 elf, 6/7 gargoyle; odd values are female.
-  const str = r.readU8();
-  const dex = r.readU8();
-  const intel = r.readU8();
-  const skill1 = r.readU8(), val1 = r.readU8();
-  const skill2 = r.readU8(), val2 = r.readU8();
-  const skill3 = r.readU8(), val3 = r.readU8();
-  let skill4 = -1, val4 = 0;
-  if (extended) { skill4 = r.readU8(); val4 = r.readU8(); }
-  const skinHue = r.readU16();
-  const hairId  = r.readU16();
-  const hairHue = r.readU16();
-  const facialHairId  = r.readU16();
-  const facialHairHue = r.readU16();
-  // Trailing fields per modern 0xF8: locationId(u16), zero(u16),
-  // charSlot(u16), clientIp(u32), shirtHue(u16), pantsHue(u16). The
-  // older 0x00 path is short-compatible here. We honour locationId so
-  // the client's city pick actually controls where the avatar spawns.
-  let cityIndex = 0;
-  let shirtHue = 0, pantsHue = 0;
-  try { cityIndex = r.readU16(); } catch { /* short-form may end here */ }
-  try { r.readU32(); } catch { /* slot — ignored */ }
-  try { r.readU32(); } catch { /* clientIP — ignored */ }
-  try { shirtHue = r.readU16(); } catch { /* pre-AOS skips this */ }
-  try { pantsHue = r.readU16(); } catch { /* pre-AOS skips this */ }
-  /** @type {Record<number, number>} */
-  const skills = {};
-  for (const [skillId, value] of [[skill1, val1], [skill2, val2], [skill3, val3], [skill4, val4]]) {
-    // ClassicUO sends zero-based SkillName enum indexes; the runtime
-    // stores canonical skill ids as 1..58 everywhere else.
-    if (skillId >= 0 && skillId <= 57 && value > 0) skills[skillId + 1] = value;
-  }
-  const { race, female } = decodeClassicCreateGenderRace(genderRace, extended);
-  return {
-    name,
-    sex: /** @type {0|1} */ (female ? 1 : 0),
-    race,
-    profession,
-    str: str | 0, dex: dex | 0, int: intel | 0,
-    skills,
-    skinHue: skinHue | 0,
-    hair: hairId ? { itemId: hairId, hue: hairHue } : null,
-    beard: facialHairId ? { itemId: facialHairId, hue: facialHairHue } : null,
-    shirtHue, pantsHue,
-    cityIndex,
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Character-creation validation + lookup tables
-// ---------------------------------------------------------------------------
-
-/** Reserved name fragments — case-insensitive substring match. Mirrors
- *  ServUO `NameVerification.cs` denylist (slimmed). */
-const RESERVED_NAME_FRAGMENTS = [
-  'gm', 'admin', 'staff', 'lord british', 'blackthorn',
-  'jaana', 'mariah', 'shamino', 'iolo', 'dupre', 'geoffrey',
-  'system', 'server', 'console', 'fuck', 'shit', 'cunt', 'nigger',
-];
-/** Allowed name pattern: letters, spaces, apostrophes, hyphens. */
-const NAME_PATTERN = /^[A-Za-z][A-Za-z' -]{1,29}$/;
-
-/** Returns `null` when `name` is acceptable, otherwise a short reason
- *  string suitable for an error message back to the client. */
-function validateCharacterName(name) {
-  const trimmed = (name ?? '').trim();
-  if (trimmed.length < 2)  return 'name too short';
-  if (trimmed.length > 30) return 'name too long';
-  if (!NAME_PATTERN.test(trimmed)) return 'illegal characters in name';
-  const lower = trimmed.toLowerCase();
-  for (const frag of RESERVED_NAME_FRAGMENTS) {
-    if (lower.includes(frag)) return `name contains reserved fragment "${frag}"`;
-  }
-  return null;
-}
-
-/** Starter-city table — index matches the ClassicUO city pick gump
- *  (0..8). Coords are the canonical OSI start spawns; map=1 (Trammel)
- *  for new players. Mirrors ServUO `CharacterCreation.cs` city block. */
-const STARTER_CITIES = [
-  { name: 'New Haven', x: 3667, y: 2625, z: 0,   map: 1 },   // 0 default
-  { name: 'Britain',   x: 1496, y: 1624, z: 10,  map: 1 },
-  { name: 'Trinsic',   x: 1825, y: 2728, z: 0,   map: 1 },
-  { name: 'Moonglow',  x: 4459, y: 1086, z: 0,   map: 1 },
-  { name: 'Yew',       x:  548, y:  979, z: 0,   map: 1 },
-  { name: 'Magincia',  x: 3777, y: 2225, z: 19,  map: 1 },
-  { name: 'Skara Brae',x:  643, y: 2067, z: 5,   map: 1 },
-  { name: 'Vesper',    x: 2876, y:  676, z: 0,   map: 1 },
-  { name: 'Minoc',     x: 2477, y:  411, z: 15,  map: 1 },
-];
-
-/** Body id per (race, sex). 0=human, 1=elf, 2=gargoyle. Falls back to
- *  human when an unknown race id arrives. */
-function bodyForRace(race, female) {
-  switch (race | 0) {
-    case 1: return female ? 0x025E : 0x025D;   // elf
-    case 2: return female ? 0x029B : 0x029A;   // gargoyle
-    default: return female ? 0x0191 : 0x0190;  // human
-  }
-}
-
-const CREATOR_RACE_NAMES = ['human', 'elf', 'gargoyle'];
-
-function raceNameFromCreatorIndex(race) {
-  return CREATOR_RACE_NAMES[Math.max(0, Math.min(2, race | 0))] ?? 'human';
-}
-
-function racePacketId(race, body = 0) {
-  if (body === 0x0190 || body === 0x0191) return 1;
-  if (body === 0x025D || body === 0x025E) return 2;
-  if (body === 0x029A || body === 0x029B || body === 0x0666 || body === 0x0667) return 3;
-  if (race === 1 || race === 'human') return 1;
-  if (race === 2 || race === 'elf') return 2;
-  if (race === 3 || race === 'gargoyle') return 3;
-  return 1;
-}
-
-const ELF_SKIN_HUES = new Set([
-  0x4DE, 0x76C, 0x835, 0x430, 0x24D, 0x24E, 0x24F, 0x0BF,
-  0x4A7, 0x361, 0x375, 0x367, 0x3E8, 0x3DE, 0x353, 0x903,
-  0x76D, 0x384, 0x579, 0x3E9, 0x374, 0x389, 0x385, 0x376,
-  0x53F, 0x381, 0x382, 0x383, 0x76B, 0x3E5, 0x51D, 0x3E6,
-]);
-
-function normalizeCreatorSkinHue(race, hue) {
-  const raw = hue | 0;
-  const value = raw & 0x3fff;
-  switch (race | 0) {
-    case 1:
-      return (ELF_SKIN_HUES.has(value) ? value : 0x4DE) | 0x8000;
-    case 2:
-      return Math.max(1755, Math.min(1779, value || 1755)) | 0x8000;
-    default:
-      return Math.max(1002, Math.min(1058, value || 1002)) | 0x8000;
-  }
-}
-
-function isValidCreatorHair(race, female, itemId) {
-  const id = itemId | 0;
-  if (id === 0) return false;
-  switch (race | 0) {
-    case 1:
-      if ((female && (id === 0x2FCD || id === 0x2FBF)) || (!female && (id === 0x2FCC || id === 0x2FD0))) return false;
-      return (id >= 0x2FBF && id <= 0x2FC2) || (id >= 0x2FCC && id <= 0x2FD1);
-    case 2:
-      if (!female) return id >= 0x4258 && id <= 0x425F;
-      return id === 0x4261 || id === 0x4262
-        || (id >= 0x4273 && id <= 0x4275)
-        || id === 0x42B0 || id === 0x42B1
-        || id === 0x42AA || id === 0x42AB;
-    default:
-      if ((female && id === 0x2048) || (!female && id === 0x2046)) return false;
-      return (id >= 0x203B && id <= 0x203D) || (id >= 0x2044 && id <= 0x204A);
-  }
-}
-
-function isValidCreatorBeard(race, female, itemId) {
-  const id = itemId | 0;
-  if (id === 0 || female) return false;
-  switch (race | 0) {
-    case 1:
-      return false;
-    case 2:
-      return id >= 0x42AD && id <= 0x42B0;
-    default:
-      return (id >= 0x203E && id <= 0x2041) || (id >= 0x204B && id <= 0x204D);
-  }
-}
-
-/**
- * Pick a clothing preset name from the CreateCharacter `profession` byte.
- * Profession ids come from ClassicUO's `professions` array (0 = Advanced
- * custom, 1 = Warrior, 2 = Mage, ...). Anything outside the table falls
- * back to peasant.
- */
-function presetFromProfession(profession) {
-  switch (profession | 0) {
-    case 1: return 'warrior';
-    case 2: return 'mage';
-    case 3: return 'blacksmith';
-    case 4: return 'necromancer';
-    case 5: return 'paladin';
-    case 6: return 'samurai';
-    case 7: return 'ninja';
-    default: return 'peasant';
-  }
-}
-
-/**
- * FAZA BR character-creator presets. Each preset names item.json template
- * keys + the paperdoll layer the piece equips on. Mirrors the table in
- * apps/scripts/src/items/clothing-presets.js but lives server-side so
- * `bringIntoWorld()` can dress the player BEFORE script command dispatch
- * is even reachable. Layers come from the canonical UO Layer enum.
- */
-const CREATOR_PRESETS = {
-  peasant: [
-    { template: 'shirt',      layer:  5, hue: 904 },
-    { template: 'long-pants', layer:  4, hue: 954 },
-    { template: 'sandals',    layer:  3, hue: 1107 },
-  ],
-  warrior: [
-    { template: 'leather-tunic',    layer: 13 },
-    { template: 'leather-leggings', layer: 24 },
-    { template: 'leather-cap',      layer:  6 },
-    { template: 'boots',            layer:  3 },
-  ],
-  mage: [
-    { template: 'fancy-shirt', layer:  5, hue: 1109 },
-    { template: 'long-pants',  layer:  4, hue:   38 },
-    { template: 'robe',        layer: 22, hue:   38 },
-    { template: 'wizard-hat',  layer:  6, hue:   38 },
-    { template: 'shoes',       layer:  3, hue:   68 },
-  ],
-  blacksmith: [
-    { template: 'shirt',       layer:  5, hue: 1107 },
-    { template: 'long-pants',  layer:  4, hue: 1109 },
-    { template: 'full-apron',  layer: 22, hue:   68 },
-    { template: 'boots',       layer:  3 },
-  ],
-  necromancer: [
-    { template: 'robe',        layer: 22, hue:   38 },
-    { template: 'skullcap',    layer:  6, hue:   38 },
-    { template: 'sandals',     layer:  3, hue: 1107 },
-  ],
-  paladin: [
-    { template: 'leather-tunic',    layer: 13, hue: 0x03B2 },
-    { template: 'leather-leggings', layer: 24, hue: 0x03B2 },
-    { template: 'boots',            layer:  3 },
-    { template: 'body-sash',        layer: 12, hue: 0x00CF },
-  ],
-  samurai: [
-    { template: 'shirt',       layer:  5, hue: 0x02C3 },
-    { template: 'long-pants',  layer:  4, hue: 0x02C3 },
-    { template: 'wide-brim-hat', layer: 6, hue: 0x02C3 },
-    { template: 'boots',       layer:  3 },
-    { template: 'bokuto',      layer:  1 },
-  ],
-  ninja: [
-    { template: 'shirt',       layer:  5, hue: 0x0090 },
-    { template: 'short-pants', layer:  4, hue: 0x0090 },
-    { template: 'bandana',     layer:  6, hue: 0x0090 },
-    { template: 'body-sash',   layer: 12, hue: 0x0090 },
-    { template: 'boots',       layer:  3 },
-    { template: 'bokuto',      layer:  1 },
-  ],
-  bandit: [
-    { template: 'shirt',       layer:  5, hue: 37 },
-    { template: 'short-pants', layer:  4, hue: 38 },
-    { template: 'bandana',     layer:  6, hue: 37 },
-    { template: 'boots',       layer:  3 },
-    { template: 'body-sash',   layer: 12, hue: 37 },
-  ],
-};
 
 /**
  * Equip a creator preset onto a freshly-built mobile. Falls back to the
@@ -1671,6 +1493,9 @@ export function pushCommandCatalogue(state) {
     console.warn('[cmd-catalog] refused: state.send missing');
     return;
   }
+  // 0xBF/0x00A0 is private to NodeUO. Classic UO extended commands keep
+  // flowing normally; only this catalogue requires the negotiated bit.
+  if (!state.supportsNodeUO?.(NodeUOCapability.RichGumps)) return;
   try {
     const reg = state.ctx?.commands ?? state.ctx?.commandRegistry;
     if (!reg?.commands) {
@@ -1694,14 +1519,22 @@ export function pushCommandCatalogue(state) {
     const myLevel = ACCESS_ORDER[acc] ?? 0;
     const list = [];
     let skipped = 0;
-    for (const c of reg.commands.values()) {
+    const catalogueCommands = typeof reg.list === 'function'
+      ? reg.list()
+      : [...reg.commands.values()].filter((c) => !c?.aliasOf && c?.hidden !== true);
+    const hiddenOrAliases = Math.max(0, reg.commands.size - catalogueCommands.length);
+    const seenNames = new Set();
+    for (const c of catalogueCommands) {
       if (!c || typeof c.name !== 'string' || c.name === '') { skipped++; continue; }
+      const canonicalName = c.name.toLowerCase();
+      if (seenNames.has(canonicalName)) { skipped++; continue; }
       const reqd = ACCESS_ORDER[c.access ?? 'Admin'] ?? 4;
       if (reqd > myLevel) { skipped++; continue; }
-      list.push({ name: c.name, help: c.help ?? '', access: c.access ?? 'Admin' });
+      seenNames.add(canonicalName);
+      list.push({ name: canonicalName, help: c.help ?? '', access: c.access ?? 'Admin' });
     }
     list.sort((a, b) => a.name.localeCompare(b.name));
-    console.log(`[cmd-catalog] push to ${state.account?.username ?? '?'} (${acc}): ${list.length} commands (registry total: ${reg.commands.size}, skipped: ${skipped})`);
+    console.log(`[cmd-catalog] push to ${state.account?.username ?? '?'} (${acc}): ${list.length} commands (registry total: ${reg.commands.size}, hidden/aliases: ${hiddenOrAliases}, access-skipped: ${skipped})`);
     // Surface the count to the player so they can immediately tell
     // whether the push went through (no need to inspect server logs).
     try {
@@ -2023,7 +1856,11 @@ function bringIntoWorld(state, nameOrChoice) {
     }
   } catch { /* advisory */ }
   if (dn?.weatherKind != null && dn.weatherKind !== 0xFE) {
-    state.send(weather({ kind: dn.weatherKind, intensity: dn.weatherIntensity ?? 0 }));
+    state.send(weather({
+      kind: dn.weatherKind,
+      intensity: dn.weatherIntensity ?? 0,
+      temperature: dn.weatherTemperature ?? 0,
+    }));
   }
   state.send(mobileUpdate({
     serial: mob.serial,
@@ -2058,23 +1895,34 @@ function bringIntoWorld(state, nameOrChoice) {
     state.send(extExtendedStats(mob.serial, sl.str | 0, sl.dex | 0, sl.int | 0));
   }
   state.send(loginComplete());
+  // Private features are offered only to a browser transport that selected
+  // the `nodeuo.v1` WebSocket subprotocol. Desktop/OSI/ServUO-compatible
+  // sessions stay on the classic packet set and never receive 0xF100.
+  if (state.nodeUOTransport) {
+    state.send(extNodeUOCapabilities());
+  }
   state.send(clientVersionRequest());
   state.send(unicodeMessage({ text: `Welcome to ${state.ctx.config.shardName}!` }));
 
   // Shard command catalogue — push the filtered list of chat commands
   // so the client renders the right-edge "commands" panel. Re-pushed
   // on script hot-reload via `pushCommandCatalogueToAll` below.
-  pushCommandCatalogue(state);
+  // The command catalogue itself is a NodeUO extension. It is pushed after
+  // the client accepts capabilities in handleExtendedCommand().
 
   // Stream existing nearby mobiles and items to the new player, and announce
   // the new player to them. Same one-shot equipment index as
   // refreshSurroundings — avoids 50× full world.items walk on join.
-  const equipByOwner = buildEquipByOwner(state.ctx.world);
+  const equipByOwner = buildEquipmentByOwner(state.ctx.world);
   // Reset visibility cache — login is the canonical "you know about
   // nothing yet" baseline. `streamVisibilityDelta` diffs against this.
   state._visibleItems  = new Set();
   state._visibleMobiles = new Set();
-  for (const other of nearbyClients(state.ctx.world, mob, mob)) {
+  // Seed every nearby mobile, not only connected players. Stationary NPCs
+  // do not generate a movement packet just because somebody logged in, so
+  // the old nearbyClients-only loop made bankers, monsters and vendors
+  // invisible until the player walked or requested a resync.
+  for (const other of nearbyMobiles(state.ctx.world, mob, mob)) {
     state.send(mobileIncoming({
       serial: other.serial, body: other.body, x: other.x, y: other.y, z: other.z,
       direction: other.direction, hue: other.hue, flags: other.flags, notoriety: other.notoriety,
@@ -2082,6 +1930,9 @@ function bringIntoWorld(state, nameOrChoice) {
     }));
     state.send(healthUpdate({ serial: other.serial, current: other.hp ?? 50, max: other.hpMax ?? 50 }));
     state._visibleMobiles.add(other.serial >>> 0);
+  }
+  // Only connected neighbours need the reciprocal announcement.
+  for (const other of nearbyClients(state.ctx.world, mob, mob)) {
     other.client.send(mobileIncoming({
       serial: mob.serial, body: mob.body, x: mob.x, y: mob.y, z: mob.z,
       direction: mob.direction, hue: mob.hue, flags: mob.flags, notoriety: mob.notoriety,
@@ -2158,6 +2009,132 @@ function handleExtendedCommand(state, pkt) {
   const r = new PacketReader(pkt);
   r.readU8(); r.readU16(); // opcode + length
   const sub = r.readU16();
+  if (sub === NODEUO_EXT_SUBCOMMAND) {
+    // Never turn on private behaviour based on UO payload alone. A classic
+    // TCP client can spoof this packet, but only the negotiated WS transport
+    // is allowed to activate extensions.
+    if (!state.nodeUOTransport || r.remaining < 8) return;
+    const kind = r.readU8();
+    const major = r.readU8();
+    const minor = r.readU8();
+    r.readU8(); // reserved
+    const requested = r.readU32() >>> 0;
+    if (kind !== NodeUOCapabilityMessage.Accept || major !== NODEUO_PROTOCOL_MAJOR) return;
+    state.nodeUOProtocol = { major, minor };
+    state.nodeUOCapabilities = (requested & NODEUO_CAPABILITIES_ALL) >>> 0;
+    pushCommandCatalogue(state);
+    pushMovementHint(state);
+    return;
+  }
+  if (sub === NODEUO_SPELL_COMPOSER_SUBCOMMAND) {
+    if (!state.supportsNodeUO?.(NodeUOCapability.SpellComposer) || r.remaining < 7) return;
+    const kind = r.readU8();
+    const requestId = r.readU32();
+    const length = r.readU16();
+    if ((kind !== NodeUOSpellComposerMessage.Save && kind !== NodeUOSpellComposerMessage.Publish)
+      || length > 32 * 1024 || length > r.remaining) return;
+    const access = state.account?.accessLevel;
+    if (access !== 'Admin' && access !== 'Administrator') {
+      state.sendSystemMessage?.('Spell Composer requires Administrator access.');
+      return;
+    }
+    try {
+      const json = new TextDecoder().decode(r.readBytes(length));
+      const payload = JSON.parse(json);
+      if (kind === NodeUOSpellComposerMessage.Publish) {
+        state.ctx?.spellComposer?.publishDraft?.(state, requestId, payload);
+      } else {
+        state.ctx?.spellComposer?.acceptDraft?.(state, requestId, payload);
+      }
+    } catch (error) {
+      console.warn(`[spell-composer] rejected malformed draft: ${error?.message ?? error}`);
+    }
+    return;
+  }
+  if (sub === NODEUO_SPECIALIZATION_SUBCOMMAND) {
+    if (!state.supportsNodeUO?.(NodeUOCapability.Specializations) || !state.mobile || r.remaining < 7) return;
+    const kind = r.readU8();
+    const requestId = r.readU32();
+    const length = r.readU16();
+    if ((kind !== NodeUOSpecializationMessage.Allocate && kind !== NodeUOSpecializationMessage.Reset)
+      || length > 32 * 1024 || length > r.remaining) return;
+    try {
+      const payload = length > 0
+        ? JSON.parse(new TextDecoder().decode(r.readBytes(length))) : {};
+      if (kind === NodeUOSpecializationMessage.Reset) {
+        const refunded = specializations.reset(state.mobile);
+        specializations.sendResult(state, requestId, { ok: true, message: `Refunded ${refunded} point(s).` });
+      } else {
+        const result = specializations.allocate(state.mobile, payload?.nodeId);
+        specializations.sendResult(state, requestId, {
+          ok: result.ok,
+          message: result.ok ? `Learned ${result.node.label}.` : result.error,
+        });
+      }
+    } catch (error) {
+      specializations.sendResult(state, requestId, { ok: false, message: 'Malformed specialization request.' });
+      console.warn(`[specializations] rejected request: ${error?.message ?? error}`);
+    }
+    return;
+  }
+  if (sub === NODEUO_HOUSE_TOOLS_SUBCOMMAND) {
+    if (!state.supportsNodeUO?.(NodeUOCapability.HouseTools) || !state.mobile || r.remaining < 7) return;
+    const kind = r.readU8();
+    const requestId = r.readU32();
+    const length = r.readU16();
+    const allowed = new Set([
+      NodeUOHouseToolsMessage.Undo, NodeUOHouseToolsMessage.Redo,
+      NodeUOHouseToolsMessage.Validate, NodeUOHouseToolsMessage.Copy,
+      NodeUOHouseToolsMessage.Paste, NodeUOHouseToolsMessage.SaveTemplate,
+      NodeUOHouseToolsMessage.ApplyTemplate,
+    ]);
+    if (!allowed.has(kind) || length > 32 * 1024 || length > r.remaining) return;
+    const registry = state.ctx.houses ?? state.ctx.systems?.houses;
+    const house = registry?.housesOf?.(state.mobile.serial)?.[0] ?? null;
+    const respond = (payload) => state.send(extNodeUOHouseTools({
+      kind: NodeUOHouseToolsMessage.Result, requestId, payload: {
+        ...payload,
+        history: house ? registry.customHistory?.(house) : null,
+        templates: house ? Object.values(house.customTemplates ?? {}).map((template) => ({
+          name: template.name, savedAt: template.savedAt, tileCount: template.tiles?.length ?? 0,
+        })) : [],
+      },
+    }));
+    if (!house) {
+      respond({ ok: false, message: 'You do not own a house to customize.' });
+      return;
+    }
+    if (!house.editing) registry.beginEditing?.(house, state.mobile);
+    try {
+      const payload = length ? JSON.parse(new TextDecoder().decode(r.readBytes(length))) : {};
+      if (kind === NodeUOHouseToolsMessage.Undo) {
+        const ok = registry.undoCustom?.(house) ?? false;
+        respond({ ok, message: ok ? 'Undid the last house edit.' : 'Nothing to undo.' });
+      } else if (kind === NodeUOHouseToolsMessage.Redo) {
+        const ok = registry.redoCustom?.(house) ?? false;
+        respond({ ok, message: ok ? 'Redid the house edit.' : 'Nothing to redo.' });
+      } else if (kind === NodeUOHouseToolsMessage.Validate) {
+        const validation = registry.validateCustom?.(house);
+        respond({ ok: !!validation?.ok, message: validation?.ok ? 'House design is valid.' : 'House design has errors.', validation });
+      } else if (kind === NodeUOHouseToolsMessage.Copy) {
+        const count = registry.copyCustomArea?.(house, payload.x1, payload.y1, payload.x2, payload.y2, payload.zMin, payload.zMax) ?? 0;
+        respond({ ok: count > 0, message: count ? `Copied ${count} tile(s).` : 'No tiles in that area.' });
+      } else if (kind === NodeUOHouseToolsMessage.Paste) {
+        const count = registry.pasteCustomArea?.(house, payload.x, payload.y, payload.zOffset, { replace: !!payload.replace }) ?? 0;
+        respond({ ok: count > 0, message: count ? `Pasted ${count} tile(s).` : 'Clipboard is empty.' });
+      } else if (kind === NodeUOHouseToolsMessage.SaveTemplate) {
+        const result = registry.saveCustomTemplate?.(house, payload.name, payload.rect);
+        respond({ ok: !!result?.ok, message: result?.ok ? `Saved template ${result.name}.` : result?.error ?? 'Could not save template.' });
+      } else if (kind === NodeUOHouseToolsMessage.ApplyTemplate) {
+        const count = registry.applyCustomTemplate?.(house, payload.name, payload.x, payload.y, payload.zOffset, { replace: !!payload.replace }) ?? 0;
+        respond({ ok: count > 0, message: count ? `Applied ${count} template tile(s).` : 'Template not found or empty.' });
+      }
+    } catch (error) {
+      respond({ ok: false, message: 'Malformed house-tool request.' });
+      console.warn(`[house-tools] rejected request: ${error?.message ?? error}`);
+    }
+    return;
+  }
   if (sub === 0x0015) {
     // Context menu request — dispatch via the contextMenus registry.
     const serial = r.readU32();
@@ -2667,6 +2644,15 @@ function handleExtendedCommand(state, pkt) {
 // just stamping the layer.
 const handleWearItemForce = null;
 
+function pushMovementHint(state, load = null) {
+  if (!state?.mobile || !state.supportsNodeUO?.(NodeUOCapability.MovementHints)) return;
+  const next = load ?? encumbrance(state.ctx.world, state.mobile, false);
+  const signature = `${next.weight}:${next.capacity}:${Math.round(next.paceMultiplier * 1000)}:${next.overloaded ? 1 : 0}`;
+  if (state._lastMovementHint === signature) return;
+  state._lastMovementHint = signature;
+  state.send(extNodeUOMovementHint(next));
+}
+
 function handleMovementReq(state, pkt) {
   if (state.stage !== Stage.InWorld || !state.mobile) {
     trace('move', `net#${state.id}: rejected — stage=${state.stage} mobile=${!!state.mobile}`);
@@ -2701,6 +2687,8 @@ function handleMovementReq(state, pkt) {
   const facing = direction & 0x07;
 
   const mob = state.mobile;
+  const load = encumbrance(state.ctx.world, mob, running);
+  pushMovementHint(state, load);
 
   // Movement sequence ring-counter — ServUO uses an 8-bit sequence
   // number that increments per step (wraps 1..255, skip 0). We track
@@ -2731,7 +2719,12 @@ function handleMovementReq(state, pkt) {
   if (!isStaffMove && (mob.direction & 0x07) === facing) {
     const now = Date.now();
     const last = mob._lastMoveAt ?? 0;
-    const minDelta = running ? 180 : 380;
+    const mounted = !!mob.mountedFrom;
+    const sprinting = mounted && running && (mob._mountSprintUntil ?? 0) > now;
+    const baseDelta = mounted ? (running ? (sprinting ? 65 : 90) : 180) : (running ? 180 : 380);
+    const pace = state.supportsNodeUO?.(NodeUOCapability.MovementHints)
+      ? load.paceMultiplier : 1;
+    const minDelta = Math.round(baseDelta * pace);
     if (last && (now - last) < minDelta) {
       trace('move', `net#${state.id} REJECT speed-hack: dt=${now - last}ms minDelta=${minDelta}ms`);
       state.send(movementRej({ sequence, x: mob.x, y: mob.y, z: mob.z, direction: mob.direction }));
@@ -2782,6 +2775,30 @@ function handleMovementReq(state, pkt) {
     state.send(movementAck(sequence, mob.notoriety));
     trace('move', `net#${state.id} ACK turn-only: now facing ${facing}`);
     return;
+  }
+
+  // ServUO WeightOverloading: an overloaded player pays a steep stamina
+  // cost per attempted step and cannot move when that would reach zero.
+  // At ordinary load SA drains one stamina every ten accepted steps.
+  if (!isStaff) {
+    const overloadCost = specializations.staminaCost(mob, load.staminaCost);
+    if (load.overloaded && ((mob.stam ?? 0) - overloadCost) <= 0) {
+      mob.stam = 0;
+      state.send(staminaUpdate({ serial: mob.serial, current: 0, max: mob.stamMax ?? 50 }));
+      state.send(movementRej({ sequence, x: mob.x, y: mob.y, z: mob.z, direction: mob.direction }));
+      if (!mob._overloadMessageAt || Date.now() - mob._overloadMessageAt > 3000) {
+        state.sendSystemMessage?.(`You are too fatigued to move under this load (${load.weight}/${load.capacity} stones).`);
+        mob._overloadMessageAt = Date.now();
+      }
+      return;
+    }
+    if (!load.overloaded && (mob.stam ?? 0) <= 0) {
+      state.send(movementRej({ sequence, x: mob.x, y: mob.y, z: mob.z, direction: mob.direction }));
+      state.sendSystemMessage?.(mob.mountedFrom
+        ? 'Your mount is too fatigued to move.'
+        : 'You are too fatigued to move.');
+      return;
+    }
   }
 
   // Compute the target tile and ask the walkability resolver what z we'd
@@ -2859,14 +2876,14 @@ function handleMovementReq(state, pkt) {
       flags: mob.flags ?? 0, notoriety: mob.notoriety,
     }));
   }
-  // Stamina drain — ServUO `Mobile.OnBeforeMove` deducts 1 stam per
-  // walking step and 2 per running step. Skip when GM/Admin (staff
-  // walks free) so [go warps and admin patrols don't deplete stam.
-  // When stam hits 0 we don't reject the move (UO doesn't either —
-  // you can still creep at 0 stam), just stop draining.
-  // `isStaff` already declared above for the cast-movement gate.
+  // ServUO/SA cadence: ordinary travel costs one stamina per ten steps;
+  // overload uses WeightOverloading.GetStamLoss on every step.
   if (!isStaff && (mob.stam ?? 0) > 0) {
-    const cost = running ? 2 : 1;
+    mob._stepsTaken = ((mob._stepsTaken | 0) + 1) >>> 0;
+    const baseCost = load.overloaded
+      ? load.staminaCost
+      : ((mob._stepsTaken % 10) === 0 ? 1 : 0);
+    const cost = specializations.staminaCost(mob, baseCost);
     const before = mob.stam | 0;
     mob.stam = Math.max(0, before - cost);
     if (mob.stam !== before) {
@@ -3287,6 +3304,35 @@ function handlePickUp(state, pkt) {
   //     unequipping silently fail ("nei da sie zdjac ubrania").
   //   - Container: must have that container open.
   const isWornBySelf = item.parent === state.mobile.serial && (item.layer ?? 0) > 0;
+  // Enforce player capacity as well as per-container capacity. The old
+  // drop handler guarded bank/bag limits but the lift path never checked
+  // Mobile.MaxWeight, so players could pick an unlimited world pile and
+  // only the status gump noticed. Moving an item already inside one's own
+  // backpack/equipment does not add weight and stays allowed.
+  let alreadyCarried = false;
+  let ancestor = item;
+  for (let hop = 0; hop < 16 && ancestor; hop++) {
+    if ((ancestor.parent >>> 0) === (state.mobile.serial >>> 0)) {
+      alreadyCarried = true;
+      break;
+    }
+    ancestor = state.ctx.world.items.get(ancestor.parent);
+  }
+  if (!alreadyCarried) {
+    const fullPileWeight = pileWeight(item);
+    const stackAmount = Math.max(1, item.amount ?? 1);
+    let addedWeight = fullPileWeight * (Math.min(stackAmount, requestedAmount) / stackAmount);
+    if (item.gumpId) addedWeight += totalContainerWeight(state.ctx.world, item.serial);
+    if (!canCarry(state.ctx.world, state.mobile, addedWeight)) {
+      const load = encumbrance(state.ctx.world, state.mobile);
+      state.send(bounce(0x00));
+      state.sendSystemMessage?.(
+        `That is too heavy. You carry ${load.weight}/${load.capacity} stones (+${Math.ceil(addedWeight)}).`,
+      );
+      pushMovementHint(state, load);
+      return;
+    }
+  }
   // ANTI-DUPE: trade window items belong to ONE side only — the other
   // participant must not lift from the partner's offering. Without this
   // gate either side could pick up the partner's items the moment they
@@ -4002,10 +4048,30 @@ function handleUseReq(state, pkt) {
       vendors.openBuy(state, mob.serial);
       return;
     }
-    // FAZA CK — every mobile gets a paperdoll. Self → can-lift bit;
-    // other mobiles (NPCs, players, mounted creatures) → no can-lift,
-    // so the client renders a read-only doll the user can move and
-    // close but not equip / unequip.
+    // Double-clicking an adjacent controlled pet is the canonical mount
+    // gesture. Route through the same player command used by [mount so item
+    // layer creation, broadcasts and dismount state stay in one code path.
+    if (mob !== state.mobile
+        && (mob.controlMaster >>> 0) === (state.mobile.serial >>> 0)
+        && mob.map === state.mobile.map
+        && Math.max(Math.abs(mob.x - state.mobile.x), Math.abs(mob.y - state.mobile.y)) <= 1) {
+      const registry = state.ctx?.commands ?? state.ctx?.commandRegistry;
+      if (registry?.dispatch) {
+        state.mobile._requestedMountSerial = mob.serial >>> 0;
+        try {
+          registry.dispatch('mount', {
+            sender: state.mobile, state, world: state.ctx.world, args: [],
+          });
+        } finally {
+          delete state.mobile._requestedMountSerial;
+        }
+        return;
+      }
+    }
+    // Only ClassicUO `Mobile.IsHuman` bodies own paperdoll art. Opening a
+    // paperdoll for a daemon/dragon made the client render a default naked
+    // human and visually changed the creature on double-click.
+    if (!isPaperdollBody(mob.body)) return;
     const isSelf = mob === state.mobile;
     state.send(openPaperdoll({
       serial: mob.serial,
@@ -4312,6 +4378,7 @@ function handleStatusReq(state, pkt) {
     state.send(staminaUpdate({ serial: mob.serial,
       current: mob.stam ?? 50, max: mob.stamMax ?? 50 }));
   }
+  const statusLoad = isSelf ? encumbrance(state.ctx.world, mob) : null;
   state.send(mobileStatus({
     serial: mob.serial, name: mob.name,
     hp: mob.hp ?? 50, hpMax: mob.hpMax ?? 50,
@@ -4326,28 +4393,8 @@ function handleStatusReq(state, pkt) {
     str: mob.str ?? 50, dex: mob.dex ?? 50, int: mob.int ?? 50,
     gold: mob.gold ?? 0, sex: mob.sex ?? 0,
     ar: mob.ar ?? 0,
-    // Live-compute carrying weight: backpack + every worn equipment
-    // layer summed via tiledata stones. ServUO `Mobile.TotalWeight`
-    // ticks the same calc on every container change; doing it on
-    // the status request is cheap enough (a few dozen items per
-    // player) and keeps the gump in sync without wiring a per-drop
-    // status broadcast.
-    weight: (function calcWeight() {
-      try {
-        const w = state.ctx?.world;
-        if (!w) return mob.weight | 0;
-        // The player's worn backpack carries the bulk of the load.
-        let total = wornWeight(w, mob.serial);
-        for (const eq of w.items.values()) {
-          if (eq.parent === mob.serial && eq.layer === 21 && eq.gumpId) {
-            total += totalWeight(w, eq.serial);
-            break;
-          }
-        }
-        return total;
-      } catch { return mob.weight | 0; }
-    })(),
-    weightMax: mob.weightMax ?? ((mob.str ?? 50) * 4 + 25),
+    weight: statusLoad?.weight ?? (mob.weight | 0),
+    weightMax: mob.weightMax ?? statusLoad?.capacity ?? maxWeight(mob),
     race: racePacketId(mob.race, mob.body),
     statCap: mob.statCap ?? 225,
     followers: mob.followers ?? 0,
@@ -4519,34 +4566,86 @@ function handleWearItem(state, pkt) {
     state.send(bounce(5));
     return;
   }
+  let pack = backpackOf(world, state.mobile);
+  if (!pack) {
+    ensureBackpack(world, state.mobile);
+    pack = backpackOf(world, state.mobile);
+  }
+  const moveToPackAndPush = (held) => {
+    if (!held || !pack) return false;
+    setItemParent(world, held, pack.serial);
+    held.layer = 0;
+    held.gridX = Number.isFinite(held.gridX) ? held.gridX : 24 + ((held.serial >>> 0) % 96);
+    held.gridY = Number.isFinite(held.gridY) ? held.gridY : 32 + (((held.serial >>> 8) >>> 0) % 80);
+    held.gridLocation = held.gridLocation ?? 0;
+    state.send(containerContentUpdate({
+      serial: held.serial,
+      itemId: held.itemId,
+      amount: held.amount ?? 1,
+      gridX: held.gridX,
+      gridY: held.gridY,
+      gridLocation: held.gridLocation,
+      hue: held.hue ?? 0,
+    }, pack.serial));
+    return true;
+  };
+  const rejectEquip = (message = '') => {
+    state.send(bounce(5));
+    if (message) state.sendSystemMessage?.(message);
+    // Bounce alone is not enough for the web client: the optimistic lift
+    // already consumed the old container entity. Re-parent and push a fresh
+    // 0x25 so the item cannot disappear or leave NetState stuck holding it.
+    if (state.heldItem?.serial === item.serial) {
+      moveToPackAndPush(item);
+      state.heldItem = null;
+    }
+    return false;
+  };
+  if (mob !== state.mobile) {
+    rejectEquip('You may only equip items on yourself.');
+    return;
+  }
   // Audit #35 P2 #8 — ServUO `BaseArmor.CanEquip` refuses when `from.Str
   // < StrRequirement` (cliloc 500213 "You are not strong enough to use
   // this."). The armor templates ship with `strReq` fields (e.g.
   // plate=95) but no equip-time check enforced them.
   if (Number.isFinite(item.strReq) && (mob.str | 0) < (item.strReq | 0)) {
-    state.send(bounce(5));
-    state.sendSystemMessage?.('You are not strong enough to use this.');
+    rejectEquip('You are not strong enough to use this.');
     return;
   }
   if (Number.isFinite(item.dexReq) && (mob.dex | 0) < (item.dexReq | 0)) {
-    state.send(bounce(5));
-    state.sendSystemMessage?.('You are not dexterous enough to use this.');
+    rejectEquip('You are not dexterous enough to use this.');
     return;
   }
   if (Number.isFinite(item.intReq) && (mob.int | 0) < (item.intReq | 0)) {
-    state.send(bounce(5));
-    state.sendSystemMessage?.('You are not intelligent enough to use this.');
+    rejectEquip('You are not intelligent enough to use this.');
     return;
   }
   if ((mob._resetEquipUntil ?? 0) > Date.now()) {
-    state.send(bounce(5));
-    state.sendSystemMessage?.('You must wait a moment before equipping another weapon.');
+    rejectEquip('You must wait a moment before equipping another weapon.');
     return;
   }
   // Consolidated layer-collision + hand-mutex scan. Bug-hunt #2 B5:
   // previously two/three separate full mobiles+items walks; now ONE
   // walk over worn slots via the reverse parent index.
-  const targetLayer = parsed.layer;
+  // The server owns equipment routing. A client normally derives this byte
+  // from tiledata, but stale/mismatched client data used to be able to send
+  // layer 1 for a robe (canonical layer 22). That made the exact-layer swap
+  // below put an equipped spellbook back into the backpack. Prefer the
+  // runtime/template declaration whenever one exists and use the packet only
+  // for legacy emulator items which do not carry metadata.
+  const templateLayer = Number(item.template ? getTemplate(item.template)?.equipLayer : 0) | 0;
+  const runtimeLayer = Number(item.equipLayer) | 0;
+  const declaredLayer = runtimeLayer > 0 ? runtimeLayer : templateLayer;
+  const spellbookLayer = item.spellbook ? 1 : 0;
+  const authoritativeLayer = declaredLayer || spellbookLayer;
+  const targetLayer = authoritativeLayer >= 1 && authoritativeLayer <= 29
+    ? authoritativeLayer
+    : parsed.layer;
+  if (targetLayer < 1 || targetLayer > 29) {
+    rejectEquip('That item cannot be equipped.');
+    return;
+  }
   const otherLayer = targetLayer === 1 ? 2 : targetLayer === 2 ? 1 : 0;
   const wantPop = (otherLayer && item.weapon);
   const popQueue = [];
@@ -4556,12 +4655,13 @@ function handleWearItem(state, pkt) {
     : [...world.items.values()].filter((it) => it.parent === mob.serial);
   for (const it of wornIter) {
     if (it === item) continue;
-    // Layer-collision guard: refuse to equip onto an already-occupied
-    // layer. Without this, both items end up with the same layer and
-    // the paperdoll renders garbage (last-write-wins).
+    // Canonical paperdoll swap: dropping onto an occupied layer moves the
+    // previous item back into the backpack atomically. The old hard reject
+    // produced no useful feedback and made drag-to-paperdoll look broken.
     if (it.layer === targetLayer) {
-      state.send(bounce(5));
-      return;
+      if (targetLayer === 21) { rejectEquip('You cannot replace your backpack this way.'); return; }
+      popQueue.push(it);
+      continue;
     }
     // Hand-mutex — equipping a 2-handed weapon pops the 1-handed slot
     // and vice-versa. Spellbooks (item.spellbook) and shields
@@ -4573,15 +4673,16 @@ function handleWearItem(state, pkt) {
     }
   }
   for (const popped of popQueue) {
-    const pack = backpackOf(world, mob);
-    if (!pack) { state.send(bounce(5)); return; }
+    if (!pack) { rejectEquip('You need a backpack before changing equipment.'); return; }
     removeEquippedIndexItem(mob, popped);
-    setItemParent(world, popped, pack.serial); popped.layer = 0;   // A5
     const off = removeEntity({ serial: popped.serial });
     for (const c of nearbyClients(world, mob)) c.client.send(off);
+    // removeEntity may also reach the owner, so publish the new container
+    // placement after it to make the final client state deterministic.
+    moveToPackAndPush(popped);
   }
   setItemParent(world, item, mob.serial);
-  item.layer = parsed.layer;
+  item.layer = targetLayer;
   delete item.gridX; delete item.gridY; delete item.gridLocation;
   state.heldItem = null;
   // FAZA BN: dispatch onEquip AFTER fields settle so the script sees
@@ -4645,72 +4746,6 @@ function handleWearItem(state, pkt) {
     parent: mob.serial, hue: item.hue ?? 0,
   });
   for (const c of nearbyClients(world, mob)) c.client.send(msg);
-}
-
-/** Collect equipment entries for the SA mobileIncoming packet.
- *
- * Optionally accepts a pre-built reverse index `equipByOwner: Map<serial,
- * Item[]>`. Hot loops (refreshSurroundings, world-join) build the index
- * once and pass it to every mob lookup so the per-mob cost is O(equipped)
- * instead of O(world.items). Without it, refreshSurroundings on a 110k-item
- * shard with 50 nearby mobs walked 5.5 MILLION items per teleport — exactly
- * the "po teleportacji blokuje cala gre" symptom Marcin reported.
- *
- * Falls back to the legacy full walk when no index is supplied so callers
- * outside the hot loops keep working unchanged.
- */
-function equipmentFor(world, mob, equipByOwner = null) {
-  /** @type {{serial:number, itemId:number, layer:number, hue:number}[]} */
-  const out = [];
-  if (equipByOwner) {
-    const list = equipByOwner.get(mob.serial);
-    if (list) {
-      for (const it of list) {
-        if (!it.layer) continue;
-        out.push({
-          serial: it.serial, itemId: it.itemId, layer: it.layer, hue: it.hue ?? 0,
-        });
-      }
-    }
-    return out;
-  }
-  // Fast path for runtime loops: reverse parent index gives us the item's
-  // children set in O(equipped-items) time.
-  const idx = world._childrenByParent?.get?.(mob.serial);
-  if (idx) {
-    for (const serial of idx) {
-      const it = world.items.get(serial);
-      if (!it?.layer) continue;
-      out.push({
-        serial: it.serial, itemId: it.itemId, layer: it.layer, hue: it.hue ?? 0,
-      });
-    }
-    return out;
-  }
-  for (const it of world.items.values()) {
-    if (it.parent === mob.serial && it.layer) {
-      out.push({
-        serial: it.serial, itemId: it.itemId, layer: it.layer, hue: it.hue ?? 0,
-      });
-    }
-  }
-  return out;
-}
-
-/** Walk world.items ONCE and bucket by parent. Used by refresh /
- *  bring-into-world paths so the per-mob equipmentFor() lookup is
- *  O(items-per-mob) instead of O(items-in-world). */
-function buildEquipByOwner(world) {
-  /** @type {Map<number, import('../world/world.js').Item[]>} */
-  const map = new Map();
-  for (const it of world.items.values()) {
-    const p = it.parent;
-    if (!p || !it.layer) continue;
-    let list = map.get(p);
-    if (!list) { list = []; map.set(p, list); }
-    list.push(it);
-  }
-  return map;
 }
 
 /**
@@ -5519,8 +5554,28 @@ function broadcastMobileRefresh(world, mob) {
 function forceDamageDismount(world, mob) {
   const petSerial = mob?.mountedFrom >>> 0;
   if (!petSerial) return false;
+  if ((mob._mountSurefootedUntil ?? 0) > Date.now()) return false;
   const pet = world?.mobiles?.get?.(petSerial);
-  mob.body = mob.mountedOriginalBody ?? (mob.sex === 1 ? 0x0191 : 0x0190);
+  // New mounts keep the rider's human body and use a Layer.Mount item.
+  // Retain the old-body restore only for saves created by the legacy
+  // body-swap implementation.
+  if (mob.mountedOriginalBody != null) mob.body = mob.mountedOriginalBody;
+  let mountItem = world.items?.get?.(mob._mountItemSerial >>> 0) ?? null;
+  if (!mountItem) {
+    for (const item of world.items?.values?.() ?? []) {
+      if ((item.parent >>> 0) === (mob.serial >>> 0) && (item.layer | 0) === 25) {
+        mountItem = item;
+        break;
+      }
+    }
+  }
+  if (mountItem) {
+    const remove = removeEntity(mountItem.serial);
+    for (const other of nearbyClients(world, mob, mob)) other.client.send(remove);
+    mob.client?.send?.(remove);
+    destroyItem(world, mountItem.serial);
+  }
+  delete mob._mountItemSerial;
   delete mob.mountedFrom;
   delete mob.mountedOriginalBody;
   mob.mounted = false;
@@ -5546,21 +5601,6 @@ function forceDamageDismount(world, mob) {
   broadcastMobileRefresh(world, mob);
   mob.client?.sendSystemMessage?.('The blow knocks you from your mount!');
   return true;
-}
-
-function decodeClassicCreateGenderRace(genderRace, extended) {
-  const value = genderRace | 0;
-  const female = (value & 1) === 1;
-  // ServUO decodes modern 0xF8 / SA 0x00 packets from ClassicUO's
-  // RaceType byte: 2/3 human, 4/5 elf, 6/7 gargoyle. Pre-SA legacy
-  // packets used 0/1 human and 2/3 elf.
-  const decodedRace = (extended || value >= 4)
-    ? (value < 4 ? 0 : ((value >> 1) - 1))
-    : (value >> 1);
-  return {
-    female,
-    race: Math.max(0, Math.min(2, decodedRace | 0)),
-  };
 }
 
 export const combat = {
@@ -5599,6 +5639,14 @@ export const combat = {
     // that ever passed a stale negative number (e.g. armor reduction
     // wrapping below zero) was a healing exploit waiting to happen.
     let amount = Math.max(0, normalized.amount | 0);
+    if (attacker && (attacker._mountChargeUntil ?? 0) > Date.now()) {
+      amount = Math.max(1, Math.round(amount * 1.25));
+      attacker._mountChargeUntil = 0;
+    }
+    amount = specializations.modifyDamage(amount, attacker, mob, {
+      damageType,
+      ranged: !!damageOptions?.ranged,
+    });
     if (amount === 0) return 0;
     // [invul / [god — GM invulnerability flag. Mob takes zero damage
     // from every source. ServUO `Mobile.OnDamage` short-circuits on

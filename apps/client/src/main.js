@@ -227,6 +227,6 @@ splash.style.opacity = '0';
 setTimeout(() => splash.remove(), 600);
 
 // expose for ad-hoc debugging in DevTools
-if (import.meta.env.DEV) {
+if (import.meta.env.DEV || new URLSearchParams(globalThis.location?.search ?? '').has('runtimeAudit')) {
   /** @type {any} */ (globalThis).__uo = { gc, net, bus };
 }

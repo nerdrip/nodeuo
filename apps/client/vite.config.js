@@ -146,7 +146,13 @@ export default defineConfig(({ mode }) => ({
     },
   },
   optimizeDeps: {
-    include: ['pixi.js', '@uo/protocol'],
+    include: ['pixi.js'],
+    // @uo/protocol is a workspace package that changes together with the
+    // client. Pre-bundling it leaves Vite's .vite/deps copy stale whenever a
+    // new packet/capability export is added, which can make a valid named
+    // import fail until the cache is deleted by hand. Serve its ESM source
+    // directly so protocol and client exports always stay in lock-step.
+    exclude: ['@uo/protocol'],
   },
   // Drop dev-time console.debug/console.log from the production bundle
   // (kept in dev). The renderer hot path emits a few traces that

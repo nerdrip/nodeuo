@@ -97,8 +97,10 @@ export class HealthLinesManager {
       if ((m.map ?? map) !== map) return;
       if (typeof m.hp !== 'number' || typeof m.hpMax !== 'number') return;
       if (m.hpMax <= 0) return;
+      if (m.isDead) return;
+      const forced = !!m._isLastTarget || !!m._isLastAttack;
       // Hide bar at full HP (CUO ShowWhen = "not full").
-      if (m.hp >= m.hpMax) return;
+      if (!forced && m.hp >= m.hpMax) return;
       // Cull by tile distance — server already only sends nearby mobs
       // but a freshly logged-out mob may linger.
       const dx = Math.abs(m.x - player.x), dy = Math.abs(m.y - player.y);
@@ -111,15 +113,15 @@ export class HealthLinesManager {
       // Fill colour by state. Order matters: poison/yellow override the
       // notoriety/party tint.
       let fill = COLOR_HP_OK;
+      if (party.isMember && party.isMember(m.serial)) fill = COLOR_HP_PARTY;
       if (m.hp / m.hpMax < 0.3) fill = COLOR_HP_LOW;
       if (m.poisoned)           fill = COLOR_HP_POIS;
       if (m.yellowHits)         fill = COLOR_HP_INV;
-      if (party.isMember && party.isMember(m.serial)) fill = COLOR_HP_PARTY;
       const w = Math.max(0, Math.min(BAR_W, Math.round((BAR_W * m.hp) / m.hpMax)));
       const b = bars[barCount] || (bars[barCount] = { sx: 0, sy: 0, w: 0, fill: 0 });
       b.sx = sx; b.sy = sy; b.w = w; b.fill = fill;
       barCount++;
-      mix(m.serial | 0); mix(sx); mix(sy); mix(w); mix(fill);
+      mix(m.serial | 0); mix(sx); mix(sy); mix(w); mix(fill); mix(forced ? 1 : 0);
     };
     if (typeof world.forEachMobileNear === 'function') {
       world.forEachMobileNear(player.x, player.y, map, NEAR_TILES, true, visitMobile);

@@ -41,7 +41,7 @@ export default function register(api) {
   });
 
   // Kill hook — bump progress on slay.
-  api.events?.on?.('mobile:killed', (ev) => {
+  api.lifecycle?.event?.(api.events, 'mobile:killed', (ev) => {
     const killer = ev.killer; const victim = ev.victim;
     if (!killer || !victim) return;
     const kind = victim.kind ?? victim.template ?? '';

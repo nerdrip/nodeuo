@@ -167,7 +167,7 @@
   },
   {
     "name": "reagent-nightshade",
-    "itemId": 3973,
+    "itemId": 3976,
     "label": "nightshade",
     "stackable": true
   },
@@ -185,7 +185,7 @@
   },
   {
     "name": "reagent-ginseng",
-    "itemId": 3977,
+    "itemId": 3973,
     "label": "ginseng",
     "stackable": true
   },
@@ -257,7 +257,7 @@
   },
   {
     "name": "reagent-dragonblood",
-    "itemId": 3970,
+    "itemId": 16503,
     "label": "dragon blood",
     "stackable": true
   },

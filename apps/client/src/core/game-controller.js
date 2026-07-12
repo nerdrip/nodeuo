@@ -105,7 +105,7 @@ export class GameController {
     try {
       const r = this.app.renderer;
       const type = r?.type === 1 ? 'WebGL' : (r?.type === 2 ? 'WebGPU' : 'unknown');
-      console.log(`[pixi] renderer=${type} resolution=${r?.resolution} roundPixels=${r?.roundPixels} (preference was WebGPU)`);
+      console.log(`[pixi] renderer=${type} resolution=${r?.resolution} roundPixels=${r?.roundPixels} (preference: WebGL)`);
     } catch { /* ignore */ }
 
     // Layer order: world → world-overlay → ui. Day/night dim, weather
@@ -125,6 +125,26 @@ export class GameController {
     } catch { /* localStorage unavailable in some test envs */ }
 
     this.app.ticker.add(this._tick, this);
+
+    // WebGL context loss is recoverable in browsers (GPU reset, laptop
+    // sleep, driver switch). Pause simulation while Pixi rebuilds its
+    // managed resources, then redraw the active scene on restoration.
+    this._onContextLost = (event) => {
+      event.preventDefault?.();
+      this._contextLost = true;
+      this.app.ticker.stop();
+      this.setStatus('graphics context lost — restoring…');
+      bus.emit('renderer:context-lost');
+    };
+    this._onContextRestored = () => {
+      this._contextLost = false;
+      this.scene?.resize(window.innerWidth, window.innerHeight);
+      this.setStatus('idle');
+      this.app.ticker.start();
+      bus.emit('renderer:context-restored');
+    };
+    this.app.canvas.addEventListener('webglcontextlost', this._onContextLost, false);
+    this.app.canvas.addEventListener('webglcontextrestored', this._onContextRestored, false);
 
     // Throttle the Pixi ticker hard when the tab is hidden. Browsers
     // already throttle requestAnimationFrame to ~1 Hz on background
@@ -150,9 +170,28 @@ export class GameController {
       this.scene?.resize(window.innerWidth, window.innerHeight);
     };
     window.addEventListener('resize', this._onResize);
+    if (typeof ResizeObserver !== 'undefined') {
+      this._resizeObserver = new ResizeObserver((entries) => {
+        const rect = entries[0]?.contentRect;
+        const w = Math.round(rect?.width ?? 0);
+        const h = Math.round(rect?.height ?? 0);
+        if (w <= 0 || h <= 0 || (w === this._observedW && h === this._observedH)) return;
+        this._observedW = w; this._observedH = h;
+        this.scene?.resize(window.innerWidth, window.innerHeight);
+      });
+      this._resizeObserver.observe(this.mountPoint);
+    }
   }
 
   destroy() {
+    this._resizeObserver?.disconnect?.();
+    this._resizeObserver = null;
+    if (this.app?.canvas) {
+      this.app.canvas.removeEventListener('webglcontextlost', this._onContextLost, false);
+      this.app.canvas.removeEventListener('webglcontextrestored', this._onContextRestored, false);
+    }
+    this._onContextLost = null;
+    this._onContextRestored = null;
     if (this._onResize) {
       window.removeEventListener('resize', this._onResize);
       this._onResize = null;

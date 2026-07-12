@@ -8,7 +8,7 @@
 //
 // Implementation choices for browser:
 //   - Single Pixi Graphics primitive cleared+drawn per frame (cheap).
-//   - Particles live in a typed array {x,y,vx,vy,life}; recycled, no GC.
+//   - Particle objects are pooled and recycled; steady-state frames allocate no objects.
 //   - Mounted on the *UI* (un-transformed) layer so the storm doesn't tilt
 //     when the player zooms or pans — looks much better than world-anchored
 //     particles in iso projection.
@@ -17,6 +17,7 @@
 import { Graphics } from 'pixi.js';
 import { bus } from '../core/event-bus.js';
 import { camera } from './camera.js';
+import { world } from '../world/world.js';
 
 // Audit #32 P1 #4 — CUO `Game/Weather.cs:13-22` canonical enum:
 //   WT_RAIN=0, WT_STORM_APPROACH=1, WT_SNOW=2, WT_STORM_BREWING=3
@@ -41,6 +42,20 @@ export function weatherTemperatureTint(temperature = 0) {
   };
 }
 
+export function weatherParticleBudget(kind, intensity, width, height) {
+  const k = kind & 0xff;
+  const drawsParticles = k === 0 || k === KIND_APPROACH || k === KIND_SNOW;
+  if (!drawsParticles) return 0;
+  const amount = Math.max(0, Math.min(70, intensity | 0));
+  const areaScale = Math.max(0.35, (Math.max(1, width) * Math.max(1, height)) / (640 * 480));
+  return Math.max(0, Math.min(160, Math.round(amount * areaScale)));
+}
+
+export function isWeatherSheltered(playerIndoors, regionKind) {
+  return !!playerIndoors || regionKind === 'cave'
+    || regionKind === 'dungeon' || regionKind === 'underwater';
+}
+
 class Particle {
   constructor() { this.alive = false; this.x = 0; this.y = 0; this.vx = 0; this.vy = 0; this.life = 0; }
 }
@@ -54,39 +69,65 @@ export class Weather {
     parent.addChild(this._gfx);
     this._particles = [];
     this._max = 0;
+    this._intensity = 0;
     this._kind = KIND_OFF;
     this._wind = 0;
     this._windPhase = 0;
     this._temp = 0;
     this._lastTick = performance.now();
+    this._thunderTimers = new Set();
+    this._flashDuration = 220;
+    this._flashColor = 0xffffff;
+    this._flashAlpha = 0.55;
+    this._idlePainted = true;
+    this._exposure = 1;
     this._unsubs = [
       bus.on('atmosphere:weather', (info) => this.set(info)),
       bus.on('frame:tick', (t) => this._tick(t)),
-      bus.on('weather:flash', ({ durationMs = 220 } = {}) => {
+      bus.on('weather:flash', ({ durationMs = 220, color = 0xffffff, alpha = 0.55 } = {}) => {
+        this._flashDuration = Math.max(1, durationMs);
+        this._flashColor = color >>> 0;
+        this._flashAlpha = Math.max(0, Math.min(1, alpha));
+        this._idlePainted = false;
         this._flashUntil = performance.now() + durationMs;
       }),
     ];
   }
 
   set({ kind = KIND_OFF, particles = 0, temperature = 0 } = {}) {
+    const previousKind = this._kind;
     this._kind = kind & 0xff;
-    this._max = Math.max(0, Math.min(80, particles | 0));
+    this._intensity = Math.max(0, Math.min(70, particles | 0));
     this._temp = temperature | 0;
-    if (this._kind === KIND_OFF || this._kind === 0xFF || this._max === 0) {
+    if (previousKind !== this._kind) this._clearThunderTimers();
+    if (this._kind === KIND_OFF || this._kind === 0xFF) {
+      this._max = 0;
       this._particles.length = 0;
       this._gfx.clear();
+      this._idlePainted = true;
       return;
     }
-    while (this._particles.length < this._max) this._particles.push(new Particle());
-    if (this._particles.length > this._max) this._particles.length = this._max;
+  }
+
+  _clearThunderTimers() {
+    for (const timer of this._thunderTimers) clearTimeout(timer);
+    this._thunderTimers.clear();
+    this._nextFlashAt = null;
+  }
+
+  _resizePool(w, h) {
+    const desired = weatherParticleBudget(this._kind, this._intensity, w, h);
+    if (desired === this._max) return;
+    this._max = desired;
+    while (this._particles.length < desired) this._particles.push(new Particle());
+    if (this._particles.length > desired) this._particles.length = desired;
   }
 
   _spawn(p, w, h, originX = 0, originY = 0) {
     p.alive = true;
     p.x = originX + Math.random() * w;
     p.y = originY - 10 - Math.random() * 30;
-    // BREWING uses the snow spawn shape (slow drift) per audit #32 P1 #4.
-    if (this._kind === KIND_SNOW || this._kind === KIND_BREWING) {
+    if (this._kind === KIND_SNOW) {
       p.vx = (Math.random() - 0.5) * 30 + this._wind;
       p.vy = 30 + Math.random() * 20;
       p.life = 5 + Math.random();
@@ -102,7 +143,15 @@ export class Weather {
   _tick(now) {
     const dt = Math.min(0.1, (now - this._lastTick) / 1000);
     this._lastTick = now;
-    if (this._kind === KIND_OFF || this._kind === 0xFF || this._max === 0) return;
+    const hasFlash = this._flashUntil && now < this._flashUntil;
+    if ((this._kind === KIND_OFF || this._kind === 0xFF) && !hasFlash) {
+      if (!this._idlePainted) {
+        this._gfx.clear();
+        this._idlePainted = true;
+      }
+      return;
+    }
+    this._idlePainted = false;
     // Constrain to the game viewport rect — Weather mounts on the
     // worldOverlay container which spans the full window, but the
     // user-resizable game area is camera.viewX..viewW. Painting rain
@@ -113,6 +162,11 @@ export class Weather {
     const vy = camera.viewY | 0;
     const w  = Math.max(64, camera.viewW | 0);
     const h  = Math.max(64, camera.viewH | 0);
+    this._resizePool(w, h);
+    const indoors = isWeatherSheltered(world.playerIndoors, world.lastRegionKind);
+    const exposureTarget = indoors ? 0 : 1;
+    this._exposure += (exposureTarget - this._exposure) * (1 - Math.exp(-dt / 0.22));
+    if (Math.abs(this._exposure - exposureTarget) < 0.01) this._exposure = exposureTarget;
 
     this._windPhase += dt * 0.4;
     const targetWind = (this._kind === KIND_FIERCE || this._kind === KIND_APPROACH) ? 90 : 30;
@@ -123,40 +177,54 @@ export class Weather {
     // emits a brief screen-white plus a delayed thunder sample (sound id
     // 0x028 in the canonical UO sound bank), distance modelled by a
     // random delay so it feels environmental, not synced.
-    if (this._kind === KIND_APPROACH || this._kind === KIND_FIERCE) {
+    if (this._intensity > 0
+        && (this._kind === KIND_APPROACH || this._kind === KIND_FIERCE || this._kind === KIND_BREWING)) {
       this._nextFlashAt ??= now + 4000 + Math.random() * 4000;
       if (now >= this._nextFlashAt) {
         this._nextFlashAt = now + 4500 + Math.random() * 6500;
         bus.emit('weather:flash', { durationMs: 220 });
         const thunderDelay = 250 + (Math.random() * 1800) | 0;
-        setTimeout(() => bus.emit('audio:sfx', { sound: 0x0028, x: 0, y: 0, z: 0, ambient: true }),
-                   thunderDelay);
+        const timer = setTimeout(() => {
+          this._thunderTimers.delete(timer);
+          bus.emit('audio:sfx', {
+            sound: 0x0028,
+            ambient: true,
+            volume: indoors ? 0.22 : 1,
+          });
+        }, thunderDelay);
+        this._thunderTimers.add(timer);
       }
     } else {
       this._nextFlashAt = null;
     }
 
     this._gfx.clear();
-    // Audit #32 P1 #4 — STORM_BREWING (CUO 3) shows snow shards with a
-    // dim sky tint; STORM_APPROACH (CUO 1) is heavy rain. Treat BREWING
-    // as snow-render so the visual matches what the server intended.
-    const isSnow = this._kind === KIND_SNOW || this._kind === KIND_BREWING;
+    // CUO draws particles for rain/approach/snow. Storm-brewing (3)
+    // changes wind/thunder only and must not masquerade as snow.
+    const isSnow = this._kind === KIND_SNOW;
     const colour = isSnow ? 0xffffff : 0x6ea0c0;
-    const alpha  = this._kind === KIND_BREWING ? 0.45 : 0.7;
+    const alpha  = 0.7;
 
     // Temperature tint — 0x65 carries a signed-ish ambient temperature
     // byte. CUO folds this into the scene weather mood; in the browser
     // renderer we apply a very light viewport wash: warm amber for heat,
     // cool blue for cold. Temperature 0 is a strict no-op.
     const tint = weatherTemperatureTint(this._temp);
-    if (tint) this._gfx.rect(vx, vy, w, h).fill(tint);
+    if (tint && this._exposure > 0.01) {
+      this._gfx.rect(vx, vy, w, h).fill({ color: tint.color, alpha: tint.alpha * this._exposure });
+    }
 
     // Lightning flash overlay — only inside the game viewport.
     if (this._flashUntil && now < this._flashUntil) {
-      const t = (this._flashUntil - now) / 220;
-      this._gfx.rect(vx, vy, w, h).fill({ color: 0xFFFFFF, alpha: 0.55 * t });
+      const t = (this._flashUntil - now) / this._flashDuration;
+      const flashExposure = indoors ? 0.16 : 1;
+      this._gfx.rect(vx, vy, w, h).fill({
+        color: this._flashColor,
+        alpha: this._flashAlpha * t * flashExposure,
+      });
     }
 
+    if (this._exposure <= 0.01) return;
     for (const p of this._particles) {
       if (!p.alive) { this._spawn(p, w, h, vx, vy); continue; }
       p.x += p.vx * dt;
@@ -168,16 +236,19 @@ export class Weather {
         p.alive = false; continue;
       }
       if (isSnow) {
-        this._gfx.rect(p.x, p.y, 2, 2).fill({ color: colour, alpha });
+        this._gfx.rect(p.x, p.y, 2, 2).fill({ color: colour, alpha: alpha * this._exposure });
       } else {
         const lx = p.x - p.vx * 0.025;
         const ly = p.y - p.vy * 0.025;
-        this._gfx.moveTo(lx, ly).lineTo(p.x, p.y).stroke({ color: colour, width: 1, alpha });
+        this._gfx.moveTo(lx, ly).lineTo(p.x, p.y).stroke({
+          color: colour, width: 1, alpha: alpha * this._exposure,
+        });
       }
     }
   }
 
   destroy() {
+    this._clearThunderTimers();
     for (const u of this._unsubs) u();
     this._unsubs.length = 0;
     try { this._gfx.destroy(); } catch { /* noop */ }

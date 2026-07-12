@@ -1,4 +1,4 @@
-// `[map` — Cartography skill activity. Generates a treasure-map item
+// `[drawmap` — Cartography skill activity. Generates a treasure-map item
 // with random world coordinates. Higher Cartography skill rolls maps
 // of higher tier (level 1 to 5; ServUO uses 7 tiers).
 //
@@ -17,8 +17,8 @@ export default function register(api) {
   if (!api.commands || !api.protocol || !api.game?.mobile?.giveItem) return () => {};
 
   api.commands.register({
-    name: 'map',
-    help: '[map — draw a treasure map (consumes a blank scroll).',
+    name: 'drawmap',
+    help: '[drawmap — draw a treasure map (consumes a blank scroll).',
     access: 'Player',
     run(ctx) {
       const mob = ctx.sender;
@@ -116,7 +116,7 @@ export default function register(api) {
   });
 
   return () => {
-    api.commands.unregister('map');
+    api.commands.unregister('drawmap');
     api.commands.unregister('decodemap');
   };
 }

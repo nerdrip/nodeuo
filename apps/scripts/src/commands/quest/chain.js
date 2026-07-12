@@ -132,7 +132,7 @@ export default function register(api) {
   });
 
   // Hook events to track progress automatically.
-  api.events?.on?.('mobile:killed', (ev) => {
+  api.lifecycle?.event?.(api.events, 'mobile:killed', (ev) => {
     const killer = ev.killer; const victim = ev.victim;
     if (!killer?._chainQuests || !victim) return;
     const sys = api.systems?.questChains;

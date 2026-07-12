@@ -16,13 +16,14 @@ const SKILL = 14;
 const ITEM = {
   // Raw ingredients.
   RawRibs:        0x09F1, RawChicken:    0x1607, RawBird: 0x09B9, RawLambLeg: 0x1609,
-  RawFishSteak:   0x097A, RawBacon:      0x0976, Wheat:   0x1EBD, Flour:      0x1EF0,
+  RawFishSteak:   0x097A, RawBacon:      0x0976, Wheat:   0x1EBD,
+  Flour:          0x1039, Dough:         0x103D,
   Apple:          0x09D0, Eggs:          0x09B5, Milk:    0x09F0, Honey:     0x09EC,
   // Finished items.
   CookedRibs:     0x09F2, CookedChicken: 0x1608, CookedBird: 0x09B7, CookedLambLeg: 0x160A,
-  FishSteak:      0x097B, Bacon:         0x0977, Bread:    0x103B, Roll:        0x097B,
-  Cake:           0x09EB, ApplePie:      0x1041, MeatPie:  0x1040, FruitPie:    0x1042,
-  Cookies:        0x160C, Pizza:         0x1040, Sausage:  0x09C0,
+  FishSteak:      0x097B, Bacon:         0x0979, Bread:    0x103B, Roll:        0x09EB,
+  Cake:           0x09E9, ApplePie:      0x1041, MeatPie:  0x1040, FruitPie:    0x1042,
+  Cookies:        0x160B, Pizza:         0x1040, Sausage:  0x09C0,
   // Drinks.
   PitcherWater:   0x1F9D, PitcherMilk:   0x09F0, PitcherAle:    0x099F,
   PitcherWine:    0x09C7, PitcherCider:  0x1F97, PitcherLiquor: 0x099B,
@@ -39,12 +40,12 @@ function recipe(id, name, category, minSkill, output, inputs, opts = {}) {
 }
 
 // ---- Preparation ----------------------------------------------------------
-recipe(13001, 'Flour',           'Ingredients',   0,   ITEM.Flour,         [[ITEM.Wheat, 1]]);
-recipe(13002, 'Dough',           'Ingredients', 100,   ITEM.Flour /* placeholder ball */, [[ITEM.Flour, 1], [ITEM.PitcherWater, 1]]);
+recipe(13001, 'Flour',           'Ingredients',   0,   ITEM.Flour,         [[ITEM.Wheat, 2]]);
+recipe(13002, 'Dough',           'Ingredients', 100,   ITEM.Dough,         [[ITEM.Flour, 1], [ITEM.PitcherWater, 1]]);
 
 // ---- Bread / pastries -----------------------------------------------------
-recipe(13010, 'Bread',           'Bread',       100,   ITEM.Bread,         [[ITEM.Flour, 1]]);
-recipe(13011, 'Rolls',           'Bread',       150,   ITEM.Roll,          [[ITEM.Flour, 1]]);
+recipe(13010, 'Bread',           'Bread',       100,   ITEM.Bread,         [[ITEM.Dough, 1]]);
+recipe(13011, 'Rolls',           'Bread',       150,   ITEM.Roll,          [[ITEM.Dough, 1]]);
 recipe(13012, 'Cookies',         'Pastries',    250,   ITEM.Cookies,       [[ITEM.Flour, 1], [ITEM.Eggs, 1], [ITEM.Honey, 1]]);
 recipe(13013, 'Cake',            'Pastries',    400,   ITEM.Cake,          [[ITEM.Flour, 2], [ITEM.Eggs, 1], [ITEM.Milk, 1]]);
 recipe(13014, 'Apple Pie',       'Pies',        300,   ITEM.ApplePie,      [[ITEM.Flour, 1], [ITEM.Apple, 2]]);

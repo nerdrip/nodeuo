@@ -4,10 +4,8 @@
 // JSON; returning undefined signals the handler already wrote the
 // response (rare — used for binary downloads / streams).
 //
-// Mutation routes (PATCH/POST/PUT/DELETE) are gated by the admin-server
-// auth middleware. GETs are public — list views are safe to expose
-// over LAN with no creds, but a bound bind (UO_ADMIN_HOST=0.0.0.0) is
-// the operator's choice.
+// Every route is gated by the admin-server session middleware. Mutations also
+// require a same-origin Origin/Referer header.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -17,10 +15,26 @@ import { landProvider } from '../world/land-provider.js';
 import { tileDataTable, resolveStandingZ } from '../world/movement.js';
 import { invalidateLosCache } from '../world/los.js';
 import { destroyItem } from '../world/items.js';
-import { extMapTileEdit } from '@uo/protocol';
+import { extMapTileEdit, NODEUO_CAPABILITIES_CURRENT, NodeUOCapability } from '@uo/protocol';
+import { AI_GRAPH_NODE_TYPES } from '../world/ai-graphs.js';
+import { simulateCombat } from '../systems/combat-simulator.js';
+import { animationBodySnapshot, animationFramePng, validateMonsterAnimations } from './animation-catalog.js';
+import {
+  regionDiagnostics, spawnerHeatmap, validateLootDraft, validateQuestDraft,
+  validateRegionDraft, validateSpawnerDraft,
+} from './world-authoring.js';
+import * as operational from '../systems/operational-diagnostics.js';
 
 export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, persistence, accounts }) {
   const world = sharedCtx?.world;
+  const mapProvider = sharedCtx?.landProvider ?? landProvider;
+
+  function queryInt(query, name, fallback, min, max) {
+    const text = query?.get?.(name);
+    const raw = text == null || text === '' ? Number.NaN : Number(text);
+    const value = Number.isFinite(raw) ? Math.trunc(raw) : fallback;
+    return Math.max(min, Math.min(max, value));
+  }
 
   /** Resolve the admin's character mobile(s). Returns array sorted by
    *  slot. Used by every "teleport me" flow so the server picks the
@@ -83,7 +97,179 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
 
   const routes = [];
 
+  // ---- Operational readiness -------------------------------------------
+  routes.push({ method: 'GET', path: '/api/operations/protocol', run: () => operational.protocolSnapshot() });
+  routes.push({ method: 'GET', path: '/api/operations/compatibility', run: () => operational.compatibilitySnapshot() });
+  routes.push({ method: 'GET', path: '/api/operations/commands', run: () => sharedCtx?.commands?.usageSnapshot?.() ?? { commands: [] } });
+  routes.push({
+    method: 'GET', path: '/api/operations/audit',
+    run: ({ query }) => ({ entries: operational.auditSnapshot(queryInt(query, 'limit', 200, 1, 2000)) }),
+  });
+  routes.push({
+    method: 'POST', path: '/api/operations/integrity',
+    run: () => operational.scanWorldIntegrity(world, { spawner: sharedCtx?.spawner }),
+  });
+  routes.push({
+    method: 'POST', path: '/api/operations/save-check',
+    run: async ({ body }) => {
+      let saved = null;
+      if (body?.saveFirst && persistence?.requestSave) saved = await persistence.requestSave(world, saveDir);
+      return { saved, verification: operational.verifySaveDirectory(saveDir) };
+    },
+  });
+  routes.push({
+    method: 'GET', path: '/api/operations/features',
+    run: () => ({
+      protocol: 'standard UO + negotiated nodeuo.v1',
+      currentMask: NODEUO_CAPABILITIES_CURRENT,
+      capabilities: Object.entries(NodeUOCapability).map(([name, bit]) => ({ name, bit, enabled: (NODEUO_CAPABILITIES_CURRENT & bit) === bit })),
+      server: {
+        huffmanOutgoing: !!sharedCtx?.config?.huffmanOutgoing,
+        protocolMode: sharedCtx?.config?.protocolMode,
+        scriptWatch: /^(1|true|yes)$/i.test(String(process.env.UO_SCRIPT_WATCH ?? '')),
+      },
+    }),
+  });
+  routes.push({
+    method: 'GET', path: '/api/operations/scripts',
+    run: () => ({
+      loaded: scriptRuntime?.loaded?.length ?? 0,
+      files: (scriptRuntime?.loaded ?? []).filter((entry) => entry?.file)
+        .map((entry) => path.relative(scriptsDir, entry.file).replace(/\\/g, '/')),
+      commandCollisions: sharedCtx?.commands?.collisions?.map((entry) => ({ name: entry.name, aliasFor: entry.aliasFor })) ?? [],
+      aiGraphs: sharedCtx?.aiGraphs?.list?.()?.length ?? 0,
+    }),
+  });
+  routes.push({
+    method: 'GET', path: '/api/operations/readiness',
+    run: () => {
+      const integrity = operational.scanWorldIntegrity(world, { spawner: sharedCtx?.spawner });
+      const saves = operational.verifySaveDirectory(saveDir);
+      const commands = sharedCtx?.commands?.usageSnapshot?.() ?? { collisions: [] };
+      return {
+        ok: integrity.ok && saves.ok && !(commands.collisions?.length),
+        integrity: { ok: integrity.ok, counts: integrity.counts, scanned: integrity.scanned },
+        saves,
+        commands: { collisions: commands.collisions?.length ?? 0, errors: commands.commands?.reduce((sum, command) => sum + command.errors, 0) ?? 0 },
+        network: operational.protocolSnapshot(),
+        compatibility: operational.compatibilitySnapshot(),
+      };
+    },
+  });
+
+  // ---- Visual world-authoring data -------------------------------------
+  routes.push({
+    method: 'GET', path: '/api/regions',
+    run: () => ({
+      regions: (sharedCtx?.regions?.all?.() ?? sharedCtx?.regions?.regions ?? []).map((region) => ({
+        name: region.name, map: region.map, type: region.type ?? 'base', priority: region.priority ?? 0,
+        rects: region.rects ?? [], guarded: !!region.guarded, noKill: !!region.noKill,
+        noMurder: !!region.noMurder, allowGate: region.allowGate !== false, pvp: !!region.pvp,
+        blockedSpells: region.blockedSpells ?? [], music: region.music, ambientSound: region.ambientSound,
+        season: region.season,
+      })),
+      diagnostics: regionDiagnostics(sharedCtx?.regions),
+    }),
+  });
+  routes.push({
+    method: 'POST', path: '/api/regions',
+    run: ({ body }) => {
+      const checked = validateRegionDraft(body);
+      if (!checked.ok) return checked;
+      const region = sharedCtx?.regions?.upsert?.(checked.value);
+      return { ok: !!region, region: checked.value, diagnostics: regionDiagnostics(sharedCtx?.regions) };
+    },
+  });
+  routes.push({
+    method: 'DELETE', path: '/api/regions/:name',
+    run: ({ params, query }) => ({
+      ok: (sharedCtx?.regions?.remove?.(params.name, query.get('map') == null ? null : Number(query.get('map'))) ?? 0) > 0,
+    }),
+  });
+  routes.push({
+    method: 'POST', path: '/api/spawners/validate',
+    run: ({ body }) => validateSpawnerDraft(body, sharedCtx?.monsters?.kinds?.() ?? []),
+  });
+  routes.push({
+    method: 'GET', path: '/api/spawners/heatmap',
+    run: ({ query }) => spawnerHeatmap(sharedCtx?.spawner, world, {
+      map: queryInt(query, 'map', 1, 0, 5), cellSize: queryInt(query, 'cellSize', 64, 8, 512),
+    }),
+  });
+  routes.push({
+    method: 'GET', path: '/api/loot-tables',
+    run: () => ({ tables: (sharedCtx?.loot?.names?.() ?? []).map((name) => sharedCtx.loot.get(name)) }),
+  });
+  routes.push({
+    method: 'POST', path: '/api/loot-tables',
+    run: ({ body }) => {
+      const checked = validateLootDraft(sharedCtx?.loot, body);
+      if (!checked.ok) return checked;
+      sharedCtx?.loot?.register?.(checked.value);
+      return { ...checked, registered: true };
+    },
+  });
+  routes.push({
+    method: 'GET', path: '/api/quests',
+    run: () => ({ quests: sharedCtx?.quests?.allQuests?.() ?? [] }),
+  });
+  routes.push({
+    method: 'POST', path: '/api/quests',
+    run: ({ body }) => {
+      const checked = validateQuestDraft(body);
+      if (!checked.ok) return checked;
+      sharedCtx?.quests?.registerQuest?.(checked.value);
+      return { ...checked, registered: true };
+    },
+  });
+
   // ---- Dashboard --------------------------------------------------------
+  routes.push({
+    method: 'POST', path: '/api/simulate/combat',
+    run: ({ body }) => {
+      const attacker = world?.mobiles?.get?.(parseSerial(body?.attackerSerial));
+      const defender = world?.mobiles?.get?.(parseSerial(body?.defenderSerial));
+      return simulateCombat(attacker, defender, { trials: body?.trials, seed: body?.seed });
+    },
+  });
+
+  routes.push({
+    method: 'GET', path: '/api/simulate/loot',
+    run: ({ query }) => {
+      const table = query.get('table') ?? '';
+      if (!table) return { tables: sharedCtx?.loot?.names?.() ?? [] };
+      return sharedCtx?.loot?.simulate?.(table, { trials: queryInt(query, 'trials', 10_000, 100, 100_000) })
+        ?? { error: 'loot registry unavailable' };
+    },
+  });
+
+  routes.push({
+    method: 'GET', path: '/api/animations/body/:body',
+    run: ({ params }) => animationBodySnapshot(parseSerial(params.body)),
+  });
+
+  routes.push({
+    method: 'GET', path: '/api/animations/validate',
+    run: () => validateMonsterAnimations(sharedCtx?.monsters),
+  });
+
+  routes.push({
+    method: 'GET', path: '/api/animations/frame/:body/:action/:direction/:frame',
+    run: async ({ params, res }) => {
+      const png = await animationFramePng(
+        parseSerial(params.body), Number(params.action), Number(params.direction), Number(params.frame),
+      );
+      if (!png) {
+        res.writeHead(404, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ error: 'animation frame not found' }));
+        return undefined;
+      }
+      res.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'public, max-age=3600' });
+      res.end(png);
+      return undefined;
+    },
+  });
+
   routes.push({
     method: 'GET', path: '/api/world/stats',
     run: () => {
@@ -375,19 +561,19 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
   routes.push({
     method: 'GET', path: '/api/map/slice',
     run: ({ query }) => {
-      const facet = Number(query.get('facet') ?? 1);
-      const x0 = Number(query.get('x') ?? 1495);
-      const y0 = Number(query.get('y') ?? 1625);
-      const w = Math.min(64, Math.max(1, Number(query.get('w') ?? 32)));
-      const h = Math.min(64, Math.max(1, Number(query.get('h') ?? 32)));
+      const facet = queryInt(query, 'facet', 1, 0, 5);
+      const x0 = queryInt(query, 'x', 1495, 0, 0xffff);
+      const y0 = queryInt(query, 'y', 1625, 0, 0xffff);
+      const w = queryInt(query, 'w', 32, 1, 64);
+      const h = queryInt(query, 'h', 32, 1, 64);
       const tiles = new Array(w * h);
       for (let dy = 0; dy < h; dy++) {
         for (let dx = 0; dx < w; dx++) {
-          const t = landProvider.landAt(facet, x0 + dx, y0 + dy);
+          const t = mapProvider.landAt(facet, x0 + dx, y0 + dy);
           tiles[dy * w + dx] = t ? [t.tileId, t.z] : [0, 0];
         }
       }
-      return { facet, x: x0, y: y0, w, h, tiles, edits: landProvider.editCount() };
+      return { facet, x: x0, y: y0, w, h, tiles, edits: mapProvider.editCount() };
     },
   });
 
@@ -398,22 +584,28 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
       const facet = Number(body?.facet ?? 1);
       const edits = Array.isArray(body?.edits) ? body.edits : [];
       if (!edits.length) return { error: 'no edits' };
+      if (edits.length > 4096) return { error: 'too many edits in one batch (max 4096)' };
       let applied = 0;
       // Compute a bounding box of edited tiles so the live-broadcast
       // pass below only re-syncs players actually within range of any
       // change (cheap proxy: refreshSurroundings re-streams the
       // player's full visible chunks).
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      const validEdits = [];
       for (const e of edits) {
-        if (!Number.isFinite(e?.x) || !Number.isFinite(e?.y)) continue;
-        landProvider.setLandTile(facet, e.x | 0, e.y | 0, (e.tileId | 0), (e.z | 0));
+        if (!Number.isFinite(e?.x) || !Number.isFinite(e?.y) || !Number.isFinite(e?.tileId)) continue;
+        if (e.x < 0 || e.y < 0 || e.x > 0xffff || e.y > 0xffff) continue;
+        const normalized = { x: e.x | 0, y: e.y | 0, tileId: e.tileId & 0x3fff, z: Math.max(-128, Math.min(127, e.z | 0)) };
+        mapProvider.setLandTile(facet, normalized.x, normalized.y, normalized.tileId, normalized.z);
+        validEdits.push(normalized);
         if (e.x < minX) minX = e.x; if (e.x > maxX) maxX = e.x;
         if (e.y < minY) minY = e.y; if (e.y > maxY) maxY = e.y;
         applied++;
       }
       // Persist immediately so a server crash doesn't lose the edit
       // session's work. Cheap (sparse JSON) — typically <1ms.
-      const r = landProvider.saveEditsSync(path.join(saveDir, 'map-edits.json'));
+      if (!validEdits.length) return { error: 'no valid edits' };
+      const r = mapProvider.saveEditsSync(path.join(saveDir, 'map-edits.json'));
       // LOS cache invalidation — any tile that just changed Z may have
       // become walkable / unwalkable, so cached LOS answers from the
       // last 100 ms are no longer trustworthy. Cheap clear (drops 4096
@@ -425,21 +617,19 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
       // chunk visuals re-mount. No relog / [resync needed any more.
       let broadcast = 0;
       if (applied > 0) {
-        const editList = edits.map((e) => ({
-          x: e.x | 0, y: e.y | 0, tileId: e.tileId | 0, z: e.z | 0,
-        }));
-        const pkt = extMapTileEdit(facet, editList);
+        const pkt = extMapTileEdit(facet, validEdits);
         const cx = (minX + maxX) >> 1;
         const cy = (minY + maxY) >> 1;
         for (const m of (world?.mobiles?.values?.() ?? [])) {
           if (!m.client) continue;
+          if (!m.client.supportsNodeUO?.(NodeUOCapability.WorldEditing)) continue;
           if (m.map !== facet) continue;
           if (Math.abs(m.x - cx) > 32 || Math.abs(m.y - cy) > 32) continue;
           try { m.client.send(pkt); broadcast++; }
           catch { /* socket transient */ }
         }
       }
-      return { ok: true, applied, totalEdits: landProvider.editCount(), broadcast, persist: r };
+      return { ok: true, applied, totalEdits: mapProvider.editCount(), broadcast, persist: r };
     },
   });
 
@@ -447,10 +637,38 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
   routes.push({
     method: 'POST', path: '/api/map/reset',
     run: () => {
-      const all = [...landProvider.iterEdits()];
-      for (const e of all) landProvider.clearLandTile(e.facet, e.x, e.y);
+      const all = [...mapProvider.iterEdits()];
+      for (const e of all) mapProvider.clearLandTile(e.facet, e.x, e.y);
       try { fs.unlinkSync(path.join(saveDir, 'map-edits.json')); } catch { /* missing */ }
-      return { ok: true, cleared: all.length };
+      try { invalidateLosCache(); } catch { /* advisory */ }
+      // Restore the original land tiles in connected web clients too. Split
+      // large overlays into protocol-safe chunks and only send a chunk to
+      // players close enough to see its bounding box.
+      let broadcast = 0;
+      const byFacet = new Map();
+      for (const e of all) {
+        const list = byFacet.get(e.facet) ?? [];
+        const original = mapProvider.landAt(e.facet, e.x, e.y);
+        list.push({ x: e.x, y: e.y, tileId: original?.tileId ?? 0, z: original?.z ?? 0 });
+        byFacet.set(e.facet, list);
+      }
+      for (const [facet, edits] of byFacet) {
+        for (let start = 0; start < edits.length; start += 4096) {
+          const chunk = edits.slice(start, start + 4096);
+          const minX = Math.min(...chunk.map((e) => e.x));
+          const maxX = Math.max(...chunk.map((e) => e.x));
+          const minY = Math.min(...chunk.map((e) => e.y));
+          const maxY = Math.max(...chunk.map((e) => e.y));
+          const pkt = extMapTileEdit(facet, chunk);
+          for (const mob of (world?.mobiles?.values?.() ?? [])) {
+            if (!mob.client || mob.map !== facet) continue;
+            if (!mob.client.supportsNodeUO?.(NodeUOCapability.WorldEditing)) continue;
+            if (mob.x < minX - 32 || mob.x > maxX + 32 || mob.y < minY - 32 || mob.y > maxY + 32) continue;
+            try { mob.client.send(pkt); broadcast++; } catch { /* socket race */ }
+          }
+        }
+      }
+      return { ok: true, cleared: all.length, broadcast };
     },
   });
 
@@ -464,19 +682,33 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
     run: ({ query }) => {
       const q = String(query.get('q') ?? '').trim().toLowerCase();
       const kind = query.get('kind') ?? 'static';
-      const limit = Math.min(200, Math.max(1, Number(query.get('limit') ?? 80)));
+      const limit = queryInt(query, 'limit', 80, 1, 200);
+      const offset = queryInt(query, 'offset', 0, 0, 100_000);
+      const category = String(query.get('category') ?? 'all').trim().toLowerCase();
       const td = tileDataTable();
       const matches = [];
+      let total = 0;
       // tiledata.statics is indexed by GLOBAL art id (LAND_COUNT + local).
       // Callers (palette, /api/statics/place, runtime item.itemId) all use
       // LOCAL static ids. Subtract LAND_COUNT when emitting so the wire
       // contract stays LOCAL-only and the editor's atlas lookup adds the
       // offset itself when fetching sprites.
       const LAND_COUNT = (td.land?.length ?? 16384) | 0;
+      const categoryOf = (name, type) => {
+        if (type === 'land') return 'terrain';
+        const n = String(name ?? '').toLowerCase();
+        if (/door|gate|portcullis/.test(n)) return 'doors';
+        if (/chair|table|bench|bed|throne|stool|desk|bookcase|bookshelf|armoire|dresser/.test(n)) return 'furniture';
+        if (/candle|lamp|lantern|torch|brazier|candelabra|fireplace|hearth/.test(n)) return 'lighting';
+        if (/tree|plant|flower|grass|rock|boulder|bush|shrub|vine|mushroom|log|stump/.test(n)) return 'nature';
+        if (/wall|floor|roof|column|pillar|stair|window|arch|railing|fence|brick|stone|plaster/.test(n)) return 'architecture';
+        if (/chest|crate|barrel|box|bag|basket|container|cabinet/.test(n)) return 'containers';
+        if (/sign|banner|flag|tapestry|painting|portrait/.test(n)) return 'signs';
+        return 'misc';
+      };
       const trySource = (arr, type) => {
         const idShift = type === 'static' ? LAND_COUNT : 0;
         for (let i = 0; i < arr.length; i++) {
-          if (matches.length >= limit) break;
           const e = arr[i];
           if (!e) continue;
           const name = String(e.name ?? '').toLowerCase();
@@ -484,35 +716,32 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
           if (name === 'nodraw') continue;
           const outId = i - idShift;
           if (outId < 0) continue;
-          // Empty query → first N. Numeric query → match by id (hex/decimal).
-          if (q === '') {
-            matches.push({ type, id: outId, name: e.name, height: e.height | 0, layer: e.layer | 0 });
-            continue;
-          }
+          const tileCategory = categoryOf(e.name, type);
+          if (category !== 'all' && type === 'static' && tileCategory !== category) continue;
+          let queryMatches = q === '';
           if (/^0x[0-9a-f]+$/i.test(q)) {
             // Accept either local (matches outId) or global (matches i)
             // hex queries so power users can paste either.
             const want = parseInt(q, 16);
-            if (outId === want || i === want) {
-              matches.push({ type, id: outId, name: e.name, height: e.height | 0, layer: e.layer | 0 });
-            }
-            continue;
-          }
-          if (/^\d+$/.test(q)) {
+            queryMatches = outId === want || i === want;
+          } else if (/^\d+$/.test(q)) {
             const want = parseInt(q, 10);
-            if (outId === want || i === want) {
-              matches.push({ type, id: outId, name: e.name, height: e.height | 0, layer: e.layer | 0 });
-            }
-            continue;
+            queryMatches = outId === want || i === want;
+          } else if (q) {
+            queryMatches = name.includes(q);
           }
-          if (name.includes(q)) {
-            matches.push({ type, id: outId, name: e.name, height: e.height | 0, layer: e.layer | 0 });
+          if (!queryMatches) continue;
+          if (total >= offset && matches.length < limit) {
+            matches.push({ type, id: outId, name: e.name, height: e.height | 0,
+              layer: e.layer | 0, category: tileCategory });
           }
+          total++;
         }
       };
       if (kind === 'land' || kind === 'all') trySource(td.land ?? [], 'land');
       if (kind === 'static' || kind === 'all') trySource(td.statics ?? [], 'static');
-      return { q, kind, count: matches.length, matches };
+      return { q, kind, category, offset, limit, count: matches.length,
+        total, hasMore: offset + matches.length < total, matches };
     },
   });
 
@@ -527,7 +756,7 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
     run: ({ query }) => {
       const wantFacet = query.has('facet') ? Number(query.get('facet')) : null;
       const out = [];
-      for (const e of landProvider.iterEdits()) {
+      for (const e of mapProvider.iterEdits()) {
         if (wantFacet != null && e.facet !== wantFacet) continue;
         out.push(e);
       }
@@ -543,33 +772,63 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
   routes.push({
     method: 'GET', path: '/api/statics/slice',
     run: ({ query }) => {
-      const facet = Number(query.get('facet') ?? 1);
-      const x0 = Number(query.get('x') ?? 1495);
-      const y0 = Number(query.get('y') ?? 1625);
-      const w = Math.min(64, Math.max(1, Number(query.get('w') ?? 32)));
-      const h = Math.min(64, Math.max(1, Number(query.get('h') ?? 32)));
+      const facet = queryInt(query, 'facet', 1, 0, 5);
+      const x0 = queryInt(query, 'x', 1495, 0, 0xffff);
+      const y0 = queryInt(query, 'y', 1625, 0, 0xffff);
+      const w = queryInt(query, 'w', 32, 1, 64);
+      const h = queryInt(query, 'h', 32, 1, 64);
       // Map of `${dx}|${dy}` → array of {tileId, z, hue, source} where
       // source is 'static' (from chunk static layer, fixed) or 'item'
       // (from world.items, mutable via [del / build).
       const cells = {};
-      for (let dy = 0; dy < h; dy++) {
-        for (let dx = 0; dx < w; dx++) {
-          const wx = x0 + dx, wy = y0 + dy;
-          const stack = [];
-          for (const s of landProvider.staticsAt(facet, wx, wy)) {
-            stack.push({ tileId: s.tileId, z: s.z, hue: s.hue, source: 'static' });
-          }
-          // Now overlay world.items at (wx, wy, facet)
-          for (const it of (world?.items?.values?.() ?? [])) {
-            if (it.parent != null) continue;        // worn / contained — skip
-            if (it.x !== wx || it.y !== wy || (it.map ?? 1) !== facet) continue;
-            stack.push({
-              tileId: it.itemId, z: it.z, hue: it.hue ?? 0,
-              source: 'item', serial: '0x' + (it.serial >>> 0).toString(16),
-            });
-          }
-          if (stack.length) cells[`${dx}|${dy}`] = stack;
+      const stackFor = (wx, wy) => {
+        const key = `${wx - x0}|${wy - y0}`;
+        return (cells[key] ??= []);
+      };
+      // Decode baked map statics once per 8x8 block. The previous nested
+      // tile loop called staticsAt() 4096 times for a 64x64 view and each
+      // call rescanned its block's complete variable-length record list.
+      if (typeof mapProvider.staticsInRect === 'function') {
+        for (const s of mapProvider.staticsInRect(facet, x0, y0, w, h)) {
+          stackFor(s.x, s.y).push({ tileId: s.tileId, z: s.z, hue: s.hue, source: 'static' });
         }
+      } else {
+        for (let dy = 0; dy < h; dy++) for (let dx = 0; dx < w; dx++) {
+          for (const s of mapProvider.staticsAt(facet, x0 + dx, y0 + dy)) {
+            stackFor(x0 + dx, y0 + dy).push({ tileId: s.tileId, z: s.z, hue: s.hue, source: 'static' });
+          }
+        }
+      }
+
+      // Runtime items: query all overlapping sector buckets once, then
+      // filter into cells. Keep the single-tile fallback for lightweight
+      // test fixtures that expose only itemSerialsAt().
+      const sectorsReady = world?.sectors
+        && (world.items.size === 0 || world.sectors.itemsIndexed?.() > 0);
+      const pushRuntime = (it) => {
+        if (!it || it.parent != null || (it.map ?? 1) !== facet) return;
+        if (it.x < x0 || it.x >= x0 + w || it.y < y0 || it.y >= y0 + h) return;
+        stackFor(it.x, it.y).push({
+          tileId: it.itemId, z: it.z, hue: it.hue ?? 0,
+          source: 'item', serial: '0x' + (it.serial >>> 0).toString(16),
+        });
+      };
+      if (sectorsReady && world.sectors.itemSerialsNear) {
+        const cx = x0 + ((w - 1) >> 1), cy = y0 + ((h - 1) >> 1);
+        const range = Math.ceil(Math.max(w, h) / 2) + 8;
+        for (const serial of world.sectors.itemSerialsNear(facet, cx, cy, range)) {
+          pushRuntime(world.items.get(serial));
+        }
+      } else if (sectorsReady && world.sectors.itemSerialsAt) {
+        const seen = new Set();
+        for (let dy = 0; dy < h; dy++) for (let dx = 0; dx < w; dx++) {
+          for (const serial of world.sectors.itemSerialsAt(facet, x0 + dx, y0 + dy)) {
+            if (seen.has(serial)) continue;
+            seen.add(serial); pushRuntime(world.items.get(serial));
+          }
+        }
+      } else {
+        for (const it of (world?.items?.values?.() ?? [])) pushRuntime(it);
       }
       return { facet, x: x0, y: y0, w, h, cells };
     },
@@ -587,7 +846,11 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
       const z = Number(body?.z ?? 0) | 0;
       const itemId = Number(body?.itemId ?? 0) | 0;
       const hue = Number(body?.hue ?? 0) & 0xffff;
-      if (!itemId || itemId < 1 || itemId > 0x4000) return { error: `bad itemId 0x${itemId.toString(16)}` };
+      const td = tileDataTable();
+      const staticCount = Math.max(0, (td.statics?.length ?? 0) - (td.land?.length ?? 0));
+      if (!itemId || itemId < 1 || itemId >= staticCount) {
+        return { error: `bad itemId 0x${itemId.toString(16)} (valid local static range: 0x1..0x${Math.max(0, staticCount - 1).toString(16)})` };
+      }
       const items = sharedCtx?.items ?? null;
       const createItem = items?.createItem;
       if (!createItem) return { error: 'items.createItem unavailable' };
@@ -642,7 +905,7 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
       if (includeFixed) {
         for (let y = ly; y <= hy; y++) {
           for (let x = lx; x <= hx; x++) {
-            for (const s of landProvider.staticsAt(facet, x, y)) {
+            for (const s of mapProvider.staticsAt(facet, x, y)) {
               tiles.push({
                 dx: x - lx, dy: y - ly, z: s.z | 0,
                 itemId: s.tileId | 0, hue: s.hue | 0, source: 'static',
@@ -807,8 +1070,7 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
       // on accessLevel/banned (no admin can de-Admin themselves or
       // re-Admin themselves silently).
       const ALLOWED_LEVELS = new Set(['Player', 'Counselor', 'Seer', 'GameMaster', 'GM', 'Admin']);
-      const isSelf = session?.account
-        && session.account.username?.toLowerCase() === params.name.toLowerCase();
+      const isSelf = String(session?.account ?? '').toLowerCase() === params.name.toLowerCase();
       if (body && 'accessLevel' in body) {
         if (!ALLOWED_LEVELS.has(body.accessLevel)) {
           return { error: 'invalid accessLevel' };
@@ -827,8 +1089,11 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
 
   routes.push({
     method: 'DELETE', path: '/api/accounts/:name',
-    run: ({ params }) => {
+    run: ({ params, session }) => {
       const key = params.name.toLowerCase();
+      if (String(session?.account ?? '').toLowerCase() === key) {
+        return { error: 'cannot delete your own account' };
+      }
       const ok = accounts?.accounts?.delete(key);
       if (ok) accounts.saveSync();
       return { ok: !!ok };
@@ -841,18 +1106,27 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
     run: ({ query }) => {
       const filter = (query.get('filter') ?? '').toLowerCase();
       const onlyPlayers = query.get('players') === '1';
-      const limit = Math.min(500, Number(query.get('limit') ?? 200));
-      const offset = Number(query.get('offset') ?? 0);
-      const all = [...(world?.mobiles?.values?.() ?? [])];
-      const filtered = all.filter((m) => {
-        if (onlyPlayers && !m.client && !m.isPlayer) return false;
-        if (!filter) return true;
-        return (m.name ?? '').toLowerCase().includes(filter)
-          || `0x${(m.serial >>> 0).toString(16)}`.includes(filter);
-      });
+      const kind = query.get('kind') ?? (onlyPlayers ? 'players' : 'all');
+      const limit = Math.trunc(Math.max(1, Math.min(500, Number(query.get('limit') ?? 200) || 200)));
+      const offset = Math.trunc(Math.max(0, Number(query.get('offset') ?? 0) || 0));
+      let count = 0;
+      const page = [];
+      for (const m of (world?.mobiles?.values?.() ?? [])) {
+        const isPlayer = !!m.client || !!m.isPlayer;
+        const isVendor = !isPlayer && !!m.vendorKind;
+        if (kind === 'players' && !isPlayer) continue;
+        if (kind === 'vendors' && !isVendor) continue;
+        if (kind === 'npcs' && (isPlayer || isVendor)) continue;
+        if (filter && !(m.name ?? '').toLowerCase().includes(filter)
+            && !`0x${(m.serial >>> 0).toString(16)}`.includes(filter)) continue;
+        if (count >= offset && page.length < limit) page.push(snapshotMobile(m));
+        count++;
+      }
       return {
-        count: filtered.length,
-        mobiles: filtered.slice(offset, offset + limit).map(snapshotMobile),
+        count,
+        offset,
+        limit,
+        mobiles: page,
       };
     },
   });
@@ -953,19 +1227,23 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
     run: ({ query }) => {
       const filter = (query.get('filter') ?? '').toLowerCase();
       const onGround = query.get('ground') === '1';
-      const limit = Math.min(500, Number(query.get('limit') ?? 200));
-      const offset = Number(query.get('offset') ?? 0);
-      const all = [...(world?.items?.values?.() ?? [])];
-      const filtered = all.filter((it) => {
-        if (onGround && it.parent != null) return false;
-        if (!filter) return true;
-        return (it.name ?? '').toLowerCase().includes(filter)
-          || `0x${(it.itemId | 0).toString(16)}`.includes(filter)
-          || `0x${(it.serial >>> 0).toString(16)}`.includes(filter);
-      });
+      const limit = Math.trunc(Math.max(1, Math.min(500, Number(query.get('limit') ?? 200) || 200)));
+      const offset = Math.trunc(Math.max(0, Number(query.get('offset') ?? 0) || 0));
+      let count = 0;
+      const page = [];
+      for (const it of (world?.items?.values?.() ?? [])) {
+        if (onGround && it.parent != null) continue;
+        if (filter && !(it.name ?? '').toLowerCase().includes(filter)
+            && !`0x${(it.itemId | 0).toString(16)}`.includes(filter)
+            && !`0x${(it.serial >>> 0).toString(16)}`.includes(filter)) continue;
+        if (count >= offset && page.length < limit) page.push(snapshotItem(it));
+        count++;
+      }
       return {
-        count: filtered.length,
-        items: filtered.slice(offset, offset + limit).map(snapshotItem),
+        count,
+        offset,
+        limit,
+        items: page,
       };
     },
   });
@@ -991,7 +1269,60 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
       // sweep + removeEntity broadcast. Use `destroyItem` so observers
       // immediately stop seeing the item and persistence stays clean.
       destroyItem(world, serial);
-      return { ok: true };
+      const packet = sharedCtx?.protocol?.removeEntity?.(serial);
+      let broadcast = 0;
+      if (packet) {
+        for (const mob of (world?.mobiles?.values?.() ?? [])) {
+          if (!mob.client) continue;
+          try { mob.client.send(packet); broadcast++; } catch { /* socket race */ }
+        }
+      }
+      return { ok: true, broadcast };
+    },
+  });
+
+  routes.push({
+    method: 'GET', path: '/api/ai/:serial',
+    run: ({ params }) => {
+      const serial = parseSerial(params.serial);
+      const result = sharedCtx?.ai?.inspect?.(serial);
+      return result ?? { error: 'mobile has no attached AI behavior' };
+    },
+  });
+
+  routes.push({
+    method: 'GET', path: '/api/ai/:serial/path',
+    run: ({ params, query }) => {
+      const serial = parseSerial(params.serial);
+      const target = parseSerial(query.get('target') ?? '0');
+      const result = sharedCtx?.ai?.previewPath?.(serial, target);
+      return result ?? { error: 'mobile has no attached AI behavior' };
+    },
+  });
+
+  routes.push({
+    method: 'GET', path: '/api/ai-graphs',
+    run: () => ({ nodeTypes: [...AI_GRAPH_NODE_TYPES], graphs: sharedCtx?.aiGraphs?.list?.() ?? [] }),
+  });
+
+  routes.push({
+    method: 'PUT', path: '/api/ai-graphs/:id',
+    run: ({ params, body }) => sharedCtx?.aiGraphs?.save?.({ ...(body ?? {}), id: params.id })
+      ?? { error: 'AI graph registry unavailable' },
+  });
+
+  routes.push({
+    method: 'DELETE', path: '/api/ai-graphs/:id',
+    run: ({ params }) => ({ ok: !!sharedCtx?.aiGraphs?.delete?.(params.id) }),
+  });
+
+  routes.push({
+    method: 'POST', path: '/api/ai-graphs/:id/attach',
+    run: ({ params, body }) => {
+      const mob = world?.mobiles?.get?.(parseSerial(body?.serial));
+      if (!mob) return { error: 'mobile not found' };
+      return sharedCtx?.aiGraphs?.attach?.(mob, params.id)
+        ? { ok: true, behavior: mob.aiBehavior } : { error: 'graph not found' };
     },
   });
 
@@ -1110,8 +1441,13 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
       // they snap to the new tile but see an empty viewport (the spawn
       // rect's mobs are server-side, but no client packet announces them
       // until the next 0x77 broadcast). Same code path as 0x22 resync.
-      try { if (mob.client) refreshSurroundings(mob.client); }
-      catch (e) { console.error('[admin/teleport] refreshSurroundings:', e.message); }
+      // The refresh can serialize hundreds of nearby entities. Defer it so
+      // the admin HTTP response and button state are released immediately;
+      // mobileUpdate above already moves the player on the client at once.
+      if (mob.client) setImmediate(() => {
+        try { refreshSurroundings(mob.client); }
+        catch (e) { console.error('[admin/teleport] refreshSurroundings:', e.message); }
+      });
       return {
         ok: true, character: target.name, mobileSerial: '0x' + (mob.serial >>> 0).toString(16),
         x: mob.x, y: mob.y, z: mob.z, map: mob.map,
@@ -1174,7 +1510,7 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
       try {
         const content = fs.readFileSync(abs, 'utf8');
         const stat = fs.statSync(abs);
-        return { path: rel, size: stat.size, mtime: stat.mtime, content };
+        return { path: rel, size: stat.size, mtime: Math.trunc(stat.mtimeMs), content };
       } catch (e) {
         return { error: e.message };
       }
@@ -1183,15 +1519,44 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
 
   routes.push({
     method: 'PUT', path: '/api/scripts/file',
-    run: ({ query, body }) => {
+    run: async ({ query, body }) => {
       const rel = query.get('path') ?? '';
       const abs = safeJoin(scriptsDir, rel);
       if (!abs) return { error: 'bad path' };
+      if (!/\.(?:js|mjs)$/i.test(rel)) return { error: 'script path must end in .js or .mjs' };
       if (typeof body?.content !== 'string') return { error: 'content (string) required' };
       try {
         fs.mkdirSync(path.dirname(abs), { recursive: true });
-        fs.writeFileSync(abs, body.content, 'utf8');
-        return { ok: true, path: rel, size: body.content.length };
+        const before = fs.existsSync(abs) ? fs.statSync(abs) : null;
+        const expectedMtime = Number(body?.expectedMtime);
+        if (before && Number.isFinite(expectedMtime)
+            && Math.trunc(before.mtimeMs) !== Math.trunc(expectedMtime)) {
+          return { error: 'script changed on disk since it was opened', conflict: true };
+        }
+        let backup = null;
+        if (before) {
+          const ts = new Date().toISOString().replace(/[:.]/g, '-');
+          const bak = `${abs}.bak.${ts}`;
+          fs.copyFileSync(abs, bak);
+          backup = path.basename(bak);
+        }
+        const tmp = `${abs}.tmp-${process.pid}-${Date.now()}`;
+        fs.writeFileSync(tmp, body.content, 'utf8');
+        try { fs.renameSync(tmp, abs); }
+        catch (e) {
+          try { fs.unlinkSync(tmp); } catch { /* ignore */ }
+          throw e;
+        }
+        const stat = fs.statSync(abs);
+        let reloaded = null;
+        if (body?.reload && scriptRuntime?.reloadOne) {
+          const t0 = Date.now();
+          reloaded = { ...(await scriptRuntime.reloadOne(rel)), ms: Date.now() - t0 };
+        }
+        return {
+          ok: true, path: rel, size: stat.size,
+          mtime: Math.trunc(stat.mtimeMs), backup, reloaded,
+        };
       } catch (e) {
         return { error: e.message };
       }
@@ -1229,6 +1594,13 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
           x: ((g.rect.x1 + g.rect.x2) / 2) | 0,
           y: ((g.rect.y1 + g.rect.y2) / 2) | 0,
         } : null,
+        // Actual live spawn positions let the ISO editor show distribution
+        // inside a rect instead of representing every group by one centre pin.
+        activePositions: [...(g.spawnedSerials ?? [])].slice(0, 100).map((serial) => {
+          const mob = world?.mobiles?.get?.(serial >>> 0);
+          return mob ? { serial: '0x' + (mob.serial >>> 0).toString(16),
+            x: mob.x | 0, y: mob.y | 0, z: mob.z | 0 } : null;
+        }).filter(Boolean),
       })) : [];
       return { count: list.length, spawners: list };
     },
@@ -1245,13 +1617,34 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
       if (!sp) return { error: 'spawner subsystem not wired' };
       const g = body ?? {};
       if (!g.id || typeof g.id !== 'string') return { error: 'id required (string)' };
-      if (!g.rect || !Number.isFinite(g.rect.x1)) return { error: 'rect required {x1,y1,x2,y2}' };
+      if (!/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,79}$/.test(g.id)) {
+        return { error: 'id must use 1-80 letters, digits, dot, underscore, colon or dash' };
+      }
+      const rectValues = [g.rect?.x1, g.rect?.y1, g.rect?.x2, g.rect?.y2].map(Number);
+      if (rectValues.some((n) => !Number.isFinite(n))) return { error: 'rect required {x1,y1,x2,y2}' };
       if (!Array.isArray(g.kinds) || g.kinds.length === 0) return { error: 'kinds required' };
       // Validate respawn bounds; the Spawner constructor swaps if reversed.
       if (!Array.isArray(g.respawnMs)) g.respawnMs = [30_000, 120_000];
+      g.respawnMs = [
+        Math.max(1000, Number(g.respawnMs[0]) || 30_000),
+        Math.max(1000, Number(g.respawnMs[1]) || 120_000),
+      ];
       g.maxCount = Math.max(1, Math.min(50, (g.maxCount | 0) || 5));
-      g.map = (g.map | 0) || 1;
-      sp.groups.delete(g.id);    // replace semantics
+      const map = Number(g.map);
+      g.map = Number.isInteger(map) && map >= 0 && map <= 5 ? map : 1;
+      g.rect = {
+        x1: Math.min(rectValues[0], rectValues[2]) | 0,
+        y1: Math.min(rectValues[1], rectValues[3]) | 0,
+        x2: Math.max(rectValues[0], rectValues[2]) | 0,
+        y2: Math.max(rectValues[1], rectValues[3]) | 0,
+      };
+      // Editing a live spawner must retain its tracked mobiles. Dropping the
+      // Set orphaned them and the replacement immediately spawned duplicates.
+      const previous = sp.groups.get(g.id);
+      if (previous) {
+        g.spawnedSerials = previous.spawnedSerials;
+        g.nextSpawnAt = previous.nextSpawnAt;
+      }
       sp.add(g);
       return { ok: true, id: g.id };
     },
@@ -1384,7 +1777,7 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
         out.push({ type: 'dir', name: e.name, path: rel, children: walkDataTree(path.join(dir, e.name), rel) });
       } else if (e.isFile() && /\.json$/i.test(e.name)) {
         let size = 0; let mtime = 0;
-        try { const st = fs.statSync(path.join(dir, e.name)); size = st.size; mtime = st.mtimeMs | 0; }
+        try { const st = fs.statSync(path.join(dir, e.name)); size = st.size; mtime = Math.trunc(st.mtimeMs); }
         catch { /* ignore */ }
         out.push({ type: 'file', name: e.name, path: rel, size, mtime });
       }
@@ -1418,7 +1811,7 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
         const text = fs.readFileSync(abs, 'utf8');
         const data = JSON.parse(text);
         const st = fs.statSync(abs);
-        return { path: query.get('path'), size: st.size, mtime: st.mtimeMs | 0, data };
+        return { path: query.get('path'), size: st.size, mtime: Math.trunc(st.mtimeMs), data };
       } catch (e) {
         return { error: `read failed: ${e.message}` };
       }
@@ -1427,24 +1820,37 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
 
   routes.push({
     method: 'PUT', path: '/api/data-tree/file',
-    run: ({ query, body }) => {
+    run: async ({ query, body }) => {
       const abs = safeJoinData(query?.get?.('path'));
       if (!abs) return { error: 'invalid path (must be under apps/scripts/src/data/*.json)' };
       if (body == null) return { error: 'missing JSON body' };
       const data = body?.data;
       if (data === undefined) return { error: 'body.data required (the JSON value to persist)' };
       try {
+        const before = fs.existsSync(abs) ? fs.statSync(abs) : null;
+        const expectedMtime = Number(body?.expectedMtime);
+        if (before && Number.isFinite(expectedMtime)
+            && Math.trunc(before.mtimeMs) !== Math.trunc(expectedMtime)) {
+          return {
+            error: 'file changed on disk since it was opened',
+            conflict: true,
+            expectedMtime: Math.trunc(expectedMtime),
+            actualMtime: Math.trunc(before.mtimeMs),
+          };
+        }
         // Round-trip through JSON.stringify to guarantee deterministic
         // output + reject NaN/Infinity/functions sneaking through the
         // PUT (those would throw on next server boot).
         const text = JSON.stringify(data, null, body?.pretty === false ? 0 : 2);
         // Backup before overwrite — keeps the last 5 versions so the
         // operator can compare a regression without git history.
-        try {
-          if (fs.existsSync(abs)) {
+        let backup = null;
+        if (before) {
+          try {
             const ts = new Date().toISOString().replace(/[:.]/g, '-');
             const bak = `${abs}.bak.${ts}`;
             fs.copyFileSync(abs, bak);
+            backup = path.basename(bak);
             // Prune older backups beyond 5 keepers.
             const dir = path.dirname(abs);
             const base = path.basename(abs);
@@ -1456,11 +1862,32 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
             for (const b of baks.slice(5)) {
               try { fs.unlinkSync(path.join(dir, b.f)); } catch { /* ignore */ }
             }
+          } catch (e) {
+            return { error: `backup failed; original was not changed: ${e.message}` };
           }
-        } catch { /* backup failed — proceed with write anyway */ }
-        fs.writeFileSync(abs, text, 'utf8');
+        }
+        const tmp = `${abs}.tmp-${process.pid}-${Date.now()}`;
+        fs.writeFileSync(tmp, text, 'utf8');
+        try { fs.renameSync(tmp, abs); }
+        catch (e) {
+          try { fs.unlinkSync(tmp); } catch { /* ignore */ }
+          throw e;
+        }
         const st = fs.statSync(abs);
-        return { ok: true, path: query.get('path'), size: st.size, mtime: st.mtimeMs | 0 };
+        let reloaded = null;
+        if (body?.reload && scriptRuntime?.load) {
+          const t0 = Date.now();
+          await scriptRuntime.load({ reason: `admin-data-tree:${query.get('path')}`, emitEvent: true });
+          reloaded = { ms: Date.now() - t0, loaded: scriptRuntime.loaded?.length ?? 0 };
+        }
+        return {
+          ok: true,
+          path: query.get('path'),
+          size: st.size,
+          mtime: Math.trunc(st.mtimeMs),
+          backup,
+          reloaded,
+        };
       } catch (e) {
         return { error: `write failed: ${e.message}` };
       }

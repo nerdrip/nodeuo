@@ -104,9 +104,9 @@ function generateAll(spells) {
     } else if (sp.school === 'mysticism' && sp.id >= 678 && sp.id <= 693) {
       registerScroll(MYSTIC_BASE + (sp.id - 678), `Mysticism Scroll: ${sp.name}`, sp.id, 'mysticism');
     }
-    // Chivalry / Bushido / Ninjitsu / Spellweaving: no scroll variants
-    // in canonical UO. Scrolls of Transcendence (FACE up skill) live
-    // separately in scrolls-special.js (TODO).
+    // Chivalry / Bushido / Ninjitsu / Spellweaving: no spell-scroll variants
+    // in canonical UO. Scrolls of Transcendence are registered by the
+    // functional decorative-addons catalogue as `scroll-of-transcendence`.
   }
 }
 

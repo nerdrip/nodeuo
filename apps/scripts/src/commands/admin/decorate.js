@@ -24,6 +24,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { allItems } from '../../_spatial.js';
 import { createItem, destroyItemBySerial } from '../../_items.js';
+import { queueBulkSave, refreshBulkVisibility } from '../_bulk-broadcast.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // This file lives at apps/scripts/src/commands/admin/decorate.js — two
@@ -43,6 +44,22 @@ const DECO_PATH = resolve(__dirname, '..', '..', 'data', 'world', 'decorations.j
 // every gate as a non-interactive sprite half the time and a working
 // door the other half (depending on which item the click hit first).
 const DELEGATED = Symbol('delegated');
+
+// ServUO BaseAddon rows have itemId=0 because the controller itself is
+// invisible; its constructor creates drawable component items. Expand the
+// classes already present in our addons catalogue instead of sending graphic
+// 0 to the client. Complex quest/trap controllers remain intentionally
+// skipped until their gameplay scripts own them.
+const CONTROLLER_ADDONS = {
+  WaterVatSouth: 'water-vat-south',
+  WaterVatEast: 'water-vat-east',
+  LoomSouthAddon: 'loom-south',
+  SpinningWheelSouthAddon: 'spinning-wheel',
+  RoyalSoulForge: 'royal-soul-forge',
+  SoulForge: 'soul-forge',
+  AnvilSouthAddon: 'anvil-south',
+  Cannon: 'cannon',
+};
 
 // Type → script binding. Most types fall back to plain decoration; only
 // those that need behaviour (lights, containers) get a script string.
@@ -141,10 +158,21 @@ export function applyDecorations(api, opts = {}) {
   const wantFacets = opts.facets ? new Set(opts.facets) : null;
   const world = api.world;
   if (!world._decorationApplied) world._decorationApplied = new Set();
-  let added = 0; let skipped = 0;
+  // Key individual placements rather than trusting a facet-wide flag. This
+  // makes the generator recover after an interrupted createworld pass and
+  // prevents duplicate statics when the command is retried.
+  const decorationKey = ({ map, x, y, z, itemId, hue }) =>
+    `${map | 0}:${x | 0}:${y | 0}:${z | 0}:${itemId | 0}:${hue | 0}`;
+  const existingKeys = new Set();
+  const existingSourceKeys = new Set();
+  for (const it of allItems({ world })) {
+    if (!it.isDecoration || it.script === 'door' || it.script === 'sign') continue;
+    existingKeys.add(decorationKey(it));
+    if (it.decoSourceKey) existingSourceKeys.add(it.decoSourceKey);
+  }
+  let added = 0; let skipped = 0; let failed = 0;
   for (const e of catalog) {
     if (wantFacets && !wantFacets.has(e.map)) { skipped++; continue; }
-    if (world._decorationApplied.has(e.map)) { skipped++; continue; }
     const script = classifyType(e.type, e.itemId);
     // Skip entries that another bulk loader owns (doors, signs,
     // teleporters, moongates). Without this skip we used to create the
@@ -153,6 +181,42 @@ export function applyDecorations(api, opts = {}) {
     // half the tiles ending up non-interactive depending on which sprite
     // the click hit first.
     if (script === DELEGATED) { skipped++; continue; }
+    // itemId=0 entries are ServUO BaseAddon controller records. They are not
+    // drawable items; ServUO constructors expand them into component art.
+    // Sending graphic 0 to the web renderer creates empty hit targets and
+    // corrupt-looking atlas samples, so do not materialise the controller.
+    if (!Number.isFinite(e.itemId) || (e.itemId | 0) <= 0) {
+      const addonName = CONTROLLER_ADDONS[e.type];
+      const sourceKey = `${e.map | 0}:${e.x | 0}:${e.y | 0}:${e.z | 0}:${String(e.type)}`;
+      if (addonName && !existingSourceKeys.has(sourceKey)) {
+        const placeAddon = api.systems?.addons?.placeAddon;
+        if (typeof placeAddon === 'function') {
+          let components = [];
+          try {
+            components = placeAddon(world, addonName, {
+              x: e.x, y: e.y, z: e.z, map: e.map,
+            }) ?? [];
+          } catch (err) {
+            failed++;
+            if (failed <= 3) api.log?.(`[decorate] addon ${addonName} failed: ${err.message}`);
+          }
+          if (components.length) {
+            for (const component of components) {
+              component.isDecoration = true;
+              component.decoType = e.type;
+              component.decoSourceKey = sourceKey;
+            }
+            existingSourceKeys.add(sourceKey);
+            added += components.length;
+            continue;
+          }
+        }
+      }
+      skipped++;
+      continue;
+    }
+    const key = decorationKey(e);
+    if (existingKeys.has(key)) { skipped++; continue; }
     const data = {
       itemId: e.itemId,
       hue: e.hue ?? 0,
@@ -186,12 +250,19 @@ export function applyDecorations(api, opts = {}) {
     } else if (script) {
       data.script = script;
     }
-    const item = createItem(api, world, data);
+    let item;
+    try { item = createItem(api, world, data); }
+    catch (err) {
+      failed++;
+      if (failed <= 3) api.log?.(`[decorate] create failed at (${e.x},${e.y},${e.z}) map=${e.map}: ${err.message}`);
+      continue;
+    }
     item.isDecoration = true;
     item.decoType = e.type;
     if (e.facing) item.decoFacing = e.facing;
     if (e.labelNumber) item.labelNumber = e.labelNumber;
     if (script) item.script = script;
+    existingKeys.add(key);
     // Stamp `solid: true` for impassable graphics — walls, columns,
     // pillars, statues, fences, gates, etc. without this, walls
     // placed by [decorate were transparent for collision (movement.js
@@ -221,7 +292,8 @@ export function applyDecorations(api, opts = {}) {
   // facet doesn't lock the whole catalog.
   if (wantFacets) for (const f of wantFacets) world._decorationApplied.add(f);
   else for (const e of catalog) world._decorationApplied.add(e.map);
-  return { added, skipped };
+  if (failed) api.log?.(`[decorate] ${failed} placement(s) failed; retry will self-heal missing entries`);
+  return { added, skipped, failed };
 }
 
 /** Wipe every decoration on the given facets (default = all). Counterpart
@@ -234,7 +306,14 @@ export function deleteDecorations(api, opts = {}) {
   // map and skips entries.
   const victims = [];
   for (const it of allItems({ world })) {
+    // Doors, signs, teleporters and public moongates also use isDecoration
+    // for persistence, but are owned by their dedicated delete stages. The
+    // old broad predicate silently erased all of them when an admin ran
+    // [decoratedelete. Older saves may not have decoType, so identify the
+    // dedicated stages by script rather than requiring that newer marker.
     if (!it.isDecoration) continue;
+    if (it.script === 'door' || it.script === 'sign'
+        || it.script === 'teleporter' || it.script === 'public-moongate') continue;
     if (wantFacets && !wantFacets.has(it.map)) continue;
     victims.push(it.serial);
   }
@@ -255,7 +334,9 @@ export default function register(api) {
       const args = ctx.args ?? [];
       const facets = args.length ? args.map((s) => parseInt(s, 10)).filter(Number.isFinite) : null;
       const r = applyDecorations(api, { facets });
-      ctx.state.sendSystemMessage(`Decorate: added ${r.added}, skipped ${r.skipped}.`);
+      const refreshed = refreshBulkVisibility(api);
+      queueBulkSave(api);
+      ctx.state.sendSystemMessage(`Decorate: added ${r.added}, skipped ${r.skipped}. Refreshed clients: ${refreshed}.`);
     },
   });
 
@@ -267,7 +348,9 @@ export default function register(api) {
       const args = ctx.args ?? [];
       const facets = args.length ? args.map((s) => parseInt(s, 10)).filter(Number.isFinite) : null;
       const r = deleteDecorations(api, { facets });
-      ctx.state.sendSystemMessage(`DecorateDelete: removed ${r.removed} items.`);
+      const refreshed = refreshBulkVisibility(api);
+      queueBulkSave(api);
+      ctx.state.sendSystemMessage(`DecorateDelete: removed ${r.removed} items. Refreshed clients: ${refreshed}.`);
     },
   });
 

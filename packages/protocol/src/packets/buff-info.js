@@ -1,57 +1,63 @@
-// 0xDF BuffInfo — tell the client that a named status effect has been
-// attached to or removed from a mobile.
-//
-// This is a simplified, port-native variant of ServUO's AddBuffPacket.
-// The classic packet carries cliloc ids for the buff's tooltip text; we
-// instead send short ASCII name/kind strings so the client can render a
-// readable HUD badge without having to ship the cliloc table.
-//
-// Layout (variable length):
-//   u8   0xDF
-//   u16  length
-//   u8   action        (0 = remove, 1 = add/refresh)
-//   u32  serial        (mobile this effect applies to)
-//   u8   nameLen
-//   asciiFixed(nameLen) name    (e.g. 'poison', 'bless')
-//   u8   kindLen
-//   asciiFixed(kindLen) kind    ('buff' | 'debuff')
-//   u32  remainingMs   (0 on remove)
+// Canonical UO 0xDF BuffInfo packet (ServUO AddBuffPacket/RemoveBuffPacket).
+// This packet is part of the standard protocol and must never carry a
+// NodeUO-specific layout: desktop clients frame it by its u16 length.
 
 import { PacketWriter } from '../buffer.js';
 
 const ACTION_REMOVE = 0;
-const ACTION_ADD    = 1;
+const ACTION_ADD = 1;
+const PLAIN_STRING_CLILOC = 1042971;
+
+function writeUnicode(w, value) {
+  const text = String(value ?? '').slice(0, 128);
+  w.writeU16(text.length);
+  for (let i = 0; i < text.length; i++) w.writeU16(text.charCodeAt(i));
+}
 
 /**
  * @param {Object} p
  * @param {number} p.serial
- * @param {string} p.name
- * @param {'buff'|'debuff'} [p.kind='buff']
- * @param {number} [p.remainingMs=0]
+ * @param {number} p.icon standard BuffIcon enum value
+ * @param {number} [p.duration] seconds
+ * @param {number} [p.remainingMs] compatibility input converted to seconds
+ * @param {string} [p.name] plain title passed through cliloc 1042971
+ * @param {string} [p.kind] plain secondary description
  */
-export function buffAdd({ serial, name, kind = 'buff', remainingMs = 0 }) {
-  return build(ACTION_ADD, serial, name, kind, remainingMs);
-}
-
-/** @param {Object} p @param {number} p.serial @param {string} p.name */
-export function buffRemove({ serial, name }) {
-  return build(ACTION_REMOVE, serial, name, '', 0);
-}
-
-function build(action, serial, name, kind, remainingMs) {
-  const nameBytes = (name ?? '').slice(0, 32);
-  const kindBytes = (kind ?? '').slice(0, 16);
-  // op(1) + len(2) + action(1) + serial(4) + nameLen(1) + name + kindLen(1) + kind + remaining(4)
-  const size = 14 + nameBytes.length + kindBytes.length;
+export function buffAdd({
+  serial, icon = 0x3E9, duration, remainingMs = 0,
+  name = 'Status effect', kind = 'buff',
+  titleCliloc = PLAIN_STRING_CLILOC,
+  secondaryCliloc = PLAIN_STRING_CLILOC,
+} = {}) {
+  const seconds = Math.max(0, Math.min(0xffff,
+    duration == null ? Math.ceil((remainingMs | 0) / 1000) : duration | 0));
+  const title = String(name ?? '').slice(0, 128);
+  const secondary = String(kind ?? '').slice(0, 128);
+  const size = 34 + title.length * 2 + secondary.length * 2;
   const w = new PacketWriter(size);
   w.writeU8(0xDF);
   w.writeU16(size);
-  w.writeU8(action & 0xff);
   w.writeU32(serial >>> 0);
-  w.writeU8(nameBytes.length);
-  w.writeAsciiFixed(nameBytes, nameBytes.length);
-  w.writeU8(kindBytes.length);
-  w.writeAsciiFixed(kindBytes, kindBytes.length);
-  w.writeU32(Math.max(0, remainingMs | 0));
+  w.writeU16(icon & 0xffff);
+  w.writeU16(ACTION_ADD);
+  w.writeU16(0);
+  w.writeU16(seconds);
+  w.writeU8(0); w.writeU8(0); w.writeU8(0);
+  w.writeU32(titleCliloc >>> 0);
+  w.writeU32(secondaryCliloc >>> 0);
+  w.writeU32(0);
+  writeUnicode(w, title);
+  writeUnicode(w, secondary);
+  return w.bytes();
+}
+
+/** @param {{serial:number,icon?:number}} p */
+export function buffRemove({ serial, icon = 0x3E9 } = {}) {
+  const w = new PacketWriter(11);
+  w.writeU8(0xDF);
+  w.writeU16(11);
+  w.writeU32(serial >>> 0);
+  w.writeU16(icon & 0xffff);
+  w.writeU16(ACTION_REMOVE);
   return w.bytes();
 }

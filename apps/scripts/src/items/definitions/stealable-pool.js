@@ -8,8 +8,6 @@
 // `_stealableLoot=true` so `tryMonsterSteal` accepts the target.
 
 
-// --- script loader pattern: queue at module-load, flush in default register() ---
-const __PENDING__ = [];
 export const STEALABLE_SERVUO_CLASSES = Object.freeze([
   'StealableArtifactsSpawner',
   'StealableEntry',
@@ -63,7 +61,8 @@ export const STEALABLE_POOL = Object.freeze({
  *  minted mob + its kind. No-op if no pool exists for the kind. */
 export function stampStealable(mob) {
   if (!mob?.kind) return;
-  const pool = STEALABLE_POOL[mob.kind];
+  const pool = STEALABLE_POOL[mob.paragon ? `${mob.kind}-paragon` : mob.kind]
+    ?? STEALABLE_POOL[mob.kind];
   if (!pool) return;
   mob._stealableLoot = true;
   mob.servuoClasses = [...new Set([...(mob.servuoClasses ?? []), ...STEALABLE_SERVUO_CLASSES])];
@@ -78,10 +77,6 @@ export function stampStealable(mob) {
 
 // --- script entry point ----------------------------------------------
 export default function register(api) {
-  const reg = api.catalog?.items?.registerItem;
-  if (!reg) { api.log?.('stealable-pool: registerItem missing, skipping'); return () => {}; }
-  let count = 0;
-  for (const def of __PENDING__) { try { reg(def); count++; } catch (e) { api.log?.('stealable-pool: ' + e.message); } }
-  api.log?.('stealable-pool: registered ' + count + ' items');
+  api.log?.(`stealable-pool: ${Object.keys(STEALABLE_POOL).length} creature pools ready`);
   return () => {};
 }

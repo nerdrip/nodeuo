@@ -402,6 +402,8 @@ export class LoginScene extends Scene {
     /** CharCreation working buffer — built page-by-page. */
     this._creation = null;
     this._creationPage = 0;
+    this._previewImageCache = new Map();
+    this._previewPaintToken = 0;
   }
 
   // --------------------------------------------------------------------------
@@ -477,47 +479,32 @@ export class LoginScene extends Scene {
   _mountBg() {
     this._bg = document.createElement('div');
     this._bg.id = 'uo-login-bg';
-    this._bg.style.cssText = `
-      position:fixed; inset:0; z-index:0; pointer-events:none;
-      background:
-        radial-gradient(ellipse at 50% 35%, rgba(255,224,128,0.18), transparent 60%),
-        radial-gradient(ellipse at 50% 100%, rgba(120,68,30,0.45), transparent 70%),
-        linear-gradient(180deg, #0a0d12 0%, #1a1206 60%, #06080a 100%);
+    this._bg.className = 'uo-login-ambient';
+    this._bg.innerHTML = `
+      <div class="uo-login-orb"></div>
+      <div class="uo-login-runes" aria-hidden="true">ᚠ · ᚢ · ᚦ · ᚨ · ᚱ · ᚲ</div>
+      <div class="uo-login-horizon"></div>
     `;
-    const dragonSvg = encodeURIComponent(`
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400" preserveAspectRatio="xMidYMid meet">
-        <defs><radialGradient id="g" cx="50%" cy="50%" r="60%">
-          <stop offset="0%" stop-color="#f0c878" stop-opacity="0.25"/>
-          <stop offset="100%" stop-color="#f0c878" stop-opacity="0"/>
-        </radialGradient></defs>
-        <circle cx="300" cy="200" r="180" fill="url(#g)"/>
-        <path d="M120 240 q40 -90 110 -120 q60 -25 110 0 q40 18 60 60 q15 35 5 70 q-10 35 -50 55 q-30 15 -70 10 q-40 -5 -75 -25 q-30 -18 -50 -25 q-30 -10 -45 -25 q-12 -12 5 -10 q15 1 30 5 z" fill="#f0c878" opacity="0.10"/>
-      </svg>
-    `).replace(/\s+/g, ' ');
-    const dragonLayer = document.createElement('div');
-    dragonLayer.style.cssText = `
-      position:absolute; inset:0; pointer-events:none;
-      background: url("data:image/svg+xml;utf8,${dragonSvg}") center/720px no-repeat;
-      opacity:0.6; mix-blend-mode:screen;
-    `;
-    this._bg.appendChild(dragonLayer);
+    this._injectStyles();
     this.gc.domMount(this._bg);
   }
 
   /** Mount a fresh panel element (replaces any previous panel). */
   _mountPanel(html, opts = {}) {
+    this._injectStyles();
     const wrap = document.createElement('div');
     wrap.innerHTML = html.trim();
     this._panel = wrap.firstElementChild;
-    this._panel.classList.add('uo-panel');
+    this._panel.classList.add('uo-panel', 'uo-login-surface');
+    if (this._panel.dataset) this._panel.dataset.loginStep = this._step ?? '';
+    else this._panel.setAttribute?.('data-login-step', this._step ?? '');
     Object.assign(this._panel.style, {
       position: 'fixed',
       top: '50%', left: '50%',
       transform: 'translate(-50%, -50%)',
-      minWidth: opts.minWidth ?? '380px',
       zIndex: 10,
-      boxShadow: '0 8px 40px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,224,128,0.15)',
     });
+    if (opts.minWidth) this._panel.style.minWidth = opts.minWidth;
     if (opts.maxWidth) this._panel.style.maxWidth = opts.maxWidth;
     this.gc.domMount(this._panel);
     return this._panel;
@@ -536,41 +523,69 @@ export class LoginScene extends Scene {
     };
     const modeBridge = remembered.mode === 'bridge';
     this._mountPanel(`
-      <div>
-        <h1 style="text-align:center;letter-spacing:6px;font-size:14px;margin-bottom:14px">ULTIMA ONLINE</h1>
-        <label>Transport</label>
-        <select id="m-mode" style="width:100%;margin-bottom:8px">
-          <option value="ws"     ${modeBridge ? '' : 'selected'}>WebSocket (UO-Node server)</option>
-          <option value="bridge" ${modeBridge ? 'selected' : ''}>TCP via bridge (ServUO / RunUO / OSI)</option>
-        </select>
-        <div id="m-bridge-row" style="display:${modeBridge ? '' : 'none'};margin-bottom:6px">
-          <label>Bridge WS URL</label>
-          <input id="m-bridge" type="text" value="${esc(remembered.bridgeUrl)}" />
-        </div>
-        <label>Shard host : port</label>
-        <div class="row">
-          <input id="m-host" type="text" value="${esc(remembered.host)}" />
-          <input id="m-port" type="text" value="${esc(remembered.port)}" style="max-width:80px" />
-        </div>
-        <label>Account Name</label>
-        <input id="m-account" type="text" value="${esc(remembered.account)}" maxlength="30" />
-        <label>Password</label>
-        <input id="m-password" type="password" value="" maxlength="30" />
-        <div class="row" style="margin-top:10px">
-          <button id="m-quit">Quit</button>
-          <button id="m-login" class="primary" style="flex:2">Log In</button>
-        </div>
-        <div id="m-msg" class="uo-status-line"></div>
-        <div style="font-size:10px;color:#605040;margin-top:14px;text-align:center;letter-spacing:1px">
-          ULTIMA ONLINE — Web Edition
-        </div>
-      </div>
+      <section class="uo-login-frame uo-login-frame--auth">
+        <aside class="uo-login-aside">
+          <div class="uo-brand-seal" aria-hidden="true"><span>UO</span></div>
+          <div class="uo-eyebrow">PAPERDOLL · WEB CLIENT</div>
+          <h1>Enter<br><em>Britannia</em></h1>
+          <p>A living world of magic, trade and adventure. Your journey continues where you left it.</p>
+          <div class="uo-aside-status"><i></i><span>Shard gateway ready</span></div>
+        </aside>
+        <main class="uo-login-content">
+          <header class="uo-screen-heading">
+            <div class="uo-eyebrow">ACCOUNT ACCESS</div>
+            <h2>Welcome back</h2>
+            <p>Sign in to continue to your character roster.</p>
+          </header>
+          <div class="uo-form-grid">
+            <div class="uo-field uo-field--wide">
+              <label for="m-account">Account name</label>
+              <input id="m-account" type="text" value="${esc(remembered.account)}" maxlength="30" autocomplete="username" placeholder="Your account" />
+            </div>
+            <div class="uo-field uo-field--wide">
+              <label for="m-password">Password</label>
+              <input id="m-password" type="password" value="" maxlength="30" autocomplete="current-password" placeholder="Your password" />
+            </div>
+            <details class="uo-connection-settings uo-field--wide" ${modeBridge ? 'open' : ''}>
+              <summary><span>Connection settings</span><small>${modeBridge ? 'ServUO bridge' : 'Direct WebSocket'}</small></summary>
+              <div class="uo-settings-grid">
+                <div class="uo-field uo-field--wide">
+                  <label for="m-mode">Transport</label>
+                  <select id="m-mode">
+                    <option value="ws" ${modeBridge ? '' : 'selected'}>WebSocket · UO-Node server</option>
+                    <option value="bridge" ${modeBridge ? 'selected' : ''}>TCP bridge · ServUO / RunUO / OSI</option>
+                  </select>
+                </div>
+                <div class="uo-field uo-field--host">
+                  <label for="m-host">Shard host</label>
+                  <input id="m-host" type="text" value="${esc(remembered.host)}" />
+                </div>
+                <div class="uo-field uo-field--port">
+                  <label for="m-port">Port</label>
+                  <input id="m-port" type="text" inputmode="numeric" value="${esc(remembered.port)}" />
+                </div>
+                <div id="m-bridge-row" class="uo-field uo-field--wide" style="display:${modeBridge ? '' : 'none'}">
+                  <label for="m-bridge">Bridge WebSocket URL</label>
+                  <input id="m-bridge" type="text" value="${esc(remembered.bridgeUrl)}" />
+                </div>
+              </div>
+            </details>
+          </div>
+          <div id="m-msg" class="uo-status-line" role="status"></div>
+          <footer class="uo-actions">
+            <button id="m-quit" class="uo-button uo-button--quiet">Quit</button>
+            <button id="m-login" class="uo-button primary">Enter Britannia <span>→</span></button>
+          </footer>
+        </main>
+      </section>
     `);
     // Transport selector toggles the bridge URL row.
     const modeSel = this._panel.querySelector('#m-mode');
     const bridgeRow = this._panel.querySelector('#m-bridge-row');
     modeSel?.addEventListener('change', () => {
       bridgeRow.style.display = modeSel.value === 'bridge' ? '' : 'none';
+      const summary = this._panel.querySelector('.uo-connection-settings summary small');
+      if (summary) summary.textContent = modeSel.value === 'bridge' ? 'ServUO bridge' : 'Direct WebSocket';
     });
     const accIn = this._panel.querySelector('#m-account');
     const pwIn = this._panel.querySelector('#m-password');
@@ -642,20 +657,33 @@ export class LoginScene extends Scene {
     const pingText = () => this._serverPingMs == null ? '...' : `${this._serverPingMs} ms`;
     const rows = this._servers.map((s, i) => `
       <div class="uo-server-row" data-idx="${i}" tabindex="0">
-        <span class="uo-server-name">${esc(s.name)}</span>
-        <span class="uo-server-load">${s.percent ?? 0}%</span>
-        <span class="uo-server-ping">${pingText()}</span>
+        <span class="uo-server-icon" aria-hidden="true">◆</span>
+        <span class="uo-server-copy"><strong class="uo-server-name">${esc(s.name)}</strong><small>Online shard</small></span>
+        <span class="uo-server-load"><b>${s.percent ?? 0}%</b><small>load</small></span>
+        <span class="uo-server-ping"><b>${pingText()}</b><small>latency</small></span>
       </div>
     `).join('');
     this._mountPanel(`
-      <div style="min-width:360px">
-        <h1 style="text-align:center;letter-spacing:6px;font-size:14px;margin-bottom:14px">SELECT SERVER</h1>
-        <div class="uo-server-list">${rows}</div>
-        <div class="row" style="margin-top:10px">
-          <button id="ss-back">Back</button>
-          <button id="ss-next" class="primary" style="flex:2">Connect</button>
-        </div>
-      </div>
+      <section class="uo-login-frame uo-login-frame--selection">
+        <aside class="uo-login-aside uo-login-aside--compact">
+          <div class="uo-brand-seal uo-brand-seal--small" aria-hidden="true"><span>UO</span></div>
+          <div class="uo-eyebrow">WORLD GATEWAY</div>
+          <h1>Choose<br><em>your shard</em></h1>
+          <p>Select the world you want to enter. Latency is measured live.</p>
+        </aside>
+        <main class="uo-login-content">
+          <header class="uo-screen-heading">
+            <div class="uo-eyebrow">STEP 2 · SERVER</div>
+            <h2>Available worlds</h2>
+            <p>${this._servers.length} ${this._servers.length === 1 ? 'shard is' : 'shards are'} ready.</p>
+          </header>
+          <div class="uo-server-list uo-choice-list">${rows}</div>
+          <footer class="uo-actions">
+            <button id="ss-back" class="uo-button uo-button--quiet">← Back</button>
+            <button id="ss-next" class="uo-button primary">Connect <span>→</span></button>
+          </footer>
+        </main>
+      </section>
     `);
     const rowsEl = [...this._panel.querySelectorAll('.uo-server-row')];
     const select = (i) => {
@@ -722,7 +750,9 @@ export class LoginScene extends Scene {
     this._serverPingMs = Math.max(0, Math.round(performance.now() - sentAt));
     if (this._step !== LoginSteps.ServerSelection || !this._panel) return;
     for (const el of this._panel.querySelectorAll('.uo-server-ping')) {
-      el.textContent = `${this._serverPingMs} ms`;
+      const value = el.querySelector('b');
+      if (value) value.textContent = `${this._serverPingMs} ms`;
+      else el.textContent = `${this._serverPingMs} ms`;
     }
   }
 
@@ -816,23 +846,41 @@ export class LoginScene extends Scene {
       const empty = !c?.name || !c.name.trim();
       return `
         <div class="uo-char-slot ${empty ? 'empty' : ''}" data-slot="${i}" tabindex="0">
-          <div class="uo-slot-num">${i + 1}</div>
-          <div class="uo-slot-name">${empty ? '— Empty Slot —' : esc(c.name)}</div>
+          <div class="uo-slot-num">${String(i + 1).padStart(2, '0')}</div>
+          <div class="uo-slot-avatar" aria-hidden="true">${empty ? '+' : '♟'}</div>
+          <div class="uo-slot-copy">
+            <strong class="uo-slot-name">${empty ? 'Empty character slot' : esc(c.name)}</strong>
+            <small>${empty ? 'Create a new adventurer' : 'Ready to enter Britannia'}</small>
+          </div>
+          <span class="uo-slot-chevron">›</span>
         </div>
       `;
     }).join('');
     this._mountPanel(`
-      <div style="min-width:420px">
-        <h1 style="text-align:center;letter-spacing:6px;font-size:14px;margin-bottom:14px">SELECT CHARACTER</h1>
-        <div class="uo-char-list">${slots}</div>
-        <div class="row" style="margin-top:14px;gap:6px">
-          <button id="cs-back">Back</button>
-          <button id="cs-delete">Delete</button>
-          <button id="cs-new">New</button>
-          <button id="cs-play" class="primary" style="flex:2" disabled>Play</button>
-        </div>
-        <div id="cs-msg" class="uo-status-line"></div>
-      </div>
+      <section class="uo-login-frame uo-login-frame--roster">
+        <aside class="uo-login-aside uo-login-aside--compact">
+          <div class="uo-brand-seal uo-brand-seal--small" aria-hidden="true"><span>UO</span></div>
+          <div class="uo-eyebrow">YOUR LEGACY</div>
+          <h1>Return to<br><em>Britannia</em></h1>
+          <p>Choose an adventurer or begin a new story.</p>
+          <div class="uo-roster-count"><strong>${this._characters.filter((c) => c?.name?.trim()).length}</strong><span>active characters</span></div>
+        </aside>
+        <main class="uo-login-content">
+          <header class="uo-screen-heading">
+            <div class="uo-eyebrow">STEP 3 · CHARACTER</div>
+            <h2>Character roster</h2>
+            <p>Double-click a character to enter immediately.</p>
+          </header>
+          <div class="uo-char-list uo-choice-list">${slots}</div>
+          <div id="cs-msg" class="uo-status-line" role="status"></div>
+          <footer class="uo-actions uo-actions--roster">
+            <button id="cs-back" class="uo-button uo-button--quiet">← Back</button>
+            <button id="cs-delete" class="uo-button uo-button--danger">Delete</button>
+            <button id="cs-new" class="uo-button">New character</button>
+            <button id="cs-play" class="uo-button primary" disabled>Enter world <span>→</span></button>
+          </footer>
+        </main>
+      </section>
     `);
     this._injectStyles();
     let chosen = -1;
@@ -937,6 +985,21 @@ export class LoginScene extends Scene {
     }
   }
 
+  _creationHeader(page, title, subtitle) {
+    const steps = ['Appearance', 'Profession', 'Skills', 'Starting city'];
+    return `
+      <header class="uo-creation-header">
+        <div class="uo-creation-brand">
+          <div class="uo-brand-seal uo-brand-seal--tiny" aria-hidden="true"><span>UO</span></div>
+          <div><div class="uo-eyebrow">NEW CHARACTER</div><h2>${esc(title)}</h2><p>${esc(subtitle)}</p></div>
+        </div>
+        <ol class="uo-creation-progress" aria-label="Character creation progress">
+          ${steps.map((step, i) => `<li class="${i === page ? 'active' : ''} ${i < page ? 'done' : ''}"><span>${i < page ? '✓' : i + 1}</span><small>${step}</small></li>`).join('')}
+        </ol>
+      </header>
+    `;
+  }
+
   _renderCcProfession() {
     // Audit rev.4 P2 — merge custom shard professions from
     // `assets.professions` if present (Prof.txt extractor output).
@@ -945,22 +1008,22 @@ export class LoginScene extends Scene {
     } catch { /* noop */ }
     const profRows = PROFESSIONS.map((p) => `
       <div class="uo-prof-row" data-id="${p.id}" tabindex="0">
-        <div class="uo-prof-name">${esc(p.name)}</div>
-        <div class="uo-prof-desc">${esc(p.desc)}</div>
+        <div class="uo-prof-mark" aria-hidden="true">${esc(p.name.slice(0, 1))}</div>
+        <div class="uo-prof-copy"><div class="uo-prof-name">${esc(p.name)}</div><div class="uo-prof-desc">${esc(p.desc)}</div></div>
+        <span class="uo-choice-check">✓</span>
       </div>
     `).join('');
     this._mountPanel(`
-      <div style="min-width:480px">
-        <h1 style="text-align:center;letter-spacing:6px;font-size:14px;margin-bottom:6px">CHOOSE A PROFESSION</h1>
-        <div style="font-size:11px;color:#a48830;text-align:center;margin-bottom:10px">
-          Step 2 of 4 — pick a starting template
+      <section class="uo-login-frame uo-login-frame--creation">
+        ${this._creationHeader(1, 'Choose a profession', 'Start with a proven path or shape every skill yourself.')}
+        <div class="uo-creation-content">
+          <div class="uo-prof-list uo-choice-grid">${profRows}</div>
         </div>
-        <div class="uo-prof-list">${profRows}</div>
-        <div class="row" style="margin-top:14px">
-          <button id="cc-back">Back</button>
-          <button id="cc-next" class="primary" style="flex:2">Next</button>
-        </div>
-      </div>
+        <footer class="uo-actions uo-creation-actions">
+          <button id="cc-back" class="uo-button uo-button--quiet">← Appearance</button>
+          <button id="cc-next" class="uo-button primary">Continue <span>→</span></button>
+        </footer>
+      </section>
     `);
     this._injectStyles();
     let chosen = this._creation.profession;
@@ -1010,7 +1073,7 @@ export class LoginScene extends Scene {
    *  preset hue to its perceptual RGB and apply via CSS variables.
    *  The preview is "accurate enough" for the user to compare styles;
    *  the in-world sprite uses the real palette downstream. */
-  _renderCcPreview(target) {
+  async _renderCcPreview(target) {
     if (!target) return;
     const c = this._creation;
     const isFemale = c.sex === 1;
@@ -1030,31 +1093,67 @@ export class LoginScene extends Scene {
     const tiles = atlas?.tiles;
     const lookup = (gid) => (tiles?.[gid] ?? null);
     const BASE = ((typeof window !== 'undefined') && window.__assetsBase) || '/assets';
-    const layer = (gump, hueRgb) => {
-      const meta = lookup(gump);
-      if (!meta) return '';
-      const mx = meta.u ?? meta.x ?? 0;
-      const my = meta.v ?? meta.y ?? 0;
-      const url = `${BASE}/gump-atlas-${String(meta.page).padStart(3, '0')}.png`;
-      const filter = hueRgb
-        ? `drop-shadow(0 0 0 #${hueRgb.toString(16).padStart(6, '0')})`
-        : '';
-      return `<div style="position:absolute;left:50%;top:0;width:${meta.w}px;height:${meta.h}px;margin-left:${-(meta.w / 2) | 0}px;background:url('${url}') -${mx}px -${my}px no-repeat;filter:${filter};image-rendering:pixelated"></div>`;
-    };
     const skinRgb  = this._paletteHueRgb(c.skinHue);
     const hairRgb  = this._paletteHueRgb(c.hairHue);
     const shirtRgb = this._paletteHueRgb(c.shirtHue);
     const pantsRgb = this._paletteHueRgb(c.pantsHue);
+    const token = ++this._previewPaintToken;
     target.innerHTML = `
-      <div style="position:relative;width:140px;height:170px;margin:6px auto 0;background:#1a1410;border:1px solid #6a4a18">
-        ${layer(bodyGumpId, skinRgb)}
-        ${shirtGump ? layer(shirtGump, shirtRgb) : ''}
-        ${pantsGump ? layer(pantsGump, pantsRgb) : ''}
-        ${hairGump ? layer(hairGump, hairRgb) : ''}
-        ${beardGump ? layer(beardGump, hairRgb) : ''}
+      <div class="uo-preview-frame">
+        <div class="uo-preview-halo"></div>
+        <canvas class="uo-preview-canvas" width="260" height="237" aria-label="Live character preview"></canvas>
+        <div class="uo-preview-ground"></div>
       </div>
-      <div style="text-align:center;font-size:10px;color:#a48830;margin-top:4px">Live preview</div>
+      <div class="uo-preview-caption"><i></i> Live paperdoll preview</div>
     `;
+    const canvas = target.querySelector('.uo-preview-canvas');
+    const ctx = canvas?.getContext?.('2d', { willReadFrequently: true });
+    if (!ctx) return;
+    const loadPage = (page) => {
+      if (this._previewImageCache.has(page)) return this._previewImageCache.get(page);
+      const promise = new Promise((resolve, reject) => {
+        const img = new Image();
+        img.decoding = 'async';
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = `${BASE}/gump-atlas-${String(page).padStart(3, '0')}.png`;
+      });
+      this._previewImageCache.set(page, promise);
+      promise.catch(() => this._previewImageCache.delete(page));
+      return promise;
+    };
+    const paintLayer = async (gump, tint) => {
+      const meta = lookup(gump);
+      if (!meta) return;
+      const img = await loadPage(meta.page);
+      if (token !== this._previewPaintToken || !canvas.isConnected) return;
+      const layerCanvas = document.createElement('canvas');
+      layerCanvas.width = meta.w;
+      layerCanvas.height = meta.h;
+      const layerCtx = layerCanvas.getContext('2d', { willReadFrequently: true });
+      layerCtx.drawImage(img, meta.u ?? meta.x ?? 0, meta.v ?? meta.y ?? 0, meta.w, meta.h, 0, 0, meta.w, meta.h);
+      if (tint != null) {
+        const pixels = layerCtx.getImageData(0, 0, meta.w, meta.h);
+        const tr = (tint >> 16) & 0xff, tg = (tint >> 8) & 0xff, tb = tint & 0xff;
+        for (let i = 0; i < pixels.data.length; i += 4) {
+          if (!pixels.data[i + 3]) continue;
+          const lum = pixels.data[i] * 0.299 + pixels.data[i + 1] * 0.587 + pixels.data[i + 2] * 0.114;
+          const shade = 0.28 + (lum / 255) * 0.72;
+          pixels.data[i] = Math.min(255, tr * shade);
+          pixels.data[i + 1] = Math.min(255, tg * shade);
+          pixels.data[i + 2] = Math.min(255, tb * shade);
+        }
+        layerCtx.putImageData(pixels, 0, 0);
+      }
+      ctx.drawImage(layerCanvas, ((canvas.width - meta.w) / 2) | 0, 0);
+    };
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (const [gump, tint] of [
+      [bodyGumpId, skinRgb], [shirtGump, shirtRgb], [pantsGump, pantsRgb],
+      [hairGump, hairRgb], [beardGump, hairRgb],
+    ]) {
+      if (gump) await paintLayer(gump, tint);
+    }
   }
 
   /** Approximate UO hue index → CSS-friendly RGB for the live preview
@@ -1126,50 +1225,46 @@ export class LoginScene extends Scene {
     const hairColorLabel = c.race === 2 ? 'Horn Color' : 'Hair Color';
     const beardLabel = c.race === 2 ? 'Facial Horns' : 'Beard Style';
     this._mountPanel(`
-      <div style="min-width:460px">
-        <h1 style="text-align:center;letter-spacing:6px;font-size:14px;margin-bottom:6px">APPEARANCE</h1>
-        <div style="font-size:11px;color:#a48830;text-align:center;margin-bottom:10px">
-          Step 1 of 4 — name and looks
+      <section class="uo-login-frame uo-login-frame--creation">
+        ${this._creationHeader(0, 'Shape your adventurer', 'Choose a name and define how your character appears in the world.')}
+        <div class="uo-creation-content uo-appearance-layout">
+          <div class="uo-appearance-form">
+            <div class="uo-field uo-field--wide">
+              <label for="cc-name">Character name</label>
+              <input id="cc-name" type="text" maxlength="16" value="${esc(c.name)}" autocomplete="off" placeholder="2–16 characters" />
+            </div>
+            <div class="uo-segment-row">
+              <fieldset class="uo-segmented">
+                <legend>Body</legend>
+                <label><input type="radio" name="cc-sex" value="0" ${c.sex===0?'checked':''}><span>Male</span></label>
+                <label><input type="radio" name="cc-sex" value="1" ${c.sex===1?'checked':''}><span>Female</span></label>
+              </fieldset>
+              <div class="uo-field">
+                <label for="cc-race">Race</label>
+                <select id="cc-race">
+                  <option value="0" ${c.race===0?'selected':''}>Human</option>
+                  <option value="1" ${c.race===1?'selected':''}>Elf</option>
+                  <option value="2" ${c.race===2?'selected':''}>Gargoyle</option>
+                </select>
+              </div>
+            </div>
+            <div class="uo-appearance-grid">
+              <div class="uo-field"><label for="cc-skin">Skin tone</label><select id="cc-skin">${skinOpts}</select></div>
+              <div class="uo-field"><label for="cc-hair-id">${hairStyleLabel}</label><select id="cc-hair-id">${styleOpts}</select></div>
+              <div class="uo-field"><label for="cc-hair-hue">${hairColorLabel}</label><select id="cc-hair-hue">${hairOpts}</select></div>
+              <div id="cc-beard-block" class="uo-field" ${showBeard?'':'style="display:none"'}><label for="cc-beard-id">${beardLabel}</label><select id="cc-beard-id">${beardOpts}</select></div>
+              <div class="uo-field"><label for="cc-shirt-hue">Shirt color</label><select id="cc-shirt-hue">${clothingOpts}</select></div>
+              <div id="cc-pants-block" class="uo-field" ${showPants?'':'style="display:none"'}><label for="cc-pants-hue">Pants color</label><select id="cc-pants-hue">${pantsOpts}</select></div>
+            </div>
+            <div id="cc-msg" class="uo-status-line" role="status"></div>
+          </div>
+          <aside id="cc-preview" class="uo-character-preview"></aside>
         </div>
-        <label>Name</label>
-        <input id="cc-name" type="text" maxlength="16" value="${esc(c.name)}" />
-        <div class="row" style="gap:14px;margin-top:6px">
-          <label style="margin:0"><input type="radio" name="cc-sex" value="0" ${c.sex===0?'checked':''}> Male</label>
-          <label style="margin:0"><input type="radio" name="cc-sex" value="1" ${c.sex===1?'checked':''}> Female</label>
-          <label style="margin-left:auto">Race
-            <select id="cc-race" style="margin-left:6px">
-              <option value="0" ${c.race===0?'selected':''}>Human</option>
-              <option value="1" ${c.race===1?'selected':''}>Elf</option>
-              <option value="2" ${c.race===2?'selected':''}>Gargoyle</option>
-            </select>
-          </label>
-        </div>
-        <label>Skin Tone</label>
-        <select id="cc-skin">${skinOpts}</select>
-        <label>${hairStyleLabel}</label>
-        <select id="cc-hair-id">${styleOpts}</select>
-        <label>${hairColorLabel}</label>
-        <select id="cc-hair-hue">${hairOpts}</select>
-        <div id="cc-beard-block" ${showBeard?'':'style="display:none"'}>
-          <label>${beardLabel}</label>
-          <select id="cc-beard-id">${beardOpts}</select>
-        </div>
-        <label>Shirt Color</label>
-        <select id="cc-shirt-hue">${clothingOpts}</select>
-        <div id="cc-pants-block" ${showPants?'':'style="display:none"'}>
-          <label>Pants Color</label>
-          <select id="cc-pants-hue">${pantsOpts}</select>
-        </div>
-        <!-- Audit #46 P2 — live paperdoll preview. Refreshed by the
-             onchange handlers below; rendered via _renderCcPreview which
-             stamps gump-atlas PNGs as absolutely-positioned divs. -->
-        <div id="cc-preview" style="margin-top:10px"></div>
-        <div class="row" style="margin-top:14px">
-          <button id="cc-back">Back</button>
-          <button id="cc-next" class="primary" style="flex:2">Next</button>
-        </div>
-        <div id="cc-msg" class="uo-status-line"></div>
-      </div>
+        <footer class="uo-actions uo-creation-actions">
+          <button id="cc-back" class="uo-button uo-button--quiet">← Character list</button>
+          <button id="cc-next" class="uo-button primary">Choose profession <span>→</span></button>
+        </footer>
+      </section>
     `);
     this._injectStyles();
     // Live-preview refresh: read every dropdown into _creation then
@@ -1198,8 +1293,8 @@ export class LoginScene extends Scene {
         console.warn('[login] character preview failed', err);
         if (previewEl) {
           previewEl.innerHTML = `
-            <div style="position:relative;width:140px;height:170px;margin:6px auto 0;background:#1a1410;border:1px solid #6a4a18"></div>
-            <div style="text-align:center;font-size:10px;color:#a48830;margin-top:4px">Live preview</div>
+            <div class="uo-preview-frame"><div class="uo-preview-halo"></div><div class="uo-preview-ground"></div></div>
+            <div class="uo-preview-caption">Preview temporarily unavailable</div>
           `;
         }
       }
@@ -1258,33 +1353,38 @@ export class LoginScene extends Scene {
       const selectedId = skillOptions.some(([id]) => id === s.id) ? s.id : skillOptions[0][0];
       const opts = skillOptions.map(([id, name]) => `<option value="${id}" ${id===selectedId?'selected':''}>${esc(name)}</option>`).join('');
       return `
-        <div class="row" style="gap:6px;margin:2px 0;align-items:center">
-          <select class="cc-skill-id" data-i="${i}" style="flex:1">${opts}</select>
-          <input class="cc-skill-val" data-i="${i}" type="number" min="0" max="50" value="${s.val|0}" style="max-width:60px"/>
+        <div class="uo-skill-row">
+          <span class="uo-skill-index">${i + 1}</span>
+          <select class="cc-skill-id" data-i="${i}" aria-label="Skill ${i + 1}">${opts}</select>
+          <input class="cc-skill-val" data-i="${i}" type="number" min="0" max="50" value="${s.val|0}" aria-label="Skill ${i + 1} value"/>
+          <span class="uo-skill-percent">%</span>
         </div>
       `;
     };
     this._mountPanel(`
-      <div style="min-width:460px">
-        <h1 style="text-align:center;letter-spacing:6px;font-size:14px;margin-bottom:6px">STATS &amp; SKILLS</h1>
-        <div style="font-size:11px;color:#a48830;text-align:center;margin-bottom:10px">
-          Step 3 of 4 — stats total ${CREATE_STAT_TOTAL} · skills total 100 or 120
+      <section class="uo-login-frame uo-login-frame--creation">
+        ${this._creationHeader(2, 'Tune stats & skills', `Distribute ${CREATE_STAT_TOTAL} stat points and 100 or 120 skill points.`)}
+        <div class="uo-creation-content uo-trade-layout">
+          <section class="uo-build-card">
+            <div class="uo-section-heading"><span>01</span><div><h3>Core attributes</h3><p>Strength, dexterity and intelligence must total ${CREATE_STAT_TOTAL}.</p></div></div>
+            <div class="uo-stat-grid">
+              <label><span>STR</span><small>Strength</small><input id="cc-str" type="number" min="10" max="60" value="${c.str|0}" /></label>
+              <label><span>DEX</span><small>Dexterity</small><input id="cc-dex" type="number" min="10" max="60" value="${c.dex|0}" /></label>
+              <label><span>INT</span><small>Intelligence</small><input id="cc-int" type="number" min="10" max="60" value="${c.int|0}" /></label>
+            </div>
+          </section>
+          <section class="uo-build-card">
+            <div class="uo-section-heading"><span>02</span><div><h3>Starting skills</h3><p>Choose four unique skills, up to 50 points each.</p></div></div>
+            <div class="uo-skill-list">${Array.from({ length: CREATE_SKILL_COUNT }, (_, i) => skillRow(i)).join('')}</div>
+          </section>
+          <div id="cc-totals" class="uo-total-meter"></div>
+          <div id="cc-msg" class="uo-status-line" role="status"></div>
         </div>
-        <label>Stats</label>
-        <div class="row" style="gap:6px;align-items:center">
-          <span style="min-width:30px">STR</span><input id="cc-str" type="number" min="10" max="60" value="${c.str|0}" style="max-width:60px"/>
-          <span style="min-width:30px">DEX</span><input id="cc-dex" type="number" min="10" max="60" value="${c.dex|0}" style="max-width:60px"/>
-          <span style="min-width:30px">INT</span><input id="cc-int" type="number" min="10" max="60" value="${c.int|0}" style="max-width:60px"/>
-        </div>
-        <label>Skills (${CREATE_SKILL_COUNT} picks, each 0..50)</label>
-        ${Array.from({ length: CREATE_SKILL_COUNT }, (_, i) => skillRow(i)).join('')}
-        <div id="cc-totals" style="font-size:11px;color:#a48830;margin:6px 0"></div>
-        <div class="row" style="margin-top:8px">
-          <button id="cc-back">Back</button>
-          <button id="cc-next" class="primary" style="flex:2">Next</button>
-        </div>
-        <div id="cc-msg" class="uo-status-line"></div>
-      </div>
+        <footer class="uo-actions uo-creation-actions">
+          <button id="cc-back" class="uo-button uo-button--quiet">← Profession</button>
+          <button id="cc-next" class="uo-button primary">Choose city <span>→</span></button>
+        </footer>
+      </section>
     `);
     const totals = this._panel.querySelector('#cc-totals');
     const refresh = () => {
@@ -1293,7 +1393,9 @@ export class LoginScene extends Scene {
       const it = +this._panel.querySelector('#cc-int').value | 0;
       let sk = 0;
       this._panel.querySelectorAll('.cc-skill-val').forEach((el) => sk += (+el.value | 0));
-      totals.textContent = `Stats ${s + d + it} / ${CREATE_STAT_TOTAL}   ·   Skills ${sk} / 100 or 120`;
+      const statsOk = s + d + it === CREATE_STAT_TOTAL;
+      const skillsOk = CREATE_SKILL_TOTALS.has(sk);
+      totals.innerHTML = `<span class="${statsOk ? 'ok' : ''}">Stats <b>${s + d + it}</b> / ${CREATE_STAT_TOTAL}</span><span class="${skillsOk ? 'ok' : ''}">Skills <b>${sk}</b> / 100 or 120</span>`;
     };
     normalizeCreationAppearance(this._creation);
     this._panel.querySelectorAll('input[type="number"], .cc-skill-id').forEach((el) => el.addEventListener('input', refresh));
@@ -1374,23 +1476,26 @@ export class LoginScene extends Scene {
       const blurb = city.description ?? city.descTrue ?? CITY_LORE[city.name] ?? '';
       return `
       <div class="uo-city-row" data-i="${i}" tabindex="0">
-        <div class="uo-city-name">${esc(city.name)}</div>
-        <div class="uo-city-area">${esc(city.area ?? '')}</div>
-        <div class="uo-city-lore">${esc(blurb)}</div>
+        <div class="uo-city-pin" aria-hidden="true">⌖</div>
+        <div class="uo-city-copy">
+          <div class="uo-city-name">${esc(city.name)}</div>
+          <div class="uo-city-area">${esc(city.area ?? 'Britannia')}</div>
+          <div class="uo-city-lore">${esc(blurb)}</div>
+        </div>
+        <span class="uo-choice-check">✓</span>
       </div>`;
     }).join('');
     this._mountPanel(`
-      <div style="min-width:480px">
-        <h1 style="text-align:center;letter-spacing:6px;font-size:14px;margin-bottom:6px">STARTING CITY</h1>
-        <div style="font-size:11px;color:#a48830;text-align:center;margin-bottom:10px">
-          Step 4 of 4 — where do you wake up?
+      <section class="uo-login-frame uo-login-frame--creation">
+        ${this._creationHeader(3, 'Choose a starting city', 'Select where your first chapter in Britannia begins.')}
+        <div class="uo-creation-content">
+          <div class="uo-city-list uo-city-grid">${rows}</div>
         </div>
-        <div class="uo-city-list">${rows}</div>
-        <div class="row" style="margin-top:14px">
-          <button id="cc-back">Back</button>
-          <button id="cc-finish" class="primary" style="flex:2">Create Character</button>
-        </div>
-      </div>
+        <footer class="uo-actions uo-creation-actions">
+          <button id="cc-back" class="uo-button uo-button--quiet">← Previous step</button>
+          <button id="cc-finish" class="uo-button primary">Create character <span>→</span></button>
+        </footer>
+      </section>
     `);
     this._injectStyles();
     let chosen = Math.max(0, cities.findIndex((cc) => cc.index === c.city));
@@ -1428,12 +1533,15 @@ export class LoginScene extends Scene {
 
   _renderLoading(label) {
     this._mountPanel(`
-      <div style="text-align:center;min-width:340px;padding:24px 12px">
-        <div class="uo-spinner"></div>
-        <div style="margin-top:14px;letter-spacing:4px;font-size:12px;color:#f0c878">${esc(label.toUpperCase())}</div>
-        <div style="margin-top:8px;font-size:10px;color:#605040">Please wait…</div>
-      </div>
-    `, { minWidth: '340px' });
+      <section class="uo-loading-card">
+        <div class="uo-brand-seal uo-brand-seal--small" aria-hidden="true"><span>UO</span></div>
+        <div class="uo-spinner"><i></i></div>
+        <div class="uo-eyebrow">WORLD GATEWAY</div>
+        <h2>${esc(label)}</h2>
+        <p>Please wait while the next gate opens.</p>
+        <div class="uo-loading-track"><span></span></div>
+      </section>
+    `);
     this._injectStyles();
   }
 
@@ -1449,14 +1557,16 @@ export class LoginScene extends Scene {
     const hasOk = !!this._popupOnDismiss?.onOk;
     const hasCancel = !!this._popupOnDismiss?.onCancel;
     this._mountPanel(`
-      <div style="min-width:340px;text-align:center">
-        <h1 style="letter-spacing:4px;font-size:14px;margin-bottom:14px">NOTICE</h1>
-        <div style="white-space:pre-line;font-size:12px;color:#e8d090;margin-bottom:14px">${esc(message ?? '')}</div>
-        <div class="row" style="justify-content:center">
-          ${hasCancel ? '<button id="p-cancel">Cancel</button>' : ''}
-          <button id="p-ok" class="primary" style="flex:${hasCancel ? '1' : '2'}">${hasCancel && hasOk ? 'OK' : 'Continue'}</button>
-        </div>
-      </div>
+      <section class="uo-dialog-card">
+        <div class="uo-dialog-icon">!</div>
+        <div class="uo-eyebrow">NOTICE</div>
+        <h2>One moment</h2>
+        <div class="uo-dialog-message">${esc(message ?? '')}</div>
+        <footer class="uo-actions">
+          ${hasCancel ? '<button id="p-cancel" class="uo-button uo-button--quiet">Cancel</button>' : ''}
+          <button id="p-ok" class="uo-button primary">${hasCancel && hasOk ? 'Confirm' : 'Continue'}</button>
+        </footer>
+      </section>
     `);
     if (hasCancel) {
       this._panel.querySelector('#p-cancel').addEventListener('click', () => {
@@ -1563,50 +1673,89 @@ export class LoginScene extends Scene {
 
   /** Inject step-specific styling once per scene mount. */
   _injectStyles() {
-    if (document.getElementById('uo-login-styles')) return;
+    if (typeof document === 'undefined' || typeof document.createElement !== 'function') return;
+    if (document.getElementById?.('uo-login-styles')) return;
     const style = document.createElement('style');
     style.id = 'uo-login-styles';
     style.textContent = `
-      .uo-status-line { font-size:11px;color:#a48830;margin-top:8px;min-height:14px;text-align:center }
-      .uo-server-list, .uo-char-list, .uo-prof-list, .uo-city-list {
-        max-height: 360px; overflow-y: auto;
-        background: rgba(0,0,0,0.25); border: 1px solid rgba(255,224,128,0.18);
-        border-radius: 4px; padding: 4px;
+      :root {
+        --uo-gold: #d8af62; --uo-gold-bright: #f0d69a; --uo-copper: #9d6235;
+        --uo-ink: #080b0f; --uo-slate: #10151b; --uo-line: rgba(229,190,113,.2);
+        --uo-muted: #8c9298; --uo-text: #ece6d8; --uo-danger: #d27767;
       }
-      .uo-server-row, .uo-char-slot, .uo-prof-row, .uo-city-row {
-        padding: 8px 12px; cursor: pointer; user-select: none;
-        border-bottom: 1px solid rgba(255,224,128,0.08);
-        display: flex; align-items: center; gap: 12px;
-        transition: background .08s ease;
-      }
-      .uo-server-row:hover, .uo-char-slot:hover, .uo-prof-row:hover, .uo-city-row:hover {
-        background: rgba(255,224,128,0.10);
-      }
-      .uo-server-row.selected, .uo-char-slot.selected, .uo-prof-row.selected, .uo-city-row.selected {
-        background: rgba(255,224,128,0.22);
-        outline: 1px solid rgba(255,224,128,0.4);
-      }
-      .uo-server-name, .uo-prof-name, .uo-city-name { flex: 1; font-weight: 600; color: #f0e0a8 }
-      .uo-server-load { color: #b89060; font-size: 11px }
-      .uo-server-ping { min-width: 54px; text-align: right; color: #80c8a0; font-size: 11px }
-      .uo-prof-desc, .uo-city-area { font-size: 11px; color: #a89070; margin-left: auto; max-width: 60% }
-      .uo-prof-row { flex-direction: column; align-items: flex-start; gap: 2px }
-      .uo-prof-row .uo-prof-desc { margin-left: 0 }
-      .uo-char-slot { gap: 16px }
-      .uo-char-slot.empty .uo-slot-name { color: #6a5840; font-style: italic }
-      .uo-slot-num { width: 24px; text-align: center; color: #c0a060; font-size: 16px; font-weight: bold }
-      .uo-spinner {
-        width: 48px; height: 48px; margin: 0 auto;
-        border: 3px solid rgba(240,200,120,0.20);
-        border-top-color: #f0c878;
-        border-radius: 50%;
-        animation: uo-spin 1s linear infinite;
-      }
-      @keyframes uo-spin { to { transform: rotate(360deg) } }
-      button.primary { background: linear-gradient(180deg,#5a3818,#3a2410); color: #ffe8a8 }
-      button.primary:hover { background: linear-gradient(180deg,#6e4820,#4a2e14) }
+      .uo-login-ambient { position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;
+        background:
+          radial-gradient(circle at 18% 22%,rgba(120,78,36,.18),transparent 28%),
+          radial-gradient(circle at 82% 78%,rgba(64,88,85,.12),transparent 32%),
+          linear-gradient(135deg,#05070a 0%,#0c1014 48%,#080805 100%); }
+      .uo-login-ambient::before { content:"";position:absolute;inset:0;opacity:.26;
+        background-image:linear-gradient(rgba(255,255,255,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.018) 1px,transparent 1px);
+        background-size:48px 48px;mask-image:radial-gradient(circle at center,#000,transparent 78%); }
+      .uo-login-ambient::after { content:"";position:absolute;inset:0;box-shadow:inset 0 0 180px 55px #000; }
+      .uo-login-orb { position:absolute;width:min(62vw,920px);aspect-ratio:1;left:50%;top:48%;transform:translate(-50%,-50%);border-radius:50%;
+        background:radial-gradient(circle,rgba(202,151,75,.13) 0%,rgba(121,72,31,.06) 34%,transparent 68%);animation:uo-breathe 8s ease-in-out infinite; }
+      .uo-login-runes { position:absolute;left:50%;bottom:6vh;transform:translateX(-50%);color:rgba(216,175,98,.15);font:18px/1 Georgia,serif;letter-spacing:18px;white-space:nowrap; }
+      .uo-login-horizon { position:absolute;left:10%;right:10%;bottom:12%;height:1px;background:linear-gradient(90deg,transparent,rgba(216,175,98,.17),transparent); }
+      @keyframes uo-breathe { 50% { transform:translate(-50%,-50%) scale(1.08);opacity:.75 } }
+
+      .uo-panel.uo-login-surface { box-sizing:border-box;width:min(1060px,calc(100vw - 48px));min-width:0;max-height:calc(100vh - 48px);padding:0;margin:0;
+        color:var(--uo-text);background:linear-gradient(145deg,rgba(16,20,25,.985),rgba(7,9,12,.99));border:1px solid rgba(216,175,98,.38);border-radius:18px;
+        box-shadow:0 34px 90px rgba(0,0,0,.72),0 0 0 1px rgba(0,0,0,.8),inset 0 1px rgba(255,255,255,.035);overflow:hidden;
+        font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;animation:uo-panel-in .32s cubic-bezier(.2,.8,.2,1); }
+      @keyframes uo-panel-in { from { opacity:0;transform:translate(-50%,calc(-50% + 12px)) scale(.985) } }
+      .uo-login-surface *, .uo-login-surface *::before, .uo-login-surface *::after { box-sizing:border-box; }
+      .uo-login-frame { width:100%;height:min(650px,calc(100vh - 48px));display:grid;grid-template-columns:360px minmax(0,1fr); }
+      .uo-login-frame--auth { height:min(640px,calc(100vh - 48px)); }
+      .uo-login-aside { position:relative;display:flex;flex-direction:column;justify-content:center;padding:52px 46px;overflow:hidden;
+        background:linear-gradient(155deg,rgba(135,82,36,.28),rgba(34,26,18,.72)),radial-gradient(circle at 20% 10%,rgba(239,196,112,.18),transparent 42%);border-right:1px solid var(--uo-line); }
+      .uo-login-aside::before { content:"";position:absolute;width:360px;height:360px;right:-180px;bottom:-170px;border:1px solid rgba(216,175,98,.14);border-radius:50%;box-shadow:0 0 0 34px rgba(216,175,98,.025),0 0 0 68px rgba(216,175,98,.018); }
+      .uo-login-aside h1 { margin:14px 0 18px;font:500 48px/.93 Georgia,"Times New Roman",serif;letter-spacing:-1.5px;color:#f4ecdc; }
+      .uo-login-aside h1 em { color:var(--uo-gold);font-weight:400; }
+      .uo-login-aside p { max-width:265px;margin:0;color:#b9b5aa;font-size:14px;line-height:1.7; }
+      .uo-login-aside--compact h1 { font-size:42px; }
+      .uo-brand-seal { width:76px;height:76px;display:grid;place-items:center;border:1px solid rgba(230,190,112,.55);border-radius:50%;margin-bottom:28px;position:relative;color:var(--uo-gold-bright);font:700 23px Georgia,serif; }
+      .uo-brand-seal::before,.uo-brand-seal::after { content:"";position:absolute;border:1px solid rgba(216,175,98,.2);border-radius:50%;inset:6px; }.uo-brand-seal::after{inset:-7px;border-style:dotted;}
+      .uo-brand-seal--small { width:58px;height:58px;font-size:18px;margin-bottom:24px }.uo-brand-seal--tiny{width:44px;height:44px;font-size:14px;margin:0 15px 0 0;flex:0 0 auto}
+      .uo-eyebrow { color:var(--uo-gold);font-size:10px;line-height:1.2;font-weight:750;letter-spacing:2.3px;text-transform:uppercase; }
+      .uo-aside-status { margin-top:36px;display:flex;align-items:center;gap:9px;color:#9fa69f;font-size:12px; }.uo-aside-status i{width:7px;height:7px;border-radius:50%;background:#71b88a;box-shadow:0 0 12px #71b88a}
+      .uo-roster-count { margin-top:32px;display:flex;align-items:baseline;gap:10px }.uo-roster-count strong{font:36px Georgia,serif;color:var(--uo-gold-bright)}.uo-roster-count span{color:var(--uo-muted);font-size:12px}
+      .uo-login-content { min-width:0;display:flex;flex-direction:column;padding:52px 58px 38px; }
+      .uo-screen-heading { margin-bottom:28px }.uo-screen-heading h2,.uo-loading-card h2,.uo-dialog-card h2 { margin:8px 0 7px;font:500 34px/1.08 Georgia,"Times New Roman",serif;color:#f2eee4;letter-spacing:-.5px }.uo-screen-heading p,.uo-loading-card p{margin:0;color:var(--uo-muted);font-size:13px}
+      .uo-form-grid,.uo-settings-grid { display:grid;grid-template-columns:minmax(0,1fr) 105px;gap:15px 12px }.uo-field--wide{grid-column:1/-1}.uo-field--host{grid-column:1}.uo-field--port{grid-column:2}
+      .uo-login-surface .uo-field label { display:block;margin:0 0 7px;color:#bcb6a9;font-size:11px;font-weight:650;letter-spacing:.35px; }
+      .uo-login-surface input,.uo-login-surface select { width:100%;height:44px;padding:0 13px;margin:0;background:rgba(2,4,6,.7);color:var(--uo-text);border:1px solid rgba(216,175,98,.24);border-radius:8px;font:14px Inter,ui-sans-serif,sans-serif;transition:border-color .18s,box-shadow .18s,background .18s; }
+      .uo-login-surface input:hover,.uo-login-surface select:hover{border-color:rgba(216,175,98,.46)}.uo-login-surface input:focus,.uo-login-surface select:focus{outline:none;border-color:var(--uo-gold);box-shadow:0 0 0 3px rgba(216,175,98,.1);background:#080b0e}
+      .uo-login-surface input::placeholder{color:#5f6469}.uo-login-surface select{appearance:auto}
+      .uo-connection-settings { margin-top:1px;border:1px solid rgba(216,175,98,.14);border-radius:9px;background:rgba(0,0,0,.14);overflow:hidden }.uo-connection-settings summary{height:43px;padding:0 13px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;color:#bcb6a9;font-size:12px;list-style:none}.uo-connection-settings summary::-webkit-details-marker{display:none}.uo-connection-settings summary::before{content:"+";margin-right:8px;color:var(--uo-gold)}.uo-connection-settings[open] summary::before{content:"−"}.uo-connection-settings summary small{margin-left:auto;color:#777d82}.uo-settings-grid{padding:13px;border-top:1px solid rgba(216,175,98,.12)}
+      .uo-status-line { min-height:20px;margin:10px 0 0;color:#d49c70;font-size:12px;line-height:20px;text-align:left; }
+      .uo-actions { display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:auto;padding-top:20px;border-top:1px solid rgba(216,175,98,.12) }
+      .uo-login-surface button.uo-button { min-width:126px;height:44px;margin:0;padding:0 18px;border:1px solid rgba(216,175,98,.26);border-radius:8px;background:rgba(255,255,255,.025);color:#d7d2c6;font:650 12px Inter,ui-sans-serif,sans-serif;letter-spacing:.15px;cursor:pointer;transition:transform .15s,background .15s,border-color .15s,box-shadow .15s; }
+      .uo-login-surface button.uo-button:hover:not(:disabled){transform:translateY(-1px);border-color:rgba(216,175,98,.55);background:rgba(216,175,98,.08)}.uo-login-surface button.uo-button:active:not(:disabled){transform:translateY(0)}
+      .uo-login-surface button.primary { min-width:190px;border-color:#b68143;background:linear-gradient(135deg,#b77b3d,#7e4927);color:#fff5df;box-shadow:0 9px 24px rgba(91,48,22,.3) }.uo-login-surface button.primary:hover:not(:disabled){background:linear-gradient(135deg,#c68d4b,#92572e);box-shadow:0 11px 28px rgba(116,66,29,.4)}.uo-login-surface button.primary span{margin-left:12px;font-size:16px}
+      .uo-login-surface button.uo-button--quiet{margin-right:auto;color:#989b9c}.uo-login-surface button.uo-button--danger{color:#cf8b7f;border-color:rgba(207,120,105,.25)}.uo-login-surface button:disabled{opacity:.38;cursor:not-allowed;filter:saturate(.3)}
+
+      .uo-choice-list { min-height:0;overflow:auto;padding:5px;border:1px solid rgba(216,175,98,.13);border-radius:11px;background:rgba(0,0,0,.19);scrollbar-width:thin;scrollbar-color:#6b4a27 transparent }
+      .uo-server-row,.uo-char-slot,.uo-prof-row,.uo-city-row { position:relative;display:flex;align-items:center;gap:14px;padding:14px 16px;border:1px solid transparent;border-radius:8px;cursor:pointer;user-select:none;transition:background .14s,border-color .14s,transform .14s }
+      .uo-server-row:hover,.uo-char-slot:hover,.uo-prof-row:hover,.uo-city-row:hover{background:rgba(216,175,98,.055);border-color:rgba(216,175,98,.12)}
+      .uo-server-row.selected,.uo-char-slot.selected,.uo-prof-row.selected,.uo-city-row.selected{background:linear-gradient(90deg,rgba(162,103,52,.25),rgba(216,175,98,.07));border-color:rgba(216,175,98,.42);box-shadow:inset 3px 0 #c38b4d}
+      .uo-server-icon{width:36px;height:36px;display:grid;place-items:center;border-radius:8px;background:rgba(216,175,98,.08);color:var(--uo-gold)}.uo-server-copy,.uo-slot-copy{display:flex;flex:1;min-width:0;flex-direction:column;gap:4px}.uo-server-name,.uo-slot-name,.uo-prof-name,.uo-city-name{color:#e9e3d6;font-size:14px;font-weight:680}.uo-server-copy small,.uo-slot-copy small{color:#70767b;font-size:10px}.uo-server-load,.uo-server-ping{min-width:68px;display:flex;flex-direction:column;align-items:flex-end;gap:3px}.uo-server-load b,.uo-server-ping b{font-size:12px;color:#c9c1b1}.uo-server-load small,.uo-server-ping small{font-size:9px;color:#656b70;text-transform:uppercase;letter-spacing:1px}.uo-server-ping b{color:#82b999}
+      .uo-char-list{min-height:0}.uo-char-slot{min-height:62px}.uo-slot-num{width:25px;color:#665a49;font:11px ui-monospace,monospace}.uo-slot-avatar{width:34px;height:34px;display:grid;place-items:center;border:1px solid rgba(216,175,98,.17);border-radius:50%;color:#c79a5a;background:#12100c}.uo-char-slot.empty .uo-slot-avatar{border-style:dashed;background:transparent;color:#75644d}.uo-char-slot.empty .uo-slot-name{color:#85817a;font-weight:500}.uo-slot-chevron{color:#655b4d;font-size:24px}.uo-char-slot.selected .uo-slot-chevron{color:var(--uo-gold)}.uo-actions--roster button{min-width:105px!important}.uo-actions--roster button.primary{min-width:158px!important}
+
+      .uo-login-frame--creation{height:min(680px,calc(100vh - 48px));display:flex;flex-direction:column}.uo-creation-header{display:flex;align-items:center;gap:30px;padding:25px 34px 21px;border-bottom:1px solid var(--uo-line);background:linear-gradient(90deg,rgba(120,70,29,.12),transparent)}.uo-creation-brand{display:flex;align-items:center;min-width:330px}.uo-creation-brand h2{margin:3px 0 2px;font:500 24px/1.1 Georgia,serif;color:#f1ecdf}.uo-creation-brand p{margin:0;color:#777e84;font-size:11px}.uo-creation-progress{display:flex;align-items:flex-start;justify-content:flex-end;flex:1;margin:0;padding:0;list-style:none}.uo-creation-progress li{position:relative;display:flex;flex:1;max-width:135px;flex-direction:column;align-items:center;gap:6px;color:#62686d}.uo-creation-progress li:not(:last-child)::after{content:"";position:absolute;top:13px;left:calc(50% + 17px);right:calc(-50% + 17px);height:1px;background:#343536}.uo-creation-progress li span{position:relative;z-index:1;width:27px;height:27px;display:grid;place-items:center;border:1px solid #414348;border-radius:50%;background:#101318;font-size:10px}.uo-creation-progress li small{font-size:9px;white-space:nowrap}.uo-creation-progress li.active{color:var(--uo-gold-bright)}.uo-creation-progress li.active span{border-color:var(--uo-gold);background:#704724;box-shadow:0 0 0 4px rgba(216,175,98,.08)}.uo-creation-progress li.done{color:#9c835e}.uo-creation-progress li.done span{border-color:#80623c;color:#d9bb7b}.uo-creation-progress li.done::after{background:#785a37}
+      .uo-creation-content{flex:1;min-height:0;padding:24px 34px;overflow:auto}.uo-creation-actions{margin:0;padding:17px 34px;border-top:1px solid var(--uo-line);background:rgba(0,0,0,.13)}
+      .uo-appearance-layout{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:35px;overflow:hidden}.uo-appearance-form{min-width:0;overflow:auto;padding-right:3px}.uo-segment-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:15px 0}.uo-segmented{display:grid;grid-template-columns:1fr 1fr;align-content:end;margin:0;padding:0;border:0}.uo-segmented legend{grid-column:1/-1;margin:0 0 7px;color:#bcb6a9;font-size:11px;font-weight:650}.uo-segmented label{display:block;width:auto;margin:0!important}.uo-segmented input{position:absolute;opacity:0;pointer-events:none}.uo-segmented span{height:44px;display:grid;place-items:center;border:1px solid rgba(216,175,98,.22);color:#888d90;font-size:12px;cursor:pointer}.uo-segmented label:first-of-type span{border-radius:8px 0 0 8px}.uo-segmented label:last-of-type span{border-left:0;border-radius:0 8px 8px 0}.uo-segmented input:checked+span{color:#f1dfbd;background:rgba(176,112,53,.23);border-color:#a97640;box-shadow:inset 0 0 20px rgba(211,160,83,.05)}.uo-appearance-grid{display:grid;grid-template-columns:1fr 1fr;gap:13px 14px}
+      .uo-character-preview{position:relative;min-height:370px;display:flex;flex-direction:column;align-items:center;justify-content:center;border:1px solid rgba(216,175,98,.15);border-radius:13px;overflow:hidden;background:radial-gradient(circle at 50% 42%,rgba(207,154,77,.16),transparent 48%),linear-gradient(180deg,#101216,#090b0e)}.uo-character-preview::before{content:"PREVIEW";position:absolute;left:16px;top:14px;color:#68645b;font-size:9px;font-weight:700;letter-spacing:2px}.uo-preview-frame{position:relative;width:280px;height:300px;display:flex;align-items:flex-end;justify-content:center}.uo-preview-halo{position:absolute;width:245px;height:245px;left:50%;top:18px;transform:translateX(-50%);border:1px solid rgba(216,175,98,.12);border-radius:50%;box-shadow:0 0 0 24px rgba(216,175,98,.018)}.uo-preview-canvas{position:relative;z-index:2;width:260px;height:237px;image-rendering:auto;filter:drop-shadow(0 13px 13px rgba(0,0,0,.7))}.uo-preview-ground{position:absolute;z-index:1;left:32px;right:32px;bottom:4px;height:26px;border-radius:50%;background:radial-gradient(ellipse,rgba(0,0,0,.85),transparent 68%)}.uo-preview-caption{display:flex;align-items:center;gap:7px;color:#7e8588;font-size:10px}.uo-preview-caption i{width:6px;height:6px;border-radius:50%;background:#6cb083;box-shadow:0 0 8px #6cb083}
+      .uo-choice-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;max-height:none;overflow:visible}.uo-prof-row{min-height:78px}.uo-prof-mark{width:42px;height:42px;display:grid;place-items:center;border-radius:9px;background:linear-gradient(145deg,#32251a,#17130f);border:1px solid rgba(216,175,98,.2);color:#d4ad6c;font:20px Georgia,serif}.uo-prof-copy{min-width:0;flex:1}.uo-prof-desc{margin-top:5px;color:#777c7f;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.uo-choice-check{width:21px;height:21px;display:grid;place-items:center;border:1px solid #3e4244;border-radius:50%;color:transparent;font-size:10px}.selected>.uo-choice-check{background:#9a6435;border-color:#c99252;color:#fff1d2}
+      .uo-trade-layout{display:grid;grid-template-columns:1fr 1.22fr;gap:15px;align-content:start}.uo-build-card{padding:18px;border:1px solid rgba(216,175,98,.14);border-radius:11px;background:rgba(0,0,0,.16)}.uo-section-heading{display:flex;gap:12px;align-items:flex-start;margin-bottom:16px}.uo-section-heading>span{width:25px;height:25px;display:grid;place-items:center;border-radius:50%;background:rgba(216,175,98,.1);color:var(--uo-gold);font-size:9px}.uo-section-heading h3{margin:1px 0 4px;color:#e3ddd0;font-size:13px}.uo-section-heading p{margin:0;color:#71777b;font-size:10px}.uo-stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.uo-stat-grid label{padding:12px;border:1px solid rgba(216,175,98,.12);border-radius:8px;text-align:center}.uo-stat-grid label>span{display:block;color:#d7b577;font-size:11px;font-weight:750;letter-spacing:1px}.uo-stat-grid label>small{display:block;margin:3px 0 8px;color:#646b70;font-size:9px}.uo-stat-grid input{text-align:center;font-weight:700}.uo-skill-list{display:flex;flex-direction:column;gap:7px}.uo-skill-row{display:grid;grid-template-columns:24px minmax(0,1fr) 64px 13px;align-items:center;gap:7px}.uo-skill-index{color:#5f6468;font:10px ui-monospace,monospace}.uo-skill-row input{padding:0;text-align:center}.uo-skill-percent{color:#656b6e;font-size:10px}.uo-total-meter{grid-column:1/-1;display:flex;gap:10px}.uo-total-meter span{flex:1;padding:9px 12px;border:1px solid rgba(216,175,98,.13);border-radius:7px;color:#94816b;font-size:10px}.uo-total-meter span b{color:#d39668}.uo-total-meter span.ok{border-color:rgba(103,173,128,.3);color:#7da98c}.uo-total-meter span.ok b{color:#91c3a2}.uo-trade-layout .uo-status-line{grid-column:1/-1;margin:0}
+      .uo-city-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;overflow:visible}.uo-city-row{min-height:94px;align-items:flex-start}.uo-city-pin{width:38px;height:38px;display:grid;place-items:center;border:1px solid rgba(216,175,98,.2);border-radius:50%;color:var(--uo-gold);background:rgba(216,175,98,.05);font-size:18px}.uo-city-copy{min-width:0;flex:1}.uo-city-area{margin:4px 0 6px;color:#aa8c61;font-size:9px;text-transform:uppercase;letter-spacing:1px}.uo-city-lore{color:#73797d;font-size:10px;line-height:1.45}
+      .uo-loading-card,.uo-dialog-card{width:min(440px,calc(100vw - 36px));padding:40px;text-align:center}.uo-loading-card .uo-brand-seal{margin:0 auto 28px}.uo-loading-card .uo-spinner{position:relative;width:58px;height:58px;margin:0 auto 25px;border:1px solid rgba(216,175,98,.16);border-radius:50%}.uo-loading-card .uo-spinner::before,.uo-loading-card .uo-spinner i{content:"";position:absolute;inset:5px;border-top:2px solid var(--uo-gold);border-radius:50%;animation:uo-spin 1.1s linear infinite}.uo-loading-card .uo-spinner i{inset:13px;border-top-color:#7f5a32;animation-direction:reverse;animation-duration:1.8s}.uo-loading-track{height:2px;margin-top:28px;background:#242426;overflow:hidden}.uo-loading-track span{display:block;width:38%;height:100%;background:linear-gradient(90deg,transparent,var(--uo-gold),transparent);animation:uo-loading 1.5s ease-in-out infinite}.uo-dialog-card .uo-dialog-icon{width:50px;height:50px;display:grid;place-items:center;margin:0 auto 20px;border:1px solid rgba(216,175,98,.35);border-radius:50%;color:var(--uo-gold);font:24px Georgia,serif}.uo-dialog-message{margin:18px 0 8px;white-space:pre-line;color:#bab5aa;font-size:13px;line-height:1.65}.uo-dialog-card .uo-actions{justify-content:center}.uo-dialog-card .uo-button--quiet{margin-right:0!important}
+      @keyframes uo-spin{to{transform:rotate(360deg)}}@keyframes uo-loading{from{transform:translateX(-110%)}to{transform:translateX(270%)}}
+
+      @media (max-width:820px){.uo-panel.uo-login-surface{width:calc(100vw - 24px);max-height:calc(100vh - 24px)}.uo-login-frame{height:calc(100vh - 24px);grid-template-columns:1fr;overflow:auto}.uo-login-aside{min-height:190px;padding:28px 30px;justify-content:flex-end;border-right:0;border-bottom:1px solid var(--uo-line)}.uo-login-aside h1{font-size:34px;margin:8px 0}.uo-login-aside p,.uo-aside-status,.uo-roster-count{display:none}.uo-brand-seal{position:absolute;right:28px;top:28px;width:52px;height:52px;margin:0}.uo-login-content{padding:30px}.uo-screen-heading{margin-bottom:22px}.uo-login-frame--creation{height:calc(100vh - 24px)}.uo-creation-header{display:block;padding:19px 22px}.uo-creation-brand{min-width:0}.uo-creation-brand .uo-brand-seal{display:none}.uo-creation-progress{margin-top:17px}.uo-creation-progress li small{display:none}.uo-creation-content{padding:20px 22px}.uo-appearance-layout{grid-template-columns:1fr;overflow:auto}.uo-character-preview{min-height:330px}.uo-choice-grid,.uo-city-grid,.uo-trade-layout{grid-template-columns:1fr}.uo-creation-actions{padding:14px 22px}.uo-trade-layout .uo-total-meter{grid-column:1}.uo-actions--roster{flex-wrap:wrap}.uo-actions--roster button{flex:1}.uo-actions--roster .uo-button--quiet{flex-basis:100%}}
+      @media (max-width:520px){.uo-login-content{padding:24px 20px}.uo-screen-heading h2{font-size:29px}.uo-form-grid,.uo-settings-grid{grid-template-columns:1fr}.uo-field--host,.uo-field--port{grid-column:1}.uo-actions{gap:7px}.uo-login-surface button.uo-button{min-width:0;flex:1;padding:0 11px}.uo-login-surface button.primary{min-width:0}.uo-appearance-grid,.uo-segment-row{grid-template-columns:1fr}.uo-stat-grid{grid-template-columns:1fr}.uo-total-meter{flex-direction:column}.uo-creation-brand p{display:none}.uo-prof-desc{white-space:normal}.uo-login-runes{display:none}}
+      @media (prefers-reduced-motion:reduce){.uo-login-orb,.uo-login-surface,.uo-loading-card .uo-spinner::before,.uo-loading-card .uo-spinner i,.uo-loading-track span{animation:none!important}}
     `;
-    document.head.appendChild(style);
+    document.head?.appendChild?.(style);
   }
 }
 

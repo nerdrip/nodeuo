@@ -85,9 +85,14 @@ requireNeedles('UseAbilityButton hotbar', read('../src/ui/gumps/use-ability-butt
   "buildTextCommand(0x12, `wpn ${this.slot}`)",
   'get type() { return `use-ability:${this.slot}`; }',
 ]);
-requireNeedles('Spell/ability source gumps', read('../src/ui/gumps/spellbook-gump.js'), [
-  'UseSpellButtonGump',
-  'ui._dragging',
+requireNeedles('Spell source drag payload', read('../src/ui/gumps/spellbook-gump.js'), [
+  'beginSpellShortcutDrag',
+  'onDragStart(btn)',
+]);
+requireNeedles('Spell action-bar assignment', read('../src/ui/gumps/action-bar-gump.js'), [
+  'dropSpellShortcutOnActionBar',
+  'clearActionBarSlot',
+  'readActionBarSlots',
 ]);
 requireNeedles('CombatBook ability source', read('../src/ui/gumps/combat-book-gump.js'), [
   'UseAbilityButtonGump',
@@ -186,7 +191,7 @@ requireNeedles('OptionsGump lazy tabs', read('../src/ui/gumps/options-gump.js'),
   'this._contentScroll?.beginBulkUpdate?.()',
   'this._contentScroll?.remove?.(c)',
   'this._contentScroll?.scrollTo(0)',
-  'target?.build(0)',
+  'target?.build(CONTENT_START_Y)',
   'this._contentScroll?.endBulkUpdate?.()',
   '_refreshContentHeight()',
 ]);

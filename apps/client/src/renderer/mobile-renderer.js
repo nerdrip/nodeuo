@@ -5,24 +5,25 @@
 //
 // The state machine is driven by world events:
 //   - mobile:incoming / mobile:moving → setDirection + Walk action
-//   - mobile:idle (synthesized after `WALK_LATCH_MS` of no movement) → Idle
+//   - mobile:idle (synthesized after a short movement grace) → Idle
 //   - mobile:anim (0x6E / 0xE2 from server) → setAction(custom, oneShot=true)
 
-import { Container, Graphics, Sprite, Text, TextStyle, MeshSimple, ColorMatrixFilter } from 'pixi.js';
+import { Container, Graphics, Text, TextStyle, MeshSimple, ColorMatrixFilter } from 'pixi.js';
+import { UI_FONT_FAMILY, UI_TEXT_RESOLUTION } from '../ui/text-quality.js';
 
 // Shared TextStyle for every name-plate — client perf round 2 #15.
 // Pixi v8 caches glyph rasters per TextStyle, so reusing a singleton
 // across N mob sprites cuts the canvas-cache cost from O(N) to O(1).
 const NAME_PLATE_STYLE = new TextStyle({
-  fill: 0xf0e8c0, fontSize: 11,
-  fontFamily: 'Consolas, monospace',
-  stroke: { color: 0x000000, width: 3 },
+  fill: 0xf0e8c0, fontSize: 13,
+  fontFamily: UI_FONT_FAMILY, fontWeight: 650,
+  stroke: { color: 0x000000, width: 2, join: 'round' },
 });
 import { worldToScreenX, worldToScreenY, depthKey, LAYER_MOBILE, TILE_HALF_H } from './iso.js';
 import { world } from '../world/world.js';
 import { assets } from '../assets/asset-manager.js';
 import { applyHueTo } from './hue-filter.js';
-import { MobileAnimation, Action } from './mobile-animation.js';
+import { MobileAnimation, Action, ANIMATION_PRIORITY } from './mobile-animation.js';
 import { bus } from '../core/event-bus.js';
 import { audio } from '../managers/audio-manager.js';
 import { auraManager } from '../managers/aura-manager.js';
@@ -41,12 +42,10 @@ const SHADOW_INDICES = new Uint32Array([0, 1, 2, 1, 3, 2]);
 const FOOTSTEP_SFX = [0x012B, 0x012C];
 const MOUNT_RUN_SFX = 0x0129;
 
-// MUST be longer than the longest beginMoveStep duration — otherwise
-// the Walk anim flips to Idle in the middle of the slide and the sprite
-// visibly "snaps" to a stand pose mid-step. CUO walk lerp is 400 ms so
-// 600 ms gives the next markMoving from the cadence loop comfortable
-// headroom (~one frame of slack at 60 Hz).
-const WALK_LATCH_MS = 600;
+// Grace after one interpolation before returning to idle. The actual latch is
+// step-duration + this small scheduling margin, so Run no longer keeps playing
+// for 600 ms after the player has stopped.
+const WALK_LATCH_SLACK_MS = 80;
 
 // War-mode equipment fallback. Equipment overlays (cloaks, sleeves,
 // hats, etc.) frequently ship in the atlas with only the peaceful
@@ -152,8 +151,11 @@ class MobileSprite {
     this._anim = new MobileAnimation();
     /** ms timestamp of last mobile:moving event */
     this._lastMoveAt = 0;
+    this._moveDurationMs = 400;
     /** @type {Text} */
-    this._label = new Text({ text: '', style: NAME_PLATE_STYLE });
+    this._label = new Text({
+      text: '', style: NAME_PLATE_STYLE, resolution: UI_TEXT_RESOLUTION, roundPixels: true,
+    });
     this._label.anchor.set(0.5, 1);
     // Y is set dynamically in tick() using the body's current frame
     // height — `-22` was the old static fallback that put the label
@@ -180,6 +182,8 @@ class MobileSprite {
       delay: opts.delay,
       reverse: opts.reverse,
       staticFrame: opts.staticFrame,
+      priority: opts.priority ?? ANIMATION_PRIORITY.Server,
+      holdLastFrame: opts.holdLastFrame,
     });
   }
 
@@ -301,11 +305,23 @@ class MobileSprite {
     this._aura.visible = true;
   }
 
+  /** Apply transient selection/range/damage tint to the assembled mobile.
+   *  Body, equipment and mount are separate Pixi sprites; tinting only the
+   *  body made clothing remain brightly coloured and also left a stale gray
+   *  tint after an entity returned into range. */
+  _setVisualTint(tint) {
+    if (this._sprite) this._sprite.tint = tint;
+    if (this._mountSprite) this._mountSprite.tint = tint;
+    for (const sp of this._equipSprites.values()) sp.tint = tint;
+  }
+
   /** Mark this mobile as moving — animation switches to Walk. */
-  markMoving(now = performance.now()) {
+  markMoving(now = performance.now(), running = false, durationMs = running ? 200 : 400) {
     this._lastMoveAt = now;
-    if (this._anim.action !== Action.Walk && this._anim.action !== Action.Run) {
-      this._anim.setAction(Action.Walk);
+    this._moveDurationMs = Math.max(1, durationMs | 0);
+    const action = running ? Action.Run : Action.Walk;
+    if (this._anim.action !== action) {
+      this._anim.setAction(action, { priority: ANIMATION_PRIORITY.Locomotion });
     }
   }
 
@@ -317,7 +333,19 @@ class MobileSprite {
     const stillLerping = mob.tickMoveStep(now);
     // Multi-step deque — when the current lerp ends and there are more
     // pending steps queued (NPC multi-tile MoveTo), start the next.
-    if ((mob.queuedStepCount ?? mob.steps?.length ?? 0) > 0) mob.drainNextStep(now);
+    const startedQueuedStep = (mob.queuedStepCount ?? mob.steps?.length ?? 0) > 0
+      ? mob.drainNextStep(now)
+      : false;
+    const isMovingNow = stillLerping || startedQueuedStep || mob.offsetEndAt > now;
+    if (isMovingNow) {
+      this._lastMoveAt = now;
+      const durationMs = (mob.offsetEndAt ?? 0) - (mob.offsetStartAt ?? 0);
+      if (durationMs > 0) this._moveDurationMs = durationMs;
+      const locomotion = mob.moveRunning ? Action.Run : Action.Walk;
+      if (this._anim.action !== locomotion) {
+        this._anim.setAction(locomotion, { priority: ANIMATION_PRIORITY.Locomotion });
+      }
+    }
     // NB: do NOT zero `_lastMoveAt` the moment a lerp ends. Continuous
     // RMB-walk fires `markMoving()` each cadence step (~200-400 ms);
     // the previous lerp routinely finishes 1-2 frames before the next
@@ -325,7 +353,7 @@ class MobileSprite {
     // "skok" Marcin reported — the next `setAction(Walk)` resets
     // `frame=0` (Idle→Walk is not a locomotion-preserving transition)
     // so the legs jerked back to the start frame each step. The
-    // WALK_LATCH_MS gate further down handles the legitimate "user
+    // movement-latch gate further down handles the legitimate "user
     // actually stopped walking" case at 600 ms.
     void stillLerping;
     const projX = worldToScreenX(mob.x, mob.y);
@@ -394,6 +422,8 @@ class MobileSprite {
       isFlying: !!mob.isFlying,
       armed,
       armed2H,
+      run: this._anim.action === Action.Run || !!mob.moveRunning,
+      moveDurationMs: isMovingNow ? this._moveDurationMs : 0,
     });
     // Paralyze freeze — set the anim-side flag so tick() pins frame 0.
     // CUO mirrors the same gate in Mobile.IsParalyzed.
@@ -426,7 +456,10 @@ class MobileSprite {
                    || (_body === 0x029A || _body === 0x029B);
       if (moved && isHuman && !mob.hidden && !mob.isDead) {
         const nowMs = now;
-        const FOOTSTEP_MIN_INTERVAL_MS = 280;
+        const running = this._anim?.action === Action.Run || !!mob.moveRunning;
+        const FOOTSTEP_MIN_INTERVAL_MS = mob.isMounted
+          ? 170
+          : (running ? 170 : 330);
         if (!this._lastFootstepAt || (nowMs - this._lastFootstepAt) >= FOOTSTEP_MIN_INTERVAL_MS) {
           this._lastFootstepAt = nowMs;
           // CUO only plays the horse-gallop SFX (0x0129) for mounted
@@ -450,13 +483,18 @@ class MobileSprite {
     // walking/idle action to a static "sitting" pose. Mirrors CUO
     // SittingInfoData detection (Mobile.IsSitting check). MVP: detect a
     // chair static at the same tile and override frame to Idle frame 0.
-    const sitting = !isPlayer && detectChairUnder(mob);
+    const canSit = this._anim.action === Action.Idle
+      || this._anim.action === Action.Walk
+      || this._anim.action === Action.Run;
+    const sitting = !isPlayer && canSit && detectChairUnder(mob);
     if (sitting && this._anim.action !== Action.Idle) {
-      this._anim.setAction(Action.Idle);
+      this._anim.setAction(Action.Idle, { priority: ANIMATION_PRIORITY.Locomotion });
       this._anim._frameAt = 0;
     }
     if (!sitting && (this._anim.action === Action.Walk || this._anim.action === Action.Run)) {
-      if (now - this._lastMoveAt > WALK_LATCH_MS) {
+      // _lastMoveAt is refreshed on every interpolation frame, not only at
+      // step start, so only scheduler slack is needed after the feet arrive.
+      if (now - this._lastMoveAt > WALK_LATCH_SLACK_MS) {
         this._anim.setAction(Action.Idle);
         // Force the equipment overlay loop to re-resolve textures this
         // tick. Without invalidating its `_lastEqAction` cache the
@@ -662,22 +700,27 @@ class MobileSprite {
       // 50% alpha so the player can still spot themselves but enemies
       // visually fade. Dead applies fully desaturated (alpha 0.6 to keep
       // the avatar visible while the world filter dims everything).
-      const wantsDim = mob.hidden || mob.isDead;
-      if (wantsDim) {
+      const wantsDeadFilter = !!mob.isDead;
+      if (wantsDeadFilter) {
         if (!this._dimFilter) {
           this._dimFilter = new ColorMatrixFilter();
           this._dimFilter.desaturate();
-          this._sprite.filters = [this._dimFilter];
+          // One container pass keeps body, clothing and mount visually
+          // coherent and is cheaper than one filter pass per equipment layer.
+          this.container.filters = [this._dimFilter];
         }
-        this.container.alpha = mob.isDead ? 0.6 : 0.5;
+        this.container.alpha = 0.6;
       } else if (this._dimFilter) {
-        this._sprite.filters = null;
+        this.container.filters = null;
         // Client audit #4 A1 — Pixi v8 ColorMatrixFilter holds a GPU
         // uniform buffer + compiled program; nulling without destroy()
         // leaked an instance every hide/unhide toggle.
         try { this._dimFilter.destroy?.(); } catch { /* ignore */ }
         this._dimFilter = null;
-        this.container.alpha = 1;
+        this.container.alpha = mob.hidden ? 0.5 : 1;
+      } else {
+        // Hidden living mobiles use translucency, not the death grayscale.
+        this.container.alpha = mob.hidden ? 0.5 : 1;
       }
       // Hit-flash — short red tint after taking damage. Reads
       // `_hitFlashUntil` set by the damage bus listener in
@@ -685,29 +728,29 @@ class MobileSprite {
       // when timer elapses. Pixi sprite.tint is GPU-cheap (single
       // uniform) so we don't bother with a filter.
       const flashUntil = mob._hitFlashUntil | 0;
+      let visualTint = 0xFFFFFF;
       if (flashUntil > now) {
         const t = Math.max(0, Math.min(1, (flashUntil - now) / 200));
         // Lerp from white→red: high red, low green/blue at t=1, full white at t=0
         const r = 255;
         const gB = Math.round(64 + 191 * (1 - t));
-        this._sprite.tint = (r << 16) | (gB << 8) | gB;
-      } else if (this._sprite.tint !== 0xFFFFFF) {
-        this._sprite.tint = 0xFFFFFF;
+        visualTint = (r << 16) | (gB << 8) | gB;
       }
       // Selection outline — when this mobile is our target, lerp a
       // faint gold tint over the sprite. Cheaper than a real Pixi filter
       // (no extra render pass) and reads as "this one is selected".
       // Suppress while a hit-flash is active so the red flash wins.
-      if (!(flashUntil > now) && mob._isLastTarget) {
+      if (!(flashUntil > now) && (mob._isLastTarget || mob._isLastAttack)) {
         const pulse = 0.5 + 0.5 * Math.sin(now / 220);
         const gold = 255;
         const blueComp = Math.round(160 + 60 * pulse);
         const greenComp = Math.round(200 + 40 * pulse);
-        this._sprite.tint = (gold << 16) | (greenComp << 8) | blueComp;
+        visualTint = (gold << 16) | (greenComp << 8) | blueComp;
       }
-      if (!(flashUntil > now) && !mob._isLastTarget && mob._outOfRangeNoColor) {
-        this._sprite.tint = 0x8c8c8c;
+      if (!(flashUntil > now) && !mob._isLastTarget && !mob._isLastAttack && mob._outOfRangeNoColor) {
+        visualTint = 0x8c8c8c;
       }
+      this._setVisualTint(visualTint);
 
       // Drop shadow + aura — both sit BELOW the body sprite. CUO
       // ShadowsEnabled+ShadowsMobile and PartyAura/Notoriety toggles
@@ -863,9 +906,10 @@ class MobileSprite {
       if (this._mountSprite) {
         const sp = this._mountSprite;
         this._mountSprite = null;
+        const generation = sp._uoPoolGeneration;
         const t0 = performance.now();
         const fade = () => {
-          if (!sp || sp.destroyed) return;
+          if (!sp || sp.destroyed || sp._uoPoolGeneration !== generation) return;
           const t = (performance.now() - t0) / 250;
           if (t >= 1) { try { releaseSprite(sp); } catch { /* ignore */ } return; }
           sp.alpha = Math.max(0, 1 - t);
@@ -899,11 +943,17 @@ class MobileSprite {
     }
     // Mount is in lock-step with the human's facing + walk action.
     const wantDir = mob.direction & 7;
-    const wantAct = (this._anim.action === Action.Walk || this._anim.action === Action.Run)
-      ? Action.Walk
-      : Action.Idle;
+    const wantAct = this._anim.action === Action.Run
+      ? Action.Run
+      : (this._anim.action === Action.Walk ? Action.Walk : Action.Idle);
     this._mountAnim.setDirection(wantDir);
     this._mountAnim.setAction(wantAct);
+    this._mountAnim.setContext({
+      run: wantAct === Action.Run,
+      moveDurationMs: (wantAct === Action.Walk || wantAct === Action.Run)
+        ? this._moveDurationMs
+        : 0,
+    });
     // Client perf round 2 #6: pass real dt so the mount leg-cycle stays
     // in phase with the rider under throttle (was hardcoded 1/60).
     this._mountAnim.tick(dt);
@@ -917,10 +967,11 @@ class MobileSprite {
       // from alpha 0 → 1 so the rider doesn't pop onto a horse the
       // moment 0x2E equipUpdate arrives.
       const sp = this._mountSprite;
+      const generation = sp._uoPoolGeneration;
       sp.alpha = 0;
       const t0 = performance.now();
       const fade = () => {
-        if (!sp || sp.destroyed || this._mountSprite !== sp) return;
+        if (!sp || sp.destroyed || sp._uoPoolGeneration !== generation || this._mountSprite !== sp) return;
         const t = (performance.now() - t0) / 250;
         if (t >= 1) { sp.alpha = 1; return; }
         sp.alpha = t;
@@ -939,9 +990,10 @@ class MobileSprite {
     this._mountSprite.scale.x = resolved.mirror ? -1 : 1;
     this._mountSprite.scale.y = 1;
     this._mountSprite.position.set(0, 0);
-    if (eq.hue && eq.hue !== this._mountHueApplied && assets.huesTexture && assets.huesMeta) {
-      applyHueTo(this._mountSprite, eq.hue, 1, assets.huesTexture, assets.huesMeta.count);
-      this._mountHueApplied = eq.hue;
+    const mountHue = eq.hue | 0;
+    if (mountHue !== this._mountHueApplied && assets.huesTexture && assets.huesMeta) {
+      applyHueTo(this._mountSprite, mountHue, mountHue === 0 ? 0 : 1, assets.huesTexture, assets.huesMeta.count);
+      this._mountHueApplied = mountHue;
     }
   }
 
@@ -949,15 +1001,15 @@ class MobileSprite {
    *  rides on top of the base body sprite; the renderer ticks them
    *  every frame so action/dir/frame stay synced. */
   _refreshEquipment(mob) {
-    // Recycle old layer sprites through the pool — `releaseSprite` clears
-    // filters/tint/anchor, so the next acquire starts from a clean slate
-    // even if it lands on the same Sprite instance.
-    if (this._equipSprites.size > 0) this._stackDirty = true;
-    for (const sp of this._equipSprites.values()) releaseSprite(sp);
-    this._equipSprites.clear();
-
     if (!mob?.equipment) return true;
-    let allReady = true;
+    // Build the replacement set off-screen. Clearing the currently visible
+    // set first meant a war/peace switch removed every robe/torch while its
+    // new atlas page streamed, then recreated it a few frames later.
+    const nextSprites = new Map();
+    const releaseNext = () => {
+      for (const sp of nextSprites.values()) releaseSprite(sp);
+      nextSprites.clear();
+    };
     const order = pickLayerOrder(this._anim.direction);
     for (const layer of order) {
       const eq = mob.equipment.get?.(layer);
@@ -967,18 +1019,23 @@ class MobileSprite {
       let tex = assets.mobileFrameTextureSync?.(
         map.animBody, eqGroup, this._anim.direction, this._anim.frame,
       );
+      let requestedGroup = eqGroup;
       if (!tex) {
         const peaceGroup = WAR_TO_PEACE_FALLBACK[eqGroup];
         if (peaceGroup != null && peaceGroup !== eqGroup) {
           tex = assets.mobileFrameTextureSync?.(
             map.animBody, peaceGroup, this._anim.direction, this._anim.frame,
           );
+          if (!tex && hasMobileManifestEntry(map.animBody, peaceGroup, this._anim.direction)) {
+            requestedGroup = peaceGroup;
+          }
         }
       }
       if (!tex) {
-        if (hasMobileManifestEntry(map.animBody, eqGroup, this._anim.direction)) {
-          allReady = false;
-          assets.prefetchMobileCycle?.(map.animBody, eqGroup, this._anim.direction);
+        if (hasMobileManifestEntry(map.animBody, requestedGroup, this._anim.direction)) {
+          assets.prefetchMobileCycle?.(map.animBody, requestedGroup, this._anim.direction);
+          releaseNext();
+          return false;
         }
         continue;
       }
@@ -989,18 +1046,28 @@ class MobileSprite {
         sp.anchor.set(0.5, 1);
       }
       sp.position.set(0, 0);
-      this.container.addChild(sp);
-      this._equipSprites.set(layer, sp);
-      this._stackDirty = true;
+      nextSprites.set(layer, sp);
       sp._currentTex = tex.texture;
       if (map.hue && assets.huesTexture && assets.huesMeta) {
         applyHueTo(sp, map.hue, 1, assets.huesTexture, assets.huesMeta.count);
       }
     }
-    return allReady;
+    if (this._equipSprites.size > 0 || nextSprites.size > 0) this._stackDirty = true;
+    for (const sp of this._equipSprites.values()) releaseSprite(sp);
+    this._equipSprites.clear();
+    for (const [layer, sp] of nextSprites) {
+      this.container.addChild(sp);
+      this._equipSprites.set(layer, sp);
+    }
+    return true;
   }
 
   destroy() {
+    if (this._dimFilter) {
+      this.container.filters = null;
+      try { this._dimFilter.destroy?.(); } catch { /* ignore */ }
+      this._dimFilter = null;
+    }
     for (const sp of this._equipSprites.values()) releaseSprite(sp);
     this._equipSprites.clear();
     if (this._sprite) {
@@ -1089,7 +1156,18 @@ export class MobileRenderer {
     this._unsubs = [
       bus.on('mobile:moving', (m) => {
         const sp = this.sprites.get(m.serial);
-        if (sp) sp.markMoving();
+        const now = performance.now();
+        // 0x77 is also used for a facing-only turn, body refresh and
+        // notoriety update. Only latch locomotion when a real interpolated
+        // step exists; otherwise animals "walked/jumped" in place whenever
+        // their AI merely turned toward a target.
+        const hasStep = typeof m.hasActiveMoveStep === 'function'
+          ? m.hasActiveMoveStep(now)
+          : ((m.offsetEndAt ?? 0) > now || (m.queuedStepCount ?? 0) > 0);
+        if (sp && hasStep) {
+          const durationMs = Math.max(1, (m.offsetEndAt ?? 0) - (m.offsetStartAt ?? 0));
+          sp.markMoving(now, !!m.moveRunning, durationMs);
+        }
       }),
       bus.on('anim:custom', ({ serial, action, frameCount, repeatCount, delay, reverse, staticFrame }) => {
         const sp = this.sprites.get(serial >>> 0);
@@ -1105,7 +1183,12 @@ export class MobileRenderer {
       bus.on('mobile:death-anim', ({ serial, running }) => {
         const sp = this.sprites.get(serial >>> 0);
         if (!sp) return;
-        sp.playAction(running ? 'die2' : 'die1', { repeatCount: 1, oneShot: true });
+        sp.playAction(running ? 'die2' : 'die1', {
+          repeatCount: 1,
+          oneShot: true,
+          priority: ANIMATION_PRIORITY.Death,
+          holdLastFrame: true,
+        });
       }),
       bus.on('party:update', ({ members }) => {
         this.party.clear();
@@ -1130,7 +1213,10 @@ export class MobileRenderer {
         try {
           const sprite = this.sprites?.get(m.serial >>> 0);
           if (sprite?._anim?.setAction) {
-            sprite._anim.setAction('getHit', { oneShot: true, priority: 10 });
+            sprite._anim.setAction('getHit', {
+              oneShot: true,
+              priority: ANIMATION_PRIORITY.Hit,
+            });
           }
         } catch { /* best-effort */ }
       }),
@@ -1239,27 +1325,13 @@ export class MobileRenderer {
       }
     }
     if (!this.parent.sortableChildren) this.parent.sortableChildren = true;
-    // Pixi sortChildren is O(n log n) and we were calling it every
-    // frame regardless of whether anything actually changed z-order.
-    // Only re-sort when at least one sprite mutated this tick AND a
-    // minimum interval has elapsed since the last sort. 32ms (~30 Hz)
-    // matches CUO's render cadence: the human eye doesn't resolve
-    // layer flicker faster than that anyway, but in dense town scenes
-    // a tile-by-tile move could trip dirty 60×/sec → cuts cost in half.
+    // zIndex changes only on tile/depth transitions, not on every lerp frame.
+    // Sort immediately when dirty: delaying by 32 ms exposed a wrong layer for
+    // one or two frames when a mobile crossed behind a wall or tall static.
     if (sortDirty) {
-      if (!this._lastSortAt || now - this._lastSortAt >= 32) {
-        this.parent.sortChildren();
-        this._lastSortAt = now;
-      } else {
-        // Defer to next eligible tick.
-        this._sortPending = true;
-      }
-    } else if (this._sortPending) {
-      if (now - (this._lastSortAt || 0) >= 32) {
-        this.parent.sortChildren();
-        this._lastSortAt = now;
-        this._sortPending = false;
-      }
+      this.parent.sortChildren();
+      this._lastSortAt = now;
+      this._sortPending = false;
     }
   }
 

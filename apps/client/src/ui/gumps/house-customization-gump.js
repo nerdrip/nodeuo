@@ -9,10 +9,9 @@
 // Source data: `assets.housedata.{walls,doors,floors,stairs,roofs,misc,teleprts}`
 // — each is a list of `{ category, styles: [{ style, pieces: [graphic, ...] }] }`.
 //
-// The gump doesn't paint anything in the world; it just sets the active
-// brush on `houseCustomization`. The actual placement happens on
-// click-on-tile in GameScene (TODO when we wire that), or via existing
-// drag-drop semantics if the player uses physical UO multi placement.
+// The gump sets the active brush on `houseCustomization`; GameScene intercepts
+// world clicks while edit mode is active and sends the matching 0xD7 add/delete
+// operation. Outside edit mode normal walk/drag handling remains unchanged.
 
 import { WindowGump } from './window-gump.js';
 import { Label } from '../controls/label.js';
@@ -23,6 +22,8 @@ import { Graphics } from 'pixi.js';
 import { Control } from '../control.js';
 import { houseCustomization } from '../../managers/house-customization-manager.js';
 import { assets } from '../../assets/asset-manager.js';
+import { world } from '../../world/world.js';
+import { bus } from '../../core/event-bus.js';
 
 // CUO tool tabs. The `kind` we set on `houseCustomization` determines
 // which 0xD7 builder fires (item / roof / stair).
@@ -144,7 +145,9 @@ export class HouseCustomizationGump extends WindowGump {
     this._styleLabels = [];
     this._pieceTiles = [];
 
+    houseCustomization.install();
     houseCustomization.beginEdit(this.houseSerial);
+    queueMicrotask(() => houseCustomization.validate());
 
     // Tool tabs row.
     let cx = 8;
@@ -173,7 +176,7 @@ export class HouseCustomizationGump extends WindowGump {
       fx += 36;
     }
 
-    // Action buttons (Backup / Restore / Commit / Revert / Erase).
+    // Standard actions remain 0xD7 compatible with every emulator.
     const actions = [
       ['Backup',  () => houseCustomization.backup()],
       ['Restore', () => houseCustomization.restore()],
@@ -195,13 +198,55 @@ export class HouseCustomizationGump extends WindowGump {
       ax += 54;
     }
 
+    // NodeUO-enhanced authoring. These buttons are harmless when the
+    // capability was not negotiated (manager falls back/no-ops).
+    const richActions = [
+      ['Undo', () => houseCustomization.undo()],
+      ['Redo', () => houseCustomization.redo()],
+      ['Check', () => houseCustomization.validate()],
+      ['Copy 9×9', () => {
+        const p = world.player; if (p) houseCustomization.copyArea(p.x - 4, p.y - 4, p.x + 4, p.y + 4);
+      }],
+      ['Paste', () => {
+        const p = world.player; if (p) houseCustomization.pasteAt(p.x, p.y);
+      }],
+      ['Save tpl', () => {
+        const name = globalThis.prompt?.('Template name (whole current design):');
+        if (name) houseCustomization.saveTemplate(name);
+      }],
+      ['Load tpl', () => {
+        const names = houseCustomization.toolState.templates.map((entry) => entry.name);
+        const name = globalThis.prompt?.(`Template name${names.length ? ` (${names.join(', ')})` : ''}:`);
+        const p = world.player;
+        if (name && p) houseCustomization.applyTemplate(name, p.x, p.y);
+      }],
+    ];
+    let rx = 8;
+    for (const [label, fn] of richActions) {
+      const b = new Button({
+        normalGumpId: 0x0FA8, pressedGumpId: 0x0FAA,
+        buttonId: 0, action: ButtonAction.Activate,
+        width: label.length > 6 ? 58 : 46, height: 18, label,
+      });
+      b.setPosition(rx, 78); b.onClick = fn; this.add(b);
+      rx += label.length > 6 ? 62 : 50;
+    }
+    this._toolStatus = new Label('History: waiting for server', { fontSize: 9, hue: 0xb8c8d8 });
+    this._toolStatus.setPosition(8, 101); this.add(this._toolStatus);
+    this._toolUnsub = bus.on('house:tools-result', (state) => {
+      const h = state.history;
+      const check = state.validation
+        ? ` · ${state.validation.ok ? 'valid' : `${state.validation.errors.length} error(s)`}` : '';
+      this._toolStatus.setText(`${state.message ?? ''}${h ? ` · ${h.tileCount} tiles · undo ${h.canUndo ? 'yes' : 'no'} · redo ${h.canRedo ? 'yes' : 'no'}` : ''}${check}`.slice(0, 90));
+    });
+
     // Category list (left pane).
-    this._catScroll = new ScrollArea({ width: 184, height: 280 });
-    this.addContent(this._catScroll, 8, 84);
+    this._catScroll = new ScrollArea({ width: 184, height: 244 });
+    this.addContent(this._catScroll, 8, 120);
 
     // Style grid (right pane).
-    this._styleScroll = new ScrollArea({ width: 248, height: 280 });
-    this.addContent(this._styleScroll, 200, 84);
+    this._styleScroll = new ScrollArea({ width: 248, height: 244 });
+    this.addContent(this._styleScroll, 200, 120);
 
     this._renderCategories();
   }
@@ -318,6 +363,7 @@ export class HouseCustomizationGump extends WindowGump {
   }
 
   dispose() {
+    this._toolUnsub?.();
     houseCustomization.exit();
     super.dispose();
   }

@@ -14,7 +14,7 @@ import { teleportToRune, checkRecallCast } from '../../../spells/rune-helpers.js
 import { destroyItemBySerial } from '../../../_items.js';
 import { childrenOf, equipped, findBackpack } from '../../../_inventory.js';
 import { moveItem } from '../../../_movement.js';
-import { allItems, nearbyClients } from '../../../_spatial.js';
+import { nearbyClients } from '../../../_spatial.js';
 import { itemBySerial, mobileBySerial } from '../../../_entities.js';
 
 function findBankBox(api, mob) {

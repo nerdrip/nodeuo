@@ -29,6 +29,164 @@ function finishExtended({ w, lenPos }) {
   return w.bytes();
 }
 
+// Private NodeUO extension namespace. It is used only after the WebSocket
+// transport selected `nodeuo.v1`; TCP/OSI/ServUO sessions never see it.
+// Keeping one negotiated envelope avoids scattering unversioned custom
+// subcommands throughout the protocol.
+export const NODEUO_EXT_SUBCOMMAND = 0xF100;
+export const NODEUO_MOVEMENT_SUBCOMMAND = 0xF101;
+export const NODEUO_SPELL_COMPOSER_SUBCOMMAND = 0xF102;
+export const NODEUO_SPECIALIZATION_SUBCOMMAND = 0xF103;
+export const NODEUO_COOLDOWN_SUBCOMMAND = 0xF104;
+export const NODEUO_NAVAL_SUBCOMMAND = 0xF105;
+export const NODEUO_HOUSE_TOOLS_SUBCOMMAND = 0xF106;
+export const NODEUO_PROTOCOL_MAJOR = 1;
+export const NODEUO_PROTOCOL_MINOR = 0;
+export const NodeUOCapability = Object.freeze({
+  RichGumps:       1 << 0,
+  SpawnPalette:    1 << 1,
+  SpellComposer:   1 << 2,
+  LiveInspector:   1 << 3,
+  MovementHints:   1 << 4,
+  VisualEffects:   1 << 5,
+  WorldEditing:    1 << 6,
+  Specializations: 1 << 7,
+  CooldownBars:     1 << 8,
+  NavalPreview:     1 << 9,
+  HouseTools:       1 << 10,
+});
+export const NODEUO_CAPABILITIES_ALL = Object.values(NodeUOCapability)
+  .reduce((mask, flag) => (mask | flag) >>> 0, 0);
+// Advertise only features with a working end-to-end consumer.
+export const NODEUO_CAPABILITIES_CURRENT = NODEUO_CAPABILITIES_ALL;
+
+export const NodeUOCapabilityMessage = Object.freeze({ Offer: 1, Accept: 2 });
+export const NodeUOSpellComposerMessage = Object.freeze({ Open: 1, Save: 2, Result: 3, Publish: 4 });
+export const NodeUOSpecializationMessage = Object.freeze({ Open: 1, Allocate: 2, Result: 3, Reset: 4 });
+export const NodeUOCooldownMessage = Object.freeze({ Start: 1, Remove: 2, Snapshot: 3 });
+export const NodeUONavalMessage = Object.freeze({ ShowRange: 1, HideRange: 2 });
+export const NodeUOHouseToolsMessage = Object.freeze({
+  Snapshot: 1, Undo: 2, Redo: 3, Validate: 4,
+  Copy: 5, Paste: 6, SaveTemplate: 7, ApplyTemplate: 8, Result: 9,
+});
+
+/**
+ * 0xBF 0xF100 NodeUO capability negotiation.
+ *
+ * Layout after the extended header:
+ *   u8 kind (1=server offer, 2=client accept)
+ *   u8 protocol major
+ *   u8 protocol minor
+ *   u8 reserved
+ *   u32 capability mask
+ */
+export function extNodeUOCapabilities({
+  kind = NodeUOCapabilityMessage.Offer,
+  major = NODEUO_PROTOCOL_MAJOR,
+  minor = NODEUO_PROTOCOL_MINOR,
+  capabilities = NODEUO_CAPABILITIES_CURRENT,
+} = {}) {
+  const ctx = beginExtended(NODEUO_EXT_SUBCOMMAND, 13);
+  ctx.w.writeU8(kind & 0xff);
+  ctx.w.writeU8(major & 0xff);
+  ctx.w.writeU8(minor & 0xff);
+  ctx.w.writeU8(0);
+  ctx.w.writeU32(capabilities >>> 0);
+  return finishExtended(ctx);
+}
+
+/** Negotiated encumbrance/pacing hint (requires MovementHints). */
+export function extNodeUOMovementHint({
+  weight = 0, capacity = 0, paceMultiplier = 1, staminaCost = 0, overloaded = false,
+} = {}) {
+  const ctx = beginExtended(NODEUO_MOVEMENT_SUBCOMMAND, 13);
+  ctx.w.writeU16(Math.max(0, Math.min(0xffff, weight | 0)));
+  ctx.w.writeU16(Math.max(0, Math.min(0xffff, capacity | 0)));
+  ctx.w.writeU16(Math.max(1000, Math.min(4000, Math.round(paceMultiplier * 1000))));
+  ctx.w.writeU8(Math.max(0, Math.min(0xff, staminaCost | 0)));
+  ctx.w.writeU8(overloaded ? 1 : 0);
+  return finishExtended(ctx);
+}
+
+/**
+ * Private visual spell-composer message (requires SpellComposer).
+ * The JSON payload is editor metadata/draft data, never executable code.
+ * Layout: u8 kind, u32 requestId, u16 utf8Length, utf8 JSON.
+ */
+export function extNodeUOSpellComposer({
+  kind = NodeUOSpellComposerMessage.Open, requestId = 0, payload = {},
+} = {}) {
+  const bytes = new TextEncoder().encode(JSON.stringify(payload ?? {}));
+  if (bytes.length > 32 * 1024) throw new RangeError('Spell composer payload exceeds 32 KiB');
+  const ctx = beginExtended(NODEUO_SPELL_COMPOSER_SUBCOMMAND, 12 + bytes.length);
+  ctx.w.writeU8(kind & 0xff);
+  ctx.w.writeU32(requestId >>> 0);
+  ctx.w.writeU16(bytes.length);
+  ctx.w.writeBytes(bytes);
+  return finishExtended(ctx);
+}
+
+/**
+ * Private visual specialization-tree message (requires Specializations).
+ * The server remains authoritative: the client only requests allocation
+ * and receives a fresh snapshot after every mutation.
+ * Layout: u8 kind, u32 requestId, u16 utf8Length, utf8 JSON.
+ */
+export function extNodeUOSpecialization({
+  kind = NodeUOSpecializationMessage.Open, requestId = 0, payload = {},
+} = {}) {
+  const bytes = new TextEncoder().encode(JSON.stringify(payload ?? {}));
+  if (bytes.length > 32 * 1024) throw new RangeError('Specialization payload exceeds 32 KiB');
+  const ctx = beginExtended(NODEUO_SPECIALIZATION_SUBCOMMAND, 12 + bytes.length);
+  ctx.w.writeU8(kind & 0xff);
+  ctx.w.writeU32(requestId >>> 0);
+  ctx.w.writeU16(bytes.length);
+  ctx.w.writeBytes(bytes);
+  return finishExtended(ctx);
+}
+
+/** Server-authoritative cooldown state for the richer NodeUO HUD. */
+export function extNodeUOCooldown({
+  kind = NodeUOCooldownMessage.Start, requestId = 0, payload = {},
+} = {}) {
+  const bytes = new TextEncoder().encode(JSON.stringify(payload ?? {}));
+  if (bytes.length > 8 * 1024) throw new RangeError('Cooldown payload exceeds 8 KiB');
+  const ctx = beginExtended(NODEUO_COOLDOWN_SUBCOMMAND, 12 + bytes.length);
+  ctx.w.writeU8(kind & 0xff);
+  ctx.w.writeU32(requestId >>> 0);
+  ctx.w.writeU16(bytes.length);
+  ctx.w.writeBytes(bytes);
+  return finishExtended(ctx);
+}
+
+/** Optional web-client naval overlay. It never changes cannon targeting. */
+export function extNodeUONaval({
+  kind = NodeUONavalMessage.ShowRange, requestId = 0, payload = {},
+} = {}) {
+  const bytes = new TextEncoder().encode(JSON.stringify(payload ?? {}));
+  if (bytes.length > 16 * 1024) throw new RangeError('Naval preview payload exceeds 16 KiB');
+  const ctx = beginExtended(NODEUO_NAVAL_SUBCOMMAND, 12 + bytes.length);
+  ctx.w.writeU8(kind & 0xff);
+  ctx.w.writeU32(requestId >>> 0);
+  ctx.w.writeU16(bytes.length);
+  ctx.w.writeBytes(bytes);
+  return finishExtended(ctx);
+}
+
+/** Rich house-editor operations; standard 0xD7 remains authoritative. */
+export function extNodeUOHouseTools({
+  kind = NodeUOHouseToolsMessage.Snapshot, requestId = 0, payload = {},
+} = {}) {
+  const bytes = new TextEncoder().encode(JSON.stringify(payload ?? {}));
+  if (bytes.length > 32 * 1024) throw new RangeError('House tools payload exceeds 32 KiB');
+  const ctx = beginExtended(NODEUO_HOUSE_TOOLS_SUBCOMMAND, 12 + bytes.length);
+  ctx.w.writeU8(kind & 0xff);
+  ctx.w.writeU32(requestId >>> 0);
+  ctx.w.writeU16(bytes.length);
+  ctx.w.writeBytes(bytes);
+  return finishExtended(ctx);
+}
+
 /**
  * 0x15 CharacterLocale — fixed 9-byte packet pushed once at login that
  * tells the client what game-time locale (calendar/region) the avatar

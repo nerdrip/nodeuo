@@ -8,7 +8,9 @@ globalThis.localStorage = globalThis.localStorage ?? {
 
 const { Season } = await import('../src/managers/season-manager.js');
 const { darknessOverlayColor, seasonOverlayTint } = await import('../src/renderer/light-overlay.js');
-const { weatherTemperatureTint } = await import('../src/renderer/weather.js');
+const { weatherTemperatureTint, weatherParticleBudget } = await import('../src/renderer/weather.js');
+const { decodeWeather, decodeSeason } = await import('../src/net/incoming.js');
+const { seasonManager, Season: SeasonIds } = await import('../src/managers/season-manager.js');
 
 assert.deepEqual(seasonOverlayTint(Season.Spring), { color: 0x8cff9c, alpha: 0.035 });
 assert.deepEqual(seasonOverlayTint(Season.Summer), { color: 0xb8ff80, alpha: 0.025 });
@@ -26,5 +28,14 @@ assert.deepEqual(weatherTemperatureTint(127), { color: 0xffb060, alpha: 0.1 });
 assert.deepEqual(weatherTemperatureTint(255), { color: 0xffb060, alpha: 0.1 });
 assert.deepEqual(weatherTemperatureTint(-127), { color: 0x80b8ff, alpha: 0.1 });
 assert.deepEqual(weatherTemperatureTint(-255), { color: 0x80b8ff, alpha: 0.1 });
+
+assert.equal(decodeWeather(Uint8Array.from([0x65, 2, 40, 0xF4])).temperature, -12);
+assert.equal(decodeSeason(Uint8Array.from([0xBC, 99, 0])).season, 4);
+assert.equal(weatherParticleBudget(3, 70, 1920, 1080), 0, 'storm brewing must not draw snow/rain');
+assert.equal(weatherParticleBudget(2, 70, 1920, 1080), 160, 'large viewports use a bounded adaptive pool');
+seasonManager.season = SeasonIds.Winter;
+assert.notEqual(seasonManager.remapStatic(0x0CA7), 0x0CA7);
+seasonManager.season = SeasonIds.Summer;
+assert.equal(seasonManager.remapStatic(0x0CA7), 0x0CA7);
 
 console.log('[smoke:light-overlay] ok');

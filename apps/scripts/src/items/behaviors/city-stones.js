@@ -23,7 +23,8 @@ export default function register(api) {
   const cityNames = citySystem?.listCities?.() ?? [];
 
   // Lifecycle: any item flagged `_loyaltyCity` becomes a city stone.
-  api.lifecycle?.registerKind?.('city-stone', {
+  const cityStoneScript = {
+    name: 'city-stone',
     onUse(world, item, user) {
       const city = item._loyaltyCity;
       const reg = api.ctx?.cityLoyalty;
@@ -51,13 +52,14 @@ export default function register(api) {
       }
       user._cityStoneFocus = city;
     },
-  });
+  };
+  api.itemScripts?.register?.(cityStoneScript);
 
   // Speech listener — any city stone within range hears the pledge /
   // renounce sentences. We attach a behavior to a synthetic `mob`-like
   // wrapper around the stone? Simpler: hook into the global speech bus
   // via a per-player flag (`_cityStoneFocus` set by onUse above).
-  api.events?.on?.('speech', ({ speaker, text }) => {
+  api.lifecycle?.event?.('speech', ({ speaker, text }) => {
     if (!speaker?._cityStoneFocus) return;
     const reg = api.ctx?.cityLoyalty;
     if (!reg) return;
@@ -105,5 +107,8 @@ export default function register(api) {
     },
   });
 
-  return () => api.commands.unregister('citystone');
+  return () => {
+    api.commands.unregister('citystone');
+    api.itemScripts?.unregister?.('city-stone');
+  };
 }

@@ -103,8 +103,17 @@ resource({ id: 0x0F84, name: 'Garlic',         tagId: 'reagent-garlic' });
 resource({ id: 0x0F85, name: 'Ginseng',        tagId: 'reagent-ginseng' });
 resource({ id: 0x0F86, name: 'Mandrake Root',  tagId: 'reagent-mandrake' });
 resource({ id: 0x0F88, name: 'Nightshade',     tagId: 'reagent-nightshade' });
-resource({ id: 0x0F8C, name: 'Spider Silk',    tagId: 'reagent-spidersilk' });
-resource({ id: 0x0F8D, name: 'Sulfurous Ash',  tagId: 'reagent-sulfash' });
+resource({ id: 0x0F8D, name: 'Spider Silk',    tagId: 'reagent-spidersilk' });
+resource({ id: 0x0F8C, name: 'Sulfurous Ash',  tagId: 'reagent-sulfash' });
+resource({ id: 0x0F78, name: 'Bat Wing',       tagId: 'reagent-bat-wing' });
+resource({ id: 0x0F8F, name: 'Grave Dust',     tagId: 'reagent-grave-dust' });
+resource({ id: 0x0F7D, name: 'Daemon Blood',   tagId: 'reagent-daemon-blood' });
+resource({ id: 0x0F8E, name: 'Nox Crystal',    tagId: 'reagent-nox-crystal' });
+resource({ id: 0x0F8A, name: 'Pig Iron',       tagId: 'reagent-pig-iron' });
+resource({ id: 0x0F7E, name: 'Bone',           tagId: 'reagent-bone' });
+resource({ id: 0x0F80, name: 'Daemon Bone',    tagId: 'reagent-daemon-bone' });
+resource({ id: 0x0F81, name: 'Fertile Dirt',   tagId: 'reagent-fertile-dirt' });
+resource({ id: 0x4077, name: 'Dragon Blood',   tagId: 'reagent-dragonblood' });
 
 // ============================================================
 // GEMS

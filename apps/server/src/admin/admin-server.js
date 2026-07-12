@@ -45,6 +45,31 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000;       // 8 h
 // sweeper below. Map<ip, { count, windowStart, until }>.
 const _loginBuckets = new Map();
 
+function applySecurityHeaders(req, res) {
+  const wsOrigin = req.headers.host ? `ws://${req.headers.host} wss://${req.headers.host}` : 'ws: wss:';
+  res.setHeader('x-content-type-options', 'nosniff');
+  res.setHeader('x-frame-options', 'DENY');
+  res.setHeader('referrer-policy', 'no-referrer');
+  res.setHeader('cross-origin-opener-policy', 'same-origin');
+  res.setHeader('permissions-policy', 'camera=(), microphone=(), geolocation=(), payment=()');
+  // The admin surfaces are deliberately self-contained HTML files with
+  // inline style/script blocks. Keep those two explicit allowances while
+  // denying plugins, framing, foreign assets and foreign form targets.
+  res.setHeader('content-security-policy', [
+    "default-src 'self'",
+    "base-uri 'none'",
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    "style-src 'self' 'unsafe-inline'",
+    "script-src 'self' 'unsafe-inline'",
+    `connect-src 'self' ${wsOrigin}`,
+    "worker-src 'self' blob:",
+  ].join('; '));
+}
+
 // Mime types for the static asset route — keep tiny, only what /assets
 // actually contains.
 const ASSET_MIMES = {
@@ -82,7 +107,7 @@ export function startAdminServer(opts) {
   const envPass = opts.pass ?? process.env.UO_ADMIN_PASS ?? '';
   const accountsApi = opts.accounts;
 
-  /** @type {Map<string, { account: string, expires: number }>} */
+  /** @type {Map<string, { account: string, source: 'env'|'account', expires: number }>} */
   const sessions = new Map();
   // Cleanup expired tokens every 5 min — cheap, avoids unbounded growth.
   setInterval(() => {
@@ -117,9 +142,9 @@ export function startAdminServer(opts) {
   }
 
   /** Issue a fresh session token + return cookie value. */
-  function makeSession(account) {
+  function makeSession(account, source = 'account') {
     const tok = crypto.randomBytes(32).toString('hex');
-    sessions.set(tok, { account, expires: Date.now() + SESSION_TTL_MS });
+    sessions.set(tok, { account, source, expires: Date.now() + SESSION_TTL_MS });
     return tok;
   }
 
@@ -131,12 +156,23 @@ export function startAdminServer(opts) {
     const s = sessions.get(m[1]);
     if (!s) return null;
     if (s.expires < Date.now()) { sessions.delete(m[1]); return null; }
+    // Account-backed sessions lose authority immediately after the account is
+    // banned, deleted or demoted. Environment credentials remain independent
+    // by design so the operator can recover a broken account database.
+    if (s.source !== 'env') {
+      const account = accountsApi?.accounts?.get?.(String(s.account).toLowerCase());
+      if (!account || account.banned || account.accessLevel !== 'Admin') {
+        sessions.delete(m[1]);
+        return null;
+      }
+    }
     s.expires = Date.now() + SESSION_TTL_MS;       // sliding TTL
-    return { token: m[1], account: s.account };
+    return { token: m[1], account: s.account, source: s.source };
   }
 
   const server = http.createServer(async (req, res) => {
     try {
+      applySecurityHeaders(req, res);
       // Health probe (no auth) — useful for monitoring.
       if (req.method === 'GET' && req.url === '/healthz') {
         res.writeHead(200, { 'content-type': 'text/plain' });
@@ -282,7 +318,7 @@ export function startAdminServer(opts) {
         }
         // Success — clear bucket.
         _loginBuckets.delete(ip);
-        const tok = makeSession(r.account);
+        const tok = makeSession(r.account, r.source);
         res.setHeader('set-cookie',
           `${COOKIE_NAME}=${tok}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_TTL_MS / 1000}`);
         json(res, 200, { ok: true, account: r.account, source: r.source });
@@ -352,7 +388,10 @@ export function startAdminServer(opts) {
             req, res, params: handler.params, query: u.searchParams, body,
             session: sess,
           });
-          if (result !== undefined && !res.writableEnded) json(res, 200, result);
+          if (result !== undefined && !res.writableEnded) {
+            const status = result?.error ? (result.conflict ? 409 : 400) : 200;
+            json(res, status, result);
+          }
         } catch (e) {
           console.error(`[admin] ${route} threw:`, e);
           if (!res.writableEnded) json(res, 500, { error: 'handler-threw', message: e?.message ?? String(e) });

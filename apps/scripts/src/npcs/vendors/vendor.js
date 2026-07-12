@@ -331,7 +331,7 @@ const EXTRACTED_VENDOR_DEFAULTS = {
 
 // Vendor catalog. Each kind defines the NPC name + body + hue and a stock
 // table. itemIds use real UO art so the buy window shows recognisable goods.
-const VENDOR_KINDS = {
+export const VENDOR_KINDS = {
   // Generic ambient villager — no shop, just stands around. Used as the
   // fallback target by spawnAt's ALIAS map when regional-npcs.json
   // points at a flavor archetype (paladin, monk, miner, ranger, bard)
@@ -503,13 +503,13 @@ const VENDOR_KINDS = {
     body: 0x0191, hue: 0x0490,
     stock: [
       { itemId: 0x0E9B, name: 'mortar and pestle',   price: 28 },
-      { itemId: 0x0F0E, name: 'heal potion',         price: 50 },
-      { itemId: 0x0F09, name: 'agility potion',      price: 38 },
-      { itemId: 0x0F08, name: 'refresh potion',      price: 12 },
-      { itemId: 0x0F04, name: 'strength potion',     price: 38 },
-      { itemId: 0x0F0A, name: 'cure potion',         price: 35 },
-      { itemId: 0x0F0D, name: 'poison potion',       price: 62 },
-      { itemId: 0x0F0F, name: 'lesser heal potion',  price: 25 },
+      { itemId: 0x0F0C, name: 'heal potion',         price: 50 },
+      { itemId: 0x0F08, name: 'agility potion',      price: 38 },
+      { itemId: 0x0F0B, name: 'refresh potion',      price: 12 },
+      { itemId: 0x0F09, name: 'strength potion',     price: 38 },
+      { itemId: 0x0F07, name: 'cure potion',         price: 35 },
+      { itemId: 0x0F0A, name: 'poison potion',       price: 62 },
+      { itemId: 0x0F0C, name: 'lesser heal potion',  price: 25 },
       { itemId: 0x0F86, name: 'mandrake root',       price: 6 },
       { itemId: 0x0F88, name: 'nightshade',          price: 5 },
     ],
@@ -959,6 +959,43 @@ function applyVendorOutfit(api, world, mob, kindKey) {
   }
 }
 
+function spendVendorGold(api, protocol, buyerState, buyer, packSerial, totalCost) {
+  if (totalCost <= 0) return true;
+  const access = buyerState?.account?.accessLevel ?? 'Player';
+  if (access === 'GM' || access === 'Admin') return true;
+
+  let owned = 0;
+  for (const item of packItems(api, buyer)) {
+    if (item.itemId === 0x0EED) owned += item.amount | 0;
+  }
+  if (owned < totalCost) {
+    buyerState.sendSystemMessage?.(`You need ${totalCost} gold; you have ${owned}.`);
+    return false;
+  }
+
+  let remaining = totalCost;
+  for (const item of [...packItems(api, buyer)]) {
+    if (remaining <= 0) break;
+    if (item.itemId !== 0x0EED) continue;
+    const take = Math.min(remaining, item.amount | 0);
+    item.amount -= take;
+    remaining -= take;
+    if (item.amount <= 0) {
+      destroyItemBySerial(api, item.serial);
+      const packet = protocol.removeEntity?.(item.serial);
+      if (packet) buyerState.send?.(packet);
+    } else {
+      const packet = protocol.containerContentUpdate?.({
+        serial: item.serial, itemId: item.itemId, amount: item.amount,
+        hue: item.hue ?? 0, gridX: item.gridX ?? 0, gridY: item.gridY ?? 0,
+        gridLocation: item.gridLocation ?? 0,
+      }, packSerial);
+      if (packet) buyerState.send?.(packet);
+    }
+  }
+  return true;
+}
+
 export default function (api) {
   const { commands, world, vendors, protocol } = api;
   if (!vendors) return;
@@ -1131,7 +1168,8 @@ export default function (api) {
   }
 
   function spawnVendor(kindKey, ctx) {
-    const kind = VENDOR_KINDS[kindKey];
+    const resolvedKey = resolveVendorKind(kindKey) ?? kindKey;
+    const kind = VENDOR_KINDS[resolvedKey];
     if (!kind) {
       ctx.state.sendSystemMessage(`Unknown vendor kind: ${kindKey}`);
       return;
@@ -1147,14 +1185,14 @@ export default function (api) {
     // FAZA BG: persistence — mark the kind so a server restart can
     // re-register the vendor binding. The reattach pass at script
     // load reads `mob.vendorKind` and re-runs the registry hook.
-    mob.vendorKind = kindKey;
+    mob.vendorKind = resolvedKey;
     // Faza H.1.12 — copy faction tag for the discount handler.
     if (kind.faction) mob.faction = kind.faction;
 
     // Outfit per kind — table + helper lifted to module scope so the
     // civic-NPC spawn path (api.vendors.spawnAt) can share the same
     // dress code instead of producing naked bankers/healers/trainers.
-    applyVendorOutfit(api, world, mob, kindKey);
+    applyVendorOutfit(api, world, mob, resolvedKey);
 
     // FAZA CC: opt into the speech queue so the AI tick can react to
     // "vendor buy" / "vendor sell" / `<name> buy`. Keywords are
@@ -1187,6 +1225,7 @@ export default function (api) {
         amount: maxStock,
         price: s.price,
         description: s.name,
+        tagId: s.tagId,
         maxStock,
         currentStock: maxStock,
       };
@@ -1318,6 +1357,7 @@ export default function (api) {
           def._salesCount = (def._salesCount ?? 0) + p.amount;
           const item = api.game?.mobile?.giveItem?.(buyer, {
             itemId: def.itemId, hue: def.hue, amount: Math.max(1, p.amount),
+            name: def.description, tagId: def.tagId,
           }, { notify: false, randomGrid: true });
           if (!item) {
             stockShorted = true;
@@ -1408,28 +1448,18 @@ export default function (api) {
     state.sendSystemMessage?.(`${mob.name} has arrived.`);
   }
 
-  // Register one command per vendor kind. The aliasing keeps the original
-  // `[vendor` working (== provisioner) for back-compat with anyone scripting
-  // against it.
-  // Build cmdSpecs from VENDOR_KINDS so every authored / extracted vendor
-  // type gets a dedicated `[<kind>` command. Filtered to entries with a
-  // shippable stock, so an extracted-but-empty key doesn't pollute help.
+  // `[vendor [kind]` is the one catalogue entry. Keep only five long-standing
+  // shortcuts for old staff macros. The previous generated command for every
+  // extracted vendor kind created dozens of clutter rows and collided with
+  // unrelated commands such as [bard, [trainer and [healer.
   const cmdSpecs = [
-    ['vendor',      'provisioner', 'Spawn a sample provisioner at your feet.'],
+    ['vendor',      'provisioner', '[vendor [kind|list] — spawn or browse vendor kinds.'],
     ['provisioner', 'provisioner', 'Spawn a provisioner (alias of [vendor).'],
     ['blacksmith',  'blacksmith',  'Spawn a blacksmith vendor at your feet.'],
     ['mage',        'mage',        'Spawn a mage shop vendor at your feet.'],
     ['armorer',     'armorer',     'Spawn an armorer vendor at your feet.'],
     ['innkeeper',   'innkeeper',   'Spawn an innkeeper vendor at your feet.'],
   ];
-  // Already-registered command names so we don't double-add aliases.
-  const taken = new Set(cmdSpecs.map(([n]) => n));
-  for (const [key, def] of Object.entries(VENDOR_KINDS)) {
-    if (taken.has(key)) continue;
-    if (!def?.stock?.length) continue;
-    cmdSpecs.push([key, key, `Spawn ${def.name ?? key} at your feet.`]);
-    taken.add(key);
-  }
   // FAZA BG: re-attach vendors that survived a save/load. We walk
   // existing world.mobiles, find any with `vendorKind`, and re-run
   // the in-memory binding (registry + AI). Only attaches once per
@@ -1467,29 +1497,62 @@ export default function (api) {
       }
       const stockItems = kind.stock.map((s, i) => ({
         serial: (0x70000000 + ((mob.serial & 0xFFFFFF) << 8) + ((i + 1) & 0xFF)) >>> 0,
-        itemId: s.itemId, hue: s.hue ?? 0, amount: 1,
-        price: s.price, description: s.name,
+        itemId: s.itemId, hue: s.hue ?? 0,
+        amount: Number.isFinite(s.stock) && s.stock > 0 ? s.stock : Infinity,
+        price: s.price, description: s.name, tagId: s.tagId,
       }));
       vendors.register({
         vendorSerial: mob.serial,
         listStock: () => stockItems,
         onBuy: (buyerState, picks) => {
+          const buyer = buyerState.mobile;
+          const pack = api.game?.inventory?.findBackpack?.(buyer);
+          if (!pack) {
+            buyerState.sendSystemMessage?.('You have no backpack.');
+            return;
+          }
+          const accepted = [];
+          let totalCost = 0;
           for (const p of picks) {
             const def = stockItems.find((sd) => sd.serial === p.serial);
             if (!def) continue;
-            const pack = api.game?.inventory?.findBackpack?.(buyerState.mobile);
-            if (!pack) {
-              buyerState.sendSystemMessage?.('You have no backpack.');
-              return;
-            }
-            const item = api.game?.mobile?.giveItem?.(buyerState.mobile, {
-              itemId: def.itemId, hue: def.hue, amount: Math.max(1, p.amount),
-            }, { notify: false, randomGrid: true });
-            if (item) buyerState.send(protocol.containerContentUpdate(item, pack.serial));
+            const amount = Math.max(1, p.amount | 0);
+            accepted.push({ def, amount });
+            totalCost += Math.max(0, def.price | 0) * amount;
           }
-          buyerState.sendSystemMessage?.('The goods are yours.');
+          if (!spendVendorGold(api, protocol, buyerState, buyer, pack.serial, totalCost)) return;
+          let delivered = 0;
+          for (const { def, amount } of accepted) {
+            const item = api.game?.mobile?.giveItem?.(buyer, {
+              itemId: def.itemId, hue: def.hue, amount,
+              name: def.description, tagId: def.tagId,
+            }, { notify: false, randomGrid: true });
+            if (!item) continue;
+            delivered += amount;
+            const packet = protocol.containerContentUpdate?.(item, pack.serial);
+            if (packet) buyerState.send?.(packet);
+          }
+          buyerState.sendSystemMessage?.(
+            delivered > 0 ? `The goods are yours (paid ${totalCost} gp).` : 'The vendor could not deliver those goods.',
+          );
         },
-        onSell: () => { /* deferred — same code path as primary spawnVendor */ },
+        onSell: (sellerState, picks) => {
+          let gold = 0;
+          for (const pick of picks) {
+            const item = itemBySerial({ world }, pick.serial);
+            if (!item) continue;
+            const amount = Math.min(Math.max(1, pick.amount | 0), item.amount ?? 1);
+            const stock = stockItems.find((entry) => entry.itemId === item.itemId);
+            gold += Math.max(1, Math.floor((stock?.price ?? 2) / 2)) * amount;
+            destroyItemBySerial(api, item.serial);
+            const packet = protocol.removeEntity?.(item.serial);
+            if (packet) sellerState.send?.(packet);
+          }
+          if (gold > 0) {
+            sellerState.mobile.gold = (sellerState.mobile.gold ?? 0) + gold;
+            sellerState.sendSystemMessage?.(`You receive ${gold} gold.`);
+          }
+        },
       });
       if (api.ai) {
         try { api.ai.attach(mob, 'vendor'); }
@@ -1788,7 +1851,23 @@ export default function (api) {
     commands.register({
       name,
       help,
-      run: (ctx) => spawnVendor(kind, ctx),
+      hidden: name !== 'vendor',
+      run: (ctx, args) => {
+        if (name !== 'vendor') {
+          spawnVendor(kind, ctx);
+          return;
+        }
+        const requested = String(args?.[0] ?? '').trim().toLowerCase();
+        if (requested === 'list') {
+          const names = Object.keys(VENDOR_KINDS).sort();
+          ctx.state.sendSystemMessage?.(`Vendor kinds (${names.length}):`);
+          for (let i = 0; i < names.length; i += 18) {
+            ctx.state.sendSystemMessage?.(`  ${names.slice(i, i + 18).join(', ')}`);
+          }
+          return;
+        }
+        spawnVendor(requested || kind, ctx);
+      },
     });
   }
 

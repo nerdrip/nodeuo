@@ -140,7 +140,7 @@ export default function register(api) {
     const slice = list.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE);
 
     const W = 420;
-    const H = 90 + ROWS_PER_PAGE * ROW_H + 40;
+    const H = 144 + ROWS_PER_PAGE * ROW_H + 40;
     const parts = [`{ page 0 }`, `{ resizepic 0 0 5054 ${W} ${H} }`];
     const texts = [];
 
@@ -163,8 +163,19 @@ export default function register(api) {
     parts.push(`{ textentry 70 40 280 22 70 1 ${texts.length - 1} }`);
     parts.push(`{ button 360 40 4011 4012 1 0 2002 }`);
 
+    // Two compact rows of category tabs. The filters used to exist only
+    // in code and were therefore invisible to the GM; now the catalogue
+    // is navigable without knowing template slot names by heart.
+    KIND_TABS.forEach((tab, i) => {
+      const col = i % 4, row = Math.floor(i / 4);
+      const x = 18 + col * 100, y = 70 + row * 28;
+      parts.push(`{ button ${x} ${y} ${tab.id === kind ? 4006 : 4005} 4007 1 0 ${3000 + i} }`);
+      texts.push(tab.label);
+      parts.push(`{ text ${x + 20} ${y} ${tab.id === kind ? 1153 : 70} ${texts.length - 1} }`);
+    });
+
     // Body — plain name list, one clickable text per row, no tilepic.
-    const BODY_TOP = 76;
+    const BODY_TOP = 130;
     slice.forEach((def, i) => {
       const y = BODY_TOP + i * ROW_H;
       parts.push(`{ button 18 ${y + 2} 4005 4007 1 0 ${100 + i} }`);
@@ -202,6 +213,10 @@ export default function register(api) {
         const entry = resp.textEntries?.find?.((e) => e.entryId === 1);
         const next = (entry?.text ?? '').trim();
         openCatalogue(ctx, kind, 0, next);
+        return;
+      }
+      if (b >= 3000 && b < 3000 + KIND_TABS.length) {
+        openCatalogue(ctx, KIND_TABS[b - 3000].id, 0, query);
         return;
       }
       if (b >= 100 && b < 100 + ITEMS_PER_PAGE) {

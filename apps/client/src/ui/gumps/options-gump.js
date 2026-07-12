@@ -13,7 +13,6 @@ import { Label } from '../controls/label.js';
 import { Checkbox } from '../controls/checkbox.js';
 import { ScrollArea } from '../controls/scroll-area.js';
 import { Control } from '../control.js';
-import { GumpPic } from '../controls/gump-pic.js';
 import { profile } from '../../managers/profile-manager.js';
 
 // Canonical UO horizontal slider gump ids — used by ClassicUO's
@@ -24,7 +23,7 @@ import { profile } from '../../managers/profile-manager.js';
 // shimmering gold-chain look fought the rest of the panel chrome.
 // The Graphics-drawn version reads as clean recessed metal with a
 // warm cream fill that matches the gump's parchment label hue.
-const SLIDER_W = 200;
+const SLIDER_W = 110;
 const SLIDER_H = 16;
 const SLIDER_TRACK_H = 6;
 const SLIDER_KNOB_R = 7;
@@ -34,8 +33,11 @@ const SLIDER_KNOB_R = 7;
 // breath of margin matches the paperdoll / spellbook chrome and the
 // user asked for "padding zeby ladniej wyglądalo".
 const PAD_X = 22;
-const PAD_Y = 68;     // below the row of tab buttons (y=28..50)
+const CONTENT_START_Y = 42;
 const CONTENT_PAD_BOTTOM = 10;
+const OPTIONS_W = 900;
+const SIDEBAR_W = 178;
+const CONTENT_X = 190;
 
 class Slider extends Control {
   constructor({ width = SLIDER_W, value = 0.5, onChange }) {
@@ -78,33 +80,29 @@ class Slider extends Control {
   }
 }
 
-/** Tab pill — visually identical to the journal-gump tab. Uses the
- *  0x098D ornamental UO ribbon as background and modulates label hue +
- *  alpha for active / hover / idle states. Marcin asked the options
- *  tabs to look like the journal's ("tam sa ladne"). */
+/** Vertical category button used by the settings sidebar. */
 class TabButton extends Control {
-  constructor({ label, active = false, onClick }) {
+  constructor({ label, index = 0, active = false, onClick }) {
     super();
-    this.width = 56;
-    this.height = 20;
+    this.width = 158;
+    this.height = 34;
     this._label = label;
+    this._index = index;
     this._active = active;
     this._onClick = onClick;
     this.acceptMouseInput = true;
-    this._bg = new GumpPic(0x098D, { width: this.width, height: this.height });
-    this._bg.acceptMouseInput = false;
-    this.add(this._bg);
-    this._lbl = new Label(label, { fontSize: 10, hue: 0xfff0c0, stroke: true });
-    this._lbl.acceptMouseInput = false;
-    this.add(this._lbl);
-    // Centre the label once it has measured itself.
-    requestAnimationFrame(() => {
-      if (this._lbl?.width) {
-        this._lbl.setPosition(((this.width - this._lbl.width) >> 1) | 0, 4);
-      } else {
-        this._lbl.setPosition(8, 4);
-      }
+    this._bg = new Graphics();
+    this.node.addChild(this._bg);
+    this._num = new Label(String(index + 1).padStart(2, '0'), {
+      fontSize: 10, hue: 0x8f7955, fontWeight: 700,
     });
+    this._num.setPosition(10, 10);
+    this._num.acceptMouseInput = false;
+    this.add(this._num);
+    this._lbl = new Label(label, { fontSize: 13, hue: 0xd8cfbd, fontWeight: 600 });
+    this._lbl.acceptMouseInput = false;
+    this._lbl.setPosition(38, 7);
+    this.add(this._lbl);
     this._apply(false);
   }
   setActive(v) { this._active = !!v; this._apply(false); }
@@ -112,63 +110,87 @@ class TabButton extends Control {
   onMouseEnter() { this._apply(true); }
   onMouseLeave() { this._apply(false); }
   _apply(hover) {
-    if (!this._bg?.node) return;
-    if (this._active) {
-      this._bg.node.alpha = 1.0;
-      this._lbl.setHue?.(0xfff070);
-    } else if (hover) {
-      this._bg.node.alpha = 0.92;
-      this._lbl.setHue?.(0xfff0c0);
-    } else {
-      this._bg.node.alpha = 0.7;
-      this._lbl.setHue?.(0xc0a878);
-    }
+    if (!this._bg || this._bg.destroyed) return;
+    const fill = this._active ? 0x353f50 : (hover ? 0x252d3a : 0x171c24);
+    const edge = this._active ? 0xd8ae62 : (hover ? 0x75613f : 0x34312b);
+    this._bg.clear()
+      .roundRect(0, 0, this.width, this.height, 6)
+      .fill({ color: fill, alpha: this._active ? 0.98 : 0.82 })
+      .stroke({ width: 1, color: edge, alpha: 0.95 });
+    if (this._active) this._bg.roundRect(0, 5, 3, this.height - 10, 2)
+      .fill({ color: 0xf0bd63, alpha: 1 });
+    this._lbl.setHue?.(this._active ? 0xffe2aa : (hover ? 0xf1eadc : 0xbab3a6));
+    this._num.setHue?.(this._active ? 0xe7b85f : 0x776b58);
   }
 }
 
 export class OptionsGump extends WindowGump {
   constructor() {
-    super({ title: 'Options', width: 690, height: 380, x: 100, y: 80 });
+    const scale = Math.max(0.75, Number(profile.get('ui.scale')) || 1);
+    const logicalW = (globalThis.innerWidth || 1280) / scale;
+    const logicalH = (globalThis.innerHeight || 800) / scale;
+    const height = Math.max(510, Math.min(620, Math.floor(logicalH - 24)));
+    super({
+      title: 'Settings', width: OPTIONS_W, height,
+      x: Math.max(12, Math.round((logicalW - OPTIONS_W) / 2)),
+      y: Math.max(12, Math.round((logicalH - height) / 2)),
+    });
 
     /** @type {{ id:string, label:string, build:(yStart:number)=>void }[]} */
     this._tabs = [
-      { id: 'audio',    label: 'Audio',    build: (y) => this._buildAudio(y) },
-      { id: 'gameplay', label: 'Gameplay', build: (y) => this._buildGameplay(y) },
-      { id: 'graphics', label: 'Graphics', build: (y) => this._buildGraphics(y) },
-      { id: 'input',    label: 'Input',    build: (y) => this._buildInput(y) },
-      { id: 'combat',   label: 'Combat',   build: (y) => this._buildCombat(y) },
-      { id: 'chat',     label: 'Chat',     build: (y) => this._buildChat(y) },
-      { id: 'tooltips', label: 'Tooltips', build: (y) => this._buildTooltips(y) },
-      { id: 'cont',     label: 'Cont.',    build: (y) => this._buildContainers(y) },
-      { id: 'counters', label: 'Counter',  build: (y) => this._buildCounters(y) },
-      { id: 'world',    label: 'World',    build: (y) => this._buildWorld(y) },
-      { id: 'voice',    label: 'Voice',    build: (y) => this._buildVoice(y) },
-      { id: 'exp',      label: 'Exp.',     build: (y) => this._buildExperimental(y) },
+      { id: 'audio', label: 'Audio', description: 'Volume, music and positional sound.', columns: ['Volume & playback', 'Sound behaviour'], build: (y) => this._buildAudio(y) },
+      { id: 'gameplay', label: 'Gameplay', description: 'Movement, feedback and world interaction.', columns: ['Movement & feedback', 'World interaction'], build: (y) => this._buildGameplay(y) },
+      { id: 'graphics', label: 'Graphics', description: 'Rendering quality, lighting and interface scale.', columns: ['Display & effects', 'Lighting & advanced'], build: (y) => this._buildGraphics(y) },
+      { id: 'input', label: 'Input', description: 'Mouse, keyboard and drag-selection behaviour.', columns: ['Mouse & keyboard', 'Drag & selection'], build: (y) => this._buildInput(y) },
+      { id: 'combat', label: 'Combat', description: 'Targeting, health feedback and combat presentation.', columns: ['Combat feedback', 'Targeting & health bars'], build: (y) => this._buildCombat(y) },
+      { id: 'chat', label: 'Chat & journal', description: 'Messages, overhead speech and journal display.', columns: ['Chat display', 'Journal & overhead'], build: (y) => this._buildChat(y) },
+      { id: 'tooltips', label: 'Tooltips', description: 'Object information, comparison and login helpers.', columns: ['Tooltip presentation', 'Journal & login'], build: (y) => this._buildTooltips(y) },
+      { id: 'cont', label: 'Containers', description: 'Backpack layout, item handling and limits.', columns: ['Container behaviour', 'Layout & limits'], build: (y) => this._buildContainers(y) },
+      { id: 'counters', label: 'Counter bar', description: 'Tracked items, grid size and refresh behaviour.', columns: ['Counter display', 'Grid behaviour'], build: (y) => this._buildCounters(y) },
+      { id: 'world', label: 'World map', description: 'Map markers, party information and overlays.', columns: ['Map behaviour', 'Markers & overlays'], build: (y) => this._buildWorld(y) },
+      { id: 'voice', label: 'Accessibility', description: 'Text-to-speech and browser voice configuration.', columns: ['Text to speech', 'Voice engine'], build: (y) => this._buildVoice(y) },
+      { id: 'exp', label: 'Advanced', description: 'Diagnostics and experimental client features.', columns: ['Diagnostics', 'Experimental behaviour'], build: (y) => this._buildExperimental(y) },
     ];
     this._tabButtons = [];
     this._tabContent = [];
 
-    // 12 tabs × 56 px stride + 12 px lead = 684 px → fits inside the
-    // 690 px gump width with a few px to spare on the right.
-    let tx = 12;
-    for (const tab of this._tabs) {
+    this._chrome = new Graphics();
+    this.node.addChildAt(this._chrome, Math.min(1, this.node.children.length));
+    this._drawChrome();
+
+    const navTitle = new Label('CATEGORIES', { fontSize: 10, hue: 0x8f8677, fontWeight: 700 });
+    navTitle.setPosition(18, 31); this.add(navTitle);
+    this._sectionTitle = new Label('', { fontSize: 21, hue: 0xffe0a3, fontWeight: 650 });
+    this._sectionTitle.setPosition(CONTENT_X + 12, 27); this.add(this._sectionTitle);
+    this._sectionDescription = new Label('', { fontSize: 12, hue: 0xa9a69f, fontWeight: 450 });
+    this._sectionDescription.setPosition(CONTENT_X + 12, 53); this.add(this._sectionDescription);
+
+    let ty = 49;
+    for (let index = 0; index < this._tabs.length; index++) {
+      const tab = this._tabs[index];
       const btn = new TabButton({
         label: tab.label,
+        index,
         active: tab.id === 'audio',
         onClick: () => this._showTab(tab.id),
       });
-      btn.setPosition(tx, 30);
+      btn.setPosition(11, ty);
       this.add(btn);
       this._tabButtons.push({ id: tab.id, ctrl: btn });
-      tx += 56;
+      ty += 38;
     }
 
     this._contentScroll = new ScrollArea({
-      width: this.width - 8,
-      height: this.height - PAD_Y - 8,
+      width: this.width - CONTENT_X - 12,
+      height: this.height - 84,
     });
-    this._contentScroll.setPosition(4, PAD_Y);
+    this._contentScroll.setPosition(CONTENT_X, 72);
     this.add(this._contentScroll);
+
+    const footer = new Label('Changes are saved automatically  ·  RMB closes', {
+      fontSize: 10, hue: 0x736c60, fontWeight: 500,
+    });
+    footer.setPosition(CONTENT_X + 12, this.height - 20); this.add(footer);
 
     this._showTab('audio');
   }
@@ -176,6 +198,9 @@ export class OptionsGump extends WindowGump {
   _showTab(id) {
     this._activeTabId = id;
     for (const tb of this._tabButtons) tb.ctrl.setActive(tb.id === id);
+    const target = this._tabs.find((t) => t.id === id);
+    this._sectionTitle?.setText?.(target?.label ?? 'Settings');
+    this._sectionDescription?.setText?.(target?.description ?? '');
     this._contentScroll?.beginBulkUpdate?.();
     this._buildingTab = true;
     try {
@@ -187,21 +212,69 @@ export class OptionsGump extends WindowGump {
         try { c.dispose?.(); } catch { /* ignore */ }
       }
       this._tabContent = [];
+      if (this._contentDecor) {
+        try { this._contentDecor.destroy(); } catch { /* already destroyed */ }
+        this._contentDecor = null;
+      }
       this._contentScroll?.scrollTo(0);
-      const target = this._tabs.find((t) => t.id === id);
-      target?.build(0);
+      target?.build(CONTENT_START_Y);
+      this._addColumnHeading(target?.columns?.[0] ?? 'General', PAD_X);
+      this._addColumnHeading(target?.columns?.[1] ?? 'Advanced', PAD_X + 330);
     } finally {
       this._buildingTab = false;
       this._contentScroll?.endBulkUpdate?.();
     }
     this._refreshContentHeight();
+    this._drawContentPanels();
+  }
+
+  _drawChrome() {
+    this._chrome.clear();
+    this._chrome.roundRect(8, 24, SIDEBAR_W - 12, this.height - 34, 8)
+      .fill({ color: 0x10151d, alpha: 0.78 })
+      .stroke({ width: 1, color: 0x34312b, alpha: 0.9 });
+    this._chrome.roundRect(CONTENT_X - 4, 24, this.width - CONTENT_X - 4, this.height - 34, 8)
+      .fill({ color: 0x111821, alpha: 0.54 })
+      .stroke({ width: 1, color: 0x40392e, alpha: 0.75 });
+    this._chrome.moveTo(CONTENT_X - 4, 67).lineTo(this.width - 8, 67)
+      .stroke({ width: 1, color: 0x5b4a32, alpha: 0.55 });
+  }
+
+  _addColumnHeading(text, x) {
+    const heading = new Label(String(text).toUpperCase(), {
+      fontSize: 10, hue: 0xd8ad63, fontWeight: 750,
+    });
+    heading.setPosition(x, 9);
+    this._addControl(heading);
+  }
+
+  _drawContentPanels() {
+    if (!this._contentScroll?.content) return;
+    let bottom = CONTENT_START_Y + 60;
+    for (const c of this._tabContent) bottom = Math.max(bottom, (c?.y || 0) + (c?.height || 0));
+    const panelH = Math.max(this._contentScroll.height - 10, bottom + 10);
+    if (this._contentDecor) {
+      try { this._contentDecor.destroy(); } catch { /* noop */ }
+    }
+    const gfx = new Graphics();
+    gfx.roundRect(8, 32, 322, panelH - 32, 7)
+      .fill({ color: 0x0c1118, alpha: 0.52 })
+      .stroke({ width: 1, color: 0x343b44, alpha: 0.65 });
+    gfx.roundRect(338, 32, 344, panelH - 32, 7)
+      .fill({ color: 0x0c1118, alpha: 0.52 })
+      .stroke({ width: 1, color: 0x343b44, alpha: 0.65 });
+    this._contentScroll.content.addChildAt(gfx, 0);
+    this._contentDecor = gfx;
   }
 
   _addControl(c) {
     if (this._contentScroll) this._contentScroll.add(c);
     else this.add(c);
     this._tabContent.push(c);
-    if (!this._buildingTab) this._refreshContentHeight();
+    if (!this._buildingTab) {
+      this._refreshContentHeight();
+      this._drawContentPanels();
+    }
   }
 
   _refreshContentHeight() {
@@ -220,24 +293,33 @@ export class OptionsGump extends WindowGump {
     const step = Number.isFinite(opts.step) && opts.step > 0 ? opts.step : 0;
     const raw = Number(profile.get(path) ?? opts.default ?? min);
     const norm = max > min ? (raw - min) / (max - min) : raw;
-    // Cream + stroke — matches the rest of the gump label style and
-    // is readable on the WindowGump's grey-blue chrome. Old 0xc0b890
-    // without stroke faded into the background tone.
-    const lbl = new Label(label, { fontSize: 12, hue: 0xfff0c0, stroke: true });
+    const formatValue = (value) => {
+      if (typeof opts.format === 'function') return String(opts.format(value));
+      if (opts.integer || step >= 1) return String(Math.round(value));
+      if (min === 0 && max === 1) return `${Math.round(value * 100)}%`;
+      return Number(value).toFixed(step > 0 && step < 0.1 ? 2 : 1);
+    };
+    const lbl = new Label(label, { fontSize: 13, hue: 0xe7dfd0, fontWeight: 550 });
     lbl.setPosition(x, y);
     this._addControl(lbl);
     const sl = new Slider({
-      width: opts.width ?? (x > PAD_X ? 130 : SLIDER_W),
+      width: opts.width ?? SLIDER_W,
       value: norm,
       onChange: (v) => {
         let next = min + (max - min) * v;
         if (step > 0) next = Math.round(next / step) * step;
         if (opts.integer) next = Math.round(next);
         profile.set(path, next);
+        valueLbl.setText(formatValue(next));
       },
     });
     sl.setPosition(x + 180, y);
     this._addControl(sl);
+    const valueLbl = new Label(formatValue(raw), {
+      fontSize: 11, hue: 0xd8ad63, fontWeight: 700,
+    });
+    valueLbl.setPosition(x + 180 + sl.width + 8, y);
+    this._addControl(valueLbl);
   }
 
   _addCheckbox(label, path, y, x = PAD_X) {
@@ -252,8 +334,10 @@ export class OptionsGump extends WindowGump {
       profile.set(path, cb.checked);
     };
     this._addControl(cb);
-    const lbl = new Label(label, { fontSize: 12, hue: 0xfff0c0, stroke: true });
+    const lbl = new Label(label, { fontSize: 13, hue: 0xe7dfd0, fontWeight: 520 });
     lbl.setPosition(x + 22, y + 1);
+    lbl.acceptMouseInput = true;
+    lbl.onClick = () => cb.onClick?.();
     this._addControl(lbl);
   }
 
@@ -261,7 +345,7 @@ export class OptionsGump extends WindowGump {
    *  small enums (HP display type, grid-loot mode, font index) where a
    *  full Combobox would be overkill. */
   _addPicker(label, path, options, y, x = PAD_X + 330) {
-    const lbl = new Label(label, { fontSize: 12, hue: 0xfff0c0, stroke: true });
+    const lbl = new Label(label, { fontSize: 13, hue: 0xe7dfd0, fontWeight: 550 });
     lbl.setPosition(x, y);
     this._addControl(lbl);
     const labels = [];
@@ -277,13 +361,13 @@ export class OptionsGump extends WindowGump {
     }
     const cur = profile.get(path);
     let idx = Math.max(0, values.findIndex((v) => v === cur));
-    const valLbl = new Label(`[ ${labels[idx]} ]`, { fontSize: 12, hue: 0xc09060, stroke: true });
+    const valLbl = new Label(labels[idx], { fontSize: 12, hue: 0xe2b96f, fontWeight: 700 });
     valLbl.acceptMouseInput = true;
-    valLbl.setPosition(x + 140, y);
+    valLbl.setPosition(x + 165, y);
     valLbl.onMouseDown = () => {
       idx = (idx + 1) % values.length;
       profile.set(path, values[idx]);
-      valLbl.setText?.(`[ ${labels[idx]} ]`);
+      valLbl.setText?.(labels[idx]);
     };
     this._addControl(valLbl);
   }
@@ -344,6 +428,7 @@ export class OptionsGump extends WindowGump {
     this._addCheckbox('Hide statics under roof',   'graphics.hideUnderRoof',   y + 150);
     this._addCheckbox('Animated water',            'graphics.animatedWater',   y + 170);
     this._addCheckbox('Weather (rain/snow)',       'graphics.weatherFx',       y + 190);
+    this._addSlider('Interface scale',             'ui.scale',                 y + 216, PAD_X, { min: 0.75, max: 2, step: 0.05 });
     // Right column — CUO Profile.cs::EnableShadows / EnableDeathScreen / etc.
     this._addCheckbox('Enable shadows',             'experimental.enableShadows',         y,       PAD_X + 330);
     this._addCheckbox('Statics cast shadows',       'experimental.shadowsStatics',        y + 20,  PAD_X + 330);
@@ -510,6 +595,7 @@ export class OptionsGump extends WindowGump {
     this._addCheckbox('Color resists by element',   'tooltips.colorResists',     y + 184);
     this._addCheckbox('Highlight artifacts in gold','tooltips.colorArtifact',    y + 204);
     this._addCheckbox('Hold Alt to show tooltips',  'tooltips.holdAltToShow',    y + 224);
+    this._addCheckbox('Compare with equipped item', 'tooltips.compareEquipped',  y + 244);
     // Right column — opacity + text hue (small palette).
     this._addSlider('Background opacity',           'tooltips.backgroundOpacity', y,  PAD_X + 330);
     this._addPicker('Text hue',                     'tooltips.textHue',

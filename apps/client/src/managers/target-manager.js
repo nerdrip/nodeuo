@@ -56,6 +56,25 @@ class TargetManager {
       this._queueHead = 0;
       bus.emit('target:cleared');
     });
+    bus.on('combat:target', ({ serial = 0 } = {}) => this.confirmAttack(serial));
+    bus.on('mobile:death', ({ serial = 0 } = {}) => {
+      const s = serial >>> 0;
+      if (this.lastAttack === s) this.confirmAttack(0);
+      if ((this.lastTarget?.serial >>> 0) === s) {
+        const m = world.mobiles.get(s);
+        if (m) m._isLastTarget = false;
+        this.lastTarget = null;
+        bus.emit('target:last-changed', { serial: 0 });
+      }
+    });
+    bus.on('entity:removed', ({ serial = 0 } = {}) => {
+      const s = serial >>> 0;
+      if (this.lastAttack === s) this.confirmAttack(0);
+      if ((this.lastTarget?.serial >>> 0) === s) {
+        this.lastTarget = null;
+        bus.emit('target:last-changed', { serial: 0 });
+      }
+    });
   }
 
   /** Activate multi-placement mode (house/boat) from 0x99. */
@@ -87,6 +106,12 @@ class TargetManager {
   /** Pick a ground tile under the cursor (for multi placement). */
   pickPosition(x, y, z, graphic = 0) {
     if (!this.active) return;
+    if (this.cursorType === CursorType.Multi && this.multi) {
+      x -= this.multi.offsetX | 0;
+      y -= this.multi.offsetY | 0;
+      z -= this.multi.offsetZ | 0;
+      graphic = this.multi.multiId ?? graphic;
+    }
     net.send(buildTargetResponse({
       cursorType: this.cursorType, cursorId: this.cursorId, flag: this.flag,
       x, y, z, graphic,
@@ -235,6 +260,16 @@ class TargetManager {
    *  directly attacks via single-click. */
   setLastTarget(serial) {
     const s = serial >>> 0;
+    this.selectEntity(s);
+    this.lastAttack = s;
+    try { net.send(buildAttackReq(s)); } catch { /* socket may be closed */ }
+  }
+
+  /** Select a mobile for TargetLast/healthbar highlighting without
+   * entering combat. Used by ordinary body and healthbar clicks. */
+  selectEntity(serial) {
+    const s = serial >>> 0;
+    if (!s) return;
     // Clear the outline flag from the prior target so two mobiles don't
     // both render highlighted.
     const prior = this.lastTarget?.serial >>> 0;
@@ -243,12 +278,29 @@ class TargetManager {
       if (m) m._isLastTarget = false;
     }
     this.lastTarget = { serial: s, x: 0, y: 0, z: 0, graphic: 0 };
-    this.lastAttack = s;
     const next = world.mobiles.get(s);
     if (next) next._isLastTarget = true;
     this._pushRing(s);
-    try { net.send(buildAttackReq({ serial: s })); } catch { /* socket may be closed */ }
     bus.emit('target:last-changed', { serial: s });
+  }
+
+  /** Apply the server-confirmed attack focus without sending another
+   *  AttackReq. Keeps health lines, mobile highlight and macros aligned
+   *  with 0xAA, including explicit serial=0 clear. */
+  confirmAttack(serial) {
+    const s = serial >>> 0;
+    const prior = this.lastAttack >>> 0;
+    if (prior && prior !== s) {
+      const old = world.mobiles.get(prior);
+      if (old) old._isLastAttack = false;
+    }
+    this.lastAttack = s || null;
+    if (s) {
+      const next = world.mobiles.get(s);
+      if (next && !next.isDead) next._isLastAttack = true;
+      this._pushRing(s);
+    }
+    bus.emit('target:attack-changed', { serial: s });
   }
 
   /** Macro engine helpers — flat read accessors so the `if`/`{var}`

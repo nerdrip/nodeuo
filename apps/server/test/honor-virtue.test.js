@@ -32,7 +32,7 @@ describe('honor invocation hooks (FAZA DH)', () => {
     const sent = [];
     const mob = {
       virtues: { honor: 5000 },
-      client: { send: (b) => sent.push(b) },
+      client: { send: (b) => sent.push(b), supportsNodeUO: () => true },
     };
     spendVirtue(mob, 'honor', 100);
     expect(mob.virtues.honor).toBe(4900);

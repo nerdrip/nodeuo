@@ -75,6 +75,8 @@ class Mobile {
     this.offsetStartZ = 0;
     this.offsetStartAt = 0;
     this.offsetEndAt = 0;
+    /** Whether the currently interpolated step uses the run cadence. */
+    this.moveRunning = false;
     /** Deque of pending steps for NPC multi-step movement smoothing.
      *  Server can broadcast a multi-tile MoveTo via successive 0x77; we
      *  enqueue them here so the renderer can chain lerps without snapping
@@ -120,7 +122,7 @@ class Mobile {
    *  staccato during continuous walking. We start the new lerp from
    *  `currentOffset + newDelta` so the sprite stays geometrically
    *  on the path with no snapping. */
-  beginMoveStep(dx, dy, dz, durationMs, now) {
+  beginMoveStep(dx, dy, dz, durationMs, now, running = durationMs <= 250) {
     const sx = (dx - dy) * 22;
     const sy = (dx + dy) * 22 - dz * 4;
     const inFlight = this.offsetEndAt > now;
@@ -138,6 +140,7 @@ class Mobile {
     this.offsetZ = this.offsetStartZ;
     this.offsetStartAt = now;
     this.offsetEndAt = now + durationMs;
+    this.moveRunning = !!running;
   }
 
   /** Append a step to the deque. Called from the 0x77 handler when the
@@ -159,6 +162,12 @@ class Mobile {
   get queuedStepCount() {
     const count = this.steps.length - this._stepsHead;
     return count > 0 ? count : 0;
+  }
+
+  /** True only while a real tile transition is being interpolated/queued.
+   * A 0x77 facing-only update must not start a walk animation. */
+  hasActiveMoveStep(now = performance.now()) {
+    return this.offsetEndAt > now || this.queuedStepCount > 0;
   }
 
   clearSteps() {
@@ -188,7 +197,10 @@ class Mobile {
     this._compactSteps();
     if (!next) return false;
     if (typeof next.dir === 'number') this.direction = next.dir;
-    this.beginMoveStep(next.dx, next.dy, next.dz, next.run ? 200 : 400, now);
+    const durationMs = this.isMounted
+      ? (next.run ? 100 : 200)
+      : (next.run ? 200 : 400);
+    this.beginMoveStep(next.dx, next.dy, next.dz, durationMs, now, next.run);
     return true;
   }
 
@@ -207,10 +219,14 @@ class Mobile {
    *  movement layer (`game-scene._sendMove`) when no held key follows.
    */
   tickMoveStep(now) {
-    if (this.offsetEndAt <= 0) return false;
+    if (this.offsetEndAt <= 0) {
+      this.moveRunning = false;
+      return false;
+    }
     if (now >= this.offsetEndAt) {
       this.offsetX = this.offsetY = this.offsetZ = 0;
       this.offsetStartAt = this.offsetEndAt = 0;
+      this.moveRunning = false;
       return false;
     }
     const dur = this.offsetEndAt - this.offsetStartAt;
@@ -255,7 +271,10 @@ export class World {
     this.mapWidth = 6144;
     this.mapHeight = 4096;
     this.lightLevel = 0;
+    this.lastLightPacketAt = 0;
     this.season = 1;
+    this.playerIndoors = false;
+    this.lastRegionKind = null;
     /** Ctrl+Q toggle — when true, walls fade near the player so the
      *  avatar isn't hidden behind tall structures. CUO `Constants.cs`
      *  GAME_OPTIONS_CIRCLE_OF_TRANSPARENCY. */
@@ -360,6 +379,11 @@ export class World {
   /** Reset all world state. Called on disconnect / scene swap to login. */
   reset() {
     this.player = null;
+    this.lightLevel = 0;
+    this.lastLightPacketAt = 0;
+    this.season = 1;
+    this.playerIndoors = false;
+    this.lastRegionKind = null;
     this.mobiles.clear();
     this.items.clear();
     this._equipIndex.clear();

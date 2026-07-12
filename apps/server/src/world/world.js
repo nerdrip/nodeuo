@@ -56,11 +56,23 @@ import { createItem as createWorldItem, destroyItem as destroyWorldItem } from '
 
 export class World {
   constructor() {
+    // Shared, non-string brand used by script helpers to distinguish a World
+    // from the full script API without probing optional capability names.
+    // Symbol keys are intentionally ignored by persistence.
+    this[Symbol.for('uo.world')] = true;
     this.serial = new SerialAllocator();
     /** @type {Map<number, Mobile>} */
     this.mobiles = new Map();
     /** @type {Map<number, Item>} */
     this.items = new Map();
+    /** Facets whose canonical public-moongate network was reconciled during
+     *  this process. Rebuilt from saved items by the moongate script. */
+    this._moongatesApplied = new Set();
+    /** Runtime XmlSpawner registrations are rebuilt from these durable ids on
+     *  boot. Defining the sets up front also makes Script API auditing
+     *  distinguish intentional world state from a misspelled capability. */
+    this._xmlSpawnersApplied = new Set();
+    this._treasureChestsApplied = new Set();
     /** Connected player-mobile index. Optional but authoritative once
      *  enabled by the server entrypoint; tests that mutate `mob.client`
      *  directly still fall back to scanning when the index is disabled. */

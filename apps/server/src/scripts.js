@@ -68,6 +68,7 @@ export class ScriptRuntime {
     this._lastSuppressedWatchLogAt = 0;
     this._watchDebounceMs = positiveIntEnv('UO_SCRIPT_WATCH_DEBOUNCE_MS', 600);
     this._watchQuietMs = positiveIntEnv('UO_SCRIPT_WATCH_QUIET_MS', 1200);
+    this.verboseLoads = /^(1|true|yes)$/i.test(String(process.env.UO_SCRIPT_LOG_EACH ?? ''));
   }
 
   /** Load (or reload) all scripts. */
@@ -94,6 +95,9 @@ export class ScriptRuntime {
   }
 
   async _loadOnce(request) {
+    const startedAt = performance.now();
+    let skipped = 0;
+    let failed = 0;
     this._extendWatchQuietWindow();
     try {
       await this._dispose();
@@ -110,7 +114,8 @@ export class ScriptRuntime {
           const mod = await import(url);
           const fn = mod.default;
           if (typeof fn !== 'function') {
-            this.api.log(`script ${this._rel(file)}: no default export, skipping`);
+            skipped++;
+            if (this.verboseLoads) this.api.log(`script ${this._rel(file)}: no default export, skipping`);
             continue;
           }
           const scoped = createScopedScriptApi(this.api, this._rel(file));
@@ -121,15 +126,17 @@ export class ScriptRuntime {
             file,
             disposer: composeDisposer(maybeDisposer, scoped.lifecycle),
           });
-          this.api.log(`script loaded: ${this._rel(file)}`);
+          if (this.verboseLoads) this.api.log(`script loaded: ${this._rel(file)}`);
         } catch (e) {
+          failed++;
           this.api.log(`script ${this._rel(file)} failed: ${e.message}`);
         }
       }
       this.audit.assertClean();
-      if (request.reason && request.reason !== 'manual') {
-        this.api.log(`scripts reload complete (${request.reason}): ${this.loaded.length} loaded`);
-      }
+      const elapsedMs = Math.round(performance.now() - startedAt);
+      const reason = request.reason && request.reason !== 'manual' ? `, reason=${request.reason}` : '';
+      const skippedLabel = skipped > 0 ? `${skipped} skipped (no default export)` : '0 skipped';
+      this.api.log(`scripts ready: ${this.loaded.length} loaded, ${skippedLabel}, ${failed} failed in ${elapsedMs}ms${reason}`);
     } finally {
       this._extendWatchQuietWindow();
     }
@@ -306,12 +313,21 @@ function normalizeWatchScriptFilename(scriptsDir, filename) {
   return rel;
 }
 
-function collectScriptFiles(dir, out = []) {
+function collectScriptFiles(dir, out = [], root = dir) {
   const names = fs.readdirSync(dir).sort();
   for (const name of names) {
     const full = path.join(dir, name);
     const st = fs.statSync(full);
-    if (st.isDirectory()) collectScriptFiles(full, out);
+    const rel = path.relative(root, full).replace(/\\/g, '/');
+    // Item lifecycle implementations are factories, not top-level runtime
+    // scripts. data.js registers them once through the explicit manifest in
+    // items/scripts/index.js. Invoking every factory again as a standalone
+    // script registered its companion commands twice (trash, rental vendor,
+    // house teleporters, ...), while not actually registering the returned
+    // item-script object. Keep hot-reload watching the files, but load this
+    // subtree only through its canonical manifest.
+    if (st.isDirectory() && rel === 'items/scripts') continue;
+    if (st.isDirectory()) collectScriptFiles(full, out, root);
     else if (st.isFile() && full.endsWith('.js')) out.push(full);
   }
   return out;
@@ -350,25 +366,53 @@ function createScriptAudit(options = {}) {
 
   const wrapObject = (value, label, apiPath, seen) => {
     if (!enabled || !value || typeof value !== 'object') return value;
+    // Preserve Array.isArray and typed-array brand checks. Capability auditing
+    // is useful for named service objects, not numeric collection elements.
+    if (Array.isArray(value) || ArrayBuffer.isView(value) || value instanceof ArrayBuffer) return value;
     if (seen.has(value)) return seen.get(value);
-    const proxy = new Proxy(value, {
-      get(target, prop, receiver) {
-        if (typeof prop === 'symbol') return Reflect.get(target, prop, receiver);
-        if (prop === 'then' || prop === 'inspect' || prop === 'toJSON') {
-          return Reflect.get(target, prop, receiver);
+    // Proxy a fresh, extensible shadow instead of the original object.
+    // Many engine capabilities are Object.freeze()'d and several expose Map /
+    // Set instances. Proxying those values directly violates the invariant for
+    // non-configurable data properties, while unbound Map methods throw
+    // "incompatible receiver". A shadow lets us audit reads without changing
+    // the runtime object's identity/descriptor contract.
+    const shadow = {};
+    const proxy = new Proxy(shadow, {
+      get(_target, prop) {
+        if (typeof prop === 'symbol') {
+          const symbolValue = Reflect.get(value, prop, value);
+          return typeof symbolValue === 'function' ? symbolValue.bind(value) : symbolValue;
         }
-        if (!Reflect.has(target, prop)) {
+        if (prop === 'then' || prop === 'inspect' || prop === 'toJSON') {
+          const special = Reflect.get(value, prop, value);
+          return typeof special === 'function' ? special.bind(value) : special;
+        }
+        if (!Reflect.has(value, prop)) {
           recordMissing(label, `${apiPath}.${String(prop)}`);
           return undefined;
         }
-        const next = Reflect.get(target, prop, receiver);
+        const next = Reflect.get(value, prop, value);
+        if (typeof next === 'function') return next.bind(value);
         return wrapObject(next, label, `${apiPath}.${String(prop)}`, seen);
       },
-      has(target, prop) {
-        if (typeof prop !== 'symbol' && !Reflect.has(target, prop)) {
+      has(_target, prop) {
+        if (typeof prop !== 'symbol' && !Reflect.has(value, prop)) {
           recordMissing(label, `${apiPath}.${String(prop)}`);
         }
-        return Reflect.has(target, prop);
+        return Reflect.has(value, prop);
+      },
+      ownKeys() {
+        return Reflect.ownKeys(value);
+      },
+      getOwnPropertyDescriptor(_target, prop) {
+        const desc = Reflect.getOwnPropertyDescriptor(value, prop);
+        return desc ? { ...desc, configurable: true } : undefined;
+      },
+      getPrototypeOf() {
+        return Reflect.getPrototypeOf(value);
+      },
+      set(_target, prop, next) {
+        return Reflect.set(value, prop, next, value);
       },
     });
     seen.set(value, proxy);
@@ -441,10 +485,11 @@ function createScriptAudit(options = {}) {
         })),
       ];
       if (findings.length === 0) return;
-      const sample = findings.slice(0, 12)
+      const sampleLimit = positiveIntEnv('UO_SCRIPT_AUDIT_SAMPLE_LIMIT', 12);
+      const sample = findings.slice(0, sampleLimit)
         .map((entry) => `- ${entry.label}: ${entry.message}`)
         .join('\n');
-      const suffix = findings.length > 12 ? `\n... ${findings.length - 12} more` : '';
+      const suffix = findings.length > sampleLimit ? `\n... ${findings.length - sampleLimit} more` : '';
       throw new Error(`Script API audit failed (${findings.length} finding${findings.length === 1 ? '' : 's'}):\n${sample}${suffix}`);
     },
   };
@@ -452,7 +497,7 @@ function createScriptAudit(options = {}) {
 
 function createScopedScriptApi(baseApi, label) {
   const lifecycle = createScriptLifecycle(label, baseApi);
-  const commands = createScopedCommands(baseApi.commands, lifecycle);
+  const commands = createScopedCommands(baseApi.commands, lifecycle, label);
   const baseLog = baseApi.log;
   const scopedLog = typeof baseLog === 'function'
     ? (msg, ...args) => {
@@ -494,7 +539,7 @@ function createScopedScriptApi(baseApi, label) {
   return { api: baseApi.scriptAudit?.wrap?.(api, label) ?? api, lifecycle };
 }
 
-function createScopedCommands(baseCommands, lifecycle) {
+function createScopedCommands(baseCommands, lifecycle, label) {
   if (!baseCommands) return null;
   const registered = new Map();
   const commandKey = (name) => String(name).toLowerCase();
@@ -511,8 +556,16 @@ function createScopedCommands(baseCommands, lifecycle) {
     get(target, prop, receiver) {
       if (prop === 'register' && typeof target.register === 'function') {
         return (spec, ...args) => {
-          const result = target.register.call(target, spec, ...args);
-          if (spec?.name != null) registered.set(commandKey(spec.name), spec.name);
+          const ownedSpec = spec && typeof spec === 'object'
+            ? { ...spec, [Symbol.for('nodeuo.commandOwner')]: label }
+            : spec;
+          const result = target.register.call(target, ownedSpec, ...args);
+          // CommandRegistry returns false for a rejected collision. Tracking
+          // that name as owned by this script would make its disposer remove
+          // the *first*, valid implementation during a reload.
+          if (result !== false && spec?.name != null) {
+            registered.set(commandKey(spec.name), spec.name);
+          }
           return result;
         };
       }
@@ -561,7 +614,12 @@ function createScriptLifecycle(label, baseApi = {}) {
 
     command(spec) {
       if (!spec?.name || !baseApi.commands?.register) return null;
-      baseApi.commands.register(spec);
+      const ownedSpec = {
+        ...spec,
+        [Symbol.for('nodeuo.commandOwner')]: label,
+      };
+      const result = baseApi.commands.register(ownedSpec);
+      if (result === false) return null;
       onDispose(() => {
         try { baseApi.commands?.unregister?.(spec.name); } catch { /* registry optional */ }
       });

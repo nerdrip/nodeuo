@@ -66,6 +66,26 @@ describe('monster templates', () => {
 });
 
 describe('AIScheduler', () => {
+  it('pauses a production scheduler while no players are online', () => {
+    const world = new World();
+    const npc = world.createMobile({ name: 'Sleeper', x: 100, y: 100 });
+    let ticks = 0;
+    const ai = new AIScheduler(world, {
+      pauseWhenNoPlayers: true,
+      mobileMovingPacket: () => new Uint8Array(),
+      unicodeSpeechPacket: () => new Uint8Array(),
+    });
+    ai.registerBehavior({ name: 'counter', tick: () => ticks++ });
+    ai.attach(npc, 'counter');
+    ai._tickAll();
+    expect(ticks).toBe(0);
+
+    const player = world.createMobile({ name: 'Player', x: 101, y: 100 });
+    player.client = { send() {} };
+    ai._tickAll();
+    expect(ticks).toBe(1);
+  });
+
   it('ticks bound mobiles and honors detach', () => {
     const world = new World();
     const mob = world.createMobile({ name: 'Crier', x: 100, y: 100 });
@@ -79,9 +99,27 @@ describe('AIScheduler', () => {
     ai._tickAll();
     ai._tickAll();
     expect(ticks).toBe(2);
+    expect(ai.inspect(mob.serial)).toMatchObject({
+      behavior: 'counter', status: 'active', tickCount: 2, lastError: null,
+    });
     ai.detach(mob);
     ai._tickAll();
     expect(ticks).toBe(2);
+  });
+
+  it('captures behavior errors without stopping the scheduler', () => {
+    const world = new World();
+    const mob = world.createMobile({ name: 'Broken AI' });
+    const ai = new AIScheduler(world, {
+      mobileMovingPacket: () => new Uint8Array(), unicodeSpeechPacket: () => new Uint8Array(),
+    });
+    ai.registerBehavior({ name: 'broken', tick() { throw new Error('boom'); } });
+    ai.attach(mob, 'broken', { phase: 'test' });
+    expect(() => ai._tickAll()).not.toThrow();
+    expect(ai.inspect(mob.serial)).toMatchObject({
+      behavior: 'broken', status: 'error', state: { phase: 'test' }, tickCount: 1,
+    });
+    expect(ai.inspect(mob.serial).lastError).toContain('boom');
   });
 
   it('skips binding for missing mobiles without throwing', () => {

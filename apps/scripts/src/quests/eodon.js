@@ -340,7 +340,7 @@ export default function register(api) {
 
   // Hook the kill chain for slay-objectives. Mob kind comes from
   // either `victim.kind` or `victim.template`; tolerate both.
-  api.events?.on?.('mobile:killed', (ev) => {
+  api.lifecycle?.event?.(api.events, 'mobile:killed', (ev) => {
     const killer = ev.killer; const victim = ev.victim;
     if (!killer || !victim) return;
     const kind = victim.kind ?? victim.template ?? '';

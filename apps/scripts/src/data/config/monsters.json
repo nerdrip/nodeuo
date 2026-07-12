@@ -2692,7 +2692,7 @@
   {
     "kind": "candy-corpser",
     "name": "candy corpser",
-    "body": 3178,
+    "body": 8,
     "hue": 1150,
     "hp": 160,
     "hpMax": 190,
@@ -9158,7 +9158,7 @@
     "notoriety": 5,
     "aggroRange": 8,
     "attackInterval": 1800,
-    "sound": 0,
+    "sound": 392,
     "tamable": true,
     "controlSlots": 1,
     "tameSkill": 29.1,
@@ -9172,7 +9172,7 @@
       9,
       58
     ],
-    "loot": "snake-common"
+    "loot": "rat-common"
   },
   {
     "kind": "giant-serpent",
@@ -12009,7 +12009,7 @@
   {
     "kind": "jack-olantern",
     "name": "jack o lantern",
-    "body": 3178,
+    "body": 1247,
     "hue": 68,
     "hp": 240,
     "hpMax": 270,
@@ -18429,7 +18429,7 @@
   {
     "kind": "pumpkin-king",
     "name": "pumpkin king",
-    "body": 3178,
+    "body": 400,
     "hue": 68,
     "hp": 700,
     "hpMax": 730,
@@ -18798,13 +18798,22 @@
   },
   {
     "kind": "rat",
-    "name": "a giant rat",
+    "name": "a rat",
     "body": 238,
-    "hp": 20,
-    "str": 20,
+    "ai": "animal",
+    "hp": 6,
+    "str": 9,
+    "dex": 35,
+    "int": 5,
+    "dmgMin": 1,
+    "dmgMax": 2,
     "notoriety": 5,
-    "aggroRange": 6,
+    "aggroRange": 0,
     "attackInterval": 1400,
+    "sound": 204,
+    "tamable": true,
+    "controlSlots": 1,
+    "tameSkill": -0.9,
     "gold": [
       1,
       8

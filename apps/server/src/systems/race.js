@@ -22,6 +22,22 @@ const HUMAN_BODIES    = [0x0190, 0x0191];
 const ELF_BODIES      = [0x025D, 0x025E];
 const GARGOYLE_BODIES = [0x029A, 0x029B];
 
+// ClassicUO Mobile.IsHuman: bodies which own a paperdoll/equipment layout.
+// Ghosts and legacy variants are paperdoll-capable even though they are not
+// valid living race selections.
+const PAPERDOLL_BODIES = new Set([
+  0x0190, 0x0191, 0x0192, 0x0193,
+  0x00B7, 0x00B8, 0x00B9, 0x00BA,
+  0x025D, 0x025E, 0x025F, 0x0260,
+  0x029A, 0x029B, 0x02B6, 0x02B7,
+  0x03DB, 0x03DF, 0x03E2, 0x02E8, 0x02E9, 0x04E5,
+]);
+
+/** True only for bodies that have a valid humanoid paperdoll. */
+export function isPaperdollBody(body) {
+  return PAPERDOLL_BODIES.has(body | 0);
+}
+
 const PASSIVES = {
   human: {
     // ToughAsNails — +20 max HP; SkillGainBonus +20%; JackOfAllTrades.

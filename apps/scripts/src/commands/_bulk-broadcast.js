@@ -19,6 +19,30 @@
 
 import { nearbyItems, onlineMobiles } from '../_spatial.js';
 
+/** Canonical post-bulk refresh. Unlike a raw sendItem blast this updates the
+ * NetState visibility baseline, removes stale serials and uses the server's
+ * bounded item batches. */
+export function refreshBulkVisibility(api) {
+  const refresh = api.ctx?.handlers?.refreshSurroundings;
+  if (typeof refresh !== 'function') return 0;
+  let count = 0;
+  for (const m of onlineMobiles(api)) {
+    if (!m?.client) continue;
+    try { refresh(m.client); count++; }
+    catch (e) { api.log?.(`[bulk-refresh] client refresh failed: ${e.message}`); }
+  }
+  return count;
+}
+
+export function queueBulkSave(api) {
+  try {
+    const pending = api.persistence?.requestSave?.(api.world, api.persistence.saveDir);
+    pending?.catch?.((e) => api.log?.(`[bulk-save] save failed: ${e.message}`));
+  } catch (e) {
+    api.log?.(`[bulk-save] save queue failed: ${e.message}`);
+  }
+}
+
 /**
  * Resend nearby items to every connected player so a bulk apply (decorate,
  * doorgen, signgen, telgen, moongates) shows up without a reconnect.
@@ -26,6 +50,8 @@ import { nearbyItems, onlineMobiles } from '../_spatial.js';
  * @param {import('@uo/server/src/scripts.js').ScriptAPI} api
  */
 export function broadcastBulkPlacement(api) {
+  // Kept for compatibility with older scripts. New generators should call
+  // refreshBulkVisibility so the visibility cache cannot drift.
   const world = api.world;
   if (!world) return 0;
   let sent = 0;

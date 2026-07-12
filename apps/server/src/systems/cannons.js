@@ -104,6 +104,49 @@ export function targetTile(cannon) {
   return { x: cannon.x + dx * range, y: cannon.y + dy * range, map: cannon.map };
 }
 
+/** Read-only targeting data shared by commands and the negotiated web overlay. */
+export function cannonProfile(cannon) {
+  const c = cannon?.cannon;
+  const def = c ? CANNON_KINDS[c.kind] : null;
+  if (!c || !def) return null;
+  const charge = Math.max(1, c.powderCharge || 1);
+  const range = Math.max(1, Math.min(def.range * 2,
+    Math.round(def.range * Math.max(0.5, charge / 2))));
+  return Object.freeze({
+    serial: cannon.serial >>> 0,
+    kind: c.kind,
+    stage: c.stage,
+    facing: (c.facing | 0) & 3,
+    charge,
+    range,
+    baseRange: def.range,
+    damage: def.damage,
+    cooldownMs: def.cooldownMs,
+    cooldownRemainingMs: Math.max(0, def.cooldownMs - (Date.now() - (c.lastFiredAt || 0))),
+  });
+}
+
+/** Apply a cannon impact to indexed boats without scanning all world items. */
+export function applyNavalImpact(world, boatSystem, impact, damage, radius = 2, options = {}) {
+  if (!world || !impact || !boatSystem?.damage) return [];
+  const hits = [];
+  const serials = world._boats instanceof Set
+    ? world._boats
+    : [...world.items.values()].filter((item) => item.boat).map((item) => item.serial);
+  for (const serial of serials) {
+    const boat = world.items.get(serial >>> 0);
+    if (!boat?.boat || (boat.map ?? 1) !== (impact.map ?? 1)) continue;
+    const distance = Math.max(Math.abs((boat.x | 0) - (impact.x | 0)), Math.abs((boat.y | 0) - (impact.y | 0)));
+    if (distance > radius) continue;
+    const falloff = Math.max(0.35, 1 - distance / Math.max(1, radius + 1));
+    const before = boatSystem.stats?.(boat);
+    const sank = boatSystem.damage(boat, Math.round(damage * falloff), options);
+    const after = boatSystem.stats?.(boat);
+    hits.push({ boat, before, after, sank });
+  }
+  return hits;
+}
+
 /**
  * Fire the cannon. Pre-conditions: stage must be 'primed', cooldown must
  * have elapsed. Resolves impact via deps.applyAOEDamage(impactTile, damage,

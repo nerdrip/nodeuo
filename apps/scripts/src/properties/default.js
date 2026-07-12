@@ -62,7 +62,13 @@ export default function (api) {
       const name = it.name ?? `item${it.itemId}`;
       const amountPrefix = (it.amount ?? 1) > 1 ? `${it.amount} ` : '';
       /** @type {Array<{cliloc:number, args?:string}>} */
-      const entries = [{ cliloc: 1042971, args: `${amountPrefix}${name}` }];
+      // Generated signs carry their canonical ServUO labelNumber but often
+      // intentionally have no English `name`. Feed that cliloc directly to
+      // the OPL renderer; the old generic fallback exposed "item3023" on
+      // hover even though single-click correctly resolved "Britain Bank".
+      const entries = (!it.name && Number.isFinite(it.labelNumber) && it.labelNumber > 0)
+        ? [{ cliloc: it.labelNumber | 0, args: '' }]
+        : [{ cliloc: 1042971, args: `${amountPrefix}${name}` }];
 
       if (it._artifact) {
         entries.push({ cliloc: 1042971, args: `[${it._artifact}]` });

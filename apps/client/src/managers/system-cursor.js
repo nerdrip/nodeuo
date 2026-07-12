@@ -43,9 +43,10 @@ const SCALE  = 1;             // native UO size, no upscaling
 // in the atlas, just rely on the body cursor pointing at the right
 // graphic so the click hot-spot lands on the cross-hair pixel.
 const ATLAS_NAME_REMAP = {
-  // intentionally empty — kept as a hook for future per-cursor remaps
-  // when a shard adds a custom sprite that should mask one of the
-  // shipped names.
+  'target-harmful': 'target-neutral',
+  'target-beneficial': 'target-neutral',
+  'target-self': 'target-neutral',
+  attack: 'target-neutral',
 };
 function _atlasKey(name) { return ATLAS_NAME_REMAP[name] ?? name; }
 
@@ -57,7 +58,7 @@ function _atlasKey(name) { return ATLAS_NAME_REMAP[name] ?? name; }
  *  Returns absolute pixel offset within the cursor sprite
  *  (already-scaled `w` and `h`).
  */
-function _hotspotFor(name, w, h) {
+export function cursorHotspotFor(name, w, h) {
   // Arrow tips for walk-XXX cursors point in the named direction.
   switch (name) {
     case 'walk-n':  return { x: w / 2 | 0, y: 1 };
@@ -90,7 +91,7 @@ function _hotspotFor(name, w, h) {
  *  names. Same direction grid CUO uses (Animation.cs / GameCursor.cs).
  *  Returns null when the vector is short enough that no direction is
  *  meaningful — caller falls back to `default`. */
-function walkNameFor(dx, dy) {
+export function walkNameFor(dx, dy) {
   const r2 = dx * dx + dy * dy;
   if (r2 < 16 * 16) return null;        // 16-px deadzone around the player
   const a = Math.atan2(dy, dx);          // -pi..pi, 0 = east
@@ -138,6 +139,12 @@ class SystemCursor {
     window.addEventListener('mouseleave', this._onLeave);
     this._unsubBus = bus.on('ui:over-gump', ({ over }) => {
       this._overUi = !!over;
+      this._applyHintCss();
+    });
+    this._worldHint = null;
+    this._unsubWorldHint = bus.on('world:cursor-hint', ({ name } = {}) => {
+      this._worldHint = name || null;
+      this._applyHintCss();
     });
     // Hover-derived cursor hint from UIManager. 'text' = the pointer
     // is over a TextInput; we hide our custom UO arrow and let the OS
@@ -174,6 +181,7 @@ class SystemCursor {
     if (this._el) { this._el.remove(); this._el = null; }
     if (this._unsubBus) { this._unsubBus(); this._unsubBus = null; }
     if (this._unsubHint) { this._unsubHint(); this._unsubHint = null; }
+    if (this._unsubWorldHint) { this._unsubWorldHint(); this._unsubWorldHint = null; }
     if (this._unsubLoadStart) { this._unsubLoadStart(); this._unsubLoadStart = null; }
     if (this._unsubLoadEnd)   { this._unsubLoadEnd();   this._unsubLoadEnd = null; }
     if (this._unsubCursorReady) { this._unsubCursorReady(); this._unsubCursorReady = null; }
@@ -218,7 +226,7 @@ class SystemCursor {
    *  target prompt). Pass null to release. */
   setOverride(name) {
     this._override = name || null;
-    if (this._override) this._paint(this._override);
+    this._applyHintCss();
   }
 
   /** Decide which cursor name fits a given client-space pointer
@@ -246,6 +254,7 @@ class SystemCursor {
       clientX >= vx && clientX <= vx + vw &&
       clientY >= vy && clientY <= vy + vh;
     if (!inViewport) return null;
+    if (this._worldHint) return this._worldHint;
     const dx = clientX - (vx + vw / 2);
     const dy = clientY - (vy + vh / 2);
     return walkNameFor(dx, dy) ?? null;
@@ -253,6 +262,12 @@ class SystemCursor {
 
   _paint(name) {
     if (!this._el) return;
+    if (name === 'none') {
+      this._currentName = name;
+      this._el.style.display = 'none';
+      document.body.style.cursor = 'none';
+      return;
+    }
     // Don't paint over the OS I-beam when we're hinted as text-input.
     if (this._cursorHint === 'text') {
       this._el.style.display = 'none';
@@ -281,11 +296,17 @@ class SystemCursor {
       // edge for walk-XXX arrows, centre for target reticles).
       const w = (meta?.w ?? 16) * SCALE;
       const h = (meta?.h ?? 16) * SCALE;
-      const hot = _hotspotFor(name, w, h);
+      const hot = cursorHotspotFor(name, w, h);
       this._hotX = hot.x;
       this._hotY = hot.y;
     }
     this._currentName = name;
+    const colorFilter = name === 'target-harmful' || name === 'attack'
+      ? 'sepia(1) saturate(7) hue-rotate(315deg)'
+      : name === 'target-beneficial' || name === 'target-self'
+        ? 'sepia(1) saturate(5) hue-rotate(65deg)'
+        : '';
+    this._el.style.filter = `${colorFilter} drop-shadow(0 0 1.5px rgba(0,0,0,0.8))`.trim();
     this._el.style.display = '';
   }
 

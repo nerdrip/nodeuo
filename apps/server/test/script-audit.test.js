@@ -71,4 +71,31 @@ describe('script API audit', () => {
       fs.rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it('audits frozen capabilities and Map registries without changing their runtime brand', async () => {
+    const dir = makeScriptDir(`
+      export default function(api) {
+        api.game.mobile.giveItem();
+        api.registry.set('loaded', true);
+        if (!api.registry.has('loaded')) throw new Error('map registration failed');
+      }
+    `);
+    const calls = [];
+    const registry = new Map();
+    const game = Object.freeze({
+      mobile: Object.freeze({ giveItem: () => calls.push('give') }),
+    });
+    try {
+      const runtime = await loadScripts(dir, {
+        log() {}, game, registry,
+        scriptAudit: { enabled: true, failOnWarnings: true },
+      });
+      expect(runtime.loaded).toHaveLength(1);
+      expect(calls).toEqual(['give']);
+      expect(registry.get('loaded')).toBe(true);
+      expect(runtime.audit.report().summary).toEqual({ warnings: 0, missingCapabilities: 0 });
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });

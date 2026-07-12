@@ -305,7 +305,6 @@ async function _pathfindViaWorker(player, tx, ty) {
   const startedAt = performance.now();
   const sx = player.x | 0;
   const sy = player.y | 0;
-  const sz = player.z | 0;
   const map = (player.map ?? player.mapId ?? 1) | 0;
   if (sx === tx && sy === ty) {
     recordStats(startedAt, 'same-tile', 0, 0, null, 0);

@@ -88,9 +88,10 @@ function resolveEquipGumpId(body, itemId) {
     const tiles = assets.gumpAtlas?.tiles;
     if (isFemale && tiles?.[femaleId]) return femaleId;
     if (tiles?.[maleId]) return maleId;
-    return maleId; // best-effort
+    return 0;
   }
-  return itemId + 50000;
+  const legacyId = itemId + 50000;
+  return assets.gumpAtlas?.tiles?.[legacyId] ? legacyId : 0;
 }
 
 export class PaperdollGump extends Gump {
@@ -107,6 +108,7 @@ export class PaperdollGump extends Gump {
     this.restorePosition();
     /** @type {Map<number, GumpPic>} */
     this._slots = new Map();
+    this._equipmentSerials = new Set();
 
     const mob = world.mobiles.get(this.mobileSerial);
     // Frame (parchment + brass border + empty centre).
@@ -294,36 +296,12 @@ export class PaperdollGump extends Gump {
       virtueBadge.node.cursor = 'pointer';
       virtueBadge.node.on('pointertap', () => bus.emit('macro:gump', { kind: 'virtues' }));
       this.add(virtueBadge);
-      // Bottom-left scroll pair — CUO `PaperDollGump.cs:219-233`:
-      //   profile pic  = GumpPic(25, 196, 0x07D2, 0)  → double-click profile
-      //   party-manif. = GumpPic(39, 196, 0x07D2, 0)  → double-click party
-      // Same graphic 0x07D2, offset by SCROLLS_STEP=14. The prior code
-      // used 0x0071 for the first scroll (which is the virtue badge,
-      // already placed above) and an invented 0x12AE for the second
-      // (not in gumpartLegacyMUL — atlas placeholder). User report
-      // 2026-05-17 "scrolls have wrong graphics still" — fix is to
-      // mirror CUO exactly.
-      const SCROLLS_STEP = 14;
-      const profilePic = new GumpPic(0x07D2);
-      profilePic.setPosition(25, 196);
-      profilePic.node.eventMode = 'static';
-      profilePic.node.cursor = 'pointer';
-      // CUO uses MouseDoubleClick to fire the profile request; we wire
-      // both single + double tap so the click feels responsive without
-      // forcing the user to learn UO's "everything is double-click"
-      // convention for inert-looking scrolls.
-      const openProfile = () => {
-        try { net.send(buildProfileRequest(this.mobileSerial >>> 0)); }
-        catch { /* socket transient */ }
-      };
-      profilePic.node.on('pointertap', openProfile);
-      this.add(profilePic);
-      const partyScroll = new GumpPic(0x07D2);
-      partyScroll.setPosition(25 + SCROLLS_STEP, 196);
-      partyScroll.node.eventMode = 'static';
-      partyScroll.node.cursor = 'pointer';
-      partyScroll.node.on('pointertap', () => bus.emit('macro:gump', { kind: 'party' }));
-      this.add(partyScroll);
+      // The legacy 0x07D2 scroll pair is intentionally omitted. In this
+      // asset set it is a fixed 19×51 strip that some compressed-atlas
+      // backends reported with the page height, stretching a decorative
+      // scroll over the whole paperdoll (the tall column in the screenshot).
+      // Profile and party remain fully reachable from the labelled side
+      // buttons/top bar, so removing duplicate decoration loses no action.
     }
 
     this._unsubs = [
@@ -350,7 +328,10 @@ export class PaperdollGump extends Gump {
       // world.removeEntity). Trigger a redraw so the paperdoll gump
       // for the lifted clothing piece disappears immediately instead
       // of lingering until the next 0x78 mobileIncoming.
-      bus.on('entity:removed',  () => this._refresh()),
+      bus.on('entity:removed',  ({ serial }) => {
+        const s = serial >>> 0;
+        if (s === this.mobileSerial || this._equipmentSerials.has(s)) this._refresh();
+      }),
       // Drop the hover-preview ghost as soon as the held item leaves
       // the cursor — drop confirmed (drag:dropped), equipped via swap
       // (drag:equipped), or server-rejected (drag:rejected). Otherwise
@@ -397,8 +378,12 @@ export class PaperdollGump extends Gump {
 
     for (const sp of this._slots.values()) sp.dispose();
     this._slots.clear();
+    this._equipmentSerials.clear();
 
     if (!mob?.equipment) return;
+    for (const eq of mob.equipment.values()) {
+      if (eq?.serial != null) this._equipmentSerials.add(eq.serial >>> 0);
+    }
     // Layers we want on the paperdoll INCLUDE backpack so the bag icon
     // hangs visibly at the avatar's hip. Put the backpack under worn
     // items for hit-testing: hand-held spellbooks/weapons must win a
@@ -454,6 +439,7 @@ export class PaperdollGump extends Gump {
       // for missing entries — chest/arms art that's not in the
       // catalogue surfaces as a tinted rectangle, not invisibly).
       const gumpId = resolveEquipGumpId(mob.body, eq.itemId);
+      if (!gumpId) continue;
       const isBackpackSlot = layer === LAYER_BACKPACK;
       const pic = new PaperDollInteractable({
         gumpId,
@@ -590,6 +576,7 @@ export class PaperdollGump extends Gump {
     if (this._preview) { this._preview.dispose(); this._preview = null; }
     const mob = world.mobiles.get(this.mobileSerial);
     const gumpId = resolveEquipGumpId(mob?.body | 0, held.itemId | 0);
+    if (!gumpId) return;
     const pic = new GumpPic(gumpId, { hue: held.hue ?? 0 });
     pic.setPosition(BODY_OFFSET_X, BODY_OFFSET_Y);
     pic.acceptMouseInput = false;        // pass clicks through to the body

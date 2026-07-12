@@ -603,7 +603,12 @@ export function applyXmlSpawners(api, opts = {}) {
       continue;
     }
     const id = `xml-${sp.map}-${sp.x1}-${sp.y1}-${i}`;
-    if (world._xmlSpawnersApplied.has(id)) continue;
+    // `_xmlSpawnersApplied` is persisted with the world, while
+    // `api.spawner.groups` is runtime-only. After a restart the marker
+    // survived but every actual group was gone, so CreateWorld reported
+    // success and towns remained empty forever. Skip only when the live
+    // registry really contains the group; otherwise reconstruct it.
+    if (world._xmlSpawnersApplied.has(id) && api.spawner.groups?.has?.(id)) continue;
     try {
       api.spawner.add({
         id, map: sp.map,
@@ -619,6 +624,28 @@ export function applyXmlSpawners(api, opts = {}) {
     } catch (e) { dropped++; api.log?.(`[xmlload] add failed ${id}: ${e.message}`); }
   }
   return { added, dropped, chests };
+}
+
+/** Make shop NPCs available immediately after an explicit population or a
+ * runtime-registry restore. Hostile/ambient groups keep their stagger. */
+export function primeVendorSpawners(api, passes = 4) {
+  if (!api.spawner?.tick || !api.spawner.groups) return 0;
+  const isVendorKind = (entry) => {
+    const raw = Array.isArray(entry) ? entry[0] : (entry?.kind ?? entry?.name ?? entry);
+    return !!raw && api.vendors?.hasKind?.(String(raw).toLowerCase());
+  };
+  let primed = 0;
+  for (let pass = 0; pass < Math.max(1, passes | 0); pass++) {
+    const now = Date.now() + pass;
+    for (const group of api.spawner.groups.values()) {
+      if (group.spawnedSerials?.size >= group.maxCount) continue;
+      if (!group.kinds?.some?.(isVendorKind)) continue;
+      group.nextSpawnAt = now;
+      primed++;
+    }
+    api.spawner.tick(now);
+  }
+  return primed;
 }
 
 export function deleteXmlSpawners(api, opts = {}) {
@@ -702,5 +729,29 @@ export default function register(api) {
     },
   });
 
-  return () => {};
+  // Spawner groups themselves are intentionally not persisted. Restore
+  // them after all scripts (especially vendor kinds) have had a chance to
+  // register. This also repairs existing worlds without requiring another
+  // destructive [recreateworld pass.
+  let restoreTimer = null;
+  // Old saves persisted `_createWorldDone` but, before the world-meta fix,
+  // lost `_xmlSpawnersApplied`. Rebuild for either marker so an upgraded
+  // shard cannot boot with decorations present and every NPC/vendor group
+  // missing. A brand-new world remains empty until CreateWorld is requested.
+  const createWorldDone = Object.prototype.hasOwnProperty.call(api.world ?? {}, '_createWorldDone')
+    && api.world._createWorldDone;
+  if (createWorldDone || api.world?._xmlSpawnersApplied?.size) {
+    const restore = () => {
+      const result = applyXmlSpawners(api);
+      const primed = primeVendorSpawners(api);
+      api.log?.(`[xmlload] runtime restore: +${result.added} groups, primed=${primed}`);
+    };
+    if (api.lifecycle?.setTimeout) api.lifecycle.setTimeout(restore, 1500);
+    else {
+      restoreTimer = setTimeout(restore, 1500);
+      restoreTimer.unref?.();
+    }
+  }
+
+  return () => { if (restoreTimer) clearTimeout(restoreTimer); };
 }

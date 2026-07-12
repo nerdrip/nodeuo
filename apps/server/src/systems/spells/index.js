@@ -37,6 +37,7 @@ import { getSpell, registerSpell, allSpells, spellsBySchool } from './registry.j
 import { manaCostFor as spellweavingCost, recordSpellweavingCast } from '../spellweaving.js';
 import { tryConsumeReagents } from './reagents.js';
 import { lineOfSight } from '../../world/los.js';
+import { manaCost as specializationManaCost, castTimeMs as specializationCastTimeMs } from '../specializations.js';
 
 // Re-export registry helpers so legacy callers importing from '../spells.js'
 // (now '../systems/spells/index.js') keep working unchanged.
@@ -51,7 +52,9 @@ export { getSpell, registerSpell, allSpells, spellsBySchool };
  * @property {number} minSkill   required skill × 10
  * @property {number} mana
  * @property {number} [tithing]      Chivalry-only
- * @property {number} [reagents]     Magery/Necromancy — bitmask or count; TODO
+ * @property {number[]|number} [reagents] Optional authored reagent ids or
+ *   legacy mask. Runtime consumption uses the normalized spell-id table
+ *   installed in systems/spells/reagents.js.
  * @property {number} delayMs
  * @property {number} [soundId]
  * @property {boolean} [requiresTarget]
@@ -162,6 +165,7 @@ export function castSpell(ctx) {
     if ((c._mindRotUntil ?? 0) > Date.now()) mul *= 1.5;
     manaCost = Math.max(1, Math.floor(manaCost * mul));
   } catch { /* attributes optional for unit tests */ }
+  manaCost = specializationManaCost(c, manaCost);
   if (!isStaff && !isScroll) {
     const usesTithing = def.school === 'chivalry' && def.tithing;
     if (!usesTithing && (c.mana ?? 0) < manaCost) return { ok: false, reason: 'low-mana' };
@@ -313,7 +317,7 @@ export function castSpell(ctx) {
     c._castManaRefund = (isStaff || isScroll || (def.school === 'chivalry' && def.tithing))
       ? 0
       : Math.floor(manaCost / 2);
-    c._castTimer = setTimeout(runEffect, def.delayMs);
+    c._castTimer = setTimeout(runEffect, specializationCastTimeMs(c, def.delayMs));
   } else {
     runEffect();
   }

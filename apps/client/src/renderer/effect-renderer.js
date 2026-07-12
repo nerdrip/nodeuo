@@ -7,7 +7,7 @@
 //   - scale: per-effect base scale + pulse multiplier
 //   - blendMode: 'add' | 'normal' (selectable per effect)
 //   - lightning bolt: jagged path drawn with Pixi Graphics + flicker
-//   - drag effect (type 4): line tether between source and target
+//   - drag effect (custom type 5): line tether between source and target
 //
 // Each effect lives in `world.effects` for its `duration` then auto-removes.
 // Type:
@@ -15,7 +15,8 @@
 //   1 = lightning bolt (fixed at target)
 //   2 = fixed effect (stays at target)
 //   3 = animated effect attached to source serial
-//   4 = drag effect — tether line from source to target
+//   4 = screen fade (handled by net/handlers)
+//   5 = drag effect — tether line from source to target
 
 import { Graphics } from 'pixi.js';
 import { worldToScreenX, worldToScreenY, depthKey, LAYER_EFFECT } from './iso.js';
@@ -291,7 +292,7 @@ export class EffectRenderer {
       return;
     }
     // Drag tether: draw a Graphics line, no sprite.
-    if (info.type === 4 || info.kind === 'drag') {
+    if (info.type === 5 || info.kind === 'drag') {
       const g = this._acquireGraphics();
       eff._drag = g;
       this.parent.addChild(g);
@@ -333,8 +334,13 @@ export class EffectRenderer {
       const MODE = ['normal', 'multiply', 'screen', 'screen', 'screen', 'normal', 'normal'];
       sp.blendMode = MODE[(info.renderMode | 0) % 7] || 'normal';
       if ((info.renderMode | 0) === 3) sp.alpha = 1.0;
-      if ((info.renderMode | 0) === 4) sp.alpha = 0.7;
+      if ((info.renderMode | 0) === 4) sp.alpha = 0.45;
       if ((info.renderMode | 0) === 5) sp.alpha = 0.5;
+      if ((info.renderMode | 0) === 6) {
+        sp.blendMode = 'multiply';
+        sp.tint = 0x6688cc;
+        sp.alpha = 0.65;
+      }
     }
     if (info.scale) sp.scale.set(info.scale);
     eff.sprite = sp;
@@ -372,6 +378,11 @@ export class EffectRenderer {
     const x = target?.x ?? info.tx ?? info.sx;
     const y = target?.y ?? info.ty ?? info.sy;
     const z = target?.z ?? info.tz ?? info.sz;
+    if (info.explodeSound) {
+      queueMicrotask(() => bus.emit('audio:sfx', {
+        sound: info.explodeSound, x, y, z,
+      }));
+    }
     queueMicrotask(() => bus.emit('fx:graphic', {
       type: 2,
       graphic,
@@ -423,7 +434,8 @@ export class EffectRenderer {
         if (!host) eff.elapsed = eff.lifetime;
       }
       if (eff.elapsed >= eff.lifetime) {
-        if (info.type === 0 && !eff._exploded && (info.explode || info.explodes)) {
+        if (info.type === 0 && !eff._exploded
+            && (info.explode || info.explodes || info.explodeEffect || info.explodeSound)) {
           eff._exploded = true;
           this._queueExplosion(info);
         }
@@ -439,13 +451,13 @@ export class EffectRenderer {
           continue;
         }
         eff._lastLightningAt = eff.elapsed;
-        const wx = info.tx || info.sx;
-        const wy = info.ty || info.sy;
-        const wz = info.tz || info.sz;
+        const wx = info.sx ?? info.tx ?? 0;
+        const wy = info.sy ?? info.ty ?? 0;
+        const wz = info.sz ?? info.tz ?? 0;
         const projX = worldToScreenX(wx, wy);
         const projY = worldToScreenY(wx, wy, wz);
-        const topX = projX + (Math.random() - 0.5) * 30;
-        const topY = projY - 200;
+        const topX = projX + (Math.random() - 0.5) * 42;
+        const topY = projY - 260;
         const botX = projX;
         const botY = projY;
         const SEGMENTS = 8;
@@ -455,7 +467,7 @@ export class EffectRenderer {
         pts[pi++] = topY;
         for (let s = 1; s < SEGMENTS; s++) {
           const t = s / SEGMENTS;
-          pts[pi++] = topX + (botX - topX) * t + (Math.random() - 0.5) * 16;
+          pts[pi++] = topX + (botX - topX) * t + (Math.random() - 0.5) * 24;
           pts[pi++] = topY + (botY - topY) * t;
         }
         pts[pi++] = botX;
@@ -464,9 +476,10 @@ export class EffectRenderer {
         const flicker = Math.sin(eff.elapsed / 30) > 0 ? 1 : 0.4;
         eff._lightning.alpha = flicker;
         eff._lightning.poly(pts, false)
+          .stroke({ width: 6, color: 0x609cff, alpha: 0.48 })
           .stroke({ width: 3, color: 0xC0E0FF, alpha: 1 })
           .stroke({ width: 1, color: 0xFFFFFF, alpha: 1 });
-        eff._lightning.zIndex = depthKey(info.tx | 0, info.ty | 0, (info.tz | 0) + 30, LAYER_EFFECT);
+        eff._lightning.zIndex = depthKey(wx | 0, wy | 0, (wz | 0) + 30, LAYER_EFFECT);
         this.effects[write++] = eff;
         continue;
       }

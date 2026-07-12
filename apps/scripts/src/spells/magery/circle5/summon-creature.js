@@ -26,8 +26,17 @@ export default {
       return;
     }
     mob.controlMaster = caster.serial >>> 0;
+    mob.controlled = true;
+    mob.controlOrder = 'follow';
+    mob.controlTarget = caster.serial >>> 0;
+    mob.team = caster.serial >>> 0;
+    mob.tameable = true;
+    mob.tamable = true;
     mob.notoriety = 1;                                  // friendly
     mob.summoned = true;
+    mob.summonedBy = caster.serial >>> 0;
+    mob._followerCost = Math.max(1, mob.controlSlots | 0);
+    caster.followers = (caster.followers | 0) + mob._followerCost;
     api.ai?.attach?.(mob, 'pet', { command: 'follow', targetSerial: caster.serial });
     ctx.state.sendSystemMessage(`You summon ${kind === 'cat' ? 'a cat' : `a ${kind}`}.`);
     setTimeout(() => {
@@ -36,6 +45,7 @@ export default {
       // the canonical `destroyMobile` path (matches summon-helpers).
       try { destroyMobileBySerial(api, mob.serial); }
       catch { /* gone */ }
+      caster.followers = Math.max(0, (caster.followers | 0) - (mob._followerCost | 0));
       caster.client?.sendSystemMessage?.('Your summoned creature returns to the ether.');
     }, 120_000).unref?.();
   },

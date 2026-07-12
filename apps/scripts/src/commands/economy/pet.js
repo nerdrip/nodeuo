@@ -356,6 +356,18 @@ export default function register(api) {
           }
           return;
         }
+        case 'train': {
+          const PT = api.systems?.petTraining;
+          const ability = String(ctx.args[1] ?? '').toLowerCase();
+          const serial = parseInt(String(ctx.args[2] ?? ''), 16) >>> 0;
+          const pet = serial ? pets.find((entry) => (entry.serial >>> 0) === serial) : pets[0];
+          if (!pet) { ctx.state.sendSystemMessage('Pet not found.'); return; }
+          const result = PT?.trainPet?.(pet, ability) ?? { ok: false, error: 'Pet training engine missing.' };
+          ctx.state.sendSystemMessage(result.ok
+            ? `${pet.name ?? 'Your pet'} learned ${result.ability.label}. ${result.available} point(s) remain.`
+            : result.error);
+          return;
+        }
         case 'trainui':
         case 'traingump':
         case 'tricks': {
@@ -377,6 +389,8 @@ export default function register(api) {
             sn.level | 0,
             sn.pct | 0,
             sn.intoLevel | 0,
+            PT?.trainingPointsAvailable?.(pet) ?? 0,
+            (pet.petTrainingAbilities ?? []).join(','),
           ].join('|');
           ctx.state.sendSystemMessage?.(`@@OPEN_PETTRAINING_GUMP@@${payload}`);
           return;

@@ -8,8 +8,9 @@
 // render to a Pixi Text + Graphics composition, and ignore everything
 // else.
 
-import { Text, Graphics } from 'pixi.js';
+import { Container, Text, Graphics } from 'pixi.js';
 import { Control } from '../control.js';
+import { UI_FONT_FAMILY, UI_TEXT_RESOLUTION } from '../text-quality.js';
 
 const ALLOWED_TAGS = new Set(['basefont', 'b', 'i', 'u', 'br', 'a', 'p', 'div', 'span', 'center']);
 
@@ -181,19 +182,44 @@ function approxTextWidth(s, size) {
 }
 
 export class HtmlControl extends Control {
-  constructor({ text = '', maxWidth = 320, fontSize = 12, color = 0xfff0c0, onLinkClick = null } = {}) {
+  constructor({
+    text = '', maxWidth = 320, maxHeight = 0, fontSize = 12,
+    color = 0xfff0c0, onLinkClick = null,
+    background = false, scrollable = false,
+  } = {}) {
     super();
     this.width = maxWidth;
-    this.height = fontSize + 2;
+    this.height = maxHeight > 0 ? maxHeight : fontSize + 2;
     this._maxWidth = maxWidth;
+    this._maxHeight = maxHeight | 0;
     this._fontSize = fontSize;
     this._baseColor = color;
     this._onLinkClick = onLinkClick;
+    this._scrollable = !!scrollable;
+    this._scrollY = 0;
     this._textObjects = [];
+    this._background = new Graphics();
+    this._content = new Container();
     this._underlines = new Graphics();
-    this.node.addChild(this._underlines);
+    this._content.addChild(this._underlines);
+    this._mask = new Graphics();
+    this._scrollbar = new Graphics();
+    this.node.addChild(this._background, this._content, this._mask, this._scrollbar);
+    this._content.mask = this._mask;
+    if (background) {
+      this._background.rect(0, 0, this.width, this.height)
+        .fill({ color: 0x080604, alpha: 0.72 })
+        .stroke({ width: 1, color: 0x6f5425, alpha: 0.75 });
+    }
+    this._drawMask();
     this.acceptMouseInput = true;
     if (text) this.setText(text);
+  }
+
+  _drawMask() {
+    this._mask.clear();
+    this._mask.rect(0, 0, Math.max(1, this.width), Math.max(1, this.height))
+      .fill({ color: 0xffffff });
   }
 
   setText(text) {
@@ -216,24 +242,52 @@ export class HtmlControl extends Control {
         text: r.text,
         style: {
           fill: r.color, fontSize: r.size,
-          fontFamily: 'Times New Roman, serif',
+          fontFamily: UI_FONT_FAMILY,
           fontStyle:  r.italic ? 'italic' : 'normal',
           fontWeight: r.bold ? 'bold' : 'normal',
         },
+        resolution: UI_TEXT_RESOLUTION,
+        roundPixels: true,
       });
       t.position.set(r.x, r.y);
-      this.node.addChild(t);
+      this._content.addChild(t);
       this._textObjects.push(t);
       if (r.underline) {
         this._underlines.rect(r.x, r.y + r.size, r.w, 1).fill({ color: r.color });
       }
       totalH = Math.max(totalH, r.y + r.h);
     }
-    this.height = totalH;
+    this.contentHeight = totalH;
+    if (this._maxHeight <= 0) {
+      this.height = Math.max(this._fontSize + 2, totalH);
+      this._drawMask();
+    }
+    this._maxScroll = Math.max(0, totalH - this.height);
+    this._scrollY = Math.min(this._scrollY, this._maxScroll);
+    this._applyScroll();
+  }
+
+  _applyScroll() {
+    this._content.y = -this._scrollY;
+    this._scrollbar.clear();
+    if (!this._scrollable || this._maxScroll <= 0) return;
+    const trackH = Math.max(8, this.height - 4);
+    const thumbH = Math.max(12, trackH * (this.height / Math.max(this.height, this.contentHeight)));
+    const travel = Math.max(0, trackH - thumbH);
+    const thumbY = 2 + (this._scrollY / this._maxScroll) * travel;
+    this._scrollbar.roundRect(this.width - 5, 2, 3, trackH, 1).fill({ color: 0x16100a, alpha: 0.75 });
+    this._scrollbar.roundRect(this.width - 5, thumbY, 3, thumbH, 1).fill({ color: 0xc79a46, alpha: 0.95 });
+  }
+
+  onWheel(deltaY) {
+    if (!this._scrollable || this._maxScroll <= 0) return;
+    this._scrollY = Math.max(0, Math.min(this._maxScroll, this._scrollY + Math.sign(deltaY) * 24));
+    this._applyScroll();
   }
 
   onMouseDown(_btn, lx, ly) {
     if (!this._runs || !this._onLinkClick) return;
+    ly += this._scrollY;
     for (const r of this._runs) {
       if (!r.link) continue;
       if (lx >= r.x && lx <= r.x + r.w && ly >= r.y && ly <= r.y + r.h) {

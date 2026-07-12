@@ -67,8 +67,9 @@ export default function register(api) {
   }
 
   api.commands.register({
-    name: 'bod',
-    help: '[bod <skillId> — spawn a small bulk-order deed (8=Smithy, 35=Tailor)',
+    name: 'addbod',
+    help: '[addbod <skillId> — admin: spawn a small bulk-order deed (8=Smithy, 35=Tailor)',
+    access: 'Admin',
     run(ctx) {
       const skillId = parseInt(ctx.args?.[0] ?? '8', 10);
       const bod = bods.makeRandomBOD(skillId);

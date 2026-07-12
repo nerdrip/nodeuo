@@ -262,7 +262,7 @@ function registerArcaneFiend(api, disposers) {
   });
 }
 
-function installSpellMetadata(api, disposers) {
+function installSpellMetadata(api) {
   const spellSys = api.systems?.spells;
   if (!spellSys?.registerSpell || !spellSys?.getSpell) return new Map();
   const byAlias = new Map();
@@ -361,7 +361,7 @@ function sweepSpellParity(api) {
 export default function register(api) {
   const disposers = [];
   registerArcaneFiend(api, disposers);
-  const byAlias = installSpellMetadata(api, disposers);
+  const byAlias = installSpellMetadata(api);
   registerCommands(api, byAlias, disposers);
 
   api.systems ??= {};

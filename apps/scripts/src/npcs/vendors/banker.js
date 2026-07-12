@@ -7,7 +7,6 @@ import { spawnNPC } from './_spawn.js';
 import { childrenOf } from '../../_inventory.js';
 import { itemBySerial } from '../../_entities.js';
 import { canCreateItem, createItem, destroyItemBySerial } from '../../_items.js';
-import { createMobile } from '../../_mobiles.js';
 
 const HEAR_RANGE = 12;
 

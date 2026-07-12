@@ -45,14 +45,23 @@ function pngFallbackUrlForTexture(tex) {
 }
 
 export class GumpPic extends Control {
-  constructor(gumpId, { hue = 0, width = 32, height = 32,
-                        srcX = 0, srcY = 0, srcW = 0, srcH = 0 } = {}) {
+  constructor(gumpId, opts = {}) {
+    const { hue = 0, width = 32, height = 32,
+            srcX = 0, srcY = 0, srcW = 0, srcH = 0 } = opts;
     super();
     this.gumpId = gumpId | 0;
     this.hue = hue | 0;
     this.tint = 0xffffff;
     this.width = width;
     this.height = height;
+    // Do not infer "auto size" from the numeric value 32x32. A large
+    // number of controls deliberately request exactly 32x32 (action-bar
+    // slots, spell icons, buttons). The old value-based check expanded
+    // those controls to the source texture's natural dimensions after an
+    // asynchronous atlas load, which made gumps appear to change to random
+    // sizes. Track whether the caller supplied a size instead.
+    this._explicitSize = Object.prototype.hasOwnProperty.call(opts, 'width')
+      || Object.prototype.hasOwnProperty.call(opts, 'height');
     // PicInPic crop window. (0,0,0,0) means "use full sprite".
     this._srcX = srcX | 0;
     this._srcY = srcY | 0;
@@ -71,6 +80,7 @@ export class GumpPic extends Control {
   }
 
   setSize(w, h) {
+    this._explicitSize = true;
     super.setSize(w, h);
     if (this._sprite) {
       this._sprite.width  = w;
@@ -208,7 +218,7 @@ export class GumpPic extends Control {
     this._sprite.tint = this.tint;
     // If the user gave explicit dimensions, stretch to them; otherwise use
     // the sprite's natural size and update bounds so hit-test matches.
-    if (this.width === 32 && this.height === 32) {
+    if (!this._explicitSize) {
       this.width  = useTex.width;
       this.height = useTex.height;
     } else {

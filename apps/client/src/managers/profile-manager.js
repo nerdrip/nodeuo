@@ -61,6 +61,7 @@ const DEFAULTS = Object.freeze({
     backgroundOpacity: 0.78,
     colorResists: true,                     // tint resist lines by element
     colorArtifact: true,                    // gold for artifact properties
+    compareEquipped: true,                  // numeric +/- against current slot item
     echoToChat: false,                      // copy tooltip to chat on hover
     holdAltToShow: false,                   // require Alt key before showing tooltips
   },
@@ -184,7 +185,10 @@ const DEFAULTS = Object.freeze({
     smoothMovement: true,                   // client-side movement prediction
   },
   ui: {
-    scale: 1, showFps: false,
+    // Native UO artwork was authored for much smaller displays. A modest
+    // default zoom keeps it readable on current 1080p/1440p monitors while
+    // preserving the original logical layout and pixel proportions.
+    scale: 1.25, scaleVersion: 2, showFps: false,
     gumpState: {},
     paperdollMode: 'window',                // 'window' | 'sidebar'
     containerScale: 1.0,
@@ -475,12 +479,17 @@ class ProfileManager {
   _load() {
     this._valueCache.clear();
     try {
-      const raw = localStorage.getItem(this._activeKey());
+      const storage = globalThis.localStorage;
+      if (!storage) {
+        this.settings = structuredClone(DEFAULTS);
+        return;
+      }
+      const raw = storage.getItem(this._activeKey());
       if (!raw) {
         // No per-character data yet — start from global defaults so a
         // freshly-bound character inherits sensible audio/UI settings.
         if (this._charKey) {
-          const g = localStorage.getItem(GLOBAL_KEY);
+          const g = storage.getItem(GLOBAL_KEY);
           if (g) this.settings = deepMerge(structuredClone(DEFAULTS), migrateProfile(JSON.parse(g)));
           else   this.settings = structuredClone(DEFAULTS);
         } else {
@@ -493,7 +502,7 @@ class ProfileManager {
     } catch (e) { console.warn('[profile] load failed', e); }
   }
   _save() {
-    try { localStorage.setItem(this._activeKey(), JSON.stringify(this.settings)); }
+    try { globalThis.localStorage?.setItem(this._activeKey(), JSON.stringify(this.settings)); }
     catch (e) { console.warn('[profile] save failed', e); }
   }
 }
@@ -511,6 +520,13 @@ function deepMerge(target, source) {
 
 function migrateProfile(source) {
   if (!source || typeof source !== 'object') return source;
+  // Existing profiles all inherited scale=1 even though the value was never
+  // consumed by the renderer. Migrate that legacy default once. Explicit
+  // custom scales are preserved.
+  if (source.ui && typeof source.ui === 'object' && source.ui.scaleVersion == null) {
+    if (source.ui.scale == null || Number(source.ui.scale) === 1) source.ui.scale = 1.25;
+    source.ui.scaleVersion = 2;
+  }
   const wm = source.worldmap;
   if (wm && typeof wm === 'object') {
     if (wm.showParty === undefined && wm.partyBlips !== undefined) {

@@ -12,16 +12,22 @@
 // kind:
 //   0x00  moving (from-to)
 //   0x01  lightning (strikes the target)
-//   0x02  stationary at target
-//   0x03  from-source, follows source
+//   0x02  fixed at source XYZ
+//   0x03  fixed-from, follows source
+//   0x04  screen fade
+//   0x05  custom drag/tether effect
 
 import { PacketWriter } from '../buffer.js';
 
 export const EffectKind = Object.freeze({
   Moving: 0x00,
   Lightning: 0x01,
+  FixedXYZ: 0x02,
   Stationary: 0x02,
+  FixedFrom: 0x03,
   FromSource: 0x03,
+  ScreenFade: 0x04,
+  DragEffect: 0x05,
 });
 
 function writeEffectBody(w, p) {

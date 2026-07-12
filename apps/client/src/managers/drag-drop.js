@@ -118,20 +118,11 @@ class DragDrop {
   dropToEquip(mobileSerial, layer) {
     if (!this.held) return;
     const item = this.held;
-    // Audit rev.4 P2 — drag-drop weight validation. CUO `GumpPicture`
-    // refuses to forward an equip request when the resulting load
-    // exceeds the wearer's strength capacity. Server still has final
-    // authority, but doing the local check saves a round-trip and
-    // gives instant feedback (the server response would have been
-    // "you cannot use this item").
-    try {
-      const ok = this._validateWeight(item, mobileSerial, layer);
-      if (!ok) {
-        bus.emit('chat:system', { text: 'You cannot lift this — too heavy for your strength.' });
-        this.reject();
-        return;
-      }
-    } catch { /* be lenient — if validation can't decide, defer to server */ }
+    // Equipping an item already carried in the backpack does not increase
+    // total carried weight. The previous client-side check added its weight
+    // a second time and blocked spellbooks/clothing whenever the status
+    // packet reported a near-full pack. Strength/equip requirements remain
+    // authoritative on the server, which returns the normal bounce reason.
     this.held = null;
     net.send(buildEquipReq(item.serial, layer, mobileSerial));
     bus.emit('drag:equipped', { ...item, mobile: mobileSerial >>> 0, layer });

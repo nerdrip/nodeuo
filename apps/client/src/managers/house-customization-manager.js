@@ -16,7 +16,9 @@
 // places drag-tools, picks tiles, and calls our builders to send 0xD7
 // commands. The actual rendering happens elsewhere (multi-ghost overlay).
 
-import { PacketWriter } from '@uo/protocol';
+import {
+  PacketWriter, extNodeUOHouseTools, NodeUOCapability, NodeUOHouseToolsMessage,
+} from '@uo/protocol';
 import { net } from '../net/net-client.js';
 import { world } from '../world/world.js';
 import { bus } from '../core/event-bus.js';
@@ -112,12 +114,24 @@ class HouseCustomizationManager {
     this.previewY = null;
     this.previewZ = 0;
     this._installed = false;
+    this._requestId = 0;
+    this.toolState = { history: null, templates: [], validation: null };
   }
   install() {
     if (this._installed) return;
     this._installed = true;
     bus.on('house:custom-start', ({ serial }) => this.beginEdit(serial));
     bus.on('house:custom-end',   () => this.exit());
+    bus.on('nodeuo:house-tools', ({ payload }) => {
+      this.toolState = {
+        history: payload?.history ?? this.toolState.history,
+        templates: payload?.templates ?? this.toolState.templates,
+        validation: payload?.validation ?? null,
+        message: payload?.message ?? '',
+        ok: payload?.ok,
+      };
+      bus.emit('house:tools-result', this.toolState);
+    });
   }
 
   // High-level state transitions ------------------------------------------
@@ -186,6 +200,29 @@ class HouseCustomizationManager {
   sync()    { try { net.send(buildHouseSync());    } catch { /* socket */ } }
   clear()   { try { net.send(buildHouseClear());   } catch { /* socket */ } }
   revert()  { try { net.send(buildHouseRevert());  } catch { /* socket */ } }
+
+  _tool(kind, payload = {}) {
+    if (!net.supportsNodeUO?.(NodeUOCapability.HouseTools)) return false;
+    try {
+      net.send(extNodeUOHouseTools({ kind, requestId: ++this._requestId, payload }));
+      return true;
+    } catch { return false; }
+  }
+  undo() { return this._tool(NodeUOHouseToolsMessage.Undo) || (this.restore(), false); }
+  redo() { return this._tool(NodeUOHouseToolsMessage.Redo); }
+  validate() { return this._tool(NodeUOHouseToolsMessage.Validate); }
+  copyArea(x1, y1, x2, y2, zMin = -20, zMax = 100) {
+    return this._tool(NodeUOHouseToolsMessage.Copy, { x1, y1, x2, y2, zMin, zMax });
+  }
+  pasteAt(x, y, zOffset = 0, replace = false) {
+    return this._tool(NodeUOHouseToolsMessage.Paste, { x, y, zOffset, replace });
+  }
+  saveTemplate(name, rect = null) {
+    return this._tool(NodeUOHouseToolsMessage.SaveTemplate, { name, rect });
+  }
+  applyTemplate(name, x, y, zOffset = 0, replace = false) {
+    return this._tool(NodeUOHouseToolsMessage.ApplyTemplate, { name, x, y, zOffset, replace });
+  }
 
   // Per-tile authoring -----------------------------------------------------
 

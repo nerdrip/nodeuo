@@ -76,7 +76,7 @@ export function recordMovementTrace(kind, data = null, now = performance.now()) 
   movementStats.historyIndex = (movementStats.historyIndex + 1) & 0xffff;
 }
 
-class Walker {
+export class Walker {
   constructor() {
     this._seq = 0;
     this._inFlight = 0;
@@ -87,6 +87,7 @@ class Walker {
     this._fastWalk = new Uint32Array(FASTWALK_STACK_SIZE);
     this._fwTop = 0;             // wraps mod FASTWALK_STACK_SIZE
     this._lastStepAt = 0;
+    this._paceMultiplier = 1;
     /** Set true when 0x21 reject arrives — caller must replay last
      *  authoritative position before further steps. */
     this.resyncRequested = false;
@@ -112,6 +113,12 @@ class Walker {
       this._fastWalk[this._fwTop] = k;
       this._fwTop = (this._fwTop + 1) % FASTWALK_STACK_SIZE;
     });
+    bus.on('net:open', () => { this._paceMultiplier = 1; });
+  }
+
+  setPaceMultiplier(value = 1) {
+    const n = Number(value);
+    this._paceMultiplier = Number.isFinite(n) ? Math.max(1, Math.min(4, n)) : 1;
   }
 
   _syncInFlight() {
@@ -203,6 +210,7 @@ class Walker {
       const mult = TERRAIN_MULT[terrain];
       if (mult) delayMs = Math.round(delayMs * mult);
     }
+    if (!directionOnly) delayMs = Math.round(delayMs * this._paceMultiplier);
     this._lastStepAt = now + delayMs;
     return { sequence: seq, fastWalkKey: key >>> 0, delayMs };
   }

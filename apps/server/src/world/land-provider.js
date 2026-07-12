@@ -192,6 +192,51 @@ export class LandProvider {
     }
     return out;
   }
+
+  /**
+   * Decode a rectangle of baked statics block-by-block. Unlike calling
+   * `staticsAt()` for every tile, each 8x8 block's variable-length record
+   * list is walked exactly once. The admin ISO editor requests up to 64x64
+   * tiles, so this avoids rescanning the same block as many as 64 times.
+   *
+   * @returns {Array<{x:number,y:number,tileId:number,z:number,hue:number}>}
+   */
+  staticsInRect(facet, x0, y0, width, height) {
+    const b = this._load(facet);
+    if (!b || width <= 0 || height <= 0) return [];
+    const x1 = x0 + width - 1;
+    const y1 = y0 + height - 1;
+    const bx0 = Math.max(0, Math.floor(x0 / 8));
+    const by0 = Math.max(0, Math.floor(y0 / 8));
+    const bx1 = Math.min(b.meta.blocksWide - 1, Math.floor(x1 / 8));
+    const by1 = Math.min(b.meta.blocksTall - 1, Math.floor(y1 / 8));
+    const out = [];
+    for (let bx = bx0; bx <= bx1; bx++) {
+      for (let by = by0; by <= by1; by++) {
+        const block = bx * b.meta.blocksTall + by;
+        const idxOff = block * 8;
+        if (idxOff + 8 > b.idxBuf.length) continue;
+        const off = b.idxBuf.readUInt32LE(idxOff);
+        const len = b.idxBuf.readInt32LE(idxOff + 4);
+        if (off === 0xFFFFFFFF || len <= 0) continue;
+        const count = (len / STATIC_RECORD) | 0;
+        for (let i = 0; i < count; i++) {
+          const p = off + i * STATIC_RECORD;
+          if (p + STATIC_RECORD > b.datBuf.length) break;
+          const x = bx * 8 + b.datBuf.readUInt8(p + 2);
+          const y = by * 8 + b.datBuf.readUInt8(p + 3);
+          if (x < x0 || x > x1 || y < y0 || y > y1) continue;
+          out.push({
+            x, y,
+            tileId: b.datBuf.readUInt16LE(p),
+            z: b.datBuf.readInt8(p + 4),
+            hue: b.datBuf.readUInt16LE(p + 5),
+          });
+        }
+      }
+    }
+    return out;
+  }
 }
 
 /** Module-level singleton used by the movement handler. */

@@ -239,7 +239,7 @@ export default function (api) {
         // Within melee range — swing.
         if (now < state.nextAttackAt) return;
         const cfg = api.monsters?.get?.(mob.kind) ?? {};
-        state.nextAttackAt = now + (cfg.attackInterval ?? 1800);
+        state.nextAttackAt = now + (mob.attackInterval ?? cfg.attackInterval ?? 1800);
         const dir = dirTowards(tdx, tdy);
         if ((mob.direction & 7) !== dir) {
           mob.direction = dir;
@@ -252,7 +252,11 @@ export default function (api) {
           return;
         }
         if (api.combat?.rollDamage) {
-          const dmg = api.combat.rollDamage(mob, target);
+          let dmg = api.combat.rollDamage(mob, target) + (mob._petBonusDamage | 0);
+          if (mob._petFireBreath && Math.random() < 0.12) dmg += Math.max(5, Math.floor((mob.str | 0) / 20));
+          if (mob._petPoisonAttack && Math.random() < 0.18) {
+            try { api.poison?.apply?.(ctx.world, target, 1, mob); } catch { /* optional */ }
+          }
           target.hp = Math.max(0, (target.hp ?? 0) - dmg);
           if (target.client) {
             target.client.send(api.protocol.damagePacket?.({ serial: target.serial, amount: dmg }));

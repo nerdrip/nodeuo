@@ -53,7 +53,7 @@ describe('virtues system (FAZA CX)', () => {
   it('pushVirtues sends a 0xBF 0xCD packet to mob.client', () => {
     const sent = [];
     const mob = {
-      client: { send: (b) => sent.push(b) },
+      client: { send: (b) => sent.push(b), supportsNodeUO: () => true },
       virtues: { compassion: 4500, valor: 1000 },
     };
     pushVirtues(mob);
@@ -66,10 +66,21 @@ describe('virtues system (FAZA CX)', () => {
     expect(() => pushVirtues({ virtues: { valor: 100 } })).not.toThrow();
   });
 
+  it('does not send private virtue state to a classic UO client', () => {
+    const sent = [];
+    pushVirtues({
+      client: { send: (b) => sent.push(b), supportsNodeUO: () => false },
+      virtues: { valor: 5000 },
+    });
+    expect(sent).toEqual([]);
+  });
+
   it('awardVirtue auto-pushes the new state to the client', () => {
     const sent = [];
     const mob = {
-      client: { send: (b) => sent.push(b), sendSystemMessage: () => {} },
+      client: {
+        send: (b) => sent.push(b), sendSystemMessage: () => {}, supportsNodeUO: () => true,
+      },
     };
     awardVirtue(mob, 'compassion', 5000);
     expect(sent.length).toBe(1);

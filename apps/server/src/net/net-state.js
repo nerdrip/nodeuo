@@ -15,6 +15,7 @@
 import { frameIncoming, opcodeInfo, huffmanCompress, unicodeMessage, worldItemSA, removeEntity } from '@uo/protocol';
 import * as chatChannels from '../chat-channels.js';
 import { nearbyClients } from '../world/visibility.js';
+import * as diagnostics from '../systems/operational-diagnostics.js';
 
 // ServUO bounds each NetState send queue. WebSocket.bufferedAmount is the
 // browser/Node equivalent; an ordered game stream cannot safely drop packets,
@@ -50,6 +51,11 @@ export class NetState {
     /** Source IP (or `null` for in-process tests). Surfaced to handlers
      *  so AccountAttackLimiter can compose per-IP × per-account keys. */
     this.remoteAddress = ctx.remoteAddress ?? null;
+    /** True only when the WebSocket handshake selected `nodeuo.v1`.
+     *  Private packets remain unavailable on classic TCP and generic WS. */
+    this.nodeUOTransport = ctx.nodeUOTransport === true;
+    this.nodeUOProtocol = null;
+    this.nodeUOCapabilities = 0;
     /** @type {string | null} */
     this.accountName = null;
     /** @type {import('./accounts.js').Account | null} */
@@ -73,6 +79,7 @@ export class NetState {
     this._closed = false;
     this._closing = false;
     this._cleanupDone = false;
+    diagnostics.connectionOpened(this);
 
     ws.binaryType = 'arraybuffer';
     ws.on('message', (data, isBinary) => {
@@ -131,6 +138,7 @@ export class NetState {
       const offRaw = (typeof e.offset === 'number' && e.offset >= 0) ? e.offset : -1;
       if (offRaw < 0) {
         console.warn(`[net#${this.id}] protocol error: ${e.message} — dropping connection`);
+        diagnostics.protocolError();
         this.close('protocol error');
         return;
       }
@@ -155,6 +163,7 @@ export class NetState {
       console.warn(
         `[net#${this.id}] protocol error: ${e.message} at rx[${offRaw}] of ${merged.length} bytes; window=${hex} — dispatched ${packets.length} valid prefix packet(s), discarded malformed tail`,
       );
+      diagnostics.protocolError();
       this._rx = new Uint8Array(0);
     }
 
@@ -168,10 +177,13 @@ export class NetState {
       if (!handler) {
         // Unknown-but-registered opcode. Just log and skip.
         console.warn(`[net#${this.id}] no handler for 0x${op.toString(16)} (${info?.name})`);
+        diagnostics.packet('rx', op, pkt.length, 0, true);
         continue;
       }
+      const startedAt = performance.now();
       try {
         handler(this, pkt);
+        diagnostics.packet('rx', op, pkt.length, performance.now() - startedAt);
       } catch (e) {
         // Gameplay handlers can throw on edge-case data (mis-formed packets,
         // bugs in script-registered commands, etc.). Losing the entire
@@ -179,6 +191,8 @@ export class NetState {
         // going so the player doesn't get kicked mid-command. If the
         // session is genuinely broken, subsequent ops will fail too.
         console.error(`[net#${this.id}] handler 0x${op.toString(16)} threw:`, e);
+        diagnostics.packet('rx', op, pkt.length, performance.now() - startedAt, true);
+        diagnostics.handlerError();
       }
     }
   }
@@ -211,6 +225,8 @@ export class NetState {
     const useHuffman = this.ctx.config.huffmanOutgoing && inGamePhase;
     const payload = useHuffman ? huffmanCompress(packet) : packet;
     this.ws.send(payload, { binary: true });
+    diagnostics.packet('tx', packet[0], payload.length);
+    diagnostics.connectionUpdated(this);
   }
 
   close(reason) {
@@ -234,6 +250,13 @@ export class NetState {
 
   /** Convenience: emit a 0xF3 WorldItemSA for an item. */
   sendItem(item) {
+    if (!item || item.visible === false) {
+      if (item?.serial != null && this._visibleItems?.has?.(item.serial >>> 0)) {
+        this.sendRemove(item.serial);
+        this._visibleItems.delete(item.serial >>> 0);
+      }
+      return false;
+    }
     // Propagate `item.movable` into the on-wire flags byte. The default
     // worldItemSA flag is 0x20 ("movable" in our protocol, despite a
     // misleading comment that calls 0x20 hidden). Without this branch
@@ -247,6 +270,13 @@ export class NetState {
       amount: item.amount, x: item.x, y: item.y, z: item.z,
       flags: (item.movable === false) ? 0x00 : 0x20,
     }));
+    return true;
+  }
+
+  supportsNodeUO(capability) {
+    return this.nodeUOTransport
+      && this.nodeUOProtocol?.major === 1
+      && (((this.nodeUOCapabilities >>> 0) & (capability >>> 0)) === (capability >>> 0));
   }
 
   /** Convenience: emit 0x1D RemoveEntity for a serial. */
@@ -258,6 +288,7 @@ export class NetState {
     if (this._cleanupDone) return;
     this._cleanupDone = true;
     this._closed = true;
+    diagnostics.connectionClosed(this, 'socket closed');
     if (this.mobile) {
       const mob = this.mobile;
       // If we disconnect with an item on the cursor, the item is in limbo:

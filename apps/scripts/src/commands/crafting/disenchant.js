@@ -53,7 +53,7 @@ function rollSuccess(skill, rng = Math.random) {
 }
 
 export default function (api) {
-  const { commands, world } = api;
+  const { commands } = api;
   if (!commands) return () => {};
   const cooldowns = new Map();
 
@@ -123,6 +123,12 @@ export default function (api) {
         amount: recovered,
         name: essence.type.replace(/([A-Z])/g, ' $1').trim().toLowerCase(),
       }, { randomGrid: true });
+      if (!stack) {
+        ctx.state.sendSystemMessage(
+          'The magic condenses, but the essence cannot be placed in your backpack.',
+        );
+        return;
+      }
       ctx.state.sendSystemMessage(
         `You disenchant the item, recovering ${recovered} ${essence.type}.`,
       );

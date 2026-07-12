@@ -93,6 +93,15 @@ export default function register(api) {
       access: 'Player',
       run(ctx) {
         const sub = String(ctx.args[0] ?? '').toLowerCase();
+        if (sub === '' || sub === 'gump' || sub === 'ledger') {
+          const score = krampus.scoreOf?.(ctx.state?.account)
+            ?? ctx.state?.account?._krampusScore
+            ?? { nice: 0, naughty: 0 };
+          ctx.state.sendSystemMessage?.(
+            `@@OPEN_KRAMPUS_GUMP@@${score.nice | 0}|${score.naughty | 0}`,
+          );
+          return;
+        }
         if (sub === 'spawn') {
           const access = ctx.state?.account?.accessLevel ?? 'Player';
           if (access !== 'GM' && access !== 'Admin') {

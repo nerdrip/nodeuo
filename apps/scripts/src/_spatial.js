@@ -1,6 +1,7 @@
 export const UPDATE_RANGE = 18;
 
 function worldOf(apiOrWorld) {
+  if (apiOrWorld?.[Symbol.for('uo.world')]) return apiOrWorld;
   return apiOrWorld?.world ?? apiOrWorld;
 }
 

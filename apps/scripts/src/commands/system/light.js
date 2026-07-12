@@ -8,12 +8,12 @@ import { sendToOnline } from '../../_spatial.js';
 export default function register(api) {
   api.commands.register({
     name: 'light',
-    help: 'light <level> — broadcast overall light level (0..31)',
+    help: 'light <level> — pin overall light level (0..30; use [setlight auto to resume)',
     run(ctx, args) {
-      if (!args.length) { ctx.state.sendSystemMessage('Usage: [light <0..31>'); return; }
-      const level = Math.max(0, Math.min(0x1F, parseInt(args[0], 10) || 0));
-      const pkt = api.protocol.overallLightLevel(level);
-      sendToOnline(api, pkt);
+      if (!args.length) { ctx.state.sendSystemMessage('Usage: [light <0..30>'); return; }
+      const level = Math.max(0, Math.min(30, parseInt(args[0], 10) || 0));
+      if (api.dayNight?.forceLevel) api.dayNight.forceLevel(level);
+      else sendToOnline(api, api.protocol.overallLightLevel(level));
       ctx.state.sendSystemMessage(`Light level → ${level}.`);
     },
   });

@@ -61,6 +61,7 @@ export default function register(api) {
       name: 'die',
       help: '[die — drop your own body (admin testing).',
       access: 'GM',
+      hidden: true,
       run(ctx) {
         const sender = ctx.sender;
         if (!sender) return;
@@ -109,6 +110,7 @@ export default function register(api) {
     name: 'god',
     help: '[god — alias of [invul.',
     access: 'GM',
+    hidden: true,
     run(ctx, args) {
       // Optional explicit on/off ("god on" / "god off") so a macro can
       // set state deterministically. With no arg, just toggles.

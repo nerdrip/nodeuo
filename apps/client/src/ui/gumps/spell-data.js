@@ -218,13 +218,13 @@ const ICON_BASES = {
 // multi-line "Reagents:" block.
 const REAGENT_NAMES = {
   BP: 'Black Pearl',
-  BM: 'Bloodmoss',
+  BM: 'Blood Moss',
   GA: 'Garlic',
   GI: 'Ginseng',
   MR: 'Mandrake Root',
   NS: 'Nightshade',
-  SS: 'Sulfurous Ash',
-  SA: 'Spider\'s Silk',
+  SS: 'Spider\'s Silk',
+  SA: 'Sulfurous Ash',
   // Necromancy reagents
   BS: 'Bat Wing',
   GP: 'Grave Dust',

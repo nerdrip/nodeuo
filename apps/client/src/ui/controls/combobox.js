@@ -6,6 +6,7 @@
 import { Graphics, Text } from 'pixi.js';
 import { Control } from '../control.js';
 import { Label } from './label.js';
+import { UI_FONT_FAMILY, UI_TEXT_RESOLUTION } from '../text-quality.js';
 
 export class Combobox extends Control {
   /**
@@ -27,14 +28,16 @@ export class Combobox extends Control {
 
     this._head = new Graphics();
     this.node.addChild(this._head);
-    this._headText = new Label(this._value, { fontSize: 11, hue: 0xfff0c0 });
-    this._headText.setPosition(8, 5);
+    this._headText = new Label(this._value, { fontSize: 12, hue: 0xfff0c0 });
+    this._headText.setPosition(8, 4);
     this._headText.acceptMouseInput = false;
     this.add(this._headText);
 
     this._arrow = new Text({
       text: '▼',
-      style: { fill: 0xfff0c0, fontSize: 10, fontFamily: 'Consolas, monospace' },
+      style: { fill: 0xfff0c0, fontSize: 10, fontFamily: UI_FONT_FAMILY, fontWeight: 700 },
+      resolution: UI_TEXT_RESOLUTION,
+      roundPixels: true,
     });
     this._arrow.position.set(width - 16, 5);
     this.node.addChild(this._arrow);

@@ -1,4 +1,4 @@
-// [book — spawn a sample writable book at the player's feet.
+// [addbook — spawn a sample writable book at the player's feet.
 //
 // The book's content is held server-side in the books registry. Double-click
 // it to open; edits from the client update the pages in place.
@@ -11,8 +11,9 @@ export default function (api) {
   if (!books) return;
 
   commands.register({
-    name: 'book',
-    help: 'Spawn a readable/writable book.',
+    name: 'addbook',
+    help: '[addbook — spawn a readable/writable book.',
+    access: 'Admin',
     run: (ctx) => {
       const state = ctx.state;
       if (!state?.mobile) return;
@@ -41,5 +42,5 @@ export default function (api) {
     },
   });
 
-  return () => commands.unregister('book');
+  return () => commands.unregister('addbook');
 }

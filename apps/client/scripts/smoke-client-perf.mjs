@@ -27,5 +27,8 @@ const tileRenderer = readFileSync(new URL('../src/renderer/tile-renderer.js', im
 assert.ok(tileRenderer.includes('MAX_ADD_CHILD_BATCH'), 'TileRenderer should batch chunk sprite mounts');
 assert.ok(tileRenderer.includes('_addChunkSprites'), 'TileRenderer should centralize chunk sprite mounting');
 assert.ok(tileRenderer.includes('sprites.sort((a, b) => _zIndexOf(a) - _zIndexOf(b))'), 'Chunk sprites should be locally z-sorted before mounting');
+assert.ok(tileRenderer.includes('const tile = assets.landAt(wx, wy)'), 'Chunk land should use the authoritative overlay-aware lookup');
+assert.ok(!tileRenderer.includes("createShimmer(w, h, { drawHighlight: false })"), 'World chunks must not use rectangular UI shimmers');
+assert.ok(tileRenderer.includes('this.loadPad = 1'), 'TileRenderer should retain only the prefetched warm ring');
 
 console.log('[smoke:client-perf] ok');

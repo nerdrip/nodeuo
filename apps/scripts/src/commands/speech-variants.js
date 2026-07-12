@@ -62,6 +62,7 @@ export default function register(api) {
 
   api.commands.register({
     name: 'emote',
+    aliases: ['me'],
     help: '[emote <text> — show an emote action *like this* to nearby players.',
     access: 'Player',
     run(ctx) {
@@ -72,13 +73,6 @@ export default function register(api) {
       });
     },
   });
-  api.commands.register({
-    name: 'me',
-    help: '[me <text> — alias for [emote.',
-    access: 'Player',
-    run(ctx) { api.commands.commands.get('emote')?.run?.(ctx); },
-  });
-
   api.commands.register({
     name: 'whisper',
     help: '[whisper <text> — say something heard only within ~3 tiles.',
@@ -117,7 +111,7 @@ export default function register(api) {
   });
 
   return () => {
-    for (const n of ['emote', 'me', 'whisper', 'yell', 'say']) {
+    for (const n of ['emote', 'whisper', 'yell', 'say']) {
       api.commands.unregister(n);
     }
   };

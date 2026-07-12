@@ -177,7 +177,11 @@ function registerCommand(api, disposers, spec) {
   const name = spec.name.toLowerCase();
   const exists = api.commands.commands?.has?.(name);
   if (exists && !spec.override) return;
-  api.commands.register(spec);
+  const compatibilityOnly = new Set([
+    'servuoprops', 'batch', 'servuoquery', 'exportwsc', 'profiling', 'statuspage',
+    'visibilitylist', 'openbrowser', 'servuotoggle', 'servuotele', 'servuoadd',
+  ]);
+  api.commands.register({ ...spec, hidden: spec.hidden ?? compatibilityOnly.has(name) });
   disposers.push(() => api.commands.unregister?.(spec.name));
 }
 

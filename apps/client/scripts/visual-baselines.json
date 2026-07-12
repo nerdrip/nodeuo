@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "engine": "playwright-chromium-1.60",
+  "viewport": "1280x800@1",
+  "sha256": {
+    "01-roofs.png": "5a0f04d0a3d413f3f645547781cc71a01a16c3ea446e14edf351960c195613fb",
+    "02-circle-of-transparency.png": "758de22b186f31da24a456ade492b13a1f7386186b31eec70aa98cfe97f0e916",
+    "03-dynamic-lights.png": "dc53c244fd785e57c928e46c4e4c0a17c2cdfe5172a08c7576d6ec7973f1fd7f",
+    "04-fields.png": "1fad12462a93c77e730799c0fa92aed87d33e67b69090b59beace78872b1f678",
+    "05-mapgump.png": "4645d04428383e2dac7f823259d32523b0195f16e175d5ec4ade01c21fa8b5e8",
+    "06-character-creation.png": "b769ae9d42534c9b87d50378a4a1fbcd58a0c9d70eed15577dfebde6926b1bea",
+    "07-atmosphere.png": "7a50137a2a5db6ad2e9755e069de1ac8f549829d6ddc181f7aa9a63282e79b3a",
+    "08-health-target.png": "ba5c709b8cc1838011993caf815e7be741afb6dbcea9ca99780f3da224465b3b",
+    "09-cursors.png": "f97234aaf7f8c0bb36e84e8bbc7b6f09d4b0ccd6f706d6ab5531a78e0c4bea7a",
+    "10-death-corpse.png": "02a2d66de283e7a0afd07da0c72f37038b876bb945bed10ad0b3b7731b75a8d2"
+  }
+}

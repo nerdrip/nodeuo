@@ -14,6 +14,7 @@
 import { Text, TextStyle } from 'pixi.js';
 import { Control } from '../control.js';
 import { UoBitmapText, uoFontsReady } from './uo-bitmap-text.js';
+import { UI_FONT_FAMILY, UI_TEXT_RESOLUTION } from '../text-quality.js';
 
 /** Map our requested CSS-ish fontSize to one of the 10 UO ASCII fonts.
  *  Font 0 is the standard UO game text (~ 9-px cap height). Fonts 3/9
@@ -39,15 +40,16 @@ function normalizeHue(h) {
 }
 
 const _textStyleCache = new Map();
-function labelTextStyle(fill, fontSize, fontFamily, stroke) {
-  const key = `${fill >>> 0}|${fontSize | 0}|${fontFamily}|${stroke ? 1 : 0}`;
+function labelTextStyle(fill, fontSize, fontFamily, stroke, fontWeight) {
+  const key = `${fill >>> 0}|${fontSize}|${fontFamily}|${stroke ? 1 : 0}|${fontWeight}`;
   let style = _textStyleCache.get(key);
   if (style) return style;
   style = new TextStyle({
     fill,
     fontSize,
     fontFamily,
-    ...(stroke ? { stroke: { color: 0x000000, width: 2 } } : {}),
+    fontWeight,
+    ...(stroke ? { stroke: { color: 0x000000, width: 1, join: 'round' } } : {}),
   });
   _textStyleCache.set(key, style);
   return style;
@@ -55,9 +57,10 @@ function labelTextStyle(fill, fontSize, fontFamily, stroke) {
 
 export class Label extends Control {
   constructor(text = '', {
-    hue = 0xfff0c0, fontSize = 12,
-    font = 'Consolas, monospace',
-    stroke = true,
+    hue = 0xfff0c0, fontSize = 13,
+    font = UI_FONT_FAMILY,
+    fontWeight = 500,
+    stroke = false,
     bitmap = false,
   } = {}) {
     super();
@@ -65,6 +68,7 @@ export class Label extends Control {
     this._hue = normalizeHue(hue);
     this._fontSize = fontSize;
     this._fontFamily = font;
+    this._fontWeight = fontWeight;
     this._stroke = stroke;
     this._cachedText = text ?? '';
 
@@ -78,7 +82,9 @@ export class Label extends Control {
       this._mode = 'pixi';
       this._text = new Text({
         text: this._cachedText,
-        style: labelTextStyle(this._hue, fontSize, font, stroke),
+        style: labelTextStyle(this._hue, fontSize, font, stroke, fontWeight),
+        resolution: UI_TEXT_RESOLUTION,
+        roundPixels: true,
       });
       this.node.addChild(this._text);
     }
@@ -104,7 +110,9 @@ export class Label extends Control {
     if (this._mode === 'uo') {
       this._uo.setHue(rgb);
     } else {
-      this._text.style = labelTextStyle(rgb, this._fontSize, this._fontFamily, this._stroke);
+      this._text.style = labelTextStyle(
+        rgb, this._fontSize, this._fontFamily, this._stroke, this._fontWeight,
+      );
     }
   }
 

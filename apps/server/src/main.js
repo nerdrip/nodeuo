@@ -96,12 +96,14 @@ import * as itemCatalog from './content/items/index.js';
 // Systems — spell + crafting engines. Exposed to scripts so gameplay
 // commands (`[cast`, `[craft`) can invoke the dispatchers.
 import * as spellSystem from './systems/spells/index.js';
+import { SpellComposerService } from './systems/spells/composer.js';
 import * as craftSystem from './systems/crafting/index.js';
 import * as paragonSystem from './systems/paragons.js';
 import * as virtueSystem from './systems/rewards/virtues.js';
 import * as refinementSystem from './systems/refinement.js';
 import * as peerlessSystem from './systems/bosses/peerless.js';
 import * as petTrainingSystem from './systems/pets/pet-training.js';
+import * as mountAbilitiesSystem from './systems/pets/mount-abilities.js';
 import * as insuranceSystem from './systems/economy/insurance.js';
 import * as slayerSystem from './systems/slayers.js';
 import * as sigilSystem from './systems/pvp/sigils.js';
@@ -118,6 +120,8 @@ import * as doomGauntletSystem from './systems/bosses/doom-gauntlet.js';
 import * as championSkullsSystem from './systems/bosses/champion-skulls.js';
 import * as peerlessBossesSystem from './systems/bosses/peerless-bosses.js';
 import * as skillMasteriesSystem from './systems/skill-masteries.js';
+import * as specializationsSystem from './systems/specializations.js';
+import { AIBehaviorGraphRegistry } from './world/ai-graphs.js';
 // Mastery abilities (30+ active spells/moves) — side-effect import wires
 // each into the special-moves registry under the `mastery:<Name>` key.
 // Scripts and the [cast command resolve through `mastery.invokeMastery`.
@@ -181,21 +185,10 @@ import * as fireCasinoSystem from './systems/economy/fire-casino.js';
 import * as housingLottoSystem from './systems/housing/housing-lotto.js';
 import * as harvestQuotasSystem from './systems/economy/harvest-quotas.js';
 import * as spellReagentsSystem from './systems/spells/reagents.js';
-// Peerless arenas, world bosses + sigils are registered by the script
-// runtime — these are content (coordinates + cooldowns) not engine.
-// See:
-//   apps/scripts/src/systems/peerless-arenas.js (+ data/world/peerless-arenas.json)
-//   (TODO) apps/scripts/src/systems/world-bosses-registry.js + sigils-registry.js
-// World boss + sigil registrations below kept inline until those scripts
-// land; coordinates are content data that should follow.
-worldBossSystem.registerBoss('harrower',           { cooldownMs: 24 * 60 * 60 * 1000 });
-worldBossSystem.registerBoss('doppelganger',       { cooldownMs: 12 * 60 * 60 * 1000 });
-worldBossSystem.registerBoss('spirit-of-the-land', { cooldownMs:  8 * 60 * 60 * 1000 });
-sigilSystem.registerSigil('britain',  1495,  1629, 1);
-sigilSystem.registerSigil('magincia', 3713, 2113, 1);
-sigilSystem.registerSigil('minoc',    2479,  439, 1);
-sigilSystem.registerSigil('trinsic',  1846, 2745, 1);
-sigilSystem.registerSigil('yew',       633,  858, 1);
+import { registerCoreWorldEvents } from './content/world-event-registry.js';
+// Canonical registrations are data-driven and reusable by tests/admin tools.
+// Shard scripts can still add or override entries after the runtime loads.
+registerCoreWorldEvents({ worldBosses: worldBossSystem, sigils: sigilSystem });
 
 const world = new World();
 world.enableOnlineMobileIndex?.();
@@ -297,6 +290,10 @@ extendTargeting(targeting, { world });
 // per-viewer notoriety colours so a tamer's pet shows green to the
 // tamer and orange to a faction enemy at the same instant.
 const ai = new AIScheduler(world, {
+  // A persisted shard can contain 10k+ NPCs. Do not simulate them before a
+  // player is present; in particular, don't let their 500 ms ticks starve
+  // startup while gameplay scripts are still being imported.
+  pauseWhenNoPlayers: true,
   mobileMovingPacket: (m) => protocol.mobileMoving({
     serial: m.serial, body: m.body, x: m.x, y: m.y, z: m.z,
     direction: m.direction, hue: m.hue, flags: m.flags, notoriety: m.notoriety,
@@ -326,12 +323,26 @@ const ai = new AIScheduler(world, {
     // skip the `buildEquipByOwner` precompute since this is a single
     // mob, not a bulk pass.
     const equipment = [];
-    for (const it of world.items.values()) {
-      if (it.parent !== m.serial || !it.layer) continue;
-      equipment.push({
-        serial: it.serial, itemId: it.itemId,
-        layer: it.layer, hue: it.hue ?? 0,
-      });
+    const children = world._childrenByParent?.get?.(m.serial);
+    if (children) {
+      for (const serial of children) {
+        const it = world.items.get(serial);
+        if (!it?.layer) continue;
+        equipment.push({
+          serial: it.serial, itemId: it.itemId,
+          layer: it.layer, hue: it.hue ?? 0,
+        });
+      }
+    } else {
+      // Compatibility fallback for tests/legacy loaders that bypassed the
+      // parent index. Runtime worlds use the O(equipment) branch above.
+      for (const it of world.items.values()) {
+        if (it.parent !== m.serial || !it.layer) continue;
+        equipment.push({
+          serial: it.serial, itemId: it.itemId,
+          layer: it.layer, hue: it.hue ?? 0,
+        });
+      }
     }
     return protocol.mobileIncoming({
       serial: m.serial, body: m.body, x: m.x, y: m.y, z: m.z,
@@ -351,7 +362,6 @@ const ai = new AIScheduler(world, {
   }),
 });
 ai.registerBehavior(wanderBehavior);
-ai.start();
 // Hang the AI scheduler on world so combat.damage can wake an attacked
 // mob's AI (set its target to the attacker, reset attack timers). Without
 // this hook a player casting from > aggroRange (typical spells: 8-10
@@ -364,6 +374,14 @@ const commands = new CommandRegistry();
 // Load previous world state from disk, if present.
 const here = path.dirname(url.fileURLToPath(import.meta.url));
 const saveDir = resolveSaveDir({ here });
+const spellComposer = new SpellComposerService(saveDir);
+const aiGraphs = new AIBehaviorGraphRegistry(ai, saveDir);
+try {
+  const count = aiGraphs.load();
+  if (count) console.log(`[uo-node] loaded ${count} visual AI behavior graph(s)`);
+} catch (error) {
+  console.error(`[uo-node] failed to load AI graphs: ${error?.message ?? error}`);
+}
 try {
   if (loadWorldSync(world, saveDir)) {
     console.log(`[uo-node] restored world from ${saveDir}/world.json  (mobiles=${world.mobiles.size}, items=${world.items.size})`);
@@ -481,10 +499,14 @@ try {
 } catch (e) { console.error('[uo-node] world-state load failed:', e.message); }
 // Wire the weather broadcaster so day-night.js can rotate
 // rain/snow/storm patterns every 5 min and have everyone see it.
-dayNight.setWeatherBroadcaster?.((kind, intensity) => {
-  const pkt = protocol.weather({ kind, intensity });
+dayNight.setWeatherBroadcaster?.((kind, intensity, temperature) => {
+  const pkt = protocol.weather({ kind, intensity, temperature });
   for (const m of query.onlineMobiles()) m.client.send(pkt);
 });
+// Start only after persistence restore and broadcaster wiring, then push
+// the initial state. Previously the cycle existed but never ticked.
+dayNight.start();
+dayNight.tick();
 const regions = new RegionRegistry();
 // Stamp on world so spell castSpell() can call `regions.allowSpellcast`
 // without threading a separate dep through every helper. Bug-hunt #4 A3.
@@ -553,10 +575,74 @@ try {
   console.error(`[uo-node] failed to load bazaar: ${e.message}`);
 }
 const cityLoyalty = new cityLoyaltySystem.CityLoyaltyRegistry();
+// One shared systems registry for NetState handlers and gameplay scripts.
+// Keeping two hand-maintained object literals caused imported engines such as
+// veteran rewards, camps, addons and revamped dungeons to exist in memory but
+// be invisible to scripts; script-installed dispatchers (serverGumps and the
+// ServUO parity bridges) were likewise invisible to packet handlers.
+const engineSystems = {
+  spells: spellSystem, crafting: craftSystem,
+  notoriety, poison, regen,
+  paragons: paragonSystem, virtues: virtueSystem, refinement: refinementSystem,
+  peerless: peerlessSystem, petTraining: petTrainingSystem, mountAbilities: mountAbilitiesSystem,
+  insurance: insuranceSystem, slayers: slayerSystem,
+  sigils: sigilSystem, worldBosses: worldBossSystem,
+  powerScrolls: powerScrollsSystem, treasureMaps: treasureMapsSystem,
+  harvest: harvestSystem, plants: plantsSystem,
+  veteranRewards: veteranRewardsSystem, doomGauntlet: doomGauntletSystem,
+  championSkulls: championSkullsSystem, peerlessBosses: peerlessBossesSystem,
+  skillMasteries: skillMasteriesSystem, masteryAbilities: masteryAbilitiesSystem,
+  specializations: specializationsSystem,
+  talismans: talismansSystem, etherealMounts: etherealMountsSystem,
+  vvv: vvvSystem, khaldun: khaldunSystem, cannons: cannonsSystem,
+  runicReforging: runicReforgingSystem,
+  dailyLogin: dailyLoginSystem, anniversary: anniversarySystem,
+  giftGiving: giftGivingSystem, revampedDungeons: revampedDungeonsSystem,
+  seasonalEvents: seasonalEventsSystem, termurContent: termurContentSystem,
+  maginciaDistillation: maginciaDistillationSystem, camps: campsSystem,
+  xmlSpawner: xmlSpawnerSystem, addons: addonsSystem,
+  damageableItems: damageableItemsSystem, storeInventory: storeInventorySystem,
+  petStable: petStableSystem, summons: { registerSummon },
+  playerVendor: playerVendorSystem, runebook: runebookSystem,
+  cleanup: cleanupSystem, bardSkills: bardSkillsSystem,
+  questConversation: questConversationSystem, petCustomization: petCustomizationSystem,
+  achievements: achievementsSystem, shardEvents: shardEventsSystem,
+  auctionHouse: auctionHouseSystem, quests: questSystem, bods: bodsSystem,
+  regionOnEnter, krampusEvent: krampusEventSystem, boats: boatsSystem,
+  cityLoyalty: cityLoyaltySystem, shrines: shrineSystem,
+  treasuresOfTokuno: treasuresOfTokunoSystem, itemRegistry: itemRegistrySystem,
+  miniChampion: miniChampionSystem, factionCapture: factionCaptureSystem,
+  factionStrongholds: factionStrongholdsSystem, doomLeverPuzzle: doomLeverPuzzleSystem,
+  champion: championSystem, lightDecay: lightDecaySystem,
+  communityCollections: communityCollectionsSystem, race: raceSystem,
+  christmas: christmasSystem, halloween: halloweenSystem, easter: easterSystem,
+  astronomy: astronomySystem, townCryer: townCryerSystem,
+  huntmaster: huntmasterSystem, maginciaBazaar: maginciaBazaarSystem,
+  shadowguard: shadowguardSystem,
+  myrmidexInvasion: myrmidexInvasionSystem, basketWeaving: basketWeavingSystem,
+  maginciaPlants: maginciaPlantsSystem, bulletinBoard: bulletinBoardSystem,
+  vendorSearch: vendorSearchSystem, ultimaStore: ultimaStoreSystem,
+  points: pointsSystems, personalBless: personalBlessSystem,
+  pvpArena: pvpArenaSystem, factions: factionsSystem, ethics: ethicsSystem,
+  reports: reportsSystem, itemHistory: itemHistorySystem, trace: traceSystem,
+  fireCasino: fireCasinoSystem, housingLotto: housingLottoSystem,
+  harvestQuotas: harvestQuotasSystem, spellReagents: spellReagentsSystem,
+  itemScripts: itemScriptsApi,
+  // Mutable namespaces populated by parity scripts. Keeping stable fallback
+  // objects also makes hot-reload teardown restore a valid capability rather
+  // than deleting a service that packet handlers may be reading concurrently.
+  serverGumps: {},
+  servuoSpells: {},
+  servuoMultis: {},
+  servuoP1Services: {},
+  servuoContextMenus: {},
+  servuoP2Admin: {},
+};
 const sharedCtx = {
-  world, authKeys, accounts, config, handlers, commands, partyRegistry,
+  world, authKeys, accounts, config, handlers, commands, ai, aiGraphs, partyRegistry,
   guildRegistry, dayNight, regions, corpse, spawner, loot, monsters,
-  cityLoyalty, protocol, items,
+  cityLoyalty, protocol, items, spellComposer, specializations: specializationsSystem,
+  vendors, quests: questSystem, questConversation: questConversationSystem,
   npcs, skills, houses, attributes, query, ops, game,
   // Server parity audit #7 P1: region OnEnter/OnLeave dispatcher
   // (callable from net/handlers handleMovementReq). Without ctx.regionOnEnter
@@ -564,38 +650,7 @@ const sharedCtx = {
   regionOnEnter,
   // FAZA DC: net handlers can reach into systems for ad-hoc pushes
   // (e.g. login-time virtue snapshot, paragon broadcast).
-  systems: {
-    spells: spellSystem, crafting: craftSystem,
-    paragons: paragonSystem, virtues: virtueSystem, refinement: refinementSystem,
-    peerless: peerlessSystem, petTraining: petTrainingSystem,
-    insurance: insuranceSystem, slayers: slayerSystem,
-    sigils: sigilSystem, worldBosses: worldBossSystem,
-    powerScrolls: powerScrollsSystem, treasureMaps: treasureMapsSystem,
-    harvest: harvestSystem, plants: plantsSystem,
-    veteranRewards: veteranRewardsSystem, doomGauntlet: doomGauntletSystem,
-    championSkulls: championSkullsSystem, peerlessBosses: peerlessBossesSystem,
-    skillMasteries: skillMasteriesSystem, masteryAbilities: masteryAbilitiesSystem,
-    talismans: talismansSystem,
-    etherealMounts: etherealMountsSystem, vvv: vvvSystem,
-    khaldun: khaldunSystem, cannons: cannonsSystem,
-    runicReforging: runicReforgingSystem,
-    dailyLogin: dailyLoginSystem,
-    anniversary: anniversarySystem,
-    giftGiving: giftGivingSystem,
-    revampedDungeons: revampedDungeonsSystem,
-    seasonalEvents: seasonalEventsSystem,
-    termurContent: termurContentSystem,
-    maginciaDistillation: maginciaDistillationSystem,
-    camps: campsSystem,
-    xmlSpawner: xmlSpawnerSystem,
-    // serverGumps installed by scripts/src/gumps/server-gumps.js
-    serverGumps: {},
-    addons: addonsSystem,
-    damageableItems: damageableItemsSystem,
-    storeInventory: storeInventorySystem,
-    petStable: petStableSystem,
-    summons: { registerSummon },
-  },
+  systems: engineSystems,
 };
 
 // Default tooltip / property-list provider. Scripts can replace this via
@@ -684,8 +739,14 @@ try {
   console.warn('[town-cryer] auto-wire failed:', e?.message);
 }
 
+const scriptTemplates = Object.freeze({ ...templates, get: templates.getTemplate });
+const scriptQuests = Object.freeze({
+  ...questSystem,
+  register: questSystem.registerQuest,
+  has: (id) => !!questSystem.getQuest(id),
+});
 const scriptRuntime = await loadScripts(scriptsDir, {
-  world, commands, items, templates, ai, targeting, protocol,
+  world, commands, items, templates: scriptTemplates, ai, aiGraphs, targeting, protocol,
   // [multigump → placemulti chain emits `api.events.emit('placemulti:request',…)`
   // and placemulti.js subscribes via `api.events.on(...)`. Was: `api.events`
   // was undefined → optional chaining silently no-op'd, so clicking
@@ -693,13 +754,15 @@ const scriptRuntime = await loadScripts(scriptsDir, {
   // (the canonical pub-sub bus from `world.js`) under the api alias.
   events: world.events,
   gumps, contextMenus, vendors, books, spellbooks, combat: scriptCombat, prompts, trade,
-  properties, effects, quest,
+  properties, effects, quest, quests: scriptQuests,
   party: partyRegistry, guilds: guildRegistry, dayNight,
   regions, corpse, spawner, loot, monsters, npcs, skills, houses, query, ops, game,
   itemScripts: itemScriptsApi,
   names: namesApi,
   skillGain, skillMods, attributes,
   statusEffects,
+  spellComposer,
+  specializations: specializationsSystem,
   // Scripts call `api.los.invalidate()` after door toggle / map edit /
   // static add+remove to drop the 100 ms LOS cache. Without this the
   // cached "can't see target" answer lingers for one frame after the
@@ -723,75 +786,7 @@ const scriptRuntime = await loadScripts(scriptsDir, {
   catalog: { items: itemCatalog },
   helpQueue, chatChannels, poison, notoriety, regen, cityLoyalty,
   ethics: ethicsSystem, mlQuests: mlQuestsSystem,
-  systems: {
-    spells: spellSystem, crafting: craftSystem,
-    notoriety, poison, regen,
-    paragons: paragonSystem, virtues: virtueSystem, refinement: refinementSystem,
-    peerless: peerlessSystem, petTraining: petTrainingSystem,
-    insurance: insuranceSystem, slayers: slayerSystem,
-    sigils: sigilSystem, worldBosses: worldBossSystem,
-    runicReforging: runicReforgingSystem,
-    skillMasteries: skillMasteriesSystem,
-    masteryAbilities: masteryAbilitiesSystem,
-    playerVendor: playerVendorSystem,
-    runebook: runebookSystem,
-    cleanup: cleanupSystem,
-    bardSkills: bardSkillsSystem,
-    questConversation: questConversationSystem,
-    petCustomization: petCustomizationSystem,
-    achievements: achievementsSystem,
-    shardEvents: shardEventsSystem,
-    auctionHouse: auctionHouseSystem,
-    quests: questSystem,
-    bods: bodsSystem,
-    regionOnEnter,
-    krampusEvent: krampusEventSystem,
-    boats: boatsSystem,
-    cityLoyalty: cityLoyaltySystem,
-    shrines: shrineSystem,
-    treasuresOfTokuno: treasuresOfTokunoSystem,
-    itemRegistry: itemRegistrySystem,
-    miniChampion: miniChampionSystem,
-    factionCapture: factionCaptureSystem,
-    factionStrongholds: factionStrongholdsSystem,
-    doomLeverPuzzle: doomLeverPuzzleSystem,
-    champion: championSystem,
-    lightDecay: lightDecaySystem,
-    communityCollections: communityCollectionsSystem,
-    race: raceSystem,
-    christmas: christmasSystem,
-    halloween: halloweenSystem,
-    easter: easterSystem,
-    astronomy: astronomySystem,
-    townCryer: townCryerSystem,
-    treasureMaps: treasureMapsSystem,
-    plants: plantsSystem,
-    huntmaster: huntmasterSystem,
-    maginciaBazaar: maginciaBazaarSystem,
-    shadowguard: shadowguardSystem,
-    myrmidexInvasion: myrmidexInvasionSystem,
-    basketWeaving: basketWeavingSystem,
-    maginciaPlants: maginciaPlantsSystem,
-    bulletinBoard: bulletinBoardSystem,
-    vendorSearch: vendorSearchSystem,
-    ultimaStore: ultimaStoreSystem,
-    points: pointsSystems,
-    personalBless: personalBlessSystem,
-    pvpArena: pvpArenaSystem,
-    factions: factionsSystem,
-    vvv: vvvSystem,
-    ethics: ethicsSystem,
-    reports: reportsSystem,
-    itemHistory: itemHistorySystem,
-    trace: traceSystem,
-    fireCasino: fireCasinoSystem,
-    housingLotto: housingLottoSystem,
-    harvestQuotas: harvestQuotasSystem,
-    spellReagents: spellReagentsSystem,
-    itemScripts: itemScriptsApi,
-    xmlSpawner: xmlSpawnerSystem,
-    summons: { registerSummon },
-  },
+  systems: engineSystems,
   log: (msg) => console.log(`[scripts] ${msg}`),
 });
 try {
@@ -806,6 +801,11 @@ if (scriptWatchEnabled) {
 } else {
   console.log('[scripts] file watch disabled (set UO_SCRIPT_WATCH=1 to enable hot reload).');
 }
+// Start AI only after scripts have registered every behavior and restored
+// binding. Previously the timer started before world restore; on a 10k-NPC
+// save it began consuming the event loop halfway through script loading and
+// delayed the listening socket by minutes.
+ai.start();
 
 // After every script reload, push the refreshed command catalogue to
 // all connected clients. Was: the right-edge `CommandPanel` showed
@@ -1534,12 +1534,16 @@ statusEffects.setListener((mob, action, eff) => {
       const remaining = Math.max(0, (eff.expiresAt ?? 0) - Date.now());
       mob.client.send(protocol.buffAdd({
         serial: mob.serial,
+        icon: eff.icon ?? statusEffects.buffIconForEffect(eff.name),
         name: eff.name,
         kind: DEBUFF_NAMES.has(eff.name) ? 'debuff' : 'buff',
         remainingMs: remaining,
       }));
     } else {
-      mob.client.send(protocol.buffRemove({ serial: mob.serial, name: eff.name }));
+      mob.client.send(protocol.buffRemove({
+        serial: mob.serial,
+        icon: eff.icon ?? statusEffects.buffIconForEffect(eff.name),
+      }));
     }
   } catch (e) {
     console.error('[buff] failed to notify client:', e);
@@ -1646,7 +1650,12 @@ wss.on('connection', (ws, req) => {
   const remoteAddress = req.socket.remoteAddress;
   console.log(`[net#${id}] connected from ${remoteAddress}`);
 
-  new NetState(ws, { ...sharedCtx, id, remoteAddress });
+  new NetState(ws, {
+    ...sharedCtx,
+    id,
+    remoteAddress,
+    nodeUOTransport: ws.protocol === 'nodeuo.v1',
+  });
 });
 wsRoutes.set('/game', wss);
 
@@ -1665,6 +1674,7 @@ http_server.on('upgrade', (req, socket, head) => {
 
 http_server.listen(config.port, config.host, () => {
   console.log(`[uo-node] listening on ws://${config.host}:${config.port} (/game)  (mode=${config.protocolMode}, shard="${config.shardName}", huffman=${config.huffmanOutgoing})`);
+  console.log(`[uo-node] ready in ${Math.round(performance.now())}ms  (mobiles=${world.mobiles.size}, items=${world.items.size}, scripts=${scriptRuntime.loaded.length})`);
 });
 
 // Optional parallel TCP listener for legacy UO clients (Razor / Steam /

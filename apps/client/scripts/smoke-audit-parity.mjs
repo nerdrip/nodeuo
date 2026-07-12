@@ -132,7 +132,7 @@ const mobileRenderer = byRel.get('renderer/mobile-renderer.js') ?? '';
 for (const needle of [
   'const CHAIR_GRAPHICS = new Set',
   'function detectChairUnder',
-  'const sitting = !isPlayer && detectChairUnder(mob)',
+  'const sitting = !isPlayer && canSit && detectChairUnder(mob)',
   'this._anim.frame = 0',
   'mob.sitPoseOffsetY',
 ]) {

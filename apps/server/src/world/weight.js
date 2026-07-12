@@ -12,12 +12,18 @@
 // Past that, players walk slower / can't pick up — enforced by callers.
 
 import { containerChildrenRecursive } from './items.js';
+import { staticWeightFor } from './movement.js';
+
+export const BODY_WEIGHT = 14;
+export const OVERLOAD_ALLOWANCE = 4;
 
 export function pileWeight(item) {
   if (!item) return 0;
-  const w = Number(item.weight) || 0;
+  const w = item._weight != null
+    ? Number(item._weight)
+    : (item.weight != null ? Number(item.weight) : staticWeightFor(item.itemId | 0));
   const n = Number(item.amount) || 1;
-  return w * n;
+  return Math.max(0, w || 0) * n;
 }
 
 /** Sum weight of every item inside `containerSerial` (recursive). */
@@ -67,5 +73,25 @@ export function maxWeight(mob) {
  */
 export function canCarry(world, mob, addWeight) {
   if (!Number.isFinite(addWeight) || addWeight <= 0) return true;
-  return (mobileTotalWeight(world, mob) + addWeight) <= maxWeight(mob);
+  return (BODY_WEIGHT + mobileTotalWeight(world, mob) + addWeight)
+    <= (maxWeight(mob) + OVERLOAD_ALLOWANCE);
+}
+
+/** One authoritative snapshot shared by pickup, status and movement. */
+export function encumbrance(world, mob, running = false) {
+  const weight = Math.ceil((mob?.bodyWeight ?? BODY_WEIGHT) + mobileTotalWeight(world, mob));
+  const capacity = maxWeight(mob);
+  const over = Math.max(0, weight - capacity - OVERLOAD_ALLOWANCE);
+  const mounted = !!mob?.mountedFrom;
+  let staminaCost = 0;
+  if (over > 0) {
+    staminaCost = 5 + Math.floor(over / 25);
+    if (mounted) staminaCost = Math.max(1, Math.floor(staminaCost / 3));
+    if (running) staminaCost *= 2;
+  }
+  // NodeUO's negotiated movement extension makes overload feel like
+  // physical burden instead of a stream of reject/snap packets. Classic
+  // clients keep ServUO's normal pace and still obey stamina blocking.
+  const paceMultiplier = over > 0 ? Math.min(2.5, 1.2 + over / 100) : 1;
+  return { weight, capacity, over, overloaded: over > 0, staminaCost, paceMultiplier };
 }

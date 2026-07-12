@@ -6,7 +6,7 @@
 //
 // Quest sources (ServUO):
 //   • Hawkwind          → Quests/Hawkwind*.cs            ('hawk')
-//   • Eodon             → Quests/Eodon/*.cs              ('eodon')
+//   • Eodon has its canonical, expanded implementation in quests/eodon.js.
 //   • Tomb of Kings     → Quests/SA/TombOfKings.cs        ('tomb')
 //   • Uzeraan Turmoil   → Quests/UzeraanTurmoil*.cs      ('uzeraan')
 //   • Dark Tides        → Quests/DarkTides/*.cs          ('darktides')
@@ -122,30 +122,6 @@ const HAWKWIND_STAGES = [
   },
 ];
 
-const EODON_STAGES = [
-  {
-    id: 'eodon-1-jukans', title: 'Among the Jukans',
-    summary: 'Speak with Chief Sakkhra of the Jukan tribe.',
-    objectives: [{ kind: 'talk-to', npc: 'chief-sakkhra', done: false }],
-    reward: { tokens: 75 },
-  },
-  {
-    id: 'eodon-2-myrmidex', title: 'Myrmidex Incursion',
-    summary: 'Slay 5 Myrmidex warriors at the bog ruins.',
-    objectives: [{ kind: 'kill', target: 'myrmidex-warrior', count: 5, have: 0, done: false }],
-    reward: { tokens: 150 },
-  },
-  {
-    id: 'eodon-3-temple', title: 'Temple of the Primeval',
-    summary: 'Recover the Idol of Eodon and return it.',
-    objectives: [
-      { kind: 'collect', resource: 'idol-of-eodon', count: 1, have: 0, done: false },
-      { kind: 'turn-in', npc: 'chief-sakkhra', done: false },
-    ],
-    reward: { items: ['eodon-tribal-mask'], tokens: 400 },
-  },
-];
-
 const TOMB_STAGES = [
   {
     id: 'tomb-1-seal', title: 'The Sealed Tomb',
@@ -219,7 +195,6 @@ export default function register(api) {
   if (!api.commands) return () => {};
   const all = [];
   all.push(...makeQuest(api, 'hawk',     'Hawkwind',         HAWKWIND_STAGES));
-  all.push(...makeQuest(api, 'eodon',    'Eodon',            EODON_STAGES));
   all.push(...makeQuest(api, 'tomb',     'Tomb of Kings',    TOMB_STAGES));
   all.push(...makeQuest(api, 'uzeraan',  'Uzeraan Turmoil',  UZERAAN_STAGES));
   all.push(...makeQuest(api, 'darktides','Dark Tides',       DARKTIDES_STAGES));

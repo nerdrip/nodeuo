@@ -40,17 +40,38 @@ export class MonsterRegistry {
   register(tmpl) {
     if (!tmpl || typeof tmpl.kind !== 'string') throw new Error('monster template needs kind');
     if (!Number.isFinite(tmpl.body)) throw new Error(`monster ${tmpl.kind} missing body`);
-    this.unregister(tmpl.kind);
-    this.templates.set(tmpl.kind, tmpl);
+    // ServUO extraction sources use all of `Tamable`, `MinTameSkill`
+    // and older NodeUO's authored `tameable/tameMinSkill` spellings.
+    // Normalize once at the registry boundary so taming, paragons,
+    // admin filters and spawn factories cannot disagree.
+    const normalized = { ...tmpl };
+    normalized.tameable = !!(tmpl.tameable ?? tmpl.tamable);
+    normalized.tamable = normalized.tameable; // compatibility for old scripts
+    const rawMin = tmpl.tameMinSkill ?? tmpl.tameSkill ?? tmpl.minTameSkill;
+    if (rawMin != null) {
+      const n = Number(rawMin) || 0;
+      normalized.tameMinSkill = n > 120 ? n / 10 : n;
+      const rawMax = tmpl.tameMaxSkill;
+      if (rawMax != null) {
+        const m = Number(rawMax) || 0;
+        normalized.tameMaxSkill = m > 120 ? m / 10 : m;
+      } else {
+        // Linear chance model: ordinary creatures reach certainty around
+        // GM skill; end-game creatures remain challenging near 120.
+        normalized.tameMaxSkill = Math.max(100, normalized.tameMinSkill + 20);
+      }
+    }
+    this.unregister(normalized.kind);
+    this.templates.set(normalized.kind, normalized);
     const aliases = new Set([
-      tmpl.servuoClass,
-      ...(Array.isArray(tmpl.servuoClasses) ? tmpl.servuoClasses : []),
+      normalized.servuoClass,
+      ...(Array.isArray(normalized.servuoClasses) ? normalized.servuoClasses : []),
     ].filter(Boolean));
     for (const alias of aliases) {
-      this.aliases.set(String(alias), tmpl);
-      this.aliases.set(String(alias).toLowerCase(), tmpl);
+      this.aliases.set(String(alias), normalized);
+      this.aliases.set(String(alias).toLowerCase(), normalized);
     }
-    this.aliasesByKind.set(tmpl.kind, aliases);
+    this.aliasesByKind.set(normalized.kind, aliases);
   }
 
   unregister(kind) {

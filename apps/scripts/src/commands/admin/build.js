@@ -64,7 +64,8 @@ export default function register(api) {
     // every time, or just guess.
     try {
       const proto = api.protocol;
-      if (proto?.extBuildPreview && state?.send) {
+      const previewCap = proto?.NodeUOCapability?.WorldEditing ?? (1 << 6);
+      if (proto?.extBuildPreview && state?.send && state.supportsNodeUO?.(previewCap)) {
         state.send(proto.extBuildPreview(itemId, hue));
       }
     } catch { /* preview hint is non-fatal */ }

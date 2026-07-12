@@ -191,6 +191,9 @@ const MOBILE_EXT_KEYS = [
   '_listensToSpeech', '_speechKeywords',
   'profileBody', 'tithingPoints',
   'skillCaps', 'skillLocks',
+  // NodeUO specialization tree. Plain JSON only, so snapshots remain
+  // portable and older saves simply start with an empty allocation map.
+  'specializations',
   // BUGFIX #88 (FAZA DT): statCaps was missing from the whitelist —
   // stat scrolls (`[statscroll str 25`) mutated the field but every
   // server restart silently reset it to 100/100/100, so a player's
@@ -205,7 +208,9 @@ const MOBILE_EXT_KEYS = [
   'partyId', '_origBody',
   // FAZA BJ: mount round-trip — `mounted` flags a hidden pet, the
   // rider's `mountedFrom`/`mountedOriginalBody` let dismount reverse.
-  'mounted', 'mountedFrom', 'mountedOriginalBody',
+  'mounted', 'mountedFrom', 'mountedOriginalBody', '_mountItemSerial',
+  'mountAbilityCooldowns', '_mountCargoSerial', 'mountCargoCapacity',
+  '_mountSprintUntil', '_mountSurefootedUntil', '_mountChargeUntil',
   // FAZA BY: faction membership — string key into FACTIONS / kill score.
   'faction', 'factionKills',
   // BUGFIX #49 (FAZA CG): pet command state. Without this, every
@@ -223,11 +228,14 @@ const MOBILE_EXT_KEYS = [
   // FAZA CY: paragon flag + saved originals so the buff round-trips
   // and admin commands can un-paragon cleanly.
   'paragon', '_origName', '_origHue', '_origHpMax', '_origStr',
+  '_stealableLoot', '_stealablePool',
   // FAZA DF: pet training xp + level + saved baseline for level-up
   // resolution. BUGFIX #74: without these on the whitelist, every pet
   // would silently reset to level 0 on save→load and the player's
   // training grind would evaporate.
   'petXp', 'petLevel', '_origPetHpMax', '_origPetStr',
+  'petTrainingAbilities', '_petBonusDamage', '_petCaster', '_petFireBreath', '_petPoisonAttack',
+  '_petTrainingBaseline',
   // FAZA DK: pet bond — survives ressurection cost via vet.
   // BUGFIX (bug-hunt 2026-05-12 A4): `tameSince` is what gates the
   // 7-day bonding promotion; without it, every restart re-stamped
@@ -300,6 +308,7 @@ const MOBILE_EXT_KEYS = [
   // Eodon consumable context and short-lived bonuses.
   '_eodonPotions', '_eodonPotionContexts', '_eodonHitBonusUntil', '_eodonHpRegenBonusUntil',
   '_eodonHpRegenBonus', '_eodonPotionMods', '_eodonStamBonusUntil', '_eodonAmbushBonusUntil',
+  '_nextRandomEncounterAt',
   '_eodonAmbushBonus', '_eodonManaBonusUntil', '_eodonManaTickUntil',
   '_epiphanySurgeDamage',
   '_spellFocusingOffset', '_spellFocusingTargetSerial',
@@ -420,7 +429,7 @@ const ITEM_EXT_KEYS = [
   '_multi', '_multiAcl', '_multiOwner', '_multiName',
   '_deedMulti', '_deedOffset', '_contestHouse', '_previewHouse',
   'miniHouseType', 'isRewardItem', 'rewardItem',
-  'isDecoration', 'height',
+  'isDecoration', 'decoType', 'decoFacing', 'decoSourceKey', 'height',
   // FAZA BN: lifecycle scripting fields. `script` names a registered
   // ItemScript; `equipLayer`/`slot`/`clothing` drive paperdoll routing;
   // payload data various scripts read.
@@ -619,7 +628,26 @@ function copyExtensions(source, keys) {
     // non-serialisable fields. Sets / Maps get materialised to plain
     // arrays so JSON.stringify produces useful output.
     if (k === 'door' && v && typeof v === 'object') {
-      out.door = { closedId: v.closedId, openId: v.openId, isOpen: !!v.isOpen, facing: v.facing };
+      // Keep every durable BaseDoor field, but deliberately omit the live
+      // timeout handle. Previously an open door lost closedX/closedY during
+      // save, so its first close after reboot treated the shifted open tile
+      // as the origin. Locks, portcullis semantics and paired-door links were
+      // lost for the same reason.
+      out.door = {
+        closedId: v.closedId,
+        openId: v.openId,
+        isOpen: !!v.isOpen,
+        facing: v.facing ?? null,
+        closedX: v.closedX,
+        closedY: v.closedY,
+        closedZ: v.closedZ,
+        linkSerial: v.linkSerial,
+        secret: !!v.secret,
+        revealed: !!v.revealed,
+        portcullis: !!v.portcullis,
+        keyId: v.keyId | 0,
+        locked: !!v.locked,
+      };
     } else if (k === 'boat' && v && typeof v === 'object') {
       // Wave 4: boat.riders is a Set; JSON.stringify on a Set produces
       // {} (Set isn't enumerable as plain props), losing every passenger
@@ -634,6 +662,10 @@ function copyExtensions(source, keys) {
         ownerSerial: v.ownerSerial >>> 0 || undefined,
         keys: Array.isArray(v.keys) ? [...v.keys] : [],
         boatHp: v.boatHp, boatHpMax: v.boatHpMax,
+        armor: v.armor,
+        speedMultiplier: v.speedMultiplier,
+        sailsDisabledUntil: v.sailsDisabledUntil,
+        lastDamage: v.lastDamage,
         nextSailAt: v.nextSailAt,
         name: v.name,
         hullKind: v.hullKind ?? v.hull,
@@ -646,6 +678,10 @@ function copyExtensions(source, keys) {
           index: v.course.index | 0,
           running: !!v.course.running,
           loop: !!v.course.loop,
+          speed: v.course.speed ?? 'medium',
+          lastX: v.course.lastX,
+          lastY: v.course.lastY,
+          lastProgressAt: v.course.lastProgressAt,
         } : undefined,
       };
     } else if (k === 'playerVendor' && v && typeof v === 'object') {
@@ -697,6 +733,14 @@ function serializeItem(it) {
   };
 }
 
+function serializeWorldMeta(world) {
+  return {
+    createWorldDone: !!world._createWorldDone,
+    xmlSpawnersApplied: [...(world._xmlSpawnersApplied ?? [])],
+    treasureChestsApplied: [...(world._treasureChestsApplied ?? [])],
+  };
+}
+
 export function snapshotWorld(world) {
   /** @type {any[]} */
   const mobiles = [];
@@ -720,6 +764,7 @@ export function snapshotWorld(world) {
       nextMobile: world.serial.nextMobile,
       nextItem:   world.serial.nextItem,
     },
+    worldMeta: serializeWorldMeta(world),
   };
 }
 
@@ -854,9 +899,7 @@ export function splitSnapshot(world) {
   // Round-trip a tiny world-meta block so admin guards (`[createworld`
   // refusal once-applied, etc.) survive a reboot. Lives on the
   // `items` slice since that's the one always present.
-  const worldMeta = {
-    createWorldDone: !!world._createWorldDone,
-  };
+  const worldMeta = serializeWorldMeta(world);
   const wrap = (s, withMeta = false) => ({
     version: SAVE_VERSION, mobiles: s.mobiles, items: s.items, serials,
     ...(withMeta ? { worldMeta } : {}),
@@ -897,6 +940,8 @@ export function restoreWorld(world, snap) {
   world._onlineMobiles?.clear?.();
   world._corpses?.clear?.();
   world._summons?.clear?.();
+  world._xmlSpawnersApplied?.clear?.();
+  world._treasureChestsApplied?.clear?.();
   world._corpseIndexReady = false;
   world._summonIndexReady = false;
 
@@ -1033,6 +1078,12 @@ export function restoreWorld(world, snap) {
   // `worldMeta: undefined` so this branch is a no-op for those.
   if (snap.worldMeta && typeof snap.worldMeta === 'object') {
     if (snap.worldMeta.createWorldDone) world._createWorldDone = true;
+    for (const id of snap.worldMeta.xmlSpawnersApplied ?? []) {
+      if (typeof id === 'string' && id) world._xmlSpawnersApplied.add(id);
+    }
+    for (const id of snap.worldMeta.treasureChestsApplied ?? []) {
+      if (typeof id === 'string' && id) world._treasureChestsApplied.add(id);
+    }
   }
   // Re-attach poison tick closures lost in JSON. The actual rebind
   // happens in `main.js` after restoreWorld via
@@ -1103,6 +1154,7 @@ function serializeHouse(h) {
     // stream.
     tiles: Array.isArray(h.tiles) ? h.tiles.slice() : [],
     revision: h.revision ?? 0,
+    customTemplates: h.customTemplates ?? {},
     // Persist caps so a hot-loaded shard doesn't reset to the small-stone
     // defaults for foundations created post-SA scalar bump.
     lockdownCap: h.lockdownCap ?? null,
@@ -1130,6 +1182,7 @@ function deserializeHouse(raw) {
     foundation: raw.foundation ?? null,
     tiles: Array.isArray(raw.tiles) ? raw.tiles : [],
     revision: raw.revision | 0,
+    customTemplates: raw.customTemplates && typeof raw.customTemplates === 'object' ? raw.customTemplates : {},
     lockdownCap: raw.lockdownCap ?? null,
     secureCap:   raw.secureCap   ?? null,
     spawnedItems: Array.isArray(raw.spawnedItems) ? raw.spawnedItems : [],

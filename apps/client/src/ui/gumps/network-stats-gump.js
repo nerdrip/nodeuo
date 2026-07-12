@@ -157,7 +157,7 @@ export class NetworkStatsGump extends WindowGump {
     const avgSync = mf?.sampled ? (mf.totalSampleMs / mf.sampled).toFixed(3) : '0.000';
     const ap = assets.atlasPageStats;
     const missing = assets.missingAssetStats;
-    set('assets', `anim: hit ${hitPct}% miss ${mf?.pageMisses ?? 0} avg ${avgSync}ms atlas ${ap.pages}/${ap.limit} missing ${missing.total}`);
+    set('assets', `anim: hit ${hitPct}% miss ${mf?.pageMisses ?? 0} avg ${avgSync}ms atlas ${ap.pages}/${ap.limit} ${fmtKB(ap.estimatedBytes)}/${fmtKB(ap.byteLimit)}${ap.overByteBudget ? ' !' : ''} missing ${missing.total}`);
     const lf = lightPoints.lightFrameStats;
     set('light', `light: ${lf.visible}/${lf.candidates} ${lf.lastMs.toFixed(2)}ms occ ${lf.occlusionHits}/${lf.occlusionCalls}`);
     set('move', `move: p${movementStats.pending}/${movementStats.maxPending} ack ${movementStats.lastAckLatencyMs.toFixed(0)}ms rej ${movementStats.rejects}`);

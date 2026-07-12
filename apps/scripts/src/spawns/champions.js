@@ -71,6 +71,7 @@ export default function register(api) {
     const range = cfg.radius * 4;
     for (const m of allMobiles({ world })) {
       if (!m.client) continue;
+      if (!m.client.supportsNodeUO?.(api.protocol?.NodeUOCapability?.RichGumps ?? 1)) continue;
       if (m.map !== cfg.map) continue;
       if (Math.abs(m.x - cfg.cx) > range) continue;
       if (Math.abs(m.y - cfg.cy) > range) continue;

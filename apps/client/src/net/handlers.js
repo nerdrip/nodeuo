@@ -53,6 +53,25 @@ import { corpseManager } from '../managers/corpse-manager.js';
 import { walker } from '../managers/walker.js';
 import { profile } from '../managers/profile-manager.js';
 import { DIR_DX, DIR_DY, DIR_MASK, DIR_RUNNING_BIT, directionFromDelta } from '../shared/directions.js';
+import { isDeadBody } from '../shared/bodies.js';
+import {
+  extNodeUOCapabilities,
+  NODEUO_CAPABILITIES_ALL,
+  NODEUO_EXT_SUBCOMMAND,
+  NODEUO_MOVEMENT_SUBCOMMAND,
+  NODEUO_SPELL_COMPOSER_SUBCOMMAND,
+  NODEUO_SPECIALIZATION_SUBCOMMAND,
+  NODEUO_COOLDOWN_SUBCOMMAND,
+  NODEUO_NAVAL_SUBCOMMAND,
+  NODEUO_HOUSE_TOOLS_SUBCOMMAND,
+  NODEUO_PROTOCOL_MAJOR,
+  NodeUOCapability,
+  NodeUOCapabilityMessage,
+  NodeUOSpellComposerMessage,
+  NodeUOSpecializationMessage,
+  NodeUONavalMessage,
+  NodeUOHouseToolsMessage,
+} from '@uo/protocol';
 
 /** ServUO answers 0x09 LookReq with a 0x1C/0xAE speech packet whose
  *  `name` header is "You see" and whose `text` is the target's display
@@ -86,6 +105,12 @@ function applyWorldItemInfo(it, info) {
   it.x = info.x | 0;
   it.y = info.y | 0;
   it.z = info.z | 0;
+  // WorldItem packets do not carry a facet id. ClassicUO assigns them to
+  // World.MapIndex (the currently active map); leaving this undefined made
+  // our spatial index fall back to map 1. Trammel therefore worked by
+  // accident while Felucca/Malas/Tokuno/Ter Mur items were indexed on the
+  // wrong facet and either vanished or resurfaced as stale render ghosts.
+  it.map = world.mapId | 0;
   it.hue = info.hue | 0;
   it.flags = info.flags | 0;
   if (typeof info.direction === 'number') it.direction = info.direction | 0;
@@ -127,7 +152,20 @@ function _applyMobilePacketFields(m, info) {
   m.x = info.x;
   m.y = info.y;
   m.z = info.z;
-  m.direction = info.direction;
+  // Mobile packets have the same implicit-facet contract as world items.
+  // Stamp before reindexMobile() so NPCs enter the active map's sector.
+  m.map = world.mapId | 0;
+  // Keep facing and run state separate. The wire direction byte embeds
+  // running in bit 0x80; storing the full byte made `player.direction !==
+  // nextFacing` true on every running packet, so the client repeatedly
+  // reserved cheap turn steps instead of real 200 ms run steps. Animation
+  // looked like running while tile throughput stayed near walking speed.
+  m.direction = info.direction & DIR_MASK;
+  m.moveRunning = (info.direction & DIR_RUNNING_BIT) !== 0;
+  // A normal mobile update is authoritative for resurrection/body-form
+  // changes. Without clearing this latch a resurrected character stayed
+  // greyed out and untargetable after an earlier 0xAF death action.
+  m.dead = isDeadBody(info.body);
   if (info.notoriety != null) m.notoriety = info.notoriety;
 }
 
@@ -149,6 +187,11 @@ function _clearMobileEquipment(m) {
 
 /** @param {import('./net-client.js').NetClient} net */
 export function registerHandlers(net) {
+  const delayedDeathRemovals = new Map();
+  bus.on('net:close', () => {
+    for (const timer of delayedDeathRemovals.values()) clearTimeout(timer);
+    delayedDeathRemovals.clear();
+  });
   bus.on('net:resync-request', () => {
     try { net.send(buildResyncRequest(world.moveSequence | 0)); } catch { /* socket */ }
   });
@@ -306,7 +349,10 @@ export function registerHandlers(net) {
       if (!isSelf && m.offsetEndAt > now) {
         m.enqueueStep(dx, dy, dz, run, info.direction & 7);
       } else {
-        m.beginMoveStep(dx, dy, dz, run ? 200 : 400, now);
+        const durationMs = m.isMounted
+          ? (run ? 100 : 200)
+          : (run ? 200 : 400);
+        m.beginMoveStep(dx, dy, dz, durationMs, now, run);
       }
     } else if (!isSelf) {
       m.offsetX = m.offsetY = m.offsetZ = 0;
@@ -318,6 +364,13 @@ export function registerHandlers(net) {
   net.on(0x78, (pkt) => {
     const info = decodeMobileIncoming(pkt);
     const m = world.ensureMobile(info.serial);
+    if ((world.player?.serial >>> 0) === (info.serial >>> 0) && world.player !== m) {
+      // Player death uses RemoveEntity → MobileIncoming(ghost). Rebind
+      // the singleton to the freshly rebuilt Mobile or the renderer and
+      // walker continue reading the removed, living object forever.
+      m.isPlayer = true;
+      world.player = m;
+    }
     const oldX = m.x, oldY = m.y, oldMap = m.map ?? 1;
     // Drop the previous equipment Map's entries from the reverse index
     // before rebuilding. Without this, re-incoming a mob (relog, re-enter
@@ -417,6 +470,21 @@ export function registerHandlers(net) {
   net.on(0x1D, (pkt) => {
     // RemoveEntity (5B) — opcode + u32 serial.
     const serial = ((pkt[1] << 24) | (pkt[2] << 16) | (pkt[3] << 8) | pkt[4]) >>> 0;
+    const dyingNpc = serial !== (world.player?.serial >>> 0)
+      && corpseManager.exists(0, serial)
+      && world.mobiles.get(serial)?.dead;
+    if (dyingNpc) {
+      if (!delayedDeathRemovals.has(serial)) {
+        const timer = setTimeout(() => {
+          delayedDeathRemovals.delete(serial);
+          corpseManager.remove(0, serial);
+          world.removeEntity(serial);
+          bus.emit('entity:removed', { serial });
+        }, 480);
+        delayedDeathRemovals.set(serial, timer);
+      }
+      return;
+    }
     // If we had this serial registered as a "death in flight" (mobile that
     // dropped a corpse), commit the corpse facing now and let the manager
     // forget the entry. The corpse Item itself can outlive its owner.
@@ -560,6 +628,7 @@ export function registerHandlers(net) {
   net.on(0x4F, (pkt) => {
     const { level } = decodeOverallLight(pkt);
     world.lightLevel = level;
+    world.lastLightPacketAt = Date.now();
     bus.emit('atmosphere:light', { level });
   });
   net.on(0xBC, (pkt) => {
@@ -712,16 +781,31 @@ export function registerHandlers(net) {
     if (Math.abs(fx - me.x) > 8 || Math.abs(fy - me.y) > 8) return;
     bus.emit('camera:shake', { magnitude: shake.mag, durationMs: shake.dur });
   }
+  function _routeGraphicEffect(info) {
+    // OSI/CUO type 4 is a viewport fade, not a drag tether. `graphic`
+    // carries a small mode (0..4); keep the transition short and bounded.
+    if ((info?.type | 0) === 4) {
+      const mode = Math.max(0, Math.min(4, info.graphic | 0));
+      bus.emit('weather:flash', {
+        durationMs: 260 + mode * 90,
+        color: mode >= 3 ? 0x000000 : 0xffffff,
+        alpha: mode >= 3 ? 0.72 : 0.58,
+      });
+      return false;
+    }
+    bus.emit('fx:graphic', info);
+    return true;
+  }
   net.on(0x70, (pkt) => {
     const info = decodeGraphicEffect(pkt);
-    bus.emit('fx:graphic', info);
+    if (!_routeGraphicEffect(info)) return;
     const sid = _spellSfxOf(info.graphic);
     if (sid) bus.emit('audio:sfx', { sound: sid, x: info.sx, y: info.sy, z: info.sz });
     _maybeShake(info);
   });
   net.on(0xC0, (pkt) => {
     const info = decodeGraphicEffectHued(pkt);
-    bus.emit('fx:graphic', info);
+    if (!_routeGraphicEffect(info)) return;
     const sid = _spellSfxOf(info.graphic);
     if (sid) bus.emit('audio:sfx', { sound: sid, x: info.sx, y: info.sy, z: info.sz });
     _maybeShake(info);
@@ -733,10 +817,8 @@ export function registerHandlers(net) {
   // `effect-renderer` so type-3 attaches properly.
   net.on(0xC7, (pkt) => {
     const info = decodeGraphicEffectExt(pkt);
-    bus.emit('fx:graphic', info);
-    if (info.explodeSound) {
-      bus.emit('audio:sfx', { sound: info.explodeSound, x: info.tx, y: info.ty, z: info.tz });
-    } else {
+    if (!_routeGraphicEffect(info)) return;
+    if (!info.explodeSound) {
       const sid = _spellSfxOf(info.graphic);
       if (sid) bus.emit('audio:sfx', { sound: sid, x: info.sx, y: info.sy, z: info.sz });
     }
@@ -1004,6 +1086,15 @@ export function registerHandlers(net) {
     // Stamp the dying mobile's facing onto the freshly-spawned corpse so
     // the loot-bag / paperdoll renderer picks the right animation frame.
     const m = world.mobiles.get(info.serial >>> 0);
+    if (m) {
+      m.dead = true;
+      m.hp = 0;
+      m.steps.length = 0;
+      m._stepsHead = 0;
+      m.offsetX = m.offsetY = m.offsetZ = 0;
+      m.offsetStartAt = m.offsetEndAt = 0;
+      bus.emit('mobile:hp', { serial: m.serial, current: 0, max: Math.max(1, m.hpMax ?? 1) });
+    }
     if (m && info.corpseSerial) {
       const dir = (m.direction || 0) & 0x7;
       corpseManager.add(info.corpseSerial, info.serial, dir, !!info.running);
@@ -1384,6 +1475,131 @@ export function registerHandlers(net) {
     // ~25 subops we may eventually surface; fan out the highest-impact
     // ones here so consumers can subscribe by name.
     switch (ext.subop) {
+      case NODEUO_EXT_SUBCOMMAND: {
+        const p = ext.payload;
+        if (!net.nodeUOTransport || p.length < 8) break;
+        const kind = p[0] | 0;
+        const major = p[1] | 0;
+        const minor = p[2] | 0;
+        if (kind !== NodeUOCapabilityMessage.Offer || major !== NODEUO_PROTOCOL_MAJOR) break;
+        const capabilities = (u32(p, 4) & NODEUO_CAPABILITIES_ALL) >>> 0;
+        net.nodeUONegotiated = true;
+        net.nodeUOCapabilities = capabilities;
+        world.nodeUO = { major, minor, capabilities };
+        try {
+          net.send(extNodeUOCapabilities({
+            kind: NodeUOCapabilityMessage.Accept,
+            major,
+            minor,
+            capabilities,
+          }));
+        } catch { /* connection closed between offer and accept */ }
+        bus.emit('nodeuo:capabilities', world.nodeUO);
+        break;
+      }
+      case NODEUO_MOVEMENT_SUBCOMMAND: {
+        if (!net.nodeUONegotiated || ext.payload.length < 8) break;
+        const p = ext.payload;
+        const hint = {
+          weight: u16(p, 0),
+          capacity: u16(p, 2),
+          paceMultiplier: Math.max(1, u16(p, 4) / 1000),
+          staminaCost: p[6] | 0,
+          overloaded: (p[7] & 1) !== 0,
+        };
+        if (world.player) world.player.encumbrance = hint;
+        walker.setPaceMultiplier?.(hint.paceMultiplier);
+        bus.emit('player:encumbrance', hint);
+        break;
+      }
+      case NODEUO_SPELL_COMPOSER_SUBCOMMAND: {
+        if (!net.supportsNodeUO?.(NodeUOCapability.SpellComposer)) break;
+        const p = ext.payload;
+        if (p.length < 7) break;
+        const kind = p[0] | 0;
+        if (kind !== NodeUOSpellComposerMessage.Open
+          && kind !== NodeUOSpellComposerMessage.Result) break;
+        const requestId = u32(p, 1);
+        const length = u16(p, 5);
+        if (length > 32 * 1024 || 7 + length > p.length) break;
+        try {
+          const payload = JSON.parse(new TextDecoder('utf-8').decode(p.subarray(7, 7 + length)));
+          bus.emit('nodeuo:spell-composer', { kind, requestId, payload });
+        } catch (error) {
+          console.warn('[spell-composer] parse threw', error?.message);
+        }
+        break;
+      }
+      case NODEUO_SPECIALIZATION_SUBCOMMAND: {
+        if (!net.supportsNodeUO?.(NodeUOCapability.Specializations)) break;
+        const p = ext.payload;
+        if (p.length < 7) break;
+        const kind = p[0] | 0;
+        if (kind !== NodeUOSpecializationMessage.Open
+          && kind !== NodeUOSpecializationMessage.Result) break;
+        const requestId = u32(p, 1);
+        const length = u16(p, 5);
+        if (length > 32 * 1024 || 7 + length > p.length) break;
+        try {
+          const payload = JSON.parse(new TextDecoder('utf-8').decode(p.subarray(7, 7 + length)));
+          bus.emit('nodeuo:specializations', { kind, requestId, payload });
+        } catch (error) {
+          console.warn('[specializations] parse threw', error?.message);
+        }
+        break;
+      }
+      case NODEUO_COOLDOWN_SUBCOMMAND: {
+        if (!net.supportsNodeUO?.(NodeUOCapability.CooldownBars)) break;
+        const p = ext.payload;
+        if (p.length < 7) break;
+        const kind = p[0] | 0;
+        const requestId = u32(p, 1);
+        const length = u16(p, 5);
+        if (length > 8 * 1024 || 7 + length > p.length) break;
+        try {
+          const payload = JSON.parse(new TextDecoder('utf-8').decode(p.subarray(7, 7 + length)));
+          bus.emit('nodeuo:cooldown', { kind, requestId, payload });
+        } catch (error) {
+          console.warn('[cooldown] parse threw', error?.message);
+        }
+        break;
+      }
+      case NODEUO_NAVAL_SUBCOMMAND: {
+        if (!net.supportsNodeUO?.(NodeUOCapability.NavalPreview)) break;
+        const p = ext.payload;
+        if (p.length < 7) break;
+        const kind = p[0] | 0;
+        if (kind !== NodeUONavalMessage.ShowRange && kind !== NodeUONavalMessage.HideRange) break;
+        const requestId = u32(p, 1);
+        const length = u16(p, 5);
+        if (length > 16 * 1024 || 7 + length > p.length) break;
+        try {
+          const payload = length
+            ? JSON.parse(new TextDecoder('utf-8').decode(p.subarray(7, 7 + length))) : {};
+          bus.emit('nodeuo:naval-preview', { kind, requestId, payload });
+        } catch (error) {
+          console.warn('[naval-preview] parse threw', error?.message);
+        }
+        break;
+      }
+      case NODEUO_HOUSE_TOOLS_SUBCOMMAND: {
+        if (!net.supportsNodeUO?.(NodeUOCapability.HouseTools)) break;
+        const p = ext.payload;
+        if (p.length < 7) break;
+        const kind = p[0] | 0;
+        if (kind !== NodeUOHouseToolsMessage.Snapshot && kind !== NodeUOHouseToolsMessage.Result) break;
+        const requestId = u32(p, 1);
+        const length = u16(p, 5);
+        if (length > 32 * 1024 || 7 + length > p.length) break;
+        try {
+          const payload = length
+            ? JSON.parse(new TextDecoder('utf-8').decode(p.subarray(7, 7 + length))) : {};
+          bus.emit('nodeuo:house-tools', { kind, requestId, payload });
+        } catch (error) {
+          console.warn('[house-tools] parse threw', error?.message);
+        }
+        break;
+      }
       case 0x0001: {
         // FastWalkPrevention init — 6 × u32 BE keys.
         const p = ext.payload;
@@ -1402,6 +1618,7 @@ export function registerHandlers(net) {
       case 0x0004: bus.emit('gump:close-generic',
         { gumpId: u32(ext.payload, 0), buttonId: u32(ext.payload, 4) }); break;
       case 0x006F: {
+        if (!net.supportsNodeUO?.(NodeUOCapability.WorldEditing)) break;
         // Custom 0xBF 0x6F BuildPreview — server hint for the next
         // target prompt. Tells the cursor to ghost an itemId at the
         // mouse so the operator sees what they're about to place.
@@ -1414,6 +1631,7 @@ export function registerHandlers(net) {
         break;
       }
       case 0x006E: {
+        if (!net.supportsNodeUO?.(NodeUOCapability.WorldEditing)) break;
         // Custom 0xBF 0x6E MapTileEdit — admin Map Editor pushed live
         // tile edits. Payload: u8 facet + u16 count + per-edit
         // (u16 x, u16 y, u16 tileId, i8 z = 7 bytes).
@@ -1483,6 +1701,7 @@ export function registerHandlers(net) {
       // payload at LoginComplete. Used by the right-edge command panel
       // so the user sees a clickable list filtered to their access.
       case 0x00A0: {
+        if (!net.supportsNodeUO?.(NodeUOCapability.RichGumps)) break;
         if (ext.payload.length < 2) break;
         const len = (ext.payload[0] << 8) | ext.payload[1];
         if (len <= 0 || len > ext.payload.length - 2) break;

@@ -31,6 +31,7 @@ const HELD_LIGHT_LAYERS = [1, 2]; // one-handed / two-handed equipment layers
 const LAND_COUNT = 0x4000;
 const LIGHT_CULL_TILES = 18;
 const LIGHT_MAX_VISIBLE = 160;
+const LIGHT_MAX_APERTURES = 64;
 const LIGHT_DEFAULT_TINT = 0xfff2d0;
 const LIGHT_SECTOR_SHIFT = 4; // 16x16 tiles
 const OCCLUSION_CACHE_INITIAL = 256;
@@ -48,7 +49,12 @@ const _lightTextures = new Map();
 let _fallbackRadialTex = null;
 function _buildFallbackRadialTexture() {
   if (_fallbackRadialTex) return _fallbackRadialTex;
-  const SIZE = 64, R0 = SIZE / 2;
+  // Attached/player lights are frequently enlarged to a 300-400 px disc.
+  // A 64 px source combined with the client's nearest-neighbour pixel-art
+  // policy produced the large square mosaic visible around the avatar.
+  // Keep this procedural light comfortably above its largest display size;
+  // it is a single shared texture, so the extra memory is negligible.
+  const SIZE = 256, R0 = SIZE / 2;
   const data = new Uint8ClampedArray(SIZE * SIZE * 4);
   for (let y = 0; y < SIZE; y++) {
     for (let x = 0; x < SIZE; x++) {
@@ -75,6 +81,7 @@ function _buildFallbackRadialTexture() {
     const img = new ImageData(data, SIZE, SIZE);
     ctx.putImageData(img, 0, 0);
     _fallbackRadialTex = Texture.from(canvas);
+    try { _fallbackRadialTex.source.scaleMode = 'linear'; } catch { /* Pixi backend */ }
   } catch { /* extremely old browsers — leave null and skip lights */ }
   return _fallbackRadialTex;
 }
@@ -119,8 +126,19 @@ function _buildLightTexture(entry) {
     if (!canvas.height) canvas.height = h;
     const ctx = canvas.getContext('2d');
     ctx.putImageData(new ImageData(rgba, w, h), 0, 0);
-    return Texture.from(canvas);
+    const tex = Texture.from(canvas);
+    // Light masks are continuous intensity fields, not pixel art. Global
+    // nearest sampling turns individual light.mul texels into dark squares.
+    try { tex.source.scaleMode = 'linear'; } catch { /* Pixi backend */ }
+    return tex;
   } catch { return null; }
+}
+
+export function lightTextureMode(lightIndex, attachedToPlayer = false) {
+  // Equipment/personal lights move with the avatar and are scaled far beyond
+  // their native light.mul dimensions. Use the smooth radial field there;
+  // retain canonical shaped masks for fixed lamps, forges and windows.
+  return attachedToPlayer || !lightIndex ? 'radial' : 'mask';
 }
 
 class LightPoints {
@@ -147,6 +165,7 @@ class LightPoints {
     this._candidateSourceSlots = [];
     this._apertures = [];
     this._apertureRevision = 0;
+    this._apertureSignature = '';
     this._sourceSlots = new Map();
     this._sourceSlotIds = [];
     this._freeSourceSlots = [];
@@ -201,6 +220,7 @@ class LightPoints {
       && profile.get('experimental.enableShadows') !== false
       && profile.get('graphics.shadowsEnabled') !== false;
     this._useColoredLights = profile.get('graphics.useColoredLights') !== false;
+    this._useDarkNights = profile.get('light.useDarkNights') !== false;
     this._maxVisible = Number.isFinite(maxVisible)
       ? Math.max(16, Math.min(512, maxVisible | 0))
       : LIGHT_MAX_VISIBLE;
@@ -573,6 +593,18 @@ class LightPoints {
     };
   }
 
+  _commitApertures() {
+    let signature = `${this._apertures.length}|`;
+    for (let i = 0; i < this._apertures.length; i++) {
+      const a = this._apertures[i];
+      signature += `${Math.round(a.x)},${Math.round(a.y)},${Math.round(a.radius)},${Math.round(a.strength * 20)};`;
+    }
+    if (signature !== this._apertureSignature) {
+      this._apertureSignature = signature;
+      this._apertureRevision++;
+    }
+  }
+
   /** Per-frame draw — one Sprite per visible light, additive blend, native
    *  `light.mul` falloff shape (greyscale alpha-tint). Mirrors ClassicUO
    *  `GameScene.PrepareLightsRendering` line 1058+ as closely as Pixi v8
@@ -588,7 +620,7 @@ class LightPoints {
     apertures.length = 0;
     if (this._skipLighting) {
       this._hideAll();
-      this._apertureRevision++;
+      this._commitApertures();
       this._recordFrameStats(tickStart, 0, 0);
       return;
     }
@@ -598,14 +630,16 @@ class LightPoints {
     // 26 regardless of the day-night cycle, so torches + forges glow
     // at "noon" indoors. Without this branch, `[setlight 0` made
     // every dungeon lamp invisible.
-    if (world.player && (world.lastRegionKind === 'cave' || world.lastRegionKind === 'dungeon')) {
+    if (this._useDarkNights && world.player
+        && (world.lastRegionKind === 'cave' || world.lastRegionKind === 'dungeon')) {
       level = Math.max(level, 26);
     }
+    const darknessFactor = Math.max(0, Math.min(1, (level - 3) / 8));
     // Daylight short-circuit — hide every pooled sprite, no render.
     const player = world.player;
-    if (level <= 4 || !player) {
+    if (darknessFactor <= 0 || !player) {
       this._hideAll();
-      this._apertureRevision++;
+      this._commitApertures();
       this._recordFrameStats(tickStart, 0, 0);
       return;
     }
@@ -714,7 +748,10 @@ class LightPoints {
       // 466); we fall back to the smooth radial gradient when the
       // emitter has no .mul shape mapped (personal light from 0x4E,
       // curated entries without an index hint).
-      const tex = (lightIndex && _lightTextures.get(lightIndex)) || _fallbackRadialTex;
+      const textureMode = lightTextureMode(lightIndex, isPersonalAttached);
+      const tex = textureMode === 'mask'
+        ? (_lightTextures.get(lightIndex) || _fallbackRadialTex)
+        : _fallbackRadialTex;
       if (!tex) continue;
 
       const spX = worldToScreenX(x, y);
@@ -752,16 +789,23 @@ class LightPoints {
         scale *= 1 + pulse * p;
         alpha *= 0.82 + 0.24 * p;
       }
-      alpha = Math.max(0, Math.min(1, alpha));
+      alpha = Math.max(0, Math.min(1, alpha * darknessFactor));
 
-      if (isPersonalAttached) {
-        apertures.push({
+      if (apertureCount < LIGHT_MAX_APERTURES || isPersonalAttached) {
+        const aperture = {
           x: sx,
           y: sy,
           radius: Math.max(8, Math.max(tex.width, tex.height) * scale * 0.5),
           strength: alpha,
-        });
-        apertureCount++;
+        };
+        if (apertureCount < LIGHT_MAX_APERTURES) {
+          apertures.push(aperture);
+          apertureCount++;
+        } else {
+          // Candidate sectors are visited before attached sources. Keep the
+          // player's held/personal light even in an unusually dense scene.
+          apertures[LIGHT_MAX_APERTURES - 1] = aperture;
+        }
       }
 
       let spr = this._spritePool[slot];
@@ -799,7 +843,7 @@ class LightPoints {
       if (spr?.visible) spr.visible = false;
     }
     this._visibleSlots = slot;
-    this._apertureRevision++;
+    this._commitApertures();
     this._recordFrameStats(tickStart, candidateCount, slot, apertureCount, blockedByOcclusion);
   }
 

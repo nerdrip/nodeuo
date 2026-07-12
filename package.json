@@ -26,7 +26,12 @@
     "audit:servuo:books": "node tools/audit/servuo-book-extract.mjs",
     "audit:servuo:map": "node tools/audit/servuo-class-map.mjs --summary",
     "audit:servuo:map:json": "node tools/audit/servuo-class-map.mjs --json artifacts/servuo-server-parity.json",
-    "audit:servuo:map:check": "node tools/audit/servuo-class-map.mjs --json artifacts/servuo-server-parity.json --fail-open --limit 40"
+    "audit:servuo:map:check": "node tools/audit/servuo-class-map.mjs --json artifacts/servuo-server-parity.json --fail-open --limit 40",
+    "audit:quality": "node tools/audit/nodeuo-quality-suite.mjs",
+    "audit:quality:full": "node tools/audit/nodeuo-quality-suite.mjs --full",
+    "audit:50": "node tools/audit/nodeuo-50-suite.mjs",
+    "audit:50:full": "node tools/audit/nodeuo-50-suite.mjs --full",
+    "audit:50:soak": "node tools/audit/nodeuo-50-suite.mjs --full --soak-hours=12"
   },
   "devDependencies": {
     "@types/node": "^22.19.19",

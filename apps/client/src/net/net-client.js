@@ -14,6 +14,7 @@
 import { huffmanDecompress } from '@uo/protocol';
 import { frameServerStream, SERVER_OPCODES } from './incoming-table.js';
 import { bus } from '../core/event-bus.js';
+import { buildUnicodeSpeech } from './outgoing.js';
 
 /** Quick "is this byte a known server opcode?" check for the Huffman
  *  auto-probe. Both the SERVER_OPCODES table (numeric keys) and a few
@@ -69,6 +70,11 @@ export class NetClient {
       perOpcodeTx: Object.create(null),
     };
     this.trackOpcodes = false;
+    /** NodeUO private features are off until both the WebSocket subprotocol
+     * and the in-band capability offer have completed. */
+    this.nodeUOTransport = false;
+    this.nodeUONegotiated = false;
+    this.nodeUOCapabilities = 0;
     try { this.tracePackets = globalThis.localStorage?.uoTrace === '1'; }
     catch { this.tracePackets = false; }
     try { this.debugHues = globalThis.localStorage?.uoHueDebug === '1'; }
@@ -95,6 +101,14 @@ export class NetClient {
   /** Register a handler for a server opcode. Replaces existing handler. */
   on(opcode, fn) { this._handlers.set(opcode, fn); }
 
+  /** Send a normal shard command through standard UO Unicode speech. */
+  sendCommand(command) {
+    const text = String(command ?? '').trim();
+    if (!text) return false;
+    this.send(buildUnicodeSpeech(text.startsWith('[') ? text : `[${text}`));
+    return true;
+  }
+
   /** Connect to a `ws://host:port/path` URL. Resolves on open, rejects on error/close-before-open. */
   connect(url) {
     return new Promise((resolve, reject) => {
@@ -113,35 +127,64 @@ export class NetClient {
       this._rxLen = 0;
       this._huffmanProbed = false;
       this.serverHuffman = true;
-      try {
-        this.ws = new WebSocket(url);
-      } catch (e) {
-        this.state = 'error';
-        this.error = e.message;
-        reject(e);
-        return;
-      }
-      this.ws.binaryType = 'arraybuffer';
+      this.nodeUOTransport = false;
+      this.nodeUONegotiated = false;
+      this.nodeUOCapabilities = 0;
       this.state = 'connecting';
-      let opened = false;
 
-      this.ws.onopen = () => {
-        opened = true;
-        this.state = 'open';
-        bus.emit('net:open');
-        resolve();
+      // Ask for our optional transport first. If a generic UO WebSocket
+      // bridge rejects unknown subprotocols, retry the exact same URL with
+      // no subprotocol. No private UO packet is ever sent during probing,
+      // so arbitrary ServUO/emulator bridges retain full compatibility.
+      const open = (offerNodeUO) => {
+        let ws;
+        try {
+          ws = offerNodeUO ? new WebSocket(url, ['nodeuo.v1']) : new WebSocket(url);
+          this.ws = ws;
+        } catch (e) {
+          if (offerNodeUO) { open(false); return; }
+          this.state = 'error';
+          this.error = e.message;
+          reject(e);
+          return;
+        }
+        ws.binaryType = 'arraybuffer';
+        let opened = false;
+        let retired = false;
+        const fallback = () => {
+          if (!offerNodeUO || retired || opened) return false;
+          retired = true;
+          ws.onopen = ws.onclose = ws.onerror = ws.onmessage = null;
+          try { ws.close(); } catch { /* ignore */ }
+          open(false);
+          return true;
+        };
+
+        ws.onopen = () => {
+          if (retired) return;
+          opened = true;
+          this.nodeUOTransport = ws.protocol === 'nodeuo.v1';
+          this.state = 'open';
+          bus.emit('net:open');
+          resolve();
+        };
+        ws.onerror = (ev) => {
+          if (fallback()) return;
+          this.error = 'websocket error';
+          bus.emit('net:error', ev);
+          if (!opened) reject(new Error(this.error));
+        };
+        ws.onclose = (ev) => {
+          if (retired || fallback()) return;
+          this.state = 'closed';
+          this.nodeUONegotiated = false;
+          this.nodeUOCapabilities = 0;
+          bus.emit('net:close', { code: ev.code, reason: ev.reason });
+          if (!opened) reject(new Error(`websocket closed before open (code ${ev.code})`));
+        };
+        ws.onmessage = (ev) => this._onMessage(ev.data);
       };
-      this.ws.onerror = (ev) => {
-        this.error = 'websocket error';
-        bus.emit('net:error', ev);
-        if (!opened) reject(new Error(this.error));
-      };
-      this.ws.onclose = (ev) => {
-        this.state = 'closed';
-        bus.emit('net:close', { code: ev.code, reason: ev.reason });
-        if (!opened) reject(new Error(`websocket closed before open (code ${ev.code})`));
-      };
-      this.ws.onmessage = (ev) => this._onMessage(ev.data);
+      open(true);
     });
   }
 
@@ -152,6 +195,14 @@ export class NetClient {
     // Reset the Huffman probe so a fresh connection (e.g. switching
     // from our shard to a ServUO bridge) re-detects the mode.
     this._huffmanProbed = false;
+    this.nodeUOTransport = false;
+    this.nodeUONegotiated = false;
+    this.nodeUOCapabilities = 0;
+  }
+
+  supportsNodeUO(capability) {
+    return this.nodeUONegotiated
+      && (((this.nodeUOCapabilities >>> 0) & (capability >>> 0)) === (capability >>> 0));
   }
 
   /** Ensure the rx buffer has at least `extra` bytes of free tail space. */

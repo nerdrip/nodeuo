@@ -20,9 +20,8 @@ import { worldToScreenX, worldToScreenY } from '../renderer/iso.js';
 import { world } from '../world/world.js';
 import { NOTORIETY_HUE } from '../shared/notoriety-hues.js';
 import { profile } from './profile-manager.js';
-import { UoBitmapText } from '../ui/controls/uo-bitmap-text.js';
-import { assets } from '../assets/asset-manager.js';
 import { bus } from '../core/event-bus.js';
+import { UI_FONT_FAMILY, UI_TEXT_RESOLUTION } from '../ui/text-quality.js';
 
 class NameOverheadManager {
   constructor() {
@@ -115,27 +114,21 @@ class NameOverheadManager {
       }
     } catch { /* world singleton race — fall back to plain name */ }
     if (!entry) {
-      // Audit #46 P2 — prefer the UO bitmap font atlas (canonical
-      // overhead chrome). Fall back to Pixi `Text` if the atlas hasn't
-      // bound yet. We track whether the label is bitmap so update
-      // paths know which API to use (`bmp.setText` vs `text.text =`).
-      const useBitmap = !!assets.fontsTexture && !!assets.fonts?.fonts?.length;
-      let text;
-      let bmp = null;
-      if (useBitmap) {
-        bmp = new UoBitmapText(displayName, { hue, fontIndex: 0 });
-        bmp.node.anchor?.set?.(0.5, 1);
-        this._parent.addChild(bmp.node);
-        text = bmp.node;
-      } else {
-        text = new Text({
-          text: displayName,
-          style: { fill: hue, fontSize: 12, fontFamily: 'Consolas, monospace',
-                   stroke: { color: 0x000000, width: 3, join: 'round' } },
-        });
-        text.anchor.set(0.5, 1);
-        this._parent.addChild(text);
-      }
+      // The source UO bitmap font is authentic but becomes jagged and muddy
+      // under fractional browser/UI scaling. Use the same high-resolution
+      // vector text stack as the rest of the interface; keep the strong dark
+      // outline because names sit on top of arbitrary world art.
+      const text = new Text({
+        text: displayName,
+        style: {
+          fill: hue, fontSize: 13, fontFamily: UI_FONT_FAMILY, fontWeight: 650,
+          stroke: { color: 0x000000, width: 2, join: 'round' },
+        },
+        resolution: UI_TEXT_RESOLUTION,
+        roundPixels: true,
+      });
+      text.anchor.set(0.5, 1);
+      this._parent.addChild(text);
       // Audit rev.9 P2 #7 — make the overhead label clickable: a single
       // click pops the NameOverheadPopupGump (4 quick actions atk/use/
       // look/menu — same handlers CUO ships). Pixi-v8 uses `eventMode`
@@ -151,17 +144,11 @@ class NameOverheadManager {
           bus.emit('name-overhead:click', { serial });
         });
       } catch { /* legacy Pixi → click ignored, no regression */ }
-      entry = { text, bmp, expiresAt: 0, _hue: hue, _last: displayName };
+      entry = { text, expiresAt: 0, _hue: hue, _last: displayName };
       this._labels.set(serial, entry);
     } else {
-      if (entry.bmp) {
-        if (entry._last !== displayName) entry.bmp.setText?.(displayName);
-        if (entry._hue !== hue) entry.bmp.setHue?.(hue);
-        entry._last = displayName;
-      } else {
-        if (entry._last !== displayName) entry.text.text = displayName;
-        if (entry._hue !== hue) entry.text.style.fill = hue;
-      }
+      if (entry._last !== displayName) entry.text.text = displayName;
+      if (entry._hue !== hue) entry.text.style.fill = hue;
       entry._last = displayName;
       entry._hue = hue;
     }

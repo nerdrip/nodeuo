@@ -16,6 +16,37 @@ import { assets } from '../assets/asset-manager.js';
 import { displayItemIdForAmount } from '../shared/stack-graphics.js';
 
 const DOM_ID = 'uo-drag-cursor';
+const pngPages = new Map();
+
+function drawableFromTexture(tex) {
+  const root = tex?.source?.resource ?? tex?.source ?? tex?.baseTexture?.resource;
+  const candidates = [root, root?.source, root?.resource, root?.image, root?.canvas, root?.bitmap];
+  for (const value of candidates) {
+    if (!value) continue;
+    if (typeof HTMLImageElement !== 'undefined' && value instanceof HTMLImageElement) return value;
+    if (typeof ImageBitmap !== 'undefined' && value instanceof ImageBitmap) return value;
+    if (typeof HTMLCanvasElement !== 'undefined' && value instanceof HTMLCanvasElement) return value;
+    if (typeof OffscreenCanvas !== 'undefined' && value instanceof OffscreenCanvas) return value;
+  }
+  return null;
+}
+
+function pngPageFor(tex) {
+  const raw = String(tex?._uoAtlasPageUrl ?? '');
+  if (!raw) return Promise.resolve(null);
+  const url = raw.replace(/\.ktx2$/i, '.png');
+  let pending = pngPages.get(url);
+  if (pending) return pending;
+  pending = new Promise((resolve) => {
+    const img = new Image();
+    img.decoding = 'async';
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
+  pngPages.set(url, pending);
+  return pending;
+}
 
 class DragCursor {
   constructor() {
@@ -27,6 +58,9 @@ class DragCursor {
     this._installed = false;
     /** Last `held` snapshot so we don't re-paint every mousemove. */
     this._currentSerial = 0;
+    this._paintToken = 0;
+    this._lastX = Math.round(window.innerWidth / 2);
+    this._lastY = Math.round(window.innerHeight / 2);
   }
 
   install() {
@@ -52,11 +86,19 @@ class DragCursor {
 
     // Follow the mouse — `pointerEvents:none` keeps clicks falling
     // through to the underlying gump / world.
-    window.addEventListener('mousemove', (e) => {
+    window.addEventListener('pointermove', (e) => {
+      this._lastX = e.clientX; this._lastY = e.clientY;
       if (!this._el || this._el.style.display === 'none') return;
-      this._el.style.left = e.clientX + 'px';
-      this._el.style.top  = e.clientY + 'px';
-    });
+      this._position();
+    }, { capture: true, passive: true });
+  }
+
+  _position() {
+    if (!this._el) return;
+    // Slight lower-right offset keeps the pointer hotspot visible while the
+    // held art itself remains centred on the intended drop point.
+    this._el.style.left = `${this._lastX + 8}px`;
+    this._el.style.top  = `${this._lastY + 8}px`;
   }
 
   /** @param {{serial:number,itemId:number,hue:number,amount:number}} item */
@@ -67,37 +109,41 @@ class DragCursor {
       return;
     }
     this._currentSerial = item.serial;
+    const token = ++this._paintToken;
     this._el.style.display = '';
+    this._position();
+    this._ctx?.clearRect?.(0, 0, this._canvas.width, this._canvas.height);
     // Pull the static texture from our atlas and rasterise it onto our
     // canvas. Pixi can't share textures with raw 2-D canvases, so we
     // re-decode through `<img>`: blob the atlas page, draw the slice.
     const tex = await assets.staticTexture(displayItemIdForAmount(item.itemId, item.amount));
-    if (!tex) return;
-    const src = tex.source?.resource;
-    if (!(src instanceof HTMLImageElement) && !(src instanceof ImageBitmap)
-        && !(src instanceof HTMLCanvasElement)) {
-      // Pixi v8 may store the source as an ImageBitmapResource — try
-      // its `.image` if present.
-      const img = src?.image ?? src?.canvas ?? src;
-      if (!img) return;
-      this._paint(img, tex.frame);
-      return;
-    }
-    this._paint(src, tex.frame);
+    if (!tex || token !== this._paintToken || this._currentSerial !== item.serial) return;
+    const drawable = drawableFromTexture(tex);
+    if (drawable && this._paint(drawable, tex.frame)) return;
+    // Production prefers KTX2 atlas pages. Compressed GPU resources cannot
+    // be passed to CanvasRenderingContext2D, so use the matching PNG page
+    // solely for the cursor preview (browser cache makes subsequent lifts
+    // free). The old code swallowed drawImage's exception and left an empty
+    // cursor while the real item had already vanished from its bag.
+    const png = await pngPageFor(tex);
+    if (!png || token !== this._paintToken || this._currentSerial !== item.serial) return;
+    this._paint(png, tex.frame);
   }
 
   _paint(img, frame) {
-    if (!this._ctx) return;
+    if (!this._ctx || !frame) return false;
     const w = frame.width, h = frame.height;
     this._canvas.width = w; this._canvas.height = h;
     this._ctx.clearRect(0, 0, w, h);
     try {
       this._ctx.drawImage(img, frame.x, frame.y, w, h, 0, 0, w, h);
-    } catch { /* ignore — atlas page may still be loading */ }
+      return true;
+    } catch { return false; }
   }
 
   _hide() {
     this._currentSerial = 0;
+    this._paintToken++;
     if (this._el) this._el.style.display = 'none';
   }
 }

@@ -108,13 +108,13 @@ export function* nearbyItems(world, center, range = UPDATE_RANGE) {
   if (_itemsSectorsUsable(world)) {
     for (const serial of world.sectors.itemSerialsNear(center.map | 0, center.x, center.y, range)) {
       const it = world.items.get(serial);
-      if (!it || it.parent) continue;
+      if (!it || it.parent || it.visible === false) continue;
       if (inRange(center, it, range)) yield it;
     }
     return;
   }
   for (const it of world.items.values()) {
-    if (it.parent) continue;
+    if (it.parent || it.visible === false) continue;
     if (inRange(center, it, range)) yield it;
   }
 }

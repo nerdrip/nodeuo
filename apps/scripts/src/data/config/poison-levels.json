@@ -1,1 +1,47 @@
-[{"level":0,"name":"Lesser Poison"}]
+[
+  {
+    "level": 0,
+    "name": "Lesser",
+    "minDmg": 4,
+    "maxDmg": 16,
+    "scalar": 7.5,
+    "intervalMs": 2250,
+    "count": 10
+  },
+  {
+    "level": 1,
+    "name": "Regular",
+    "minDmg": 8,
+    "maxDmg": 18,
+    "scalar": 10,
+    "intervalMs": 3250,
+    "count": 10
+  },
+  {
+    "level": 2,
+    "name": "Greater",
+    "minDmg": 12,
+    "maxDmg": 20,
+    "scalar": 15,
+    "intervalMs": 4250,
+    "count": 10
+  },
+  {
+    "level": 3,
+    "name": "Deadly",
+    "minDmg": 16,
+    "maxDmg": 30,
+    "scalar": 30,
+    "intervalMs": 5250,
+    "count": 15
+  },
+  {
+    "level": 4,
+    "name": "Lethal",
+    "minDmg": 20,
+    "maxDmg": 50,
+    "scalar": 35,
+    "intervalMs": 5250,
+    "count": 20
+  }
+]

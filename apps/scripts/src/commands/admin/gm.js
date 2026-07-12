@@ -1,11 +1,7 @@
 // GM/Admin tooling — commands every shard operator needs.
 //
-// Implemented here:
-//   [save           — force a world save now (Admin)
-//   [shutdown       — graceful shutdown by raising SIGTERM (Admin)
-//   [kick <user>    — disconnect any client logged in as <user> (GM)
-//   [ban  <user>    — set account.banned=true and kick (Admin)
-//   [unban <user>   — clear account.banned (Admin)
+// Implemented here (save/shutdown/account moderation live in their dedicated
+// command modules so each public name has exactly one owner):
 //   [info           — target an item/mobile and dump its key fields (GM)
 //   [props          — alias of [info (GM)
 //   [tpto <user>    — teleport yourself to <user>'s location (GM)
@@ -13,11 +9,6 @@
 import { moveMobile } from '../../_movement.js';
 import { allItems, allMobiles } from '../../_spatial.js';
 import { itemBySerial, mobileBySerial } from '../../_entities.js';
-
-function findAccount(accounts, username) {
-  if (!accounts) return null;
-  return accounts.accounts.get(String(username).toLowerCase()) ?? null;
-}
 
 function findStateByAccount(world, accountName) {
   const lower = String(accountName).toLowerCase();
@@ -91,19 +82,13 @@ export default function register(api) {
     });
   }
 
-  commands.register({
-    name: 'save',
-    help: 'Force a synchronous world save now (blocks ~50-200ms on a populated shard).',
-    access: 'Admin',
-    run: (cctx) => doSyncSave(cctx),
-  });
-
   // Alias matching ServUO's documented `[savenow` / RunUO's `[save now`.
   // Kept as a convenience for ops familiar with the upstream commands.
   commands.register({
     name: 'savenow',
     help: 'Synonym of [save — write the world snapshot to saves/world.json synchronously.',
     access: 'Admin',
+    hidden: true,
     run: (cctx) => doSyncSave(cctx, { broadcast: true }),
   });
 
@@ -136,68 +121,6 @@ export default function register(api) {
       } catch (e) {
         cctx.state.sendSystemMessage(`savestats failed: ${e.message}`);
       }
-    },
-  });
-
-  commands.register({
-    name: 'shutdown',
-    help: 'Gracefully shut down the server (5-second grace).',
-    access: 'Admin',
-    run: (cctx) => {
-      cctx.state.sendSystemMessage('Server shutting down in 5 seconds...');
-      // Broadcast warning to every connected client.
-      for (const m of allMobiles({ world })) {
-        if (!m.client) continue;
-        m.client.sendSystemMessage?.('The server is shutting down in 5 seconds.');
-      }
-      setTimeout(() => process.kill(process.pid, 'SIGTERM'), 5000).unref?.();
-    },
-  });
-
-  commands.register({
-    name: 'kick',
-    help: '[kick <username> — disconnect a player.',
-    access: 'GM',
-    run: (cctx, args) => {
-      if (!args[0]) { cctx.state.sendSystemMessage('Usage: [kick <username>'); return; }
-      const target = findStateByAccount(world, args[0]);
-      if (!target) { cctx.state.sendSystemMessage(`No connected player named "${args[0]}".`); return; }
-      target.sendSystemMessage?.('You have been kicked.');
-      target.close('kicked');
-      cctx.state.sendSystemMessage(`Kicked ${args[0]}.`);
-    },
-  });
-
-  commands.register({
-    name: 'ban',
-    help: '[ban <username> — flag account banned and disconnect them.',
-    access: 'Admin',
-    run: (cctx, args) => {
-      if (!args[0]) { cctx.state.sendSystemMessage('Usage: [ban <username>'); return; }
-      const acct = findAccount(ctx?.accounts, args[0]);
-      if (!acct) { cctx.state.sendSystemMessage(`No account "${args[0]}".`); return; }
-      acct.banned = true;
-      ctx.accounts.saveSync?.();
-      const conn = findStateByAccount(world, args[0]);
-      if (conn) {
-        conn.sendSystemMessage?.('You have been banned.');
-        conn.close('banned');
-      }
-      cctx.state.sendSystemMessage(`Banned ${args[0]}.`);
-    },
-  });
-
-  commands.register({
-    name: 'unban',
-    help: '[unban <username> — clear an account ban.',
-    access: 'Admin',
-    run: (cctx, args) => {
-      if (!args[0]) { cctx.state.sendSystemMessage('Usage: [unban <username>'); return; }
-      const acct = findAccount(ctx?.accounts, args[0]);
-      if (!acct) { cctx.state.sendSystemMessage(`No account "${args[0]}".`); return; }
-      acct.banned = false;
-      ctx.accounts.saveSync?.();
-      cctx.state.sendSystemMessage(`Unbanned ${args[0]}.`);
     },
   });
 
@@ -243,7 +166,6 @@ export default function register(api) {
     });
   }
   commands.register({ name: 'info',  help: '[info  — describe a targeted entity.', access: 'GM', run: inspect });
-  commands.register({ name: 'props', help: '[props — alias of [info.',             access: 'GM', run: inspect });
 
   function tpToUser(cctx, args) {
     if (!args[0]) { cctx.state.sendSystemMessage('Usage: [tp <username>'); return; }
@@ -258,9 +180,11 @@ export default function register(api) {
     }));
     cctx.state.sendSystemMessage(`Teleported to ${args[0]}.`);
   }
-  commands.register({ name: 'tpto', help: '[tpto <user>', access: 'GM', run: tpToUser });
-  // ServUO command aliases — `[tp` is the canonical short form.
-  commands.register({ name: 'tp',   help: '[tp <user>',   access: 'GM', run: tpToUser });
+  // ServUO command aliases — `[tp` is the canonical short form; `[tpto`
+  // remains dispatchable for old macros but is not a second catalogue row.
+  commands.register({
+    name: 'tp', aliases: ['tpto'], help: '[tp <user>', access: 'GM', run: tpToUser,
+  });
 
   // [bring <user> — pull a connected player to YOUR coords.
   commands.register({
@@ -317,8 +241,8 @@ export default function register(api) {
   });
 
   return () => {
-    for (const n of ['save', 'shutdown', 'kick', 'ban', 'unban', 'info', 'props',
-                     'tpto', 'tp', 'bring', 'restart', 'stats']) {
+    for (const n of ['savenow', 'bgsave', 'savestats', 'info',
+                     'tp', 'bring', 'restart', 'stats']) {
       commands.unregister(n);
     }
   };

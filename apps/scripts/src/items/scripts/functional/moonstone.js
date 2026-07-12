@@ -1,6 +1,6 @@
 import { createItem, destroyItemBySerial } from '../../../_items.js';
 import { mobileBySerial } from '../../../_entities.js';
-import { findBackpack, isInPack } from '../../../_inventory.js';
+import { isInPack } from '../../../_inventory.js';
 import { moveItem, moveMobile } from '../../../_movement.js';
 
 const SETTLE_FIRST_MS = 2500;
@@ -54,26 +54,6 @@ function sameParty(api, a, b) {
   const pa = api.party?.partyOf?.(a.serial);
   const pb = api.party?.partyOf?.(b.serial);
   return !!pa && pa === pb;
-}
-
-function returnToPack(api, world, item, caster) {
-  const pack = findBackpack({ world }, caster);
-  if (pack) {
-    moveItem(api, item, {
-      parent: pack.serial,
-      x: 44 + ((Math.random() * 72) | 0),
-      y: 44 + ((Math.random() * 72) | 0),
-      z: 0,
-      map: 0,
-    });
-  } else {
-    moveItem(api, item, {
-      parent: null,
-      x: caster.x, y: caster.y, z: caster.z, map: caster.map ?? 1,
-    });
-  }
-  item.movable = true;
-  item.moonstoneSettling = null;
 }
 
 function createGatePair(api, world, stone) {

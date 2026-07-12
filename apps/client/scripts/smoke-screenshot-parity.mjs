@@ -1,11 +1,14 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
-import { createReadStream, existsSync, mkdirSync } from 'node:fs';
+import { createReadStream, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const distRoot = fileURLToPath(new URL('../dist/', import.meta.url));
 const screenshotRoot = fileURLToPath(new URL('../.screenshots/client-parity/', import.meta.url));
+const baselineFile = fileURLToPath(new URL('./visual-baselines.json', import.meta.url));
+const visualBaselines = JSON.parse(readFileSync(baselineFile, 'utf8'));
 
 const REQUIRED_SCENARIO_IDS = [
   'roofs',
@@ -13,7 +16,11 @@ const REQUIRED_SCENARIO_IDS = [
   'lights',
   'fields',
   'mapgump',
-  'char-creation'
+  'char-creation',
+  'atmosphere',
+  'health-target',
+  'cursors',
+  'death-corpse'
 ];
 
 const SCENARIOS = [
@@ -52,6 +59,22 @@ const SCENARIOS = [
     title: 'Character creation parity',
     fileName: '06-character-creation.png',
     minSignalPixels: 16_000
+  },
+  {
+    id: 'atmosphere', title: 'Weather, season and indoor exposure',
+    fileName: '07-atmosphere.png', minSignalPixels: 18_000
+  },
+  {
+    id: 'health-target', title: 'Health bars and target states',
+    fileName: '08-health-target.png', minSignalPixels: 12_000
+  },
+  {
+    id: 'cursors', title: 'Context cursor matrix',
+    fileName: '09-cursors.png', minSignalPixels: 10_000
+  },
+  {
+    id: 'death-corpse', title: 'Death transition and corpse facing',
+    fileName: '10-death-corpse.png', minSignalPixels: 10_000
   }
 ];
 
@@ -313,6 +336,42 @@ async function installScenarioFixture(page, scenario) {
       drawPanel(716, 345, 88, 132, 'rgba(107, 77, 65, 0.96)');
       drawPanel(665, 532, 185, 45, 'rgba(92, 125, 83, 0.96)');
       drawText('create', 720, 563, 24);
+    } else if (currentScenario.id === 'atmosphere') {
+      ctx.fillStyle = 'rgba(8, 15, 32, 0.55)'; ctx.fillRect(0, 0, width, height);
+      for (let i = 0; i < 80; i += 1) {
+        const x = (i * 137) % width, y = (i * 79) % height;
+        ctx.strokeStyle = 'rgba(125,180,230,0.7)';
+        ctx.beginPath(); ctx.moveTo(x - 8, y - 16); ctx.lineTo(x, y); ctx.stroke();
+      }
+      drawPanel(610, 120, 360, 300, 'rgba(67,52,42,0.98)');
+      ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(610, 120, 360, 300);
+      drawText('outdoor rain / indoor shelter', 330, 610, 26);
+    } else if (currentScenario.id === 'health-target') {
+      const bars = [
+        [260, 170, 1, '#33ccff'], [260, 260, 0.58, '#ff8000'],
+        [260, 350, 0.24, '#ff3030'], [260, 440, 0.72, '#4ca06e']
+      ];
+      for (const [x, y, ratio, color] of bars) {
+        drawPanel(x, y, 330, 56); ctx.fillStyle = '#120b08'; ctx.fillRect(x + 65, y + 31, 230, 10);
+        ctx.fillStyle = color; ctx.fillRect(x + 65, y + 31, 230 * ratio, 10);
+      }
+      ctx.strokeStyle = '#ff5544'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(760, 320, 68, 0, Math.PI * 2); ctx.stroke();
+      drawText('normal / enemy / low / poisoned', 290, 570, 26);
+    } else if (currentScenario.id === 'cursors') {
+      const labels = ['walk', 'use', 'attack', 'grab', 'hold', 'object', 'position', 'multi'];
+      labels.forEach((label, i) => {
+        const x = 210 + (i % 4) * 190, y = 150 + Math.floor(i / 4) * 190;
+        drawPanel(x, y, 145, 130);
+        ctx.strokeStyle = i === 2 ? '#ff5555' : i >= 5 ? '#ffe080' : '#fff0c0';
+        ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x + 72, y + 52, 24, 0, Math.PI * 2); ctx.stroke();
+        drawText(label, x + 28, y + 108, 20);
+      });
+    } else if (currentScenario.id === 'death-corpse') {
+      ctx.fillStyle = '#d8c39b'; ctx.beginPath(); ctx.arc(390, 250, 30, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#ff5555'; ctx.lineWidth = 8; ctx.beginPath(); ctx.moveTo(420, 280); ctx.lineTo(530, 380); ctx.stroke();
+      ctx.fillStyle = '#776b5d'; ctx.save(); ctx.translate(700, 380); ctx.rotate(-0.45); ctx.fillRect(-85, -24, 170, 48); ctx.restore();
+      drawPanel(270, 500, 580, 30, '#120b08');
+      drawText('HP 0 → death animation → faced corpse', 285, 575, 26);
     }
 
     const image = ctx.getImageData(0, 0, width, height);
@@ -361,7 +420,11 @@ async function run() {
         signal.signalPixels >= scenario.minSignalPixels,
         `${scenario.id} screenshot fixture has too little visual signal (${signal.signalPixels})`
       );
-      await page.screenshot({ path: resolve(screenshotRoot, scenario.fileName), fullPage: false });
+      const screenshotPath = resolve(screenshotRoot, scenario.fileName);
+      await page.screenshot({ path: screenshotPath, fullPage: false });
+      const actualHash = createHash('sha256').update(readFileSync(screenshotPath)).digest('hex');
+      assert.equal(actualHash, visualBaselines.sha256[scenario.fileName],
+        `${scenario.id} visual baseline changed (${actualHash}); inspect the PNG and update visual-baselines.json intentionally`);
     }
 
     console.log(`[smoke:screenshot-parity] ok scenarios=${SCENARIOS.length} output=${screenshotRoot}`);

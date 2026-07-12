@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { Texture } from 'pixi.js';
+import { SpritePool } from '../src/renderer/sprite-pool.js';
 
 globalThis.localStorage = globalThis.localStorage ?? {
   getItem: () => null,
@@ -11,6 +13,7 @@ const { assets } = await import('../src/assets/asset-manager.js');
 
 const savedPages = assets._atlasPages;
 const savedUses = assets._atlasPageUseCounts;
+const savedBytes = assets._atlasPageBytes;
 const savedLoads = assets._atlasPageLoads;
 const savedUnloads = assets._atlasPageUnloads;
 const savedLandAtlas = assets.landAtlas;
@@ -28,6 +31,7 @@ const savedPreloadStats = assets.assetPreloadStats;
 try {
   assets._atlasPages = new Map();
   assets._atlasPageUseCounts = new Map();
+  assets._atlasPageBytes = new Map();
   assets._atlasPageLoads = new Map();
   assets._atlasPageUnloads = new Map();
 
@@ -55,6 +59,36 @@ try {
   assets._atlasPageUseCounts.set('static:0', 2);
   assets._capCache(subTextures, 1);
   assert.equal(assets._atlasPageUseCounts.get('static:0'), 1, 'sub-texture eviction releases its page reference');
+
+  let liveDestroyed = 0;
+  const liveTexture = new Texture();
+  liveTexture._uoAtlasPageKey = 'static:live';
+  liveTexture.destroy = () => { liveDestroyed++; };
+  assets._atlasPageUseCounts.set('static:live', 1);
+  const livePool = new SpritePool(1);
+  const liveSprite = livePool.acquire(liveTexture);
+  const liveCache = new Map([[1, liveTexture], [2, { destroy() {} }]]);
+  assets._capCache(liveCache, 1);
+  assert.equal(liveDestroyed, 0, 'cache eviction must not destroy a texture used by a visible sprite');
+  assert.equal(assets._atlasPageUseCounts.get('static:live'), 1, 'live sprite keeps atlas page protected');
+  livePool.release(liveSprite);
+  assert.equal(liveDestroyed, 1, 'deferred texture disposal runs after the final sprite releases it');
+  assert.equal(assets._atlasPageUseCounts.has('static:live'), false, 'deferred disposal releases page reference');
+  livePool.destroyAll();
+
+  assets._atlasPages = new Map();
+  assets._atlasPageUseCounts = new Map();
+  assets._atlasPageBytes = new Map();
+  destroyed = 0;
+  for (let i = 0; i < 3; i++) {
+    const key = `mobiles:${i}`;
+    assets._atlasPages.set(key, { destroy: () => { destroyed++; } });
+    assets._atlasPageBytes.set(key, 400 * 1024 * 1024);
+  }
+  assets._capAtlasPages(96, 'mobiles:2');
+  assert.equal(destroyed, 2, 'decoded-byte budget should trim oversized atlas pages');
+  assert.ok(assets._atlasPages.has('mobiles:2'), 'freshly loaded protected page must survive the cap pass');
+  assert.ok(assets.atlasPageStats.estimatedBytes <= assets.atlasPageStats.byteLimit);
 
   assets.landAtlas = { tiles: {} };
   assets.staticAtlas = { tiles: {} };
@@ -124,6 +158,7 @@ try {
 } finally {
   assets._atlasPages = savedPages;
   assets._atlasPageUseCounts = savedUses;
+  assets._atlasPageBytes = savedBytes;
   assets._atlasPageLoads = savedLoads;
   assets._atlasPageUnloads = savedUnloads;
   assets.landAtlas = savedLandAtlas;

@@ -6,13 +6,15 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "generate:seasons": "node scripts/generate-season-data.mjs",
     "build:smoke": "pnpm run build && pnpm run smoke:dist",
     "preview": "vite preview",
-    "smoke": "pnpm run smoke:dist && pnpm run smoke:startup-ui && pnpm run smoke:ui-parity && pnpm run smoke:screenshot-parity && pnpm run smoke:outgoing && pnpm run smoke:incoming-coverage && pnpm run smoke:servuo-samples && pnpm run smoke:net-handlers && pnpm run smoke:profile-options && pnpm run smoke:render-profile-options && pnpm run smoke:audit-parity && pnpm run smoke:gump && pnpm run smoke:gump-position-cache && pnpm run smoke:ui-drag-drop && pnpm run smoke:gump-layout && pnpm run smoke:hotkeys && pnpm run smoke:macros && pnpm run smoke:macro-import && pnpm run smoke:speech-keywords && pnpm run smoke:world-text-damage && pnpm run smoke:journal && pnpm run smoke:timer && pnpm run smoke:scroll-flag && pnpm run smoke:text-input && pnpm run smoke:gump-info && pnpm run smoke:paperdoll && pnpm run smoke:race-preview && pnpm run smoke:body-coverage && pnpm run smoke:color-box && pnpm run smoke:tooltip-options && pnpm run smoke:light && pnpm run smoke:light-points && pnpm run smoke:asset-cache && pnpm run smoke:roof && pnpm run smoke:pathfinder && pnpm run smoke:camera-pan && pnpm run smoke:anim && pnpm run smoke:static-anim && pnpm run smoke:effects && pnpm run smoke:scroll && pnpm run smoke:virtual-list && pnpm run smoke:map-texture-dirty && pnpm run smoke:perf-budgets && pnpm run smoke:extstats && pnpm run smoke:party && pnpm run smoke:client-perf",
+    "smoke": "pnpm run smoke:dist && pnpm run smoke:startup-ui && pnpm run smoke:ui-parity && pnpm run smoke:screenshot-parity && pnpm run smoke:outgoing && pnpm run smoke:incoming-coverage && pnpm run smoke:servuo-samples && pnpm run smoke:net-handlers && pnpm run smoke:targeting-mouse && pnpm run smoke:profile-options && pnpm run smoke:render-profile-options && pnpm run smoke:audit-parity && pnpm run smoke:gump && pnpm run smoke:gump-position-cache && pnpm run smoke:ui-drag-drop && pnpm run smoke:action-bar && pnpm run smoke:gump-layout && pnpm run smoke:hotkeys && pnpm run smoke:macros && pnpm run smoke:macro-import && pnpm run smoke:speech-keywords && pnpm run smoke:world-text-damage && pnpm run smoke:journal && pnpm run smoke:timer && pnpm run smoke:scroll-flag && pnpm run smoke:text-input && pnpm run smoke:gump-info && pnpm run smoke:paperdoll && pnpm run smoke:race-preview && pnpm run smoke:body-coverage && pnpm run smoke:color-box && pnpm run smoke:tooltip-options && pnpm run smoke:light && pnpm run smoke:light-points && pnpm run smoke:asset-cache && pnpm run smoke:sprite-pool && pnpm run smoke:roof && pnpm run smoke:pathfinder && pnpm run smoke:camera-pan && pnpm run smoke:anim && pnpm run smoke:static-anim && pnpm run smoke:effects && pnpm run smoke:scroll && pnpm run smoke:virtual-list && pnpm run smoke:map-texture-dirty && pnpm run smoke:map-coordinate && pnpm run smoke:perf-budgets && pnpm run smoke:extstats && pnpm run smoke:party && pnpm run smoke:client-perf",
     "smoke:dist": "node scripts/smoke-dist.mjs",
     "smoke:gump": "node test-gump.mjs",
     "smoke:gump-position-cache": "node scripts/smoke-gump-position-cache.mjs",
     "smoke:ui-drag-drop": "node scripts/smoke-ui-drag-drop.mjs",
+    "smoke:action-bar": "node scripts/smoke-action-bar.mjs",
     "smoke:ui-parity": "node scripts/smoke-ui-parity.mjs",
     "smoke:screenshot-parity": "node scripts/smoke-screenshot-parity.mjs",
     "smoke:gump-layout": "node scripts/smoke-gump-layout.mjs",
@@ -34,9 +36,12 @@
     "smoke:incoming-coverage": "node scripts/smoke-incoming-coverage.mjs",
     "smoke:servuo-samples": "node scripts/smoke-servuo-samples.mjs",
     "smoke:net-handlers": "node scripts/smoke-net-handlers.mjs",
+    "smoke:targeting-mouse": "node scripts/smoke-targeting-mouse.mjs",
+    "smoke:spell-range": "node scripts/smoke-spell-range-preview.mjs",
     "smoke:light": "node scripts/smoke-light-overlay.mjs",
     "smoke:light-points": "node scripts/smoke-light-points.mjs",
     "smoke:asset-cache": "node scripts/smoke-asset-cache.mjs",
+    "smoke:sprite-pool": "node scripts/smoke-sprite-pool.mjs",
     "smoke:pathfinder": "node scripts/smoke-pathfinder.mjs",
     "smoke:profile-options": "node scripts/smoke-profile-options.mjs",
     "smoke:render-profile-options": "node scripts/smoke-render-profile-options.mjs",
@@ -50,6 +55,7 @@
     "smoke:scroll": "node scripts/smoke-scroll-area.mjs",
     "smoke:virtual-list": "node scripts/smoke-virtual-list.mjs",
     "smoke:map-texture-dirty": "node scripts/smoke-map-texture-dirty.mjs",
+    "smoke:map-coordinate": "node scripts/smoke-map-coordinate.mjs",
     "smoke:perf-budgets": "node scripts/smoke-perf-budgets.mjs",
     "smoke:extstats": "node scripts/smoke-extended-stats.mjs",
     "smoke:outgoing": "node scripts/smoke-outgoing.mjs",
@@ -65,6 +71,7 @@
     "pixi.js": "^8.19.0"
   },
   "devDependencies": {
+    "playwright": "1.60.0",
     "vite": "^5.4.21"
   }
 }

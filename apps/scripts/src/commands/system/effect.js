@@ -21,6 +21,7 @@ export default function (api) {
   commands.register({
     name: 'boom',
     help: 'Play a fireball-and-flash demo effect at your feet.',
+    hidden: true,
     run: (ctx) => {
       const mob = ctx.state?.mobile;
       if (!mob) return;

@@ -19,6 +19,56 @@ const XP_PER_LEVEL = 1000;
 const HP_BONUS_PER_LEVEL = 0.10;   // +10% hpMax per tier
 const STR_BONUS_PER_LEVEL = 5;     // +5 str per tier
 
+export const PET_TRAINING_ABILITIES = Object.freeze([
+  { key: 'extra-damage', cost: 1, label: 'Extra Damage (+5 melee)' },
+  { key: 'extra-hp', cost: 1, label: 'Extra HP (+200)' },
+  { key: 'extra-armor', cost: 1, label: 'Extra Armor (+10)' },
+  { key: 'magic-resist', cost: 2, label: 'Magic Resist (+10 elemental)' },
+  { key: 'fast-attacks', cost: 2, label: 'Fast Attacks (-200ms)' },
+  { key: 'wrestling-100', cost: 1, label: 'Wrestling 100' },
+  { key: 'anatomy-100', cost: 1, label: 'Anatomy 100' },
+  { key: 'magery-100', cost: 3, label: 'Magery 100' },
+  { key: 'fire-breath', cost: 3, label: 'Fire Breath' },
+  { key: 'poison-attack', cost: 2, label: 'Poison Attack' },
+]);
+
+export function trainingPointsAvailable(pet) {
+  const learned = new Set(pet?.petTrainingAbilities ?? []);
+  const spent = PET_TRAINING_ABILITIES.reduce((sum, ability) => sum + (learned.has(ability.key) ? ability.cost : 0), 0);
+  return Math.max(0, (pet?.petLevel | 0) - spent);
+}
+
+export function trainPet(pet, abilityKey) {
+  if (!pet?.controlMaster) return { ok: false, error: 'That creature is not a controlled pet.' };
+  const ability = PET_TRAINING_ABILITIES.find((entry) => entry.key === abilityKey);
+  if (!ability) return { ok: false, error: 'Unknown pet training ability.' };
+  const learned = new Set(pet.petTrainingAbilities ?? []);
+  if (learned.has(ability.key)) return { ok: false, error: 'That ability is already learned.' };
+  if (trainingPointsAvailable(pet) < ability.cost) return { ok: false, error: 'Not enough pet training points.' };
+  pet._petTrainingBaseline ??= {
+    hp: pet.hp, hpMax: pet.hpMax, armor: pet.armor, attackInterval: pet.attackInterval,
+    skills: { ...(pet.skills ?? {}) }, resists: { ...(pet.resists ?? {}) },
+  };
+  learned.add(ability.key); pet.petTrainingAbilities = [...learned];
+  switch (ability.key) {
+    case 'extra-damage': pet._petBonusDamage = (pet._petBonusDamage | 0) + 5; break;
+    case 'extra-hp': pet.hpMax = (pet.hpMax | 0) + 200; pet.hp = (pet.hp | 0) + 200; break;
+    case 'extra-armor': pet.armor = (pet.armor | 0) + 10; break;
+    case 'magic-resist': {
+      pet.resists ??= {};
+      for (const key of ['fire', 'cold', 'poison', 'energy']) pet.resists[key] = (pet.resists[key] | 0) + 10;
+      break;
+    }
+    case 'fast-attacks': pet.attackInterval = Math.max(750, (pet.attackInterval ?? 1800) - 200); break;
+    case 'wrestling-100': pet.skills ??= {}; pet.skills[43] = Math.max(pet.skills[43] ?? 0, 100); break;
+    case 'anatomy-100': pet.skills ??= {}; pet.skills[1] = Math.max(pet.skills[1] ?? 0, 100); break;
+    case 'magery-100': pet.skills ??= {}; pet.skills[26] = Math.max(pet.skills[26] ?? 0, 100); pet._petCaster = true; break;
+    case 'fire-breath': pet._petFireBreath = true; break;
+    case 'poison-attack': pet._petPoisonAttack = true; break;
+  }
+  return { ok: true, ability, available: trainingPointsAvailable(pet) };
+}
+
 /**
  * Award `amount` xp to a pet. If the running total crosses a level
  * threshold the pet's stats bump and a system message is sent to the
@@ -155,6 +205,15 @@ export function petLevel(pet) { return pet?.petLevel | 0; }
  */
 export function resetPetTraining(pet) {
   if (!pet) return;
+  if (pet._petTrainingBaseline) {
+    const base = pet._petTrainingBaseline;
+    pet.hp = base.hp; pet.hpMax = base.hpMax; pet.armor = base.armor;
+    pet.attackInterval = base.attackInterval; pet.skills = { ...(base.skills ?? {}) };
+    pet.resists = { ...(base.resists ?? {}) };
+    delete pet._petTrainingBaseline;
+    delete pet._petBonusDamage; delete pet._petCaster;
+    delete pet._petFireBreath; delete pet._petPoisonAttack;
+  }
   if (pet._origPetHpMax != null) {
     pet.hpMax = pet._origPetHpMax;
     pet.hp = Math.min(pet.hp ?? pet.hpMax, pet.hpMax);
@@ -166,6 +225,7 @@ export function resetPetTraining(pet) {
   }
   delete pet.petXp;
   delete pet.petLevel;
+  delete pet.petTrainingAbilities;
 }
 
 /**

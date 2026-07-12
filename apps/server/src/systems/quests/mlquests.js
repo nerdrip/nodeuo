@@ -25,11 +25,8 @@ import { normalizeSkillValue } from '../../combat-formulas.js';
 
 const _registry = new Map();
 
-/** Register a quest definition. Throws on duplicate ID. */
-export function registerQuest(def) {
-  if (!def?.id) throw new Error('Quest needs an id');
-  if (_registry.has(def.id)) throw new Error(`Duplicate quest id: ${def.id}`);
-  _registry.set(def.id, Object.freeze({
+function normalizeQuest(def) {
+  return Object.freeze({
     id: def.id,
     title: def.title ?? def.id,
     description: def.description ?? '',
@@ -40,9 +37,28 @@ export function registerQuest(def) {
     servuoClasses: Array.isArray(def.servuoClasses) ? def.servuoClasses.slice() : undefined,
     sourcePath: def.sourcePath ?? null,
     cliloc: def.cliloc ? { ...def.cliloc } : undefined,
+    refuseCliloc: def.refuseCliloc ?? null,
+    uncompleteCliloc: def.uncompleteCliloc ?? null,
+    completeCliloc: def.completeCliloc ?? null,
     rewardChoices: (def.rewardChoices ?? []).map((r) => ({ ...r })),
+    extracted: !!def.extracted,
     unique: !!def.unique,
-  }));
+  });
+}
+
+/** Register a quest definition. Throws on duplicate ID. */
+export function registerQuest(def) {
+  if (!def?.id) throw new Error('Quest needs an id');
+  if (_registry.has(def.id)) throw new Error(`Duplicate quest id: ${def.id}`);
+  _registry.set(def.id, normalizeQuest(def));
+  return _registry.get(def.id);
+}
+
+/** Explicit authored override for a lower-fidelity extracted definition.
+ * Kept separate from registerQuest so accidental duplicate IDs still fail. */
+export function replaceQuest(def) {
+  if (!def?.id) throw new Error('Quest needs an id');
+  _registry.set(def.id, normalizeQuest(def));
   return _registry.get(def.id);
 }
 
@@ -328,11 +344,12 @@ export function registerEscort({
   fameReward = 250,
   rewards = null,
   unique = false,
+  replace = false,
 }) {
   const defaultRewards = [];
   if ((goldReward ?? 0) > 0) defaultRewards.push({ type: 'gold', amount: goldReward });
   if ((fameReward ?? 0) > 0) defaultRewards.push({ type: 'fame', amount: fameReward });
-  return registerQuest({
+  return (replace ? replaceQuest : registerQuest)({
     id,
     title: title ?? `Escort ${npcKind}`,
     description: `Escort ${npcKind} from ${fromRegion} to ${toRegion}.`,

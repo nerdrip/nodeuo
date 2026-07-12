@@ -1,8 +1,5 @@
 import assert from 'node:assert/strict';
 import { Container } from 'pixi.js';
-import { UIManager } from '../src/ui/ui-manager.js';
-import { Gump } from '../src/ui/gump.js';
-import { Control } from '../src/ui/control.js';
 
 const listeners = new Map();
 globalThis.window = globalThis;
@@ -23,6 +20,12 @@ globalThis.localStorage = {
   setItem: () => {},
   removeItem: () => {},
 };
+
+// Import after browser globals exist: UIManager pulls in the profile
+// singleton during module evaluation.
+const { UIManager } = await import('../src/ui/ui-manager.js');
+const { Gump } = await import('../src/ui/gump.js');
+const { Control } = await import('../src/ui/control.js');
 
 function mouse(button, x, y) {
   return {
@@ -52,6 +55,7 @@ class TestControl extends Control {
 }
 
 const ui = new UIManager(new Container());
+ui.setScale(1.25);
 
 const sourceGump = new TestGump(10, 10);
 const source = new TestControl(5, 5, 20, 20);
@@ -73,23 +77,23 @@ dropParent.add(dropChild);
 targetGump.add(dropParent);
 ui.addGump(targetGump);
 
-ui._onMouseDown(mouse(0, 20, 20));
-ui._onMouseMove(mouse(0, 32, 20));
+ui._onMouseDown(mouse(0, 25, 25));
+ui._onMouseMove(mouse(0, 40, 25));
 assert.equal(dragStarted, 1, 'drag source should start after threshold');
-ui._onMouseUp(mouse(0, 141, 33));
+ui._onMouseUp(mouse(0, 141 * 1.25, 33 * 1.25));
 
 assert.equal(sourceMouseUp, 1, 'source should receive mouse up');
 assert.deepEqual(dropInfo, { btn: 0, lx: 11, ly: 13 }, 'drop should translate through child to parent local coords');
 
 const movable = new TestGump(220, 20);
 ui.addGump(movable);
-ui._onMouseDown(mouse(0, 230, 30));
-ui._onMouseMove(mouse(0, 250, 45));
+ui._onMouseDown(mouse(0, 230 * 1.25, 30 * 1.25));
+ui._onMouseMove(mouse(0, 250 * 1.25, 45 * 1.25));
 assert.ok(ui._dragging, 'first threshold-crossing move should arm gump drag');
-ui._onMouseMove(mouse(0, 255, 50));
+ui._onMouseMove(mouse(0, 255 * 1.25, 50 * 1.25));
 assert.equal(movable.x, 225, 'gump drag should update x from armed drag offset');
 assert.equal(movable.y, 25, 'gump drag should update y from armed drag offset');
-ui._onMouseUp(mouse(0, 250, 45));
+ui._onMouseUp(mouse(0, 250 * 1.25, 45 * 1.25));
 assert.equal(ui._dragging, null, 'gump drag should clear on mouse up');
 
 ui.destroy();

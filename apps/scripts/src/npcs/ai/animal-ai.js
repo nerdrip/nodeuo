@@ -31,6 +31,18 @@ function findThreat(api, world, mob, range) {
   return best;
 }
 
+// AIScheduler.stepMobile intentionally separates a turn from a step (classic
+// player movement semantics). An AI decision is already a complete movement
+// intention, so finish the step immediately after a successful pure turn.
+// Otherwise a random animal picks another direction on its next think and
+// spends most of its life rotating/jumping in place.
+function stepAnimal(api, mob, dir) {
+  const x0 = mob.x | 0, y0 = mob.y | 0;
+  if (!api.ai.stepMobile?.(mob, dir)) return false;
+  if (mob.x !== x0 || mob.y !== y0) return true;
+  return !!api.ai.stepMobile?.(mob, dir);
+}
+
 /** @param {import('@uo/server/src/scripts.js').ScriptAPI} api */
 export default function register(api) {
   if (!api.ai) return () => {};
@@ -60,7 +72,7 @@ export default function register(api) {
           const dx = mob.x - ref.x;
           const dy = mob.y - ref.y;
           const dir = dirTowards(dx, dy);
-          if (api.ai.stepMobile?.(mob, dir)) ctx.broadcastMove(mob);
+          if (stepAnimal(api, mob, dir)) ctx.broadcastMove(mob);
         }
         return;
       }
@@ -74,7 +86,7 @@ export default function register(api) {
       let dir;
       if (farFromHome) dir = dirTowards(state.home.x - mob.x, state.home.y - mob.y);
       else dir = (Math.random() * 8) | 0;
-      if (api.ai.stepMobile?.(mob, dir)) ctx.broadcastMove(mob);
+      if (stepAnimal(api, mob, dir)) ctx.broadcastMove(mob);
     },
   });
 

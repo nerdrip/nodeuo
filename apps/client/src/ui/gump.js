@@ -111,8 +111,9 @@ export class Gump extends Control {
     //   • Right edge stays at x + w ≤ ww (gump fully on screen if it
     //     fits; otherwise its LEFT edge is anchored at x ≥ 0)
     //   • Same vertical clamp if it fits, else top-anchored at y=0
-    const ww = window.innerWidth  || 1024;
-    const wh = window.innerHeight || 768;
+    const scale = this._uiManager?.scale || 1;
+    const ww = (window.innerWidth  || 1024) / scale;
+    const wh = (window.innerHeight || 768) / scale;
     const w  = this.width  || 100;
     const h  = this.height || 100;
     let x = v.x | 0;

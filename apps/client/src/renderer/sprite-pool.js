@@ -19,9 +19,53 @@
 // land/static, chunk items, mobile renderer in some flows). A standalone
 // module keeps the policy consistent across all of them.
 
-import { Sprite } from 'pixi.js';
+import { Sprite, Texture } from 'pixi.js';
 
 const DEFAULT_CAP = 4096;
+const textureDescriptor = Object.getOwnPropertyDescriptor(Sprite.prototype, 'texture');
+
+function retainTexture(texture) {
+  if (!texture || texture === Texture.EMPTY) return;
+  texture._uoLiveSpriteRefs = ((texture._uoLiveSpriteRefs | 0) + 1) >>> 0;
+}
+
+function releaseTexture(texture) {
+  if (!texture || texture === Texture.EMPTY) return;
+  texture._uoLiveSpriteRefs = Math.max(0, (texture._uoLiveSpriteRefs | 0) - 1);
+  if (texture._uoLiveSpriteRefs === 0 && typeof texture._uoDisposeWhenUnused === 'function') {
+    const dispose = texture._uoDisposeWhenUnused;
+    texture._uoDisposeWhenUnused = null;
+    dispose();
+  }
+}
+
+/**
+ * Pixi does not retain-count Texture objects. Cache eviction used to call
+ * `texture.destroy(false)` while a visible Sprite still pointed at that
+ * sub-texture, blanking paperdolls, worn equipment and world items at
+ * random. Install an instance-level proxy on pooled sprites so every later
+ * `sprite.texture = next` assignment is tracked too (animation hot paths
+ * swap textures directly instead of going through the pool).
+ */
+function installTrackedTexture(sp) {
+  if (sp._uoTextureTracked || !textureDescriptor?.get || !textureDescriptor?.set) return;
+  Object.defineProperty(sp, 'texture', {
+    configurable: true,
+    enumerable: true,
+    get() { return textureDescriptor.get.call(this); },
+    set(next) {
+      const prev = textureDescriptor.get.call(this);
+      const value = next ?? Texture.EMPTY;
+      if (prev === value) return;
+      textureDescriptor.set.call(this, value);
+      retainTexture(value);
+      releaseTexture(prev);
+    },
+  });
+  sp._uoTextureTracked = true;
+  // The constructor assigned the initial texture before the proxy existed.
+  retainTexture(textureDescriptor.get.call(sp));
+}
 
 class SpritePool {
   constructor(cap = DEFAULT_CAP) {
@@ -42,19 +86,29 @@ class SpritePool {
       sp.alpha = 1;
       sp.rotation = 0;
       sp.scale.set(1, 1);
+      sp.pivot.set(0, 0);
+      sp.skew.set(0, 0);
       sp.filters = null;
       sp.tint = 0xFFFFFF;
       sp.blendMode = 'normal';
       sp.zIndex = 0;
+      sp.eventMode = undefined;
+      sp.cursor = undefined;
+      sp.hitArea = null;
+      sp.mask = null;
       // Anchor reset to default (0,0). Callers that need a custom anchor
       // set it explicitly after acquire (matches `new Sprite()` semantics).
       sp.anchor.set(0, 0);
       sp.position.set(0, 0);
-      if (texture) sp.texture = texture;
+      sp.texture = texture ?? Texture.EMPTY;
     } else {
       this._allocCount++;
-      sp = new Sprite(texture);
+      sp = new Sprite(texture ?? Texture.EMPTY);
+      installTrackedTexture(sp);
+      sp._uoPoolGeneration = 0;
     }
+    sp._uoPoolGeneration = ((sp._uoPoolGeneration | 0) + 1) >>> 0;
+    sp._uoPoolActive = true;
     this._activeCount++;
     return sp;
   }
@@ -70,14 +124,20 @@ class SpritePool {
   release(sp) {
     if (!sp) return;
     if (sp.destroyed) return;
+    if (!sp._uoPoolActive) return;
+    sp._uoPoolActive = false;
+    // Invalidate outstanding requestAnimationFrame callbacks (spawn shimmer,
+    // door swing, mount fade) before this object can be reused elsewhere.
+    sp._uoPoolGeneration = ((sp._uoPoolGeneration | 0) + 1) >>> 0;
     this._activeCount = Math.max(0, this._activeCount - 1);
     if (sp.parent) {
       try { sp.parent.removeChild(sp); } catch { /* ignore */ }
     }
     sp.visible = false;
     sp.filters = null;
-    // Keep the texture pointer alive — atlas Texture instances are shared
-    // across many sprites, releasing the pointer doesn't help.
+    // Release the live texture reference immediately. Keeping it on free
+    // sprites made every once-visible atlas page look permanently active.
+    sp.texture = Texture.EMPTY;
     if (this._free.length >= this._cap) {
       // Pool is full — destroy the surplus rather than leak.
       try { sp.destroy(); } catch { /* ignore */ }

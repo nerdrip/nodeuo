@@ -5,28 +5,30 @@
 <title>UO·Node — Iso World Editor</title>
 <style>
   * { box-sizing: border-box; }
+  :root { --gold:#d9ad63;--gold2:#f0d397;--ink:#080b0f;--panel:#11161b;--line:rgba(217,173,99,.22);--muted:#858b90; }
   html, body { margin: 0; padding: 0; height: 100%; overflow: hidden;
-    font: 12px/1.45 'Consolas', 'Cascadia Mono', monospace;
-    color: #d8c89a; background: #0c0906; }
-  #root { display: grid; grid-template-columns: 1fr 320px; height: 100vh; }
-  #stage { position: relative; overflow: hidden; background: #050403; }
+    font: 12px/1.45 Inter, 'Segoe UI', system-ui, sans-serif;
+    color: #ddd6c6; background: var(--ink); }
+  #root { display: grid; grid-template-columns: minmax(0,1fr) 380px; height: 100vh; }
+  #stage { position: relative; overflow: hidden; background: radial-gradient(circle at 50% 40%,#11100d,#050608 70%); }
   canvas { display: block; image-rendering: pixelated; cursor: crosshair; }
   #side {
-    background: #1a1410; border-left: 2px solid #4a3818;
-    overflow-y: auto; padding: 10px; font-size: 12px;
+    background: linear-gradient(180deg,#13181d,#0b0e12); border-left: 1px solid var(--line);
+    overflow-y: auto; padding: 14px 16px 30px; font-size: 12px; scrollbar-width:thin;scrollbar-color:#664925 transparent;
   }
-  h3 { font-size: 12px; color: #ffd070; margin: 12px 0 6px; letter-spacing: 1px; }
+  h3 { font-size: 10px; color: var(--gold); margin: 18px 0 9px; padding-top:14px;border-top:1px solid rgba(217,173,99,.12);letter-spacing: 1.7px;text-transform:uppercase; }
   h3:first-child { margin-top: 0; }
-  button { background: #3a2c14; color: #ffd070; border: 1px solid #7a5a20;
-    padding: 4px 8px; cursor: pointer; font: inherit; border-radius: 2px; }
-  button:hover { background: #4a3818; }
-  button.primary { background: #6a4a18; }
+  button { background: rgba(217,173,99,.055); color: #d9d2c2; border: 1px solid rgba(217,173,99,.25);
+    min-height:32px;padding: 5px 10px; cursor: pointer; font: 600 11px inherit; border-radius: 6px;transition:.14s ease; }
+  button:hover { background: rgba(217,173,99,.12);border-color:rgba(217,173,99,.48);transform:translateY(-1px) }
+  button.primary { background: linear-gradient(135deg,#8a592e,#633c22);color:#fff0d3;border-color:#b27b42; }
   button.danger { color: #ff6060; border-color: #803030; }
-  input, select { background: #14100a; color: #d8c89a; border: 1px solid #4a3818;
-    padding: 3px 6px; font: inherit; border-radius: 2px; }
+  input, select { min-height:32px;background: #080b0e; color: #ddd6c6; border: 1px solid rgba(217,173,99,.22);
+    padding: 5px 8px; font: inherit; border-radius: 6px; }
+  input:focus,select:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(217,173,99,.08)}
   .row { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-bottom: 4px; }
   .tool-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
-  .tool-grid button { text-align: left; padding: 6px 8px; }
+  .tool-grid button { text-align: left; padding: 8px 10px; }
   .pill { display: inline-block; padding: 1px 5px; border-radius: 8px;
     font-size: 10px; border: 1px solid currentColor; }
   #hud {
@@ -58,24 +60,25 @@
   #loading .bar { width: 240px; height: 6px; background: #2a1f10; border: 1px solid #4a3818; }
   #loading .bar > div { height: 100%; background: #ffd070; width: 0%; transition: width 200ms; }
   #palette {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
-    max-height: 260px; overflow-y: auto;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+    min-height:120px;max-height: 330px; overflow-y: auto;padding-right:3px;scrollbar-width:thin;scrollbar-color:#654824 transparent;
   }
   .pal {
     display: flex; align-items: center; gap: 6px;
-    padding: 4px; border: 1px solid #3a2c14; cursor: pointer;
-    border-radius: 3px; font-size: 11px;
+    min-height:54px;padding: 6px; border: 1px solid rgba(217,173,99,.12); cursor: pointer;
+    border-radius: 7px; font-size: 11px;background:rgba(0,0,0,.16);
   }
-  .pal:hover { border-color: #6a4a18; }
-  .pal.active { border-color: #ffd070; background: #2a1f10; }
-  .pal canvas { width: 28px; height: 28px; image-rendering: pixelated;
-    background: #0a0805; flex-shrink: 0; }
+  .pal:hover { border-color: rgba(217,173,99,.45);background:rgba(217,173,99,.05) }
+  .pal.active { border-color: var(--gold); background: rgba(164,101,46,.18);box-shadow:inset 3px 0 #b5793c; }
+  .pal canvas { width: 38px; height: 38px; image-rendering: pixelated;
+    background: #080a0c; flex-shrink: 0;border-radius:4px; }
   .pal .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .pal .id { opacity: .5; font-size: 10px; }
+  .palette-toolbar{display:grid;grid-template-columns:1fr 125px;gap:6px;margin-bottom:7px}.palette-kind{display:flex;gap:12px;margin:2px 0 8px}.palette-footer{display:flex;align-items:center;gap:6px;margin-top:7px;color:var(--muted);font-size:10px}.palette-footer #palette-meta{flex:1}.palette-footer button{min-height:27px;padding:3px 8px}
   .topbar {
     display: flex; align-items: center; gap: 10px;
-    padding: 6px 10px; background: #20180e; border-bottom: 1px solid #4a3818;
-    color: #ffd070; font-size: 11px;
+    height:48px;padding: 7px 12px; background: rgba(13,17,21,.96); border-bottom: 1px solid var(--line);
+    color: var(--gold); font-size: 11px;box-shadow:0 5px 18px rgba(0,0,0,.25);
   }
   .topbar a { color: #ffd070; text-decoration: none; }
   .topbar a:hover { text-decoration: underline; }
@@ -86,6 +89,8 @@
     font-size: 10px; margin: 0 1px;
   }
   details summary { cursor: pointer; padding: 4px 0; color: #ffd070; }
+  #editor-toast{position:absolute;top:58px;left:50%;transform:translateX(-50%) translateY(-8px);z-index:20;padding:8px 13px;border:1px solid var(--line);border-radius:7px;background:rgba(10,13,16,.94);color:#d9d2c2;box-shadow:0 8px 30px #0008;opacity:0;pointer-events:none;transition:.18s ease}#editor-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}#editor-toast.ok{border-color:rgba(101,184,130,.45);color:#9ed0ae}#editor-toast.error{border-color:rgba(220,105,91,.45);color:#e69a8e}
+  @media(max-width:1000px){#root{grid-template-columns:minmax(0,1fr) 330px}.topbar #goto-loc{width:140px!important}}
 </style>
 </head>
 <body>
@@ -110,12 +115,13 @@
       <select id="goto-loc" style="width:200px;font-size:11px">
         <option value="">— select location —</option>
       </select>
-      <button onclick="ed.tpAdminHere()" title="Teleport your admin character here">🚀 TP me</button>
+      <button id="tp-here-btn" onclick="ed.tpAdminHere()" title="Teleport your admin character here">🚀 TP me</button>
     </div>
     <canvas id="cv" width="800" height="600"></canvas>
     <div id="hud">camera (<b id="hud-cx">—</b>, <b id="hud-cy">—</b>) · zoom <b id="hud-z">1.0</b>x · hover (<b id="hud-hx">—</b>, <b id="hud-hy">—</b>) · z=<b id="hud-hz">—</b></div>
     <div id="toolhud">Tool: <span id="toolname">—</span></div>
     <div id="stack"></div>
+    <div id="editor-toast" role="status"></div>
     <div id="loading">
       <div>Loading atlases…</div>
       <div class="bar"><div id="lbar"></div></div>
@@ -167,13 +173,22 @@
     </div>
 
     <h3>Palette</h3>
-    <input id="search" placeholder="🔍 search by name or 0xNNNN…"
-      style="width:100%;margin-bottom:6px" />
-    <div class="row" style="margin-bottom:6px">
+    <div class="palette-toolbar">
+      <input id="search" placeholder="Search name or 0xNNNN…" />
+      <select id="palette-category" title="Static category">
+        <option value="all">All categories</option><option value="architecture">Architecture</option>
+        <option value="doors">Doors & gates</option><option value="furniture">Furniture</option>
+        <option value="lighting">Lighting</option><option value="nature">Nature</option>
+        <option value="containers">Containers</option><option value="signs">Signs & banners</option>
+        <option value="misc">Miscellaneous</option>
+      </select>
+    </div>
+    <div class="palette-kind">
       <label><input type="radio" name="kind" value="land" checked /> Land</label>
       <label><input type="radio" name="kind" value="static" /> Statics</label>
     </div>
     <div id="palette"></div>
+    <div class="palette-footer"><span id="palette-meta">—</span><button id="palette-prev">←</button><button id="palette-next">→</button></div>
 
     <h3>Pending edits</h3>
     <div id="pending" style="font-size:11px">
@@ -183,6 +198,8 @@
     </div>
     <div class="row" style="margin-top:6px">
       <button class="primary" onclick="ed.saveAll()">💾 Save all</button>
+      <button id="undo-btn" onclick="ed.undoPending()" disabled>↶ Undo</button>
+      <button id="redo-btn" onclick="ed.redoPending()" disabled>↷ Redo</button>
       <button onclick="ed.discardAll()">↶ Discard</button>
     </div>
     <div style="font-size:10px;opacity:.6;margin-top:4px">
@@ -261,17 +278,30 @@ import { NOTORIETY_HUE, NOTORIETY_LABEL, notorietyHue } from '/shared/notoriety-
 // ============================================================================
 // HTTP helpers — same-origin cookie auth (set by /api/auth/login)
 // ============================================================================
-async function api(method, url, body) {
-  const init = { method, headers: {}, credentials: 'same-origin' };
+async function api(method, url, body, options = {}) {
+  const init = { method, headers: {}, credentials: 'same-origin', signal: options.signal };
   if (body) { init.headers['content-type'] = 'application/json'; init.body = JSON.stringify(body); }
   const r = await fetch(url, init);
   if (r.status === 401) { location.href = '/login'; throw new Error('unauthorized'); }
+  let payload = null;
+  try { payload = await r.json(); } catch { /* handled below */ }
   if (!r.ok) {
-    let msg = `HTTP ${r.status}`;
-    try { const j = await r.json(); msg = j.error || j.reason || msg; } catch {}
-    throw new Error(msg);
+    // Editor actions already surface `{error}` beside the relevant tool and
+    // retain failed pending operations. Preserve that structured response for
+    // validation/conflict errors; reserve thrown exceptions for network loss.
+    return payload ?? { error: `HTTP ${r.status}` };
   }
-  return r.json();
+  return payload;
+}
+
+let toastTimer = null;
+function editorToast(message, kind = '') {
+  const el = document.getElementById('editor-toast');
+  if (!el) return;
+  clearTimeout(toastTimer);
+  el.textContent = message;
+  el.className = `show ${kind}`;
+  toastTimer = setTimeout(() => { el.className = ''; }, 2600);
 }
 
 // ============================================================================
@@ -303,10 +333,13 @@ async function loadAtlases(onProgress) {
     ['static index',  () => fetch('/assets/static-atlas.json').then(r => r.json()).then(j => AT.staticIdx = j)],
     ['tiledata',      () => fetch('/assets/tiledata.json').then(r => r.json()).then(j => AT.tiledata = j)],
   ];
-  for (let i = 0; i < steps.length; i++) {
-    onProgress?.(i / steps.length, steps[i][0]);
-    await steps[i][1]();
-  }
+  let done = 0;
+  onProgress?.(0, 'manifest indexes');
+  await Promise.all(steps.map(async ([name, run]) => {
+    await run();
+    done++;
+    onProgress?.(done / steps.length, name);
+  }));
   onProgress?.(1, 'done');
 }
 
@@ -422,6 +455,12 @@ const ed = window.ed = {
   cells: null,
   mobiles: [],         // live mobs (from /api/mobiles), for overlay layer
   loadGen: 0,
+  _sliceAbort: null,
+  _lastSliceRequestKey: '',
+  paletteOffset: 0,
+  paletteLimit: 120,
+  paletteTotal: 0,
+  paletteGen: 0,
 
   // Pending overlay (client-side until Save). Three independent lists:
   //   pendingLand     – land paint deltas (committed via /api/map/edit)
@@ -434,6 +473,9 @@ const ed = window.ed = {
   pendingAdds: [],
   pendingRemoves: new Set(),     // serials (string '0x…')
   pendingAddSeq: 0,              // increments per add so each entry has a stable temp id
+  undoStack: [],
+  redoStack: [],
+  historyLimit: 100,
 
   // Frame coalescer — render() schedules a RAF and drains once per
   // frame. Multiple state changes between frames batch into a single
@@ -479,6 +521,46 @@ const ed = window.ed = {
     this.recomputeView();
     this.reloadSliceSoon(60);  // settle ~60 ms after the click
   },
+  pendingSnapshot() {
+    return {
+      land: this.pendingLand.map((entry) => ({ ...entry })),
+      adds: this.pendingAdds.map((entry) => ({ ...entry })),
+      removes: [...this.pendingRemoves],
+      seq: this.pendingAddSeq,
+    };
+  },
+  restorePending(snapshot) {
+    this.pendingLand = snapshot.land.map((entry) => ({ ...entry }));
+    this.pendingAdds = snapshot.adds.map((entry) => ({ ...entry }));
+    this.pendingRemoves = new Set(snapshot.removes);
+    this.pendingAddSeq = snapshot.seq;
+    this.updatePendingHud();
+    this.reloadSlice(true);
+  },
+  recordHistory() {
+    this.undoStack.push(this.pendingSnapshot());
+    if (this.undoStack.length > this.historyLimit) this.undoStack.shift();
+    this.redoStack = [];
+    this.updateHistoryButtons();
+  },
+  undoPending() {
+    if (!this.undoStack.length) return;
+    this.redoStack.push(this.pendingSnapshot());
+    this.restorePending(this.undoStack.pop());
+    this.updateHistoryButtons();
+  },
+  redoPending() {
+    if (!this.redoStack.length) return;
+    this.undoStack.push(this.pendingSnapshot());
+    this.restorePending(this.redoStack.pop());
+    this.updateHistoryButtons();
+  },
+  updateHistoryButtons() {
+    const undo = document.getElementById('undo-btn');
+    const redo = document.getElementById('redo-btn');
+    if (undo) undo.disabled = this.undoStack.length === 0;
+    if (redo) redo.disabled = this.redoStack.length === 0;
+  },
   async saveAll() {
     const summary = [];
     if (this.pendingLand.length) {
@@ -491,6 +573,7 @@ const ed = window.ed = {
     }
     if (this.pendingAdds.length) {
       let placed = 0;
+      const failedAdds = [];
       // Chunk into 32-at-a-time parallel POSTs (server is single-call
       // per place but we can pipeline). Skips on failure but keeps going
       // so a single bad tile doesn't abandon the whole batch.
@@ -501,47 +584,83 @@ const ed = window.ed = {
             facet: this.facet, x: a.x, y: a.y, z: a.z,
             itemId: a.itemId, hue: a.hue,
           }).catch(() => ({ error: 'network' }))));
-        placed += results.filter((r) => r.ok).length;
+        results.forEach((r, index) => {
+          if (r.ok) placed++;
+          else failedAdds.push(slice[index]);
+        });
       }
       summary.push(`${placed}/${this.pendingAdds.length} statics placed`);
-      this.pendingAdds = [];
+      this.pendingAdds = failedAdds;
     }
     if (this.pendingRemoves.size) {
       let removed = 0;
       const serials = [...this.pendingRemoves];
+      const failedRemoves = new Set();
       for (let i = 0; i < serials.length; i += 32) {
         const slice = serials.slice(i, i + 32);
         const results = await Promise.all(slice.map((s) =>
           api('POST', '/api/statics/remove', { serial: s })
             .catch(() => ({ error: 'network' }))));
-        removed += results.filter((r) => r.ok).length;
+        results.forEach((r, index) => {
+          if (r.ok) removed++;
+          else failedRemoves.add(slice[index]);
+        });
       }
       summary.push(`${removed}/${serials.length} statics removed`);
-      this.pendingRemoves.clear();
+      this.pendingRemoves = failedRemoves;
     }
     if (!summary.length) { alert('Nothing to save.'); return; }
     this.updatePendingHud();
-    this.reloadSlice();
-    alert('Saved: ' + summary.join(', '));
+    this.undoStack = []; this.redoStack = []; this.updateHistoryButtons();
+    this.reloadSlice(true);
+    const retryCount = this.pendingAdds.length + this.pendingRemoves.size;
+    alert('Saved: ' + summary.join(', ') + (retryCount ? `. ${retryCount} failed operation(s) remain queued for retry.` : ''));
   },
   async discardAll() {
     this.pendingLand = [];
     this.pendingAdds = [];
     this.pendingRemoves.clear();
+    this.undoStack = []; this.redoStack = []; this.updateHistoryButtons();
     this.updatePendingHud();
-    await this.reloadSlice();
+    await this.reloadSlice(true);
   },
   async resetLandOverlay() {
     if (!confirm('Wipe ALL land overlay edits server-wide?')) return;
     const r = await api('POST', '/api/map/reset', {});
     alert('Cleared ' + r.cleared + ' overlay tiles.');
-    await this.reloadSlice();
+    await this.reloadSlice(true);
   },
   async tpAdminHere() {
-    const r = await api('POST', '/api/me/teleport', {
-      x: this.cx, y: this.cy, z: 0, map: this.facet,
-    });
-    if (r.error) alert('TP failed: ' + r.error);
+    return this.teleportTo(this.cx, this.cy, 0);
+  },
+  async teleportTo(x, y, z = 0) {
+    if (this._tpBusy) return;
+    this._tpBusy = true;
+    const button = document.getElementById('tp-here-btn');
+    const oldText = button?.textContent;
+    if (button) { button.disabled = true; button.textContent = 'Teleporting…'; }
+    try {
+      const body = { x, y, z, map: this.facet };
+      const savedSlot = Number(localStorage.getItem('uo-editor-tp-slot'));
+      if (Number.isInteger(savedSlot) && savedSlot >= 0) body.slot = savedSlot;
+      let r = await api('POST', '/api/me/teleport', body);
+      if (r.needsPick) {
+        const chosen = r.characters?.find((c) => c.online) ?? r.characters?.[0];
+        if (!chosen) throw new Error('No admin character available');
+        body.slot = chosen.slot;
+        localStorage.setItem('uo-editor-tp-slot', String(chosen.slot));
+        r = await api('POST', '/api/me/teleport', body);
+      }
+      if (r.error) throw new Error(r.error);
+      editorToast(`${r.character} → ${r.x}, ${r.y}, ${r.z} · map ${r.map}`, 'ok');
+      return r;
+    } catch (error) {
+      editorToast(`Teleport failed: ${error.message}`, 'error');
+      return { error: error.message };
+    } finally {
+      this._tpBusy = false;
+      if (button) { button.disabled = false; button.textContent = oldText || '🚀 TP me'; }
+    }
   },
   async savePrefab() {
     const r = this.rectBounds();
@@ -565,7 +684,7 @@ const ed = window.ed = {
     });
     if (res.error) { alert('Place failed: ' + res.error); return; }
     alert('Placed ' + res.placed + ' / ' + res.total + ' tiles.');
-    this.reloadSlice();
+    this.reloadSlice(true);
   },
 
   // ---- internals -------------------------------------------------------
@@ -638,7 +757,7 @@ const ed = window.ed = {
     };
   },
 
-  async reloadSlice() {
+  async reloadSlice(force = false) {
     this.loadGen++;
     const gen = this.loadGen;
     // Fetch +2 tile margin around the visible area so slope warping
@@ -649,15 +768,37 @@ const ed = window.ed = {
     // we drop the actual view by 4 tiles to stay inside the cap.
     const margin = 2;
     const w = this.view.w, h = this.view.h;
-    const x0 = this.cx - (w >> 1) - margin;
-    const y0 = this.cy - (h >> 1) - margin;
+    // Quantise the streamed centre to four-tile steps. Small pans render
+    // instantly from the existing 2-tile margin instead of issuing another
+    // pair of 64x64 requests for every single camera coordinate.
+    const streamCx = Math.round(this.cx / 4) * 4;
+    const streamCy = Math.round(this.cy / 4) * 4;
+    const x0 = streamCx - (w >> 1) - margin;
+    const y0 = streamCy - (h >> 1) - margin;
     const W = w + margin * 2, H = h + margin * 2;
     // Cap to server limit; recomputeView() should already keep us inside.
     const W2 = Math.min(64, W), H2 = Math.min(64, H);
-    const [mapR, staticsR] = await Promise.all([
-      api('GET', `/api/map/slice?facet=${this.facet}&x=${x0}&y=${y0}&w=${W2}&h=${H2}`),
-      api('GET', `/api/statics/slice?facet=${this.facet}&x=${x0}&y=${y0}&w=${W2}&h=${H2}`),
-    ]);
+    const requestKey = `${this.facet}|${x0}|${y0}|${W2}|${H2}`;
+    if (!force && requestKey === this._lastSliceRequestKey && this.tiles && this.cells) {
+      this.requestRender();
+      return;
+    }
+    this._lastSliceRequestKey = requestKey;
+    this._sliceAbort?.abort();
+    const controller = new AbortController();
+    this._sliceAbort = controller;
+    let mapR, staticsR;
+    try {
+      [mapR, staticsR] = await Promise.all([
+        api('GET', `/api/map/slice?facet=${this.facet}&x=${x0}&y=${y0}&w=${W2}&h=${H2}`, null, { signal: controller.signal }),
+        api('GET', `/api/statics/slice?facet=${this.facet}&x=${x0}&y=${y0}&w=${W2}&h=${H2}`, null, { signal: controller.signal }),
+      ]);
+    } catch (error) {
+      if (error?.name === 'AbortError') return;
+      this._lastSliceRequestKey = '';
+      editorToast(`Map load failed: ${error.message}`, 'error');
+      return;
+    }
     if (gen !== this.loadGen) return;     // superseded by a newer reload
     this.tiles = mapR.tiles;
     this.cells = staticsR.cells;
@@ -721,9 +862,12 @@ const ed = window.ed = {
 
   setBrushKind(k) {
     this.brushKind = k;
+    this.paletteOffset = 0;
     document.getElementById('brush-kind').textContent = k;
     document.getElementById('brush-kind').style.color = k === 'land' ? '#80c0ff' : '#ffd070';
     for (const r of document.querySelectorAll('input[name="kind"]')) r.checked = (r.value === k);
+    const category = document.getElementById('palette-category');
+    if (category) category.disabled = k !== 'static';
     this.refreshPalette();
   },
 
@@ -732,18 +876,30 @@ const ed = window.ed = {
     if (!Number.isFinite(id) || id < 0) return;
     this.brushId = id;
     document.getElementById('brush-id').value = '0x' + id.toString(16).padStart(4, '0');
-    this.refreshPalette();
+    for (const el of document.querySelectorAll('#palette .pal')) {
+      el.classList.toggle('active', Number(el.dataset.id) === id);
+    }
   },
 
   async refreshPalette() {
     // Re-render whatever the search box currently asks for, with
     // active highlight on this.brushId.
     const q = document.getElementById('search').value;
+    const category = this.brushKind === 'static'
+      ? (document.getElementById('palette-category')?.value ?? 'all') : 'all';
+    const gen = ++this.paletteGen;
     const r = await api('GET',
-      `/api/tiles/search?q=${encodeURIComponent(q)}&kind=${this.brushKind}&limit=120`);
+      `/api/tiles/search?q=${encodeURIComponent(q)}&kind=${this.brushKind}&category=${encodeURIComponent(category)}&offset=${this.paletteOffset}&limit=${this.paletteLimit}`);
+    if (gen !== this.paletteGen) return;
     const wrap = document.getElementById('palette');
+    this.paletteTotal = r.total ?? r.count ?? 0;
+    const first = this.paletteTotal ? this.paletteOffset + 1 : 0;
+    const last = Math.min(this.paletteTotal, this.paletteOffset + (r.matches?.length ?? 0));
+    document.getElementById('palette-meta').textContent = `${first}–${last} of ${this.paletteTotal}`;
+    document.getElementById('palette-prev').disabled = this.paletteOffset <= 0;
+    document.getElementById('palette-next').disabled = !r.hasMore;
     if (!r.matches?.length) {
-      wrap.innerHTML = `<div style="opacity:.5;padding:6px">No matches.</div>`;
+      wrap.innerHTML = `<div style="grid-column:1/-1;opacity:.55;padding:18px;text-align:center">No matching tiles in this category.</div>`;
       return;
     }
     wrap.innerHTML = r.matches.map((m) => `
@@ -755,11 +911,21 @@ const ed = window.ed = {
         </div>
       </div>`).join('');
     // Wire clicks + draw sprite previews.
+    this._paletteObserver?.disconnect?.();
+    this._paletteObserver = typeof IntersectionObserver === 'function'
+      ? new IntersectionObserver((entries, observer) => {
+          for (const entry of entries) {
+            if (!entry.isIntersecting) continue;
+            const el = entry.target;
+            drawTilePreview(el.querySelector('canvas'), this.brushKind, Number(el.dataset.id));
+            observer.unobserve(el);
+          }
+        }, { root: wrap, rootMargin: '80px' }) : null;
     wrap.querySelectorAll('.pal').forEach((el) => {
       const id = Number(el.dataset.id);
       el.addEventListener('click', () => ed.setBrushId(id));
-      const cv = el.querySelector('canvas');
-      drawTilePreview(cv, this.brushKind, id);
+      if (this._paletteObserver) this._paletteObserver.observe(el);
+      else drawTilePreview(el.querySelector('canvas'), this.brushKind, id);
     });
   },
 
@@ -824,12 +990,17 @@ const ed = window.ed = {
       const id = t[0];
       const tileIsWater = (id >= 0xA8 && id <= 0xCC);
       if (tileIsWater !== isWater) return;
-      const entry = AT.landIdx?.tiles?.[id];
-      const page = entry ? AT.landPages[entry.page] : null;
-      const [zN, zE, zS, zW] = this.cornerZ(wx, wy);
       const sp = worldToScreen(wx, wy, 0);
       const cx = ox + sp.x * zoom;
       const cy = oy + sp.y * zoom;
+      // The streamed square contains a large off-screen diamond margin.
+      // Cull before corner-Z calculation / texture warping; at 60x60 this
+      // removes roughly half of the expensive canvas work on wide screens.
+      if (cx + half < -2 || cx - half > cv.width + 2
+          || cy + tileZ < -2 || cy - tileZ > cv.height + 320 * zoom) return;
+      const entry = AT.landIdx?.tiles?.[id];
+      const page = entry ? AT.landPages[entry.page] : null;
+      const [zN, zE, zS, zW] = this.cornerZ(wx, wy);
       const nP = { x: cx,          y: cy - tileZ - zN * Z_STEP * zoom };
       const eP = { x: cx + tileZ,  y: cy         - zE * Z_STEP * zoom };
       const sP = { x: cx,          y: cy + tileZ - zS * Z_STEP * zoom };
@@ -920,6 +1091,7 @@ const ed = window.ed = {
       // overhang, so anchor by (w/2, h) — i.e. bottom-center pivot.
       const ddx = sx - ew / 2;
       const ddy = sy - eh + TILE_HALF_H * zoom;
+      if (ddx + ew < -2 || ddx > cv.width + 2 || ddy + eh < -2 || ddy > cv.height + 2) continue;
       if (page) {
         if (d.src === 'pending') ctx.globalAlpha = 0.75;
         if (d.flagged) ctx.globalAlpha = 0.4;
@@ -1105,6 +1277,7 @@ const ed = window.ed = {
         tame:    { stroke: 'rgba(200,200,200,0.75)', fill: 'rgba(200,200,200,0.08)', text: '#d0d0d0', bg: '#181818' },
         monster: { stroke: 'rgba(255,90,90,0.95)',   fill: 'rgba(255,90,90,0.12)',   text: '#ffb0b0', bg: '#1c0808' },
       };
+      const labelBoxes = [];
       for (const s of this.spawners) {
         if (s.map !== this.facet || !s.rect) continue;
         const { x1, y1, x2, y2 } = s.rect;
@@ -1125,16 +1298,36 @@ const ed = window.ed = {
         ctx.stroke();
         ctx.fillStyle = style.fill;
         ctx.fill();
-        // Label at the center.
+        // Draw each currently alive spawn at its real tile. Previously the
+        // overlay exposed only one centre marker per group, which made a
+        // populated rectangle look as if every spawn occupied one point.
+        for (const mob of (s.activePositions ?? [])) {
+          if (mob.x < x0 || mob.x >= x0 + w || mob.y < y0 || mob.y >= y0 + h) continue;
+          const mp = worldToScreen(mob.x, mob.y, mob.z | 0);
+          const mx = ox + mp.x * zoom, my = oy + mp.y * zoom;
+          ctx.fillStyle = style.text;
+          ctx.beginPath(); ctx.arc(mx, my, 4.5, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = '#101317';
+          ctx.beginPath(); ctx.arc(mx, my, 1.7, 0, Math.PI * 2); ctx.fill();
+        }
+        // Collision-aware label near the centre. Dense town spawners no
+        // longer stack all captions on the same pixels.
         const cxs = (corners[0].x + corners[2].x) / 2;
-        const cys = (corners[0].y + corners[2].y) / 2;
+        let cys = (corners[0].y + corners[2].y) / 2;
+        for (let attempt = 0; attempt < 8; attempt++) {
+          const collides = labelBoxes.some((b) => Math.abs(b.x - cxs) < 108 && Math.abs(b.y - cys) < 18);
+          if (!collides) break;
+          cys += (attempt % 2 === 0 ? 1 : -1) * (18 + attempt * 3);
+        }
+        cys = Math.max(12, Math.min(cv.height - 12, cys));
+        labelBoxes.push({ x: cxs, y: cys });
         ctx.fillStyle = style.bg;
-        ctx.fillRect(cxs - 50, cys - 8, 100, 16);
+        ctx.fillRect(cxs - 62, cys - 9, 124, 18);
         ctx.fillStyle = style.text;
-        ctx.font = '11px monospace';
+        ctx.font = '10px ui-monospace, monospace';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(s.id.slice(0, 16), cxs, cys);
+        ctx.fillText(`${s.id.slice(0, 15)}  ${s.active ?? 0}/${s.maxCount ?? 0}`, cxs, cys);
       }
       ctx.restore();
     }
@@ -1360,6 +1553,7 @@ function setup() {
       if (ed.tool === 'paintLand') {
         const r = ed.rectBounds();
         if (r) {
+          ed.recordHistory();
           for (let y = r.y0; y <= r.y1; y++) {
             for (let x = r.x0; x <= r.x1; x++) {
               const oldZ = ed.zAtWorld(x, y);
@@ -1388,6 +1582,7 @@ function setup() {
             ed.rectStart = null; ed.rectEnd = null; ed.requestRender(); return;
           }
         }
+        ed.recordHistory();
         for (let y = r.y0; y <= r.y1; y++) {
           for (let x = r.x0; x <= r.x1; x++) {
             const oldZ = ed.zAtWorld(x, y);
@@ -1508,7 +1703,18 @@ function setup() {
   let searchTimer = null;
   document.getElementById('search').addEventListener('input', () => {
     clearTimeout(searchTimer);
+    ed.paletteOffset = 0;
     searchTimer = setTimeout(() => ed.refreshPalette(), 180);
+  });
+  document.getElementById('palette-category').addEventListener('change', () => {
+    ed.paletteOffset = 0; ed.refreshPalette();
+  });
+  document.getElementById('palette-prev').addEventListener('click', () => {
+    ed.paletteOffset = Math.max(0, ed.paletteOffset - ed.paletteLimit); ed.refreshPalette();
+  });
+  document.getElementById('palette-next').addEventListener('click', () => {
+    if (ed.paletteOffset + ed.paletteLimit >= ed.paletteTotal) return;
+    ed.paletteOffset += ed.paletteLimit; ed.refreshPalette();
   });
   document.getElementById('facet').addEventListener('change', (e) => {
     ed.facet = Number(e.target.value);
@@ -1541,18 +1747,13 @@ function setup() {
 
 async function doTool(tool, t) {
   if (tool === 'tp') {
-    const r = await api('POST', '/api/me/teleport', {
-      x: t.x, y: t.y, z: t.z, map: ed.facet,
-    });
-    if (r.error) alert('TP failed: ' + r.error);
+    await ed.teleportTo(t.x, t.y, t.z);
     return;
   }
   if (tool === 'inspect') return;
   if (tool === 'pick') {
     // Sample stack: prefer runtime item, else topmost static, else land.
-    const w = ed.view.w;
-    const x0 = ed.cx - (w >> 1), y0 = ed.cy - (ed.view.h >> 1);
-    const dx = t.x - x0, dy = t.y - y0;
+    const dx = t.x - ed.sliceX0, dy = t.y - ed.sliceY0;
     const stack = ed.cells?.[`${dx}|${dy}`] ?? [];
     const top = [...stack].reverse().find((s) => s.source === 'item') ?? stack[stack.length - 1];
     if (top) {
@@ -1563,7 +1764,7 @@ async function doTool(tool, t) {
       document.getElementById('brush-z').value = top.z;
       document.getElementById('brush-hue').value = top.hue ?? 0;
     } else {
-      const land = ed.tiles?.[dy * w + dx];
+      const land = ed.tileAt(t.x, t.y);
       if (land) {
         ed.setBrushKind('land');
         ed.setBrushId(land[0]);
@@ -1575,6 +1776,7 @@ async function doTool(tool, t) {
   }
   if (tool === 'remove') { removeUnderCursorPending(t); return; }
   if (tool === 'paintLand') {
+    ed.recordHistory();
     // Brush-size aware paint. Writes into the slice (with margin) so
     // slope warping picks up the new corner Zs immediately.
     const r = (ed.brushSize - 1) >> 1;
@@ -1596,6 +1798,7 @@ async function doTool(tool, t) {
     return;
   }
   if (tool === 'placeStatic') {
+    ed.recordHistory();
     const oldZ = ed.zAtWorld(t.x, t.y);
     const z = ed.brushZOverride ? ed.brushZ : oldZ;
     // Pending-add — no immediate POST. Save batches everything.
@@ -1621,6 +1824,7 @@ function removeUnderCursorPending(tHint) {
   for (let i = ed.pendingAdds.length - 1; i >= 0; i--) {
     const a = ed.pendingAdds[i];
     if (a.x === t.x && a.y === t.y) {
+      ed.recordHistory();
       ed.pendingAdds.splice(i, 1);
       ed.updatePendingHud();
       ed.requestRender();
@@ -1634,6 +1838,7 @@ function removeUnderCursorPending(tHint) {
   const top = [...stack].reverse().find((s) =>
     s.source === 'item' && !ed.pendingRemoves.has(s.serial));
   if (top) {
+    ed.recordHistory();
     ed.pendingRemoves.add(top.serial);
     ed.updatePendingHud();
     ed.requestRender();
@@ -1688,18 +1893,19 @@ function escapeHtml(s) {
     bar.style.width = (pct * 100) + '%';
     msg.textContent = stepName;
   });
-  // Eager-load the first land + first few static pages so the initial
-  // render doesn't show only stub diamonds. Other pages stream lazily.
-  await Promise.all([
-    ensureLandPage(0), ensureLandPage(1),
-    ensureStaticPage(0), ensureStaticPage(1), ensureStaticPage(2),
-  ]);
-  document.getElementById('loading').remove();
+  // The initial tool is land paint, so warm only its first pages. Static
+  // pages are several megabytes each and now stream lazily when either the
+  // visible map or an on-screen palette card actually needs one.
+  await Promise.all([ensureLandPage(0), ensureLandPage(1)]);
   ed.recomputeView();
   ed.setTool('paintLand');
   setup();
-  await ed.refreshPalette();
+  // setTool() already starts the palette request; stream the map in
+  // parallel instead of issuing a duplicate palette query and awaiting it.
+  msg.textContent = 'world slice'; bar.style.width = '92%';
   await ed.reloadSlice();
+  bar.style.width = '100%';
+  document.getElementById('loading').remove();
   pollMobs();
   setInterval(pollMobs, 4000);
   // Spawner overlay — refresh every 8 s so spawner edits made via the

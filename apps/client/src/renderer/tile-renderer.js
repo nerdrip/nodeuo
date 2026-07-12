@@ -15,7 +15,6 @@ import { world } from '../world/world.js';
 import { bus } from '../core/event-bus.js';
 import { applyHueTo } from './hue-filter.js';
 import { acquireSprite, releaseSprite } from './sprite-pool.js';
-import { createShimmer } from '../ui/loading-shimmer.js';
 import { seasonManager } from '../managers/season-manager.js';
 import { profile as profileManager } from '../managers/profile-manager.js';
 import { lightPoints, staticLightSpec } from './light-points.js';
@@ -23,26 +22,20 @@ import { houseCustomization } from '../managers/house-customization-manager.js';
 import { staticEntry } from '../shared/tiledata.js';
 import { displayItemIdForAmount } from '../shared/stack-graphics.js';
 import { isAnimdataStaticGraphic } from './static-animation.js';
+import { MobileAnimation, Action } from './mobile-animation.js';
+import { corpseManager } from '../managers/corpse-manager.js';
+import { DoorTileIndex } from './door-tile-index.js';
+import {
+  assignTallStructureBounds, boundsContains as _boundsContains, createTallStructureScratch,
+  shouldHideTallEntry, tallTileKey as _tallTileKey,
+  tallStaticBounds, tallStructureBoundsForPlayer,
+} from './tall-structure.js';
+export { assignTallStructureBounds, shouldHideTallEntry, tallStaticBounds, tallStructureBoundsForPlayer } from './tall-structure.js';
 
-// Module-level incremental door index. Maintained by TileRenderer's
-// item:placed / entity:removed listeners; consulted by ChunkVisual
-// during static populate to suppress map-static doors that have a
-// matching runtime door item at the same tile (avoids the visible
-// "two doors" double after `[doorgen` placed items on top of map.mul
-// statics). Re-walking world.items per chunk was the TP-freeze
-// cause — 110k items × 30 chunks per refresh = 3.3M iterations.
-/** @type {Map<number, Set<number>>} chunkKey → Set of packed tile keys */
-const _doorTilesByChunk = new Map();
-/** @type {Map<number, number>} item.serial → chunkKey we registered it under */
-const _doorItemChunkBySerial = new Map();
-/** @type {Map<number, Map<number, Set<number>>>} chunkKey → tileKey → Set<doorSerial>.
- *  Lets _unregisterDoorItem drop a single tile entry without re-walking
- *  world.items. Earlier rebuild-from-world.items walked all entries (1000+
- *  after a busy session) for EACH removed door, multiplying the per-TP
- *  cleanup cost by the door count. */
-const _doorSerialsByChunkTile = new Map();
-
-const EMPTY_SET = new Set();
+const doorTileIndex = new DoorTileIndex({
+  resolveDoorPiece: (itemId) => assets.doorPiece?.(itemId),
+  chunkSize: CHUNK_SIZE,
+});
 const EMPTY_ARRAY = Object.freeze([]);
 const STATIC_ANIM_TICK_MS = 50;
 const MAX_ADD_CHILD_BATCH = 256;
@@ -150,317 +143,6 @@ function _zIndexOf(displayObject) {
   return Number.isFinite(z) ? z : 0;
 }
 
-function _tallTileKey(x, y) {
-  return ((y & 0xffff) << 16) | (x & 0xffff);
-}
-
-function _boundsContains(bounds, x, y) {
-  if (!bounds) return true;
-  return x >= bounds.x0 && x <= bounds.x1 && y >= bounds.y0 && y <= bounds.y1;
-}
-
-export function tallStaticBounds(x, y) {
-  return { x0: x | 0, y0: y | 0, x1: x | 0, y1: y | 0 };
-}
-
-function _mergeBoundsInto(out, bounds) {
-  if (!bounds) return out;
-  if (bounds.x0 < out.x0) out.x0 = bounds.x0;
-  if (bounds.y0 < out.y0) out.y0 = bounds.y0;
-  if (bounds.x1 > out.x1) out.x1 = bounds.x1;
-  if (bounds.y1 > out.y1) out.y1 = bounds.y1;
-  return out;
-}
-
-function _isTallStructurePart(t) {
-  return !!t && !t.isTransparent && (t.isRoof || t.isWall || t.isCeilingSurface);
-}
-
-function _tallStructureTouches(a, b) {
-  const dx = Math.abs((a.x | 0) - (b.x | 0));
-  const dy = Math.abs((a.y | 0) - (b.y | 0));
-  if (dx > 1 || dy > 1) return false;
-  const orthogonal = dx + dy <= 1;
-  const diagonalRoof = dx === 1 && dy === 1 && a.isRoof && b.isRoof;
-  if (!orthogonal && !diagonalRoof) return false;
-  const dz = Math.abs((a.z | 0) - (b.z | 0));
-  const maxDz = (a.isWall || b.isWall || a.isCeilingSurface || b.isCeilingSurface) ? 25 : 12;
-  return dz <= maxDz;
-}
-
-function _createTallStructureScratch() {
-  return {
-    buckets: new Map(),
-    bucketPool: [],
-    usedBuckets: [],
-    tallIndexes: [],
-    seeds: [],
-    stack: [],
-    component: [],
-    visited: new Set(),
-  };
-}
-
-function _resetTallStructureScratch(scratch) {
-  if (!scratch) return;
-  for (const bucket of scratch.usedBuckets) {
-    bucket.length = 0;
-    scratch.bucketPool.push(bucket);
-  }
-  scratch.usedBuckets.length = 0;
-  scratch.buckets.clear();
-  scratch.tallIndexes.length = 0;
-  scratch.seeds.length = 0;
-  scratch.stack.length = 0;
-  scratch.component.length = 0;
-  scratch.visited.clear();
-}
-
-function _tallStructureBucket(scratch, key) {
-  let bucket = scratch.buckets.get(key);
-  if (!bucket) {
-    bucket = scratch.bucketPool.pop() ?? [];
-    scratch.buckets.set(key, bucket);
-    scratch.usedBuckets.push(bucket);
-  }
-  return bucket;
-}
-
-export function assignTallStructureBounds(entries, scratch = null) {
-  if (!Array.isArray(entries) || entries.length === 0) return entries;
-  const work = scratch ?? _createTallStructureScratch();
-  _resetTallStructureScratch(work);
-  try {
-    const { tallIndexes, stack, component, visited } = work;
-    for (const t of entries) {
-      if (!t.bounds) t.bounds = tallStaticBounds(t.x, t.y);
-    }
-    for (let i = 0; i < entries.length; i++) {
-      const t = entries[i];
-      if (!_isTallStructurePart(t)) continue;
-      tallIndexes.push(i);
-      _tallStructureBucket(work, _tallTileKey(t.x | 0, t.y | 0)).push(i);
-    }
-
-    for (let n = 0; n < tallIndexes.length; n++) {
-      const i = tallIndexes[n];
-      if (visited.has(i)) continue;
-
-      stack.length = 0;
-      component.length = 0;
-      stack.push(i);
-      visited.add(i);
-      while (stack.length) {
-        const idx = stack.pop();
-        const cur = entries[idx];
-        component.push(cur);
-        const cx = cur.x | 0;
-        const cy = cur.y | 0;
-        for (let y = cy - 1; y <= cy + 1; y++) {
-          for (let x = cx - 1; x <= cx + 1; x++) {
-            const bucket = work.buckets.get(_tallTileKey(x, y));
-            if (!bucket) continue;
-            for (const j of bucket) {
-              if (visited.has(j)) continue;
-              const next = entries[j];
-              if (!_tallStructureTouches(cur, next)) continue;
-              visited.add(j);
-              stack.push(j);
-            }
-          }
-        }
-      }
-
-      let bounds = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
-      for (const t of component) bounds = _mergeBoundsInto(bounds, t.bounds);
-      if (bounds.x0 === Infinity) continue;
-      for (const t of component) t.bounds = bounds;
-    }
-    return entries;
-  } finally {
-    _resetTallStructureScratch(work);
-  }
-}
-
-export function tallStructureBoundsForPlayer(entries, playerX, playerY, playerZ, scratch = null) {
-  if (!Array.isArray(entries) || entries.length === 0) return null;
-  const px = playerX | 0;
-  const py = playerY | 0;
-  const roofCut = (playerZ | 0) + 5;
-  const work = scratch ?? _createTallStructureScratch();
-  _resetTallStructureScratch(work);
-  try {
-    const { tallIndexes, stack, component, visited } = work;
-    for (let i = 0; i < entries.length; i++) {
-      const t = entries[i];
-      if (!_isTallStructurePart(t)) continue;
-      tallIndexes.push(i);
-      _tallStructureBucket(work, _tallTileKey(t.x | 0, t.y | 0)).push(i);
-    }
-
-    for (let n = 0; n < tallIndexes.length; n++) {
-      const seed = tallIndexes[n];
-      if (visited.has(seed)) continue;
-
-      stack.length = 0;
-      component.length = 0;
-      stack.push(seed);
-      visited.add(seed);
-      let bounds = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
-      let hasCoverAbovePlayer = false;
-      while (stack.length) {
-        const idx = stack.pop();
-        const cur = entries[idx];
-        component.push(cur);
-        bounds = _mergeBoundsInto(bounds, cur.bounds ?? tallStaticBounds(cur.x, cur.y));
-        if (!cur.isTransparent
-            && (cur.isRoof || cur.isCeilingSurface || (cur.isWall && (cur.height | 0) >= 20))
-            && (cur.z | 0) >= roofCut) {
-          hasCoverAbovePlayer = true;
-        }
-        const cx = cur.x | 0;
-        const cy = cur.y | 0;
-        for (let y = cy - 1; y <= cy + 1; y++) {
-          for (let x = cx - 1; x <= cx + 1; x++) {
-            const bucket = work.buckets.get(_tallTileKey(x, y));
-            if (!bucket) continue;
-            for (const j of bucket) {
-              if (visited.has(j)) continue;
-              const next = entries[j];
-              if (!_tallStructureTouches(cur, next)) continue;
-              visited.add(j);
-              stack.push(j);
-            }
-          }
-        }
-      }
-      if (bounds.x0 !== Infinity && hasCoverAbovePlayer && _boundsContains(bounds, px, py)) {
-        for (const t of component) t.bounds = bounds;
-        return bounds;
-      }
-    }
-    return null;
-  } finally {
-    _resetTallStructureScratch(work);
-  }
-}
-
-export function shouldHideTallEntry(t, playerX, playerY, indoors, roofCut, maxDrawZ, structureBounds = null) {
-  if (!t) return false;
-  const inOwnBounds = _boundsContains(t.bounds, playerX, playerY);
-  const inStructureBounds = !!structureBounds && _boundsContains(structureBounds, t.x | 0, t.y | 0);
-  if (t.isRoof || t.isCeilingSurface) return !!indoors && (inOwnBounds || inStructureBounds) && (t.z | 0) >= roofCut;
-  if (!inOwnBounds) return false;
-  return (t.z | 0) >= maxDrawZ;
-}
-
-function _doorChunkKey(x, y) {
-  return ((Math.floor(y / CHUNK_SIZE)) << 16) | (Math.floor(x / CHUNK_SIZE) & 0xffff);
-}
-function _doorTileKey(x, y) {
-  // Pack (x, y) into one number for the inner Map key.
-  return ((y & 0xffff) << 16) | (x & 0xffff);
-}
-
-const DOOR_OPEN_OFFSETS_BY_PIECE = [
-  { dx: -1, dy:  0 },
-  { dx:  1, dy: -1 },
-  { dx: -1, dy:  1 },
-  { dx:  1, dy:  1 },
-  { dx:  1, dy:  1 },
-  { dx:  1, dy: -1 },
-  { dx:  0, dy:  0 },
-  { dx:  0, dy: -1 },
-];
-
-function _doorGraphicState(itemId) {
-  const id = itemId | 0;
-  let info = assets.doorPiece?.(id);
-  if (info) {
-    return {
-      closedId: id,
-      openId: id + 1,
-      isOpen: false,
-      info,
-      offset: DOOR_OPEN_OFFSETS_BY_PIECE[info.pieceIdx & 7] ?? { dx: 0, dy: 0 },
-    };
-  }
-  info = assets.doorPiece?.(id - 1);
-  if (!info) return null;
-  return {
-    closedId: id - 1,
-    openId: id,
-    isOpen: true,
-    info,
-    offset: DOOR_OPEN_OFFSETS_BY_PIECE[info.pieceIdx & 7] ?? { dx: 0, dy: 0 },
-  };
-}
-
-function _registerDoorItem(it) {
-  if (!it || it.parent) return;
-  const doorState = _doorGraphicState(it.itemId | 0);
-  if (!doorState) return;
-  const s = it.serial >>> 0;
-  // The CLOSED tile is canonical — it's where the door's hinge sits and
-  // where map.mul has the matching static. The door swings its visual
-  // panel to a perpendicular tile when opened (server moves item.x/y
-  // by OPEN_OFFSETS), but the hinge tile stays suppressed so the
-  // map.mul closed-door static doesn't reappear underneath the open
-  // panel. Stash the closed tile the first time we see this serial
-  // and reuse it for every subsequent registration call.
-  // Housedata stores the 8 CLOSED facings. The open graphic is always
-  // `closedId + 1`; do not infer state from itemId parity because many
-  // retail door runs start at an odd graphic.
-  let canonX = it.x;
-  let canonY = it.y;
-  const existing = _doorItemChunkBySerial.get(s);
-  if (existing != null) {
-    // Already registered — keep the original suppression in place even
-    // though item.x/y just changed (open/close swing). Skip re-add.
-    return;
-  }
-  if (doorState.isOpen) {
-    canonX = it.x - doorState.offset.dx;
-    canonY = it.y - doorState.offset.dy;
-  }
-  const ck = _doorChunkKey(canonX, canonY);
-  const tk = _doorTileKey(canonX, canonY);
-  let set = _doorTilesByChunk.get(ck);
-  if (!set) { set = new Set(); _doorTilesByChunk.set(ck, set); }
-  set.add(tk);
-  let tileMap = _doorSerialsByChunkTile.get(ck);
-  if (!tileMap) { tileMap = new Map(); _doorSerialsByChunkTile.set(ck, tileMap); }
-  let tileSet = tileMap.get(tk);
-  if (!tileSet) { tileSet = new Set(); tileMap.set(tk, tileSet); }
-  tileSet.add(s);
-  _doorItemChunkBySerial.set(s, ck);
-}
-
-function _unregisterDoorItem(serial) {
-  const s = serial >>> 0;
-  const ck = _doorItemChunkBySerial.get(s);
-  if (ck === undefined) return;
-  _doorItemChunkBySerial.delete(s);
-  const tileMap = _doorSerialsByChunkTile.get(ck);
-  if (!tileMap) return;
-  // Find the tile this serial belonged to. Cheap because each chunk
-  // has at most ~CHUNK_SIZE² = 64 tiles entries, almost always <10.
-  let foundTk = -1;
-  let foundSet = null;
-  for (const [tk, set] of tileMap) {
-    if (set.has(s)) { foundTk = tk; foundSet = set; break; }
-  }
-  if (!foundSet) return;
-  foundSet.delete(s);
-  if (foundSet.size === 0) {
-    tileMap.delete(foundTk);
-    const set = _doorTilesByChunk.get(ck);
-    set?.delete(foundTk);
-    if (set && set.size === 0) _doorTilesByChunk.delete(ck);
-  }
-  if (tileMap.size === 0) _doorSerialsByChunkTile.delete(ck);
-}
-
 class ChunkVisual {
   /** @param {import('pixi.js').Container} parent  flat tile layer (sortableChildren=true) */
   constructor(cx, cy, parent) {
@@ -479,14 +161,11 @@ class ChunkVisual {
      *  Each entry: { sprite, z, isRoof, x, y } in world coords. */
     this._tallStatics = [];
     this._tallStaticsByTile = new Map();
-    this._tallStructureScratch = _createTallStructureScratch();
+    this._tallStructureScratch = createTallStructureScratch();
     /** Foliage statics (trees, bushes) — fade when player walks behind. */
     this._foliage = [];
-    // Shimmer placeholder so the user sees the silver-pulse "loading"
-    // affordance over each chunk's iso footprint while fetchBlock /
-    // fetchStatics is in flight, instead of a black hole that pops to
-    // terrain only when the chunk's done. Mirrors the GumpPic /
-    // ResizePic behaviour Marcin asked us to mimic for the world map.
+    // Neutral placeholder under the chunk while its land atlas resolves.
+    // This is a real isometric diamond, never a rectangular UI shimmer.
     this._mountChunkShimmer();
   }
 
@@ -507,22 +186,17 @@ class ChunkVisual {
     const botY   = worldToScreenY(x + SIZE, y + SIZE, 0);
     const leftX  = worldToScreenX(x,        y + SIZE);
     const leftY  = worldToScreenY(x,        y + SIZE, 0);
-    // Bounding box around the diamond — used to size the shimmer tile.
-    const minX = Math.min(topX, rightX, botX, leftX);
-    const maxX = Math.max(topX, rightX, botX, leftX);
-    const minY = Math.min(topY, rightY, botY, leftY);
-    const maxY = Math.max(topY, rightY, botY, leftY);
-    const w = Math.ceil(maxX - minX);
-    const h = Math.ceil(maxY - minY);
-    if (w <= 0 || h <= 0) return;
-    const sh = createShimmer(w, h, { drawHighlight: false });
-    sh.gfx.position.set(minX, minY);
-    // Heavy back-of-stack so any partially-mounted real sprites paint
-    // on top. zIndex=-1 + huge negative depthKey keeps it below LAND.
-    sh.gfx.zIndex = -1;
-    sh.gfx.alpha *= 0.6;        // dimmer than UI shimmer — terrain is huge
-    this.parent.addChild(sh.gfx);
-    this._shimmer = sh;
+    const gfx = new Graphics();
+    gfx.poly([topX, topY, rightX, rightY, botX, botY, leftX, leftY], true)
+      .fill({ color: 0x50545c, alpha: 0.18 });
+    // Heavy back-of-stack so every resolved land tile paints over it.
+    gfx.zIndex = -1;
+    gfx.eventMode = 'none';
+    this.parent.addChild(gfx);
+    this._shimmer = {
+      gfx,
+      dispose() { try { gfx.destroy(); } catch { /* already detached */ } },
+    };
   }
 
   _disposeChunkShimmer() {
@@ -566,12 +240,16 @@ class ChunkVisual {
     const caveBorderTiles = profileManager?.get?.('ui.enableCaveBorder') === true ? [] : null;
     for (let dy = 0; dy < CHUNK_SIZE; dy++) {
       for (let dx = 0; dx < CHUNK_SIZE; dx++) {
-        const off = 4 + (dy * 8 + dx) * 3;
-        const id  = block.getUint16(off, true);
-        const z   = block.getInt8(off + 2);
         const wx = x0 + dx, wy = y0 + dy;
+        // One authoritative terrain path. landAt() applies live map-editor
+        // overlays and performs bounds checks; reading the raw block here
+        // made rendered land disagree with walkability and slope neighbours.
+        const tile = assets.landAt(wx, wy);
+        if (!tile) continue;
+        const id = tile.id | 0;
+        const z = tile.z | 0;
         if (caveBorderTiles && _isCaveLandGraphic(id)) caveBorderTiles.push({ wx, wy, z });
-        landPromises.push(this._mountLandSprite(id, wx, wy, z));
+        landPromises.push(this._mountLandSprite(seasonManager.remapLand(id), wx, wy, z));
       }
     }
     // allSettled instead of all so a single failed land mesh (corrupt
@@ -595,6 +273,9 @@ class ChunkVisual {
       mountedLand.push(r.value);
     }
     this._addChunkSprites(mountedLand);
+    // Land is the opaque base. Do not keep a loading primitive alive while
+    // the much larger static-page set resolves asynchronously on top.
+    this._disposeChunkShimmer();
     if (caveBorderTiles) {
       const caveBorders = [];
       for (const t of caveBorderTiles) {
@@ -613,7 +294,7 @@ class ChunkVisual {
     // area; each refreshSurroundings re-streams items + triggers
     // re-populates → cascade).
     const chunkKey = (this.cy << 16) | (this.cx & 0xffff);
-    const suppressedDoorTiles = _doorTilesByChunk.get(chunkKey) ?? EMPTY_SET;
+    const suppressedDoorTiles = doorTileIndex.tilesForChunkKey(chunkKey);
 
     const staticPromises = [];
     if (Array.isArray(statics)) {
@@ -621,7 +302,7 @@ class ChunkVisual {
         const wx = x0 + it.x, wy = y0 + it.y;
         // Suppress map-static doors covered by a runtime item door.
         const probePiece = assets.doorPiece?.(it.id | 0);
-        if (probePiece && suppressedDoorTiles.has(_doorTileKey(wx, wy))) continue;
+        if (probePiece && suppressedDoorTiles.has(doorTileIndex.tileKey(wx, wy))) continue;
         // Skip placeholder "NODRAW" entries — art.mul reserves a debug
         // tile (black square with red "NO DRAW" caption) for every art
         // id whose slot was never filled by the original UO release.
@@ -916,8 +597,10 @@ class ChunkVisual {
       }
       if (a._pendingAnimId === id) continue;
       a._pendingAnimId = id;
+      const generation = a.sprite._uoPoolGeneration;
       assets.staticTexture(id).then((tex) => {
-        if (tex && a.sprite && !a.sprite.destroyed) {
+        if (tex && a._pendingAnimId === id && a.sprite && !a.sprite.destroyed
+            && a.sprite._uoPoolGeneration === generation) {
           a.sprite.texture = tex;
           a.sprite._lastAnimId = id;
         }
@@ -1097,8 +780,10 @@ class WorldItemSprite {
     this.sprite = null;
     /** for multis, an array of additional sprites (one per child tile) */
     this.children = [];
+    this.mountGeneration = 0;
   }
   destroy() {
+    this.mountGeneration = ((this.mountGeneration | 0) + 1) >>> 0;
     if (this.sprite) {
       if (this.sprite instanceof Sprite) releaseSprite(this.sprite);
       else { try { this.sprite.destroy(); } catch { /* ignore */ } }
@@ -1142,7 +827,11 @@ export class TileRenderer {
     this._dynamicTallsRevision = 0;
     this._chunkRevision = 0;
     this._lastStaticAnimTickMs = 0;
-    this.loadPad = 2;
+    // update() already prefetches one complete ring outside the viewport.
+    // Keeping two additional rings retained 13x13=169 chunks for a 640x480
+    // game window (the exact HUD value from the report), increasing sort and
+    // atlas pressure without reducing pop-in. One warm ring is sufficient.
+    this.loadPad = 1;
     this._visibleChunkStamp = 0;
     this._dynamicTallBoxScratch = [];
     this._dynamicTallBoxStamp = 0;
@@ -1171,6 +860,12 @@ export class TileRenderer {
     this._unsubs = [
       bus.on('item:placed',    (it) => this._enqueueMount(it)),
       bus.on('entity:removed', ({ serial }) => this._removeItem(serial)),
+      bus.on('corpse:facing-changed', ({ serial }) => {
+        const it = world.items.get(serial >>> 0);
+        if (!it) return;
+        this._removeItem(serial);
+        this._enqueueMount(it);
+      }),
       // Multi-facet: when the player crosses a moongate / teleporter the
       // server sends 0xBF 0x08 → asset-manager flips the active facet and
       // emits this event. Tear down every chunk visual + world-item sprite
@@ -1200,30 +895,10 @@ export class TileRenderer {
           this._chunkRevision = (this._chunkRevision + 1) >>> 0;
         }
       }),
-      // Audit #46 P2 — season change must invalidate ALREADY-LOADED
-      // chunks because seasonal hueTint is applied at static mount time
-      // (line ~283). Previously chunks kept stale hues until reload.
-      // Mark every visual's `_foliageDirty` flag so the update() loop
-      // re-applies the new hue on the next paint.
+      // Exact ClassicUO season tables can replace both land and statics,
+      // therefore a season transition must rebuild loaded chunks.
       bus.on('season:changed', () => {
-        for (const vis of this.visuals.values()) {
-          vis._foliageDirty = true;
-          // Force re-mount path on each foliage static by clearing the
-          // tracked hue so update() repaints it. Cheaper than a full
-          // chunk teardown for a frequent (24h game-day) event.
-        }
-        // Also re-mount dynamic items whose itemId returns a non-zero
-        // seasonal hue so trees / shrubs ride the swap.
-        try {
-          for (const it of world.items.values()) {
-            if (!it) continue;
-            const sp = this.itemSprites?.get?.(it.serial);
-            if (!sp) continue;
-            const h = seasonManager?.hueTint?.(it.itemId);
-            if (h != null) sp.tint = h;
-          }
-        } catch { /* best-effort */ }
-        this._chunkRevision = (this._chunkRevision + 1) >>> 0;
+        this._remountVisualWorld();
       }),
       // Audit #46 P3 — House-customization preview brush. When the
       // user picks a new tile in the editor we tint the ghost sprite
@@ -1288,6 +963,7 @@ export class TileRenderer {
     // will re-broadcast 0x1A / 0xF3 for visible items on the new facet.
     for (const it of this.items.values()) it.destroy();
     this.items.clear();
+    doorTileIndex.clear();
     this._animatedItems.length = 0;
     this._dynamicTalls.clear();
     this._dynamicTallsByTile.clear();
@@ -1319,6 +995,7 @@ export class TileRenderer {
     if (this._chunkIdleSince) this._chunkIdleSince.clear();
     for (const it of this.items.values()) it.destroy();
     this.items.clear();
+    doorTileIndex.clear();
     this._animatedItems.length = 0;
     this._dynamicTalls.clear();
     this._dynamicTallsByTile.clear();
@@ -1491,11 +1168,12 @@ export class TileRenderer {
     const baseAlpha = Number.isFinite(sp.alpha) ? sp.alpha : 1;
     const baseScaleX = sp.scale?.x ?? 1;
     const baseScaleY = sp.scale?.y ?? 1;
+    const generation = sp._uoPoolGeneration;
     sp.alpha = 0;
     if (sp.scale?.set) sp.scale.set(baseScaleX * 0.94, baseScaleY * 0.94);
     const DURATION_MS = 260;
     const tick = (now) => {
-      if (!sp || sp.destroyed) return;
+      if (!sp || sp.destroyed || sp._uoPoolGeneration !== generation) return;
       const t = Math.max(0, Math.min(1, (now - startedAt) / DURATION_MS));
       const pulse = Math.sin(t * Math.PI * 3) * (1 - t) * 0.03;
       sp.alpha = baseAlpha * (0.12 + 0.88 * t);
@@ -1505,7 +1183,7 @@ export class TileRenderer {
       );
       if (t < 1) requestAnimationFrame(tick);
       else {
-        if (!sp || sp.destroyed) return;
+        if (!sp || sp.destroyed || sp._uoPoolGeneration !== generation) return;
         sp.alpha = baseAlpha;
         if (sp.scale?.set) sp.scale.set(baseScaleX, baseScaleY);
       }
@@ -1522,6 +1200,9 @@ export class TileRenderer {
     } else {
       vis.destroy();
     }
+    const mountGeneration = (vis.mountGeneration = ((vis.mountGeneration | 0) + 1) >>> 0);
+    const stale = () => this.items.get(it.serial) !== vis
+      || vis.mountGeneration !== mountGeneration;
     // Drop any prior tall-entry list for this serial — `_mountItem` is
     // re-entrant on re-broadcast (hue change, item update) and the old
     // sprites were just destroyed above.
@@ -1529,11 +1210,11 @@ export class TileRenderer {
     // Maintain incremental door-suppression index. A door item arrival
     // updates the chunk's set + invalidates the chunk visual so the
     // populate's static loop will see the suppression next frame.
-    // Module-level _registerDoorItem / _unregisterDoorItem keep the
+    // DoorTileIndex register/unregister operations keep the
     // index in O(items in chunk) on edge events instead of O(items)
     // per chunk populate.
-    if (it.itemId && _doorGraphicState(it.itemId | 0)) {
-      _registerDoorItem(it);
+    if (it.itemId && doorTileIndex.graphicState(it.itemId | 0)) {
+      doorTileIndex.register(it);
       this._invalidateChunk(Math.floor(it.x / CHUNK_SIZE), Math.floor(it.y / CHUNK_SIZE));
       // Smooth door swing — fade the freshly-mounted door sprite in over
       // ~160 ms when the user enabled `ui.smoothDoors` (default true).
@@ -1567,6 +1248,7 @@ export class TileRenderer {
         for (const { t, wx, wy, wz } of prepared) {
           const sp = await this._mountStaticAt(t.id, wx, wy, wz, it.hue);
           if (!sp) continue;
+          if (stale()) { releaseSprite(sp); return; }
           sp._worldX = wx | 0;
           sp._worldY = wy | 0;
           if (isFirstSeen) this._playItemSpawnShimmer(sp);
@@ -1586,10 +1268,30 @@ export class TileRenderer {
       const liveBody = it.amount || it.itemId;
       const corpseInfo = assets.resolveCorpseBody(liveBody);
       const animBody = corpseInfo?.corpseBody ?? liveBody;
-      const sp = await this._mountCorpseSprite(animBody, it.x, it.y, it.z, it.hue || corpseInfo?.corpseHue || 0);
+      const facing = corpseManager.getCorpseFacing(it.serial);
+      const sp = await this._mountCorpseSprite(
+        animBody,
+        it.x,
+        it.y,
+        it.z,
+        it.hue || corpseInfo?.corpseHue || 0,
+        facing,
+      );
       if (sp) {
+        if (stale()) { releaseSprite(sp); return; }
         vis.sprite = sp;
-        if (isFirstSeen) this._playItemSpawnShimmer(sp);
+        if (it._deathRevealAt > performance.now()) {
+          this._revealCorpseSprite(sp, it._deathRevealAt);
+        } else if (isFirstSeen) this._playItemSpawnShimmer(sp);
+      } else {
+        // Unsupported/custom bodies still leave a visible loot target.
+        const fallback = await this._mountStaticAt(0x2006, it.x, it.y, it.z, it.hue || 0);
+        if (fallback) {
+          if (stale()) { releaseSprite(fallback); return; }
+          fallback._worldX = it.x | 0;
+          fallback._worldY = it.y | 0;
+          vis.sprite = fallback;
+        }
       }
     } else if (it.itemId) {
       const displayItemId = displayItemIdForAmount(it.itemId, it.amount);
@@ -1610,6 +1312,7 @@ export class TileRenderer {
         || displayItemId === 0x1FD4;           // Tokuno public moongate
       const sp = await this._mountStaticAt(displayItemId, it.x, it.y, it.z, it.hue, { tallSprite: isTall });
       if (sp) {
+        if (stale()) { releaseSprite(sp); return; }
         sp._worldX = it.x | 0;
         sp._worldY = it.y | 0;
         vis.sprite = sp;
@@ -1647,48 +1350,19 @@ export class TileRenderer {
           sp.alpha = 0.72;
           sp.blendMode = 'add';
         }
-        // Smooth door swing — fade alpha 0→1 over ~160 ms when the
-        // door registrar tagged this item earlier. Uses rAF so the
-        // transition runs even if the world is paused. CUO snap-swaps
-        // doors; this is a small ergonomic addition.
+        // Door art swaps in place. Keep a short opacity settle but never
+        // rotate around a synthetic pivot: UO's open/closed graphics already
+        // encode the changed footprint, and pivot compensation visibly moved
+        // doors to a neighbouring tile for one frame before snapping back.
         if (it._swingPending) {
           const startAt = it._swingPending;
           sp.alpha = 0;
-          // Audit #46 P2 — TRUE pivot rotation (hinge swing). Previous
-          // version shear-squeezed scaleX 0.6→1.0 + skew.y which the
-          // audit flagged as wrong-label. Now we set `sp.pivot.x` to
-          // the hinge edge (sprite left for east/north doors, right
-          // for west/south doors based on the closed-graphic id parity)
-          // and tween `sp.rotation` from -π/3 → 0 around that pivot.
-          // The skew shear stays as a subtle parallax-faking secondary.
-          const initRot = sp.rotation ?? 0;
-          const w = (sp.texture?.frame?.width ?? sp.width ?? 30) | 0;
-          // Hinge side derived from item-id parity: even-id doors
-          // hinge left, odd-id doors hinge right (CUO `DoorStatic`).
-          const hingeLeft = ((it.itemId | 0) & 1) === 0;
-          const pivotX = hingeLeft ? 0 : w;
-          // Compensate sprite position so pivot move doesn't shift it.
-          const oldX = sp.position?.x ?? 0;
-          if (sp.pivot) {
-            sp.pivot.x = pivotX;
-            sp.position.x = oldX + pivotX;
-          }
-          sp.rotation = hingeLeft ? -Math.PI / 3 : Math.PI / 3;
-          if (sp.skew) sp.skew.y = -0.25;
+          const generation = sp._uoPoolGeneration;
           const tween = (now) => {
-            const t = Math.min(1, (now - startAt) / 220);
-            sp.alpha = t;
-            sp.rotation = initRot + (hingeLeft ? -Math.PI / 3 : Math.PI / 3) * (1 - t);
-            if (sp.skew) sp.skew.y = -0.25 * (1 - t);
+            if (sp.destroyed || sp._uoPoolGeneration !== generation) return;
+            const t = Math.min(1, (now - startAt) / 100);
+            sp.alpha = 0.35 + t * 0.65;
             if (t < 1) requestAnimationFrame(tween);
-            else {
-              // Reset pivot/position so future hit-tests align.
-              if (sp.pivot) {
-                sp.pivot.x = 0;
-                sp.position.x = oldX;
-              }
-              sp.rotation = initRot;
-            }
           };
           requestAnimationFrame(tween);
           it._swingPending = 0;
@@ -1702,15 +1376,28 @@ export class TileRenderer {
     }
   }
 
-  async _mountCorpseSprite(animBody, wx, wy, wz, hue) {
-    // Use Action.DieFwd (21) frame 0 dir 0 — server can override with 0x6E.
-    const tex = await assets.mobileFrameTexture(animBody, 21, 0, 0)
-              ?? await assets.mobileFrameTexture(animBody, 8, 0, 0);
+  async _mountCorpseSprite(animBody, wx, wy, wz, hue, facing = { dir: 0, run: false }) {
+    // Resolve body-type-specific death group and canonical 8→5 direction.
+    // The old hard-coded People group 21 + direction 0 rendered animals with
+    // the wrong action and made every corpse face south-east. CUO leaves a
+    // corpse pinned on the final frame of the fall animation.
+    const anim = new MobileAnimation();
+    anim.setBody(animBody);
+    anim.setDirection(facing?.dir ?? 0);
+    anim.setAction(facing?.run ? Action.DieBack : Action.DieFwd);
+    const group = anim.currentGroupId();
+    const first = await assets.mobileFrameTexture(animBody, group, anim.direction, 0);
+    const finalFrame = Math.max(0, (first?.frameCount | 0) - 1);
+    const tex = finalFrame > 0
+      ? (await assets.mobileFrameTexture(animBody, group, anim.direction, finalFrame) ?? first)
+      : first;
     if (!tex) return null;
     const centerX = worldToScreenX(wx, wy);
     const centerY = worldToScreenY(wx, wy, wz);
     const sp = acquireSprite(tex.texture);
-    sp.anchor.set(0.5, 1);
+    if (tex.w > 0 && tex.h > 0) sp.anchor.set(tex.cx / tex.w, (tex.h + tex.cy) / tex.h);
+    else sp.anchor.set(0.5, 1);
+    sp.scale.x = anim.mirror ? -1 : 1;
     sp.position.set(centerX, centerY + TILE_HALF_H);
     sp.zIndex = depthKey(wx, wy, wz, LAYER_ITEM);
     sp._worldX = wx | 0;
@@ -1788,6 +1475,22 @@ export class TileRenderer {
       this._animatedItems.push({ sprite: sp, baseId: itemId, x: wx | 0, y: wy | 0 });
     }
     return sp;
+  }
+
+  _revealCorpseSprite(sp, revealAt) {
+    if (!sp) return;
+    // Interactive corpses must never be fully invisible. Keep a ghosted
+    // silhouette under the last death frame, then settle to full opacity.
+    sp.alpha = 0.24;
+    const generation = sp._uoPoolGeneration;
+    const step = (now) => {
+      if (sp.destroyed || sp._uoPoolGeneration !== generation) return;
+      if (now < revealAt) { requestAnimationFrame(step); return; }
+      const t = Math.min(1, (now - revealAt) / 160);
+      sp.alpha = 0.24 + t * 0.76;
+      if (t < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
   }
 
   _clearHousePreview() {
@@ -1901,9 +1604,8 @@ export class TileRenderer {
     // If this was a registered door, drop it from the suppression
     // index + invalidate the chunk so the underlying map-static door
     // re-appears on the next populate.
-    if (_doorItemChunkBySerial.has(s)) {
-      const key = _doorItemChunkBySerial.get(s);
-      _unregisterDoorItem(s);
+    if (doorTileIndex.has(s)) {
+      const key = doorTileIndex.unregister(s);
       this._invalidateChunk(key & 0xffff, key >>> 16);
     }
     this._deleteDynamicTalls(s);
@@ -2103,8 +1805,10 @@ export class TileRenderer {
           }
           if (a._pendingAnimId === id) continue;
           a._pendingAnimId = id;
+          const generation = a.sprite._uoPoolGeneration;
           assets.staticTexture(id).then((tex) => {
-            if (tex && a.sprite && !a.sprite.destroyed) {
+            if (tex && a._pendingAnimId === id && a.sprite && !a.sprite.destroyed
+                && a.sprite._uoPoolGeneration === generation) {
               a.sprite.texture = tex;
               a.sprite._lastAnimId = id;
             }
@@ -2178,22 +1882,22 @@ export class TileRenderer {
       const roofMaxY = playerY + TALL_CHUNK_PAD * CHUNK_SIZE;
       const roofCut = playerZ + 5;
       let roofStructureBounds = null;
-      if (roofHideOn) {
-        const roofScope = this._roofScopeScratch ?? (this._roofScopeScratch = []);
-        roofScope.length = 0;
-        for (const vis of this.visuals.values()) {
-          if (!vis.ready) continue;
-          if (Math.abs(vis.cx - playerCx) > TALL_CHUNK_PAD
-              || Math.abs(vis.cy - playerCy) > TALL_CHUNK_PAD) continue;
-          for (const t of vis._tallStatics) roofScope.push(t);
-        }
-        const dynamicRoofScope = this._dynamicTallsInBox(roofMinX, roofMinY, roofMaxX, roofMaxY);
-        for (const t of dynamicRoofScope) roofScope.push(t);
-        const roofBoundsScratch = this._roofBoundsScratch ?? (this._roofBoundsScratch = _createTallStructureScratch());
-        roofStructureBounds = tallStructureBoundsForPlayer(roofScope, playerX, playerY, playerZ, roofBoundsScratch);
+      const roofScope = this._roofScopeScratch ?? (this._roofScopeScratch = []);
+      roofScope.length = 0;
+      for (const vis of this.visuals.values()) {
+        if (!vis.ready) continue;
+        if (Math.abs(vis.cx - playerCx) > TALL_CHUNK_PAD
+            || Math.abs(vis.cy - playerCy) > TALL_CHUNK_PAD) continue;
+        for (const t of vis._tallStatics) roofScope.push(t);
       }
+      const dynamicRoofScope = this._dynamicTallsInBox(roofMinX, roofMinY, roofMaxX, roofMaxY);
+      for (const t of dynamicRoofScope) roofScope.push(t);
+      const roofBoundsScratch = this._roofBoundsScratch ?? (this._roofBoundsScratch = createTallStructureScratch());
+      roofStructureBounds = tallStructureBoundsForPlayer(roofScope, playerX, playerY, playerZ, roofBoundsScratch);
       const maxDrawZ = this._computeMaxDrawZ(playerX, playerY, playerZ);
-      const indoors = roofHideOn && (maxDrawZ !== Infinity || !!roofStructureBounds);
+      const covered = maxDrawZ !== Infinity || !!roofStructureBounds;
+      const indoors = roofHideOn && covered;
+      world.playerIndoors = covered;
       this._updateRoofDebugOverlay(roofStructureBounds, playerX, playerY, playerZ);
       for (const vis of this.visuals.values()) {
         if (!vis.ready) continue;
@@ -2293,7 +1997,11 @@ export class TileRenderer {
           // Async populate (fetches block + statics + creates sprites).
           vis.populate()
             .then(() => { this._chunkRevision = (this._chunkRevision + 1) >>> 0; })
-            .catch((e) => console.error('[tile] populate failed', e));
+            .catch((e) => {
+              vis._disposeChunkShimmer();
+              vis._populateError = e;
+              console.error('[tile] populate failed', e);
+            });
         }
         vis._visibleStamp = visibleStamp;
       }
@@ -2323,7 +2031,10 @@ export class TileRenderer {
             this.visuals.set(key, vis);
             vis.populate()
               .then(() => { this._chunkRevision = (this._chunkRevision + 1) >>> 0; })
-              .catch(() => { /* prefetch is best-effort */ });
+              .catch((e) => {
+                vis._disposeChunkShimmer();
+                vis._populateError = e;
+              });
           }
         }
       }, { timeout: 1000 });
@@ -2412,7 +2123,7 @@ export class TileRenderer {
       // send it. Until then the entry stays so a future
       // `streamVisibilityDelta` re-send (after walk-back-in-range)
       // can re-mount the sprite from the same entry.
-      _unregisterDoorItem(serial);
+      doorTileIndex.unregister(serial);
       vis.destroy();
       this.items.delete(serial);
     }
@@ -2425,6 +2136,7 @@ export class TileRenderer {
     this.visuals.clear();
     for (const it of this.items.values()) it.destroy();
     this.items.clear();
+    doorTileIndex.clear();
     this._animatedItems.length = 0;
     this._mountQueue.length = 0;
     this._mountQueueHead = 0;

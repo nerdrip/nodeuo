@@ -17,6 +17,7 @@ import { profile } from './profile-manager.js';
 import { dragDrop } from './drag-drop.js';
 import { world } from '../world/world.js';
 import { fallbackHueColor } from '../shared/hue-palette.js';
+import { staticEntry } from '../shared/tiledata.js';
 
 const DEFAULT_TOOLTIP_DELAY_MS = 400;
 const DEFAULT_TOOLTIP_TEXT_COLOR = '#F0F0E0';
@@ -68,6 +69,7 @@ export function tooltipProfileSettings(profileLike = profile) {
     holdAltToShow: get('tooltips.holdAltToShow') === true,
     colorResists: get('tooltips.colorResists') !== false,
     colorArtifact: get('tooltips.colorArtifact') !== false,
+    compareEquipped: get('tooltips.compareEquipped') !== false,
     delayMs: clampNumber(get('tooltips.delayMs'), DEFAULT_TOOLTIP_DELAY_MS, 0, 2000, true),
     width: clampNumber(get('tooltips.width'), 280, 120, 520, true),
     fontSize: clampNumber(get('tooltips.fontSize'), 12, 8, 24, true),
@@ -155,6 +157,25 @@ function tooltipPlainText(text) {
     .replace(/<[^>]*>/g, '')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+/** Extract comparable numeric OPL attributes without depending on cliloc ids. */
+export function tooltipNumericStats(lines, resolve = (line) => assets.cl(line.cliloc, line.args)) {
+  const result = new Map();
+  for (const line of lines ?? []) {
+    const text = tooltipPlainText(resolve(line));
+    const resist = text.match(/^Resists\s+([+-]?\d+)\/([+-]?\d+)\/([+-]?\d+)\/([+-]?\d+)\/([+-]?\d+)$/i);
+    if (resist) {
+      ['physical resist', 'fire resist', 'cold resist', 'poison resist', 'energy resist']
+        .forEach((key, index) => result.set(key, Number(resist[index + 1])));
+      continue;
+    }
+    const match = text.match(/^(.+?)\s+([+-]?\d+(?:\.\d+)?)%?$/);
+    if (!match) continue;
+    const key = match[1].replace(/[:\s]+$/g, '').trim().toLowerCase();
+    if (key && key !== 'weight' && key !== 'durability') result.set(key, Number(match[2]));
+  }
+  return result;
 }
 
 class TooltipManager {
@@ -278,7 +299,7 @@ class TooltipManager {
     const key = this._settingsKey(settings);
     if (key === this._appliedStyleKey) return;
     this._appliedStyleKey = key;
-    this._panel.style.font = `${settings.fontSize}px Consolas, monospace`;
+    this._panel.style.font = `500 ${settings.fontSize}px/1.4 "Segoe UI Variable Text", "Segoe UI", Inter, system-ui, sans-serif`;
     this._panel.style.maxWidth = `${settings.width}px`;
     this._panel.style.background = `rgba(12, 16, 24, ${settings.backgroundOpacity})`;
     this._panel.style.color = settings.textColor;
@@ -320,6 +341,7 @@ class TooltipManager {
       settings.textHue,
       settings.colorResists ? 1 : 0,
       settings.colorArtifact ? 1 : 0,
+      settings.compareEquipped ? 1 : 0,
     ].join(':');
   }
 
@@ -327,6 +349,21 @@ class TooltipManager {
     let key = `${serial >>> 0}:${this._revisions.get(serial >>> 0) ?? ''}:${this._settingsKey(settings)}`;
     for (const l of lines) key += `|${l.cliloc}:${l.args ?? ''}:${l.hue ?? ''}`;
     return key;
+  }
+
+  _equippedComparisonSerial(serial, settings) {
+    if (!settings.compareEquipped) return 0;
+    const item = world.items?.get?.(serial >>> 0);
+    if (!item || item.parent === world.player?.serial) return 0;
+    let layer = item.layer | 0;
+    if (!layer) layer = staticEntry(assets.tiledata, item.itemId ?? item.graphic)?.layer | 0;
+    if (layer <= 0 || layer === 21 || layer === 25 || layer >= 26) return 0;
+    let equipped = world.player?.equipment?.get?.(layer);
+    if (!equipped && (layer === 1 || layer === 2)) {
+      equipped = world.player?.equipment?.get?.(layer === 1 ? 2 : 1);
+    }
+    const other = equipped?.serial >>> 0;
+    return other && other !== (serial >>> 0) ? other : 0;
   }
 
   /** Ask the server for properties on `serial`. Calls are batched into
@@ -419,10 +456,14 @@ class TooltipManager {
       this.request(serial);
       return;
     }
+    const comparisonSerial = this._equippedComparisonSerial(s, settings);
+    const comparisonLines = comparisonSerial ? this._cache.get(comparisonSerial) : null;
+    if (comparisonSerial && !comparisonLines) this.request(comparisonSerial);
     const panel = this._ensurePanel(settings);
     this._panel.style.left = `${sx + 16}px`;
     this._panel.style.top  = `${sy + 16}px`;
-    const renderKey = this._linesKey(s, lines, settings);
+    const renderKey = this._linesKey(s, lines, settings)
+      + (comparisonLines ? `::cmp:${this._linesKey(comparisonSerial, comparisonLines, settings)}` : '');
     if (renderKey === this._renderedKey) {
       panel.style.display = '';
       this._maybeEchoToChat(s, lines, settings);
@@ -447,6 +488,23 @@ class TooltipManager {
       }
       const inner = parseSpeechHtml(text);
       html += color ? `<div style="color:${color}">${inner}</div>` : `<div>${inner}</div>`;
+    }
+    if (comparisonLines?.length) {
+      const candidateStats = tooltipNumericStats(lines);
+      const equippedStats = tooltipNumericStats(comparisonLines);
+      html += '<div style="margin:6px 0 3px;border-top:1px solid #80652f;padding-top:4px;color:#d8bb72">Compared with equipped</div>';
+      const equippedName = tooltipPlainText(assets.cl(comparisonLines[0]?.cliloc, comparisonLines[0]?.args)) || 'Equipped item';
+      html += `<div style="color:#b8b1a0">${esc(equippedName)}</div>`;
+      let shown = 0;
+      for (const [key, value] of candidateStats) {
+        if (!equippedStats.has(key)) continue;
+        const delta = value - equippedStats.get(key);
+        if (!delta) continue;
+        const color = delta > 0 ? '#77e38d' : '#ff7777';
+        html += `<div style="color:${color}">${esc(key)}: ${delta > 0 ? '+' : ''}${delta}</div>`;
+        if (++shown >= 8) break;
+      }
+      if (!shown) html += '<div style="color:#8f8a7c">No directly comparable numeric changes</div>';
     }
     panel.innerHTML = html;
     this._renderedKey = renderKey;

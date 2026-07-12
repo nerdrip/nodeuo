@@ -12,11 +12,12 @@
 // Until the gump asset atlas lands the button paints a flat colour pulled
 // from the gump id (so visually unique server gumps stay distinct).
 
-import { Container, Text, TextStyle } from 'pixi.js';
+import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { Control } from '../control.js';
 import { assets } from '../../assets/asset-manager.js';
 import { createShimmer } from '../loading-shimmer.js';
 import { acquireSprite, releaseSprite } from '../../renderer/sprite-pool.js';
+import { UI_FONT_FAMILY, UI_TEXT_RESOLUTION } from '../text-quality.js';
 
 export const ButtonAction = Object.freeze({
   SwitchPage: 0,
@@ -25,9 +26,10 @@ export const ButtonAction = Object.freeze({
 
 const BUTTON_LABEL_STYLE = new TextStyle({
   fill: 0xfff0c0,
-  fontSize: 11,
-  fontFamily: 'Consolas, monospace',
-  stroke: { color: 0x000000, width: 2 },
+  fontSize: 12,
+  fontFamily: UI_FONT_FAMILY,
+  fontWeight: 600,
+  stroke: { color: 0x000000, width: 1, join: 'round' },
 });
 
 export class Button extends Control {
@@ -35,7 +37,7 @@ export class Button extends Control {
     normalGumpId, pressedGumpId,
     width = 50, height = 22,
     buttonId = 0, pageNo = 0, action = ButtonAction.Activate,
-    label = '',
+    label = '', flat = false,
   }) {
     super();
     this.normalGumpId  = normalGumpId  | 0;
@@ -43,6 +45,7 @@ export class Button extends Control {
     this.buttonId = buttonId | 0;
     this.pageNo   = pageNo   | 0;
     this.action   = action   | 0;
+    this.flat = !!flat;
     this.width  = width;
     this.height = height;
 
@@ -52,8 +55,10 @@ export class Button extends Control {
      *  atlas, but server-supplied gumps occasionally use ids without
      *  art — the shimmer keeps the button visible AND tells the user
      *  the asset is loading rather than missing. */
-    this._shimmer = createShimmer(this.width, this.height, { radius: 3 });
-    this._wrap.addChild(this._shimmer.gfx);
+    this._shimmer = this.flat ? null : createShimmer(this.width, this.height, { radius: 3 });
+    if (this._shimmer) this._wrap.addChild(this._shimmer.gfx);
+    this._flatFace = this.flat ? new Graphics() : null;
+    if (this._flatFace) this._wrap.addChild(this._flatFace);
     /** @type {Sprite | null} loaded gump-art face (replaces shimmer once mounted) */
     this._sprite = null;
     this._faceCache = { normalId: 0, pressedId: 0 };
@@ -64,14 +69,17 @@ export class Button extends Control {
     this._label = new Text({
       text: label || '',
       style: BUTTON_LABEL_STYLE,
+      resolution: UI_TEXT_RESOLUTION,
+      roundPixels: true,
     });
     this._label.anchor.set(0.5);
     this._wrap.addChild(this._label);
 
     this.node.addChild(this._wrap);
     this._pressed = false;
+    this._hovered = false;
     this._draw();
-    this._mountSprite();
+    if (!this.flat) this._mountSprite();
   }
 
   /** Resolve the normal/pressed gump textures and swap the placeholder
@@ -96,6 +104,7 @@ export class Button extends Control {
     this._shimmer?.dispose();
     this._shimmer = null;
     this._draw();
+    this.onResize?.();
   }
 
   setLabel(t) {
@@ -108,7 +117,14 @@ export class Button extends Control {
   setSize(w, h) { super.setSize(w, h); this._draw(); }
 
   _draw() {
-    if (this._sprite) {
+    if (this._flatFace) {
+      const face = this._pressed ? 0x3d2913 : (this._hovered ? 0x674820 : 0x251b12);
+      const edge = this._hovered ? 0xf2c96d : 0x9c7334;
+      this._flatFace.clear()
+        .roundRect(0, 0, this.width, this.height, 3)
+        .fill({ color: face, alpha: 0.98 })
+        .stroke({ width: 1, color: edge, alpha: 0.95 });
+    } else if (this._sprite) {
       // Real gump face — swap texture for pressed/released state.
       const id = this._pressed ? (this.pressedGumpId || this.normalGumpId) : this.normalGumpId;
       this._maybeSwapTexture(id);
@@ -138,11 +154,20 @@ export class Button extends Control {
   }
 
   _layout() {
+    // Native labels are allowed to be long, but never to paint outside the
+    // clickable face. Scale only the caption, preserving the button bounds.
+    this._label.scale.set(1);
+    const maxW = Math.max(1, this.width - 8);
+    const maxH = Math.max(1, this.height - 4);
+    const scale = Math.min(1, maxW / Math.max(1, this._label.width), maxH / Math.max(1, this._label.height));
+    this._label.scale.set(scale);
     this._label.position.set(this.width / 2, this.height / 2);
   }
 
   onMouseDown(_btn) { this._pressed = true; this._draw(); }
   onMouseUp(_btn)   { this._pressed = false; this._draw(); }
+  onMouseEnter()    { this._hovered = true; this._draw(); }
+  onMouseLeave()    { this._hovered = false; this._pressed = false; this._draw(); }
 
   onClick(_btn) {
     // Switch a page in this gump locally (no round-trip to the server).

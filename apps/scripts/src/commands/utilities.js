@@ -1,7 +1,6 @@
-// Misc player utility commands — `[loc`, `[ping`, `[suicide`.
+// Misc player utility commands — `[loc`, `[suicide`.
 //
 // `[loc`     prints exact x,y,z + map + facing direction.
-// `[ping`    server timestamp echo (round-trip RTT measure).
 // `[suicide` instant self-kill — debug aid for testing death flow
 //            without needing a hostile mob. Requires confirm via
 //            `[suicide confirm` (single-shot, prevents misclicks).
@@ -28,22 +27,10 @@ export default function register(api) {
   });
 
   api.commands.register({
-    name: 'ping',
-    help: '[ping — server echo (no payload, used to measure RTT).',
-    access: 'Player',
-    run(ctx) {
-      const now = Date.now();
-      const last = ctx.sender._lastPingAt | 0;
-      ctx.sender._lastPingAt = now;
-      const rtt = last ? `${now - last}ms since last ping` : '(first ping)';
-      ctx.state.sendSystemMessage?.(`Pong! ts=${now}  ${rtt}`);
-    },
-  });
-
-  api.commands.register({
     name: 'suicide',
     help: '[suicide [confirm] — self-kill (debug). Requires confirmation.',
     access: 'Player',
+    hidden: true,
     run(ctx, args) {
       const m = ctx.sender;
       if (!m) return;
@@ -80,7 +67,6 @@ export default function register(api) {
 
   return () => {
     api.commands.unregister('loc');
-    api.commands.unregister('ping');
     api.commands.unregister('suicide');
   };
 }

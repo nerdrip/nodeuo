@@ -73,6 +73,28 @@ export class WindowGump extends Gump {
 
   setTitle(t) { this._titleText = t; this._title.setText(t); }
 
+  /** Expand local, code-authored windows when a child was placed outside
+   * their declared bounds. This is deliberately opt-in at WindowGump level;
+   * server gumps may use negative/overflowing art as part of their layout. */
+  fitContentBounds(padding = 8) {
+    let right = this._w;
+    let bottom = this._h;
+    for (const child of this.children) {
+      if (!child || child === this._bg) continue;
+      right = Math.max(right, (child.x || 0) + Math.max(0, child.width || 0) + padding);
+      bottom = Math.max(bottom, (child.y || 0) + Math.max(0, child.height || 0) + padding);
+    }
+    const maxW = Math.max(120, (globalThis.innerWidth || 1920) - 16);
+    const maxH = Math.max(80, (globalThis.innerHeight || 1080) - 16);
+    const w = Math.min(maxW, Math.ceil(right));
+    const h = Math.min(maxH, Math.ceil(bottom));
+    if (w === this._w && h === this._h) return false;
+    this._w = w; this._h = h;
+    this.setSize(w, h);
+    this._bg?.setSize?.(w, h);
+    return true;
+  }
+
   /** Title bar drag area: only the top strip of the window initiates
    * a drag. ClassicUO's gump headers behave the same so click-on-content
    * doesn't accidentally drag. */

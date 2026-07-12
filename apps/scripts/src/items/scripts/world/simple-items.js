@@ -19,7 +19,7 @@
 import { destroyItemBySerial } from '../../../_items.js';
 import { createMobile, destroyMobileBySerial } from '../../../_mobiles.js';
 import { childrenOf } from '../../../_inventory.js';
-import { allItems, nearbyClients, nearbyMobiles, sendToClientsNear } from '../../../_spatial.js';
+import { nearbyClients, nearbyMobiles, sendToClientsNear } from '../../../_spatial.js';
 import { itemBySerial, mobileBySerial } from '../../../_entities.js';
 import { normalizeSkillValue } from '../../../_rules.js';
 

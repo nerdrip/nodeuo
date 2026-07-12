@@ -94,7 +94,7 @@ class TargetCursor {
     this._caption = document.createElement('div');
     this._caption.style.cssText = `
       position:absolute; top:42px; left:50%; transform:translateX(-50%);
-      white-space:nowrap; font:11px Consolas,monospace; letter-spacing:0.5px;
+      white-space:nowrap; font:600 12px/1.3 "Segoe UI Variable Text","Segoe UI",Inter,system-ui,sans-serif; letter-spacing:0.2px;
       padding:3px 8px; border-radius:3px; outline:none;
       background:rgba(12,16,24,0.88); border:1px solid #6e5520;
       text-shadow:0 1px 2px #000;
@@ -113,6 +113,8 @@ class TargetCursor {
     // Follow the mouse — `pointerEvents:none` keeps clicks falling
     // through to the underlying gump / world.
     this._onMove = (e) => {
+      this._lastX = e.clientX;
+      this._lastY = e.clientY;
       if (!this._el || this._el.style.display === 'none') return;
       this._el.style.left = e.clientX + 'px';
       this._el.style.top  = e.clientY + 'px';
@@ -168,16 +170,23 @@ class TargetCursor {
     // overlay our own SVG glyph (which read as oversized + clashed
     // with the OS pointer). systemCursor handles hotspots from the
     // manifest, so the click point stays accurate per cursor.
-    this._glyph.innerHTML = '';
+    this._glyph.innerHTML = cursorType === CursorType.Object
+      ? ''
+      : this._iconSvg(cursorType, color);
     this._caption.style.color = color;
     this._caption.textContent = hint
       ? `${label} — ${hint} (Esc / RMB to cancel)`
       : `${label} (Esc / RMB to cancel)`;
     this._el.style.display = '';
-    const cursorName =
-      flag === FLAG_HARMFUL    ? 'target-harmful'    :
-      flag === FLAG_BENEFICIAL ? 'target-beneficial' :
-                                 'target-neutral';
+    if (Number.isFinite(this._lastX) && Number.isFinite(this._lastY)) {
+      this._el.style.left = `${this._lastX}px`;
+      this._el.style.top = `${this._lastY}px`;
+    }
+    const cursorName = cursorType === CursorType.Object
+      ? (flag === FLAG_HARMFUL    ? 'target-harmful'
+        : flag === FLAG_BENEFICIAL ? 'target-beneficial'
+        : 'target-neutral')
+      : 'none';
     systemCursor.setOverride(cursorName);
     // Don't fight the systemCursor — the OS pointer is already hidden
     // via `body.style.cursor = 'none'`. We just remember whatever

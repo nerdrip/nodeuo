@@ -3,6 +3,7 @@ function serialOf(value) {
 }
 
 function worldOf(apiOrWorld) {
+  if (apiOrWorld?.[Symbol.for('uo.world')]) return apiOrWorld;
   return apiOrWorld?.world ?? apiOrWorld;
 }
 

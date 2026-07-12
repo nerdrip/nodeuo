@@ -55,6 +55,10 @@ export default function register(api) {
         goldReward: e.goldReward ?? (e.rewards ? 0 : 500 + Math.round(Math.random() * 250)),
         fameReward: e.fameReward ?? (e.rewards ? 0 : 250),
         rewards: e.rewards,
+        // The bulk extractor loads first alphabetically and includes a
+        // skeletal EscortToDugan entry with no objective. This authored
+        // definition must replace that lower-fidelity placeholder.
+        replace: true,
       });
       registered.push(e.id);
     } catch (err) {

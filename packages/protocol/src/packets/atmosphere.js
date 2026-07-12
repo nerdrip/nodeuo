@@ -24,7 +24,7 @@ export const Season = Object.freeze({
  * @param {number} [p.intensity] number of effects (0..70)
  * @param {number} [p.temperature]
  */
-export function weather({ kind, intensity = 0, temperature = 0x20 }) {
+export function weather({ kind, intensity = 0, temperature = 0 }) {
   const w = new PacketWriter(4);
   w.writeU8(0x65);
   w.writeU8(kind & 0xff);

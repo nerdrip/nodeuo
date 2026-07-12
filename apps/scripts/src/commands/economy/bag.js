@@ -17,6 +17,7 @@ export default function register(api) {
   api.commands.register({
     name: 'bag',
     help: '[bag — spawn an empty backpack at your feet',
+    hidden: true,
     run(ctx) {
       const bag = createItem(api, ctx.world, {
         itemId: BACKPACK_ITEM_ID,
@@ -34,6 +35,7 @@ export default function register(api) {
   api.commands.register({
     name: 'stock',
     help: '[stock — spawn a backpack at your feet with some test items',
+    hidden: true,
     run(ctx) {
       const bag = createItem(api, ctx.world, {
         itemId: BACKPACK_ITEM_ID,

@@ -17,6 +17,7 @@
 import { Text, TextStyle } from 'pixi.js';
 import { worldToScreenX, worldToScreenY } from '../renderer/iso.js';
 import { world } from '../world/world.js';
+import { UI_FONT_FAMILY, UI_TEXT_RESOLUTION } from '../ui/text-quality.js';
 
 // Client perf round 2 #11: damage / heal numbers and floating world
 // text used to allocate a fresh `TextStyle` per popup (object literal
@@ -30,8 +31,8 @@ function getWorldTextStyle({ color, fontSize, bold }) {
   if (s) return s;
   s = new TextStyle({
     fill: color, fontSize,
-    fontFamily: 'Consolas, monospace',
-    stroke: { color: 0x000000, width: 3, join: 'round' },
+    fontFamily: UI_FONT_FAMILY,
+    stroke: { color: 0x000000, width: 2, join: 'round' },
     fontWeight: bold ? '700' : '400',
   });
   _styleCache.set(key, s);
@@ -63,7 +64,9 @@ export const worldTextStats = {
 
 function acquireTextNode(text, style) {
   const node = _textPool.pop();
-  const out = node ?? new Text({ text: '', style });
+  const out = node ?? new Text({
+    text: '', style, resolution: UI_TEXT_RESOLUTION, roundPixels: true,
+  });
   if (node) worldTextStats.reused++;
   else worldTextStats.created++;
   worldTextStats.active++;

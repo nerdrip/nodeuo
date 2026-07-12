@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { DoorTileIndex } from '../src/renderer/door-tile-index.js';
 
 globalThis.localStorage = globalThis.localStorage ?? {
   getItem: () => null,
@@ -6,6 +7,20 @@ globalThis.localStorage = globalThis.localStorage ?? {
   removeItem: () => {},
 };
 globalThis.fetch = async () => ({ ok: false });
+
+const doorIndex = new DoorTileIndex({
+  resolveDoorPiece: (id) => id === 100 ? { pieceIdx: 0 } : null,
+  chunkSize: 8,
+});
+const closedDoor = { serial: 1, itemId: 100, x: 16, y: 24, parent: 0 };
+const openDoor = { serial: 2, itemId: 101, x: 15, y: 24, parent: 0 };
+const doorChunk = doorIndex.register(closedDoor);
+assert.equal(doorIndex.register(openDoor), doorChunk, 'open graphic maps back to its hinge chunk');
+assert.equal(doorIndex.tilesForChunkKey(doorChunk).has(doorIndex.tileKey(16, 24)), true);
+doorIndex.unregister(closedDoor.serial);
+assert.equal(doorIndex.tilesForChunkKey(doorChunk).size, 1, 'shared hinge remains suppressed');
+doorIndex.unregister(openDoor.serial);
+assert.equal(doorIndex.tilesForChunkKey(doorChunk).size, 0, 'last door releases suppression');
 
 const {
   TileRenderer,

@@ -127,7 +127,6 @@ export default function register(api) {
       // Walk the backpack for empty fragments. Charged fragments are
       // refused — the player would otherwise lose skill values stored
       // inside without warning.
-      const pack = api.game?.inventory?.findBackpack?.(ctx.sender);
       const fragments = [];
       for (const it of packItems(api, ctx.sender)) {
         if (it.itemId !== SOULSTONE_FRAGMENT_ID) continue;

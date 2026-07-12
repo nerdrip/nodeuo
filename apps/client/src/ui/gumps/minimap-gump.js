@@ -115,7 +115,7 @@ export class MinimapGump extends WindowGump {
       this._basePixels = new Uint32Array(pixels.length);
     }
     if (forceTerrain || this._terrainMap !== map) {
-      this._paintFullTerrain(this._basePixels, cx, cy);
+      this._paintFullTerrain(this._basePixels, cx, cy, map);
       this._terrainMap = map;
       this._terrainCx = cx;
       this._terrainCy = cy;
@@ -125,9 +125,9 @@ export class MinimapGump extends WindowGump {
       const dy = cy - this._terrainCy;
       if (dx !== 0 || dy !== 0) {
         if (Math.abs(dx) < TILE_COUNT && Math.abs(dy) < TILE_COUNT) {
-          this._scrollTerrain(this._basePixels, dx, dy, cx, cy);
+          this._scrollTerrain(this._basePixels, dx, dy, cx, cy, map);
         } else {
-          this._paintFullTerrain(this._basePixels, cx, cy);
+          this._paintFullTerrain(this._basePixels, cx, cy, map);
         }
         this._terrainCx = cx;
         this._terrainCy = cy;
@@ -164,15 +164,15 @@ export class MinimapGump extends WindowGump {
     this._texture.source.update();
   }
 
-  _paintFullTerrain(pixels, cx, cy) {
+  _paintFullTerrain(pixels, cx, cy, map) {
     for (let ly = 0; ly < TILE_COUNT; ly++) {
       for (let lx = 0; lx < TILE_COUNT; lx++) {
-        this._paintTerrainTile(pixels, lx, ly, cx + lx - RADIUS_TILES, cy + ly - RADIUS_TILES);
+        this._paintTerrainTile(pixels, lx, ly, cx + lx - RADIUS_TILES, cy + ly - RADIUS_TILES, map);
       }
     }
   }
 
-  _scrollTerrain(pixels, tileDx, tileDy, cx, cy) {
+  _scrollTerrain(pixels, tileDx, tileDy, cx, cy, map) {
     const scratch = this._terrainScratch && this._terrainScratch.length === pixels.length
       ? this._terrainScratch
       : (this._terrainScratch = new Uint32Array(pixels.length));
@@ -200,13 +200,13 @@ export class MinimapGump extends WindowGump {
         const oldLx = lx + tileDx;
         const oldLy = ly + tileDy;
         if (oldLx >= 0 && oldLx < TILE_COUNT && oldLy >= 0 && oldLy < TILE_COUNT) continue;
-        this._paintTerrainTile(pixels, lx, ly, cx + lx - RADIUS_TILES, cy + ly - RADIUS_TILES);
+        this._paintTerrainTile(pixels, lx, ly, cx + lx - RADIUS_TILES, cy + ly - RADIUS_TILES, map);
       }
     }
   }
 
-  _paintTerrainTile(pixels, lx, ly, tx, ty) {
-    const land = assets.landAt(tx, ty);
+  _paintTerrainTile(pixels, lx, ly, tx, ty, map) {
+    const land = assets.landAt(tx, ty, map);
     const packed = land ? packedLandRadarColor(land.id) : 0xff000000;
     const pxX = lx * PX_PER_TILE;
     const pxY = ly * PX_PER_TILE;

@@ -209,7 +209,7 @@ export class SkillGumpAdvanced extends WindowGump {
     const q = this._query.toLowerCase();
     const rows = this._rowIds;
     rows.length = 0;
-    for (const [id, s] of this._skills) {
+    for (const [id] of this._skills) {
       if (q && !skillNameLower(id).includes(q)) continue;
       rows.push(id);
     }

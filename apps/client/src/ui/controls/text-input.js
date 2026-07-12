@@ -5,6 +5,7 @@
 
 import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { Control } from '../control.js';
+import { UI_FONT_FAMILY, UI_TEXT_RESOLUTION } from '../text-quality.js';
 
 const CARET_BLINK_MS = 500;
 
@@ -13,7 +14,7 @@ function inputTextStyle(fill, fontSize) {
   const key = `${fill >>> 0}|${fontSize | 0}`;
   let style = _inputStyleCache.get(key);
   if (style) return style;
-  style = new TextStyle({ fill, fontSize, fontFamily: 'Consolas, monospace' });
+  style = new TextStyle({ fill, fontSize, fontFamily: UI_FONT_FAMILY, fontWeight: 500 });
   _inputStyleCache.set(key, style);
   return style;
 }
@@ -43,10 +44,14 @@ export class TextInput extends Control {
     this._text = new Text({
       text: initialText,
       style: inputTextStyle(hue, fontSize),
+      resolution: UI_TEXT_RESOLUTION,
+      roundPixels: true,
     });
     this._placeholderTxt = new Text({
       text: placeholder || '',
       style: inputTextStyle(0x6f6242, fontSize),
+      resolution: UI_TEXT_RESOLUTION,
+      roundPixels: true,
     });
     this._wrap.addChild(this._bg, this._placeholderTxt, this._text, this._caret);
     this.node.addChild(this._wrap);

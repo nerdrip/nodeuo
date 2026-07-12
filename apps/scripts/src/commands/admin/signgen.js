@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { allItems } from '../../_spatial.js';
 import { createItem, destroyItemBySerial } from '../../_items.js';
+import { queueBulkSave, refreshBulkVisibility } from '../_bulk-broadcast.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // admin → commands → src, then data/world/.
@@ -21,7 +22,14 @@ function loadCatalog() {
   if (!existsSync(SIGNS_PATH)) return [];
   try {
     const raw = JSON.parse(readFileSync(SIGNS_PATH, 'utf8'));
-    _cache = remapLegacyShape(raw);
+    _cache = remapLegacyShape(raw).map((entry) => {
+      // The extracted Tanner sign at Royal City used ServUO's historic
+      // internal map ordinal 6. Our web shard exposes Ter Mur as facet 5.
+      if ((entry.map | 0) === 6 && (entry.x | 0) === 812 && (entry.y | 0) === 3389) {
+        return { ...entry, map: 5 };
+      }
+      return entry;
+    });
   } catch (e) { console.warn('[signgen] read failed', e.message); _cache = []; }
   return _cache;
 }
@@ -71,30 +79,64 @@ function pickSignGraphic(entry) {
   return DEFAULT_SIGN_GRAPHIC;
 }
 
+function signKey({ map, x, y, z, itemId, labelNumber, name }) {
+  return `${map | 0}:${x | 0}:${y | 0}:${z | 0}:${pickSignGraphic({ itemId }) | 0}:` +
+    `${labelNumber | 0}:${String(name ?? '')}`;
+}
+
 export function applySigns(api, opts = {}) {
   const catalog = loadCatalog();
   if (!catalog.length) return { added: 0 };
   const wantFacets = opts.facets ? new Set(opts.facets) : null;
   const world = api.world;
   if (!world._signsApplied) world._signsApplied = new Set();
-  let added = 0;
+  // Per-placement idempotency self-heals a partially generated or manually
+  // edited facet. A facet-wide flag used to skip every missing sign as soon
+  // as one earlier pass had completed.
+  const existingKeys = new Set();
+  const invalidLegacySigns = [];
+  for (const it of allItems({ world })) {
+    if (it.script !== 'sign' || !it.isDecoration) continue;
+    if ((it.map | 0) === 6 && (it.x | 0) === 812 && (it.y | 0) === 3389) {
+      invalidLegacySigns.push(it.serial);
+      continue;
+    }
+    existingKeys.add(signKey(it));
+  }
+  for (const serial of invalidLegacySigns) destroyItemBySerial(api, serial);
+  let added = 0; let skipped = 0; let failed = 0;
   for (const e of catalog) {
     if (wantFacets && !wantFacets.has(e.map)) continue;
-    if (world._signsApplied.has(e.map)) continue;
-    const item = createItem(api, world, {
-      itemId: pickSignGraphic(e),
-      hue: (e.hue && e.hue > 0) ? e.hue : 0,
-      x: e.x, y: e.y, z: e.z, map: e.map,
-      movable: false,
-    });
+    if ((e.map | 0) < 0 || (e.map | 0) > 5) {
+      failed++;
+      api.log?.(`[signgen] invalid facet ${e.map} at (${e.x},${e.y},${e.z})`);
+      continue;
+    }
+    const key = signKey(e);
+    if (existingKeys.has(key)) { skipped++; continue; }
+    let item;
+    try {
+      item = createItem(api, world, {
+        itemId: pickSignGraphic(e),
+        hue: (e.hue && e.hue > 0) ? e.hue : 0,
+        x: e.x, y: e.y, z: e.z, map: e.map,
+        name: e.name,
+        movable: false,
+      });
+    } catch (err) {
+      failed++;
+      if (failed <= 3) api.log?.(`[signgen] create failed: ${err.message}`);
+      continue;
+    }
     item.isDecoration = true;
     item.script = 'sign';
     if (e.labelNumber) item.labelNumber = e.labelNumber;
+    existingKeys.add(key);
     added++;
   }
   if (wantFacets) for (const f of wantFacets) world._signsApplied.add(f);
   else for (const e of catalog) world._signsApplied.add(e.map);
-  return { added };
+  return { added, skipped, failed };
 }
 
 export function deleteSigns(api, opts = {}) {
@@ -122,7 +164,9 @@ export default function register(api) {
     access: 'Admin',
     run(ctx) {
       const r = applySigns(api);
-      ctx.state.sendSystemMessage(`SignGen: ${r.added} signs placed.`);
+      const refreshed = refreshBulkVisibility(api);
+      queueBulkSave(api);
+      ctx.state.sendSystemMessage(`SignGen: ${r.added} signs placed, ${r.skipped} unchanged. Refreshed clients: ${refreshed}.`);
     },
   });
   api.commands.register({
@@ -131,7 +175,9 @@ export default function register(api) {
     access: 'Admin',
     run(ctx) {
       const r = deleteSigns(api);
-      ctx.state.sendSystemMessage(`SignDelete: ${r.removed} signs removed.`);
+      const refreshed = refreshBulkVisibility(api);
+      queueBulkSave(api);
+      ctx.state.sendSystemMessage(`SignDelete: ${r.removed} signs removed. Refreshed clients: ${refreshed}.`);
     },
   });
   return () => {};

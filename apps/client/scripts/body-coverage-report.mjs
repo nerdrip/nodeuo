@@ -23,6 +23,10 @@ function bodyEntry(atlas, bodyId) {
   return atlas?.bodies?.[bodyId] ?? atlas?.bodies?.[String(bodyId)] ?? null;
 }
 
+function hasFrames(body) {
+  return framesForBody(body).length > 0;
+}
+
 function aliasTarget(atlas, bodyId) {
   const alias = atlas?.aliases?.[bodyId] ?? atlas?.aliases?.[String(bodyId)];
   return alias?.body ?? alias?.trueBody ?? null;
@@ -30,24 +34,24 @@ function aliasTarget(atlas, bodyId) {
 
 function resolveBody(atlas, bodyId, fallback) {
   const chain = [bodyId];
-  if (bodyEntry(atlas, bodyId)) return { resolved: bodyId, via: 'direct', chain };
+  if (hasFrames(bodyEntry(atlas, bodyId))) return { resolved: bodyId, via: 'direct', chain };
 
   const alias = aliasTarget(atlas, bodyId);
   if (Number.isFinite(alias)) {
     chain.push(alias);
-    if (bodyEntry(atlas, alias)) return { resolved: alias, via: 'alias', chain };
+    if (hasFrames(bodyEntry(atlas, alias))) return { resolved: alias, via: 'alias', chain };
   }
 
   const sub = fallback.get(bodyId);
   if (Number.isFinite(sub)) {
     chain.push(sub);
-    if (bodyEntry(atlas, sub)) return { resolved: sub, via: 'fallback', chain };
+    if (hasFrames(bodyEntry(atlas, sub))) return { resolved: sub, via: 'fallback', chain };
   }
 
   const generic = bodyId < 200 ? 9 : (bodyId < 400 ? 226 : null);
   if (generic != null) {
     chain.push(generic);
-    if (bodyEntry(atlas, generic)) return { resolved: generic, via: 'generic', chain };
+    if (hasFrames(bodyEntry(atlas, generic))) return { resolved: generic, via: 'generic', chain };
   }
 
   return { resolved: null, via: 'missing', chain };
@@ -118,6 +122,9 @@ assert.ok(totalFrames > 10000, 'mobiles atlas should contain animation frames');
 for (const [label, bodyId, result] of raceResults) {
   assert.notEqual(result.resolved, null, `${label} body 0x${bodyId.toString(16)} should resolve`);
 }
+const lavaSnake = resolveBody(atlas, 52, fallback);
+assert.equal(lavaSnake.resolved, 51, 'empty lava-snake body must use giant-serpent art, not generic daemon');
+assert.equal(lavaSnake.via, 'fallback', 'lava-snake substitution must be an explicit same-family fallback');
 
 console.log(`[body-coverage] pages=${atlas.pageCount} bodies=${bodyIds.length} frames=${totalFrames}`);
 console.log(`[body-coverage] aliases=${aliasCount} fallback=${fallback.size} equipConv=${equipConvCount} corpseConv=${corpseConvCount}`);
@@ -125,7 +132,7 @@ console.log(`[body-coverage] emptyBodies=${emptyBodies.length} tinyBodies=${tiny
 if (!modernUopSchema) {
   console.warn('[body-coverage] WARNING: generated atlas predates AnimationSequence/UOP schema v2; re-run the extractor from a legal UO install.');
 }
-for (const [label, bodyId, result] of raceResults) {
+for (const [label, , result] of raceResults) {
   const chain = result.chain.map((id) => `0x${id.toString(16)}`).join(' -> ');
   console.log(`[body-coverage] ${label}: ${chain} (${result.via})`);
 }

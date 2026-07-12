@@ -25,6 +25,7 @@ const SAIL_INTERVAL_MS = {
 const FACING_DELTAS = {
   N: [0, -1], E: [1, 0], S: [0, 1], W: [-1, 0],
 };
+const FACINGS = ['N', 'E', 'S', 'W'];
 
 const PLANK_ITEM_ID = 0x3EAA;
 
@@ -99,29 +100,29 @@ function itemCarriedBy(world, itemSerial, mobSerial) {
 // each mount and stamps `cannon._mountSerial = boat.serial` so the
 // cannons travel with the boat in `_tickBoat()`.
 export const BOAT_HULLS = Object.freeze({
-  small:    { graphic: 0x3E5C, hpMax: 1000, plankCount: 1, label: 'small ship' },
-  medium:   { graphic: 0x3E5E, hpMax: 1500, plankCount: 2, label: 'medium ship' },
-  large:    { graphic: 0x3E60, hpMax: 2000, plankCount: 2, label: 'large ship' },
-  galleon:  { graphic: 0x3E62, hpMax: 3000, plankCount: 2, label: 'galleon' },
+  small:    { graphic: 0x3E5C, hpMax: 1000, armor: 0.05, speedMultiplier: 1.15, plankCount: 1, label: 'small ship' },
+  medium:   { graphic: 0x3E5E, hpMax: 1500, armor: 0.10, speedMultiplier: 1.05, plankCount: 2, label: 'medium ship' },
+  large:    { graphic: 0x3E60, hpMax: 2000, armor: 0.15, speedMultiplier: 0.95, plankCount: 2, label: 'large ship' },
+  galleon:  { graphic: 0x3E62, hpMax: 3000, armor: 0.20, speedMultiplier: 0.90, plankCount: 2, label: 'galleon' },
   // SA Galleons. graphic ids match ServUO Multis/Boats/BaseGalleon.cs
   // (each hull mounts 6 cannons broadside — 3 per side — except Orc
   // which crowds the deck with 8 light cannons). Speed +0 vs galleon.
   britannian: {
-    graphic: 0x4002, hpMax: 4000, plankCount: 2, label: 'Britannian ship of the line',
+    graphic: 0x4002, hpMax: 4000, armor: 0.28, speedMultiplier: 0.82, plankCount: 2, label: 'Britannian ship of the line',
     cannonMounts: [
       { dx: -1, dy: -2, kind: 'medium' }, { dx: -1, dy: 0, kind: 'medium' }, { dx: -1, dy: 2, kind: 'medium' },
       { dx:  1, dy: -2, kind: 'medium' }, { dx:  1, dy: 0, kind: 'medium' }, { dx:  1, dy: 2, kind: 'medium' },
     ],
   },
   tokuno: {
-    graphic: 0x4006, hpMax: 3500, plankCount: 2, label: 'Tokuno galleon',
+    graphic: 0x4006, hpMax: 3500, armor: 0.18, speedMultiplier: 1.00, plankCount: 2, label: 'Tokuno galleon',
     cannonMounts: [
       { dx: -1, dy: -1, kind: 'light' }, { dx: -1, dy: 0, kind: 'medium' }, { dx: -1, dy: 1, kind: 'light' },
       { dx:  1, dy: -1, kind: 'light' }, { dx:  1, dy: 0, kind: 'medium' }, { dx:  1, dy: 1, kind: 'light' },
     ],
   },
   orc: {
-    graphic: 0x4008, hpMax: 3200, plankCount: 2, label: 'Orc galleon',
+    graphic: 0x4008, hpMax: 3200, armor: 0.12, speedMultiplier: 1.08, plankCount: 2, label: 'Orc galleon',
     cannonMounts: [
       { dx: -2, dy: -1, kind: 'light' }, { dx: -1, dy: -1, kind: 'light' },
       { dx: -2, dy:  1, kind: 'light' }, { dx: -1, dy:  1, kind: 'light' },
@@ -130,7 +131,7 @@ export const BOAT_HULLS = Object.freeze({
     ],
   },
   gargish: {
-    graphic: 0x400A, hpMax: 4500, plankCount: 2, label: 'Gargish galleon',
+    graphic: 0x400A, hpMax: 4500, armor: 0.32, speedMultiplier: 0.78, plankCount: 2, label: 'Gargish galleon',
     cannonMounts: [
       { dx: -1, dy: -2, kind: 'heavy'  }, { dx: -1, dy: 1, kind: 'heavy' },
       { dx:  1, dy: -2, kind: 'heavy'  }, { dx:  1, dy: 1, kind: 'heavy' },
@@ -138,6 +139,60 @@ export const BOAT_HULLS = Object.freeze({
     ],
   },
 });
+
+function hullForBoat(boat) {
+  const key = String(boat?.boat?.hullKind ?? boat?.boat?.hull ?? 'small').toLowerCase();
+  return { key: BOAT_HULLS[key] ? key : 'small', def: BOAT_HULLS[key] ?? BOAT_HULLS.small };
+}
+
+function normalizeBoatState(boat) {
+  const b = boat?.boat;
+  if (!b) return null;
+  const { key, def } = hullForBoat(boat);
+  b.hullKind ??= key;
+  b.boatHpMax ??= def.hpMax;
+  b.boatHp ??= b.boatHpMax;
+  b.armor ??= def.armor;
+  b.speedMultiplier ??= def.speedMultiplier;
+  b.cannons ??= [];
+  b.planks ??= [];
+  b.riders = b.riders instanceof Set ? b.riders : new Set(b.riders ?? []);
+  return { b, key, def };
+}
+
+export function boatStats(boat, now = Date.now()) {
+  const state = normalizeBoatState(boat);
+  if (!state) return null;
+  const { b, key, def } = state;
+  const hp = Math.max(0, b.boatHp | 0);
+  const hpMax = Math.max(1, b.boatHpMax | 0);
+  const ratio = hp / hpMax;
+  const condition = b.wrecked || ratio <= 0 ? 'sunk'
+    : ratio <= 0.25 ? 'critical'
+      : ratio <= 0.6 ? 'damaged' : 'sound';
+  const conditionSpeed = condition === 'critical' ? 0.55 : condition === 'damaged' ? 0.80 : 1;
+  return Object.freeze({
+    serial: boat.serial >>> 0,
+    name: b.name ?? boat.name ?? def.label,
+    hullKind: key,
+    hp,
+    hpMax,
+    hpPercent: Math.round(ratio * 100),
+    armorPercent: Math.round(Math.max(0, Math.min(0.8, Number(b.armor))) * 100),
+    condition,
+    speedMultiplier: Number((Math.max(0.1, Number(b.speedMultiplier) || 1) * conditionSpeed).toFixed(2)),
+    sailState: b.sailState ?? 'stop',
+    anchored: !!b.anchored,
+    sailsDisabledMs: Math.max(0, (b.sailsDisabledUntil ?? 0) - now),
+    cannonCount: b.cannons.length,
+    course: b.course ? {
+      points: b.course.waypoints?.length ?? 0,
+      index: b.course.index | 0,
+      running: !!b.course.running,
+      loop: !!b.course.loop,
+    } : null,
+  });
+}
 
 /**
  * Place a galleon at the given tile and instantiate its cannon mounts.
@@ -173,7 +228,10 @@ export function placeGalleon(api, opts) {
     for (const mount of hull.cannonMounts) {
       const cannon = api.systems.cannons.placeCannon(api.world, {
         x: boat.x + mount.dx, y: boat.y + mount.dy, z: boat.z, map: boat.map,
-        kind: mount.kind, facing: 0,
+        kind: mount.kind,
+        facing: Math.abs(mount.dx) >= Math.abs(mount.dy)
+          ? (mount.dx < 0 ? 3 : 1)
+          : (mount.dy < 0 ? 0 : 2),
       });
       if (!cannon) continue;
       cannon._mountSerial = boat.serial;
@@ -354,6 +412,49 @@ export function startBoatSystem(api) {
     return moved;
   };
 
+  const setFacing = (boat, facing) => {
+    const b = boat?.boat;
+    const nextIndex = FACINGS.indexOf(facing);
+    const oldIndex = FACINGS.indexOf(b?.facing);
+    if (!b || nextIndex < 0) return false;
+    if (oldIndex < 0 || oldIndex === nextIndex) {
+      b.facing = facing;
+      return true;
+    }
+    const turns = (nextIndex - oldIndex + 4) % 4;
+    const rotate = (dx, dy) => {
+      for (let i = 0; i < turns; i++) [dx, dy] = [-dy, dx];
+      return [dx, dy];
+    };
+    for (const serial of [...(b.planks ?? []), ...(b.cannons ?? [])]) {
+      const item = api.world.items.get(serial >>> 0);
+      if (!item) continue;
+      const [dx, dy] = rotate((item.x | 0) - (boat.x | 0), (item.y | 0) - (boat.y | 0));
+      item.x = (boat.x | 0) + dx;
+      item.y = (boat.y | 0) + dy;
+      if (item.cannon) item.cannon.facing = ((item.cannon.facing | 0) + turns) & 3;
+      if (item.boatPlank?.side) {
+        const side = FACINGS.indexOf(item.boatPlank.side);
+        if (side >= 0) item.boatPlank.side = FACINGS[(side + turns) & 3];
+      }
+      api.world.sectors?.moveItem?.(item);
+      broadcastBoatPos(item);
+    }
+    if (b.tillermanSerial) {
+      const tiller = api.world.mobiles.get(b.tillermanSerial >>> 0);
+      if (tiller) {
+        const [dx, dy] = rotate((tiller.x | 0) - (boat.x | 0), (tiller.y | 0) - (boat.y | 0));
+        tiller.x = (boat.x | 0) + dx;
+        tiller.y = (boat.y | 0) + dy;
+        api.world.sectors?.moveMobile?.(tiller);
+        broadcastMobile(tiller);
+      }
+    }
+    b.facing = facing;
+    broadcastBoatPos(boat);
+    return true;
+  };
+
   const sailOnce = (boat) => {
     /** @type {BoatState} */
     const b = boat.boat;
@@ -409,7 +510,15 @@ export function startBoatSystem(api) {
       if (!it?.boat) { idx.delete(serial); continue; }
       const b = it.boat;
       if (b.anchored || b.wrecked) continue;
-      const interval = SAIL_INTERVAL_MS[b.sailState ?? 'stop'];
+      const stats = boatStats(it, now);
+      if ((b.sailsDisabledUntil ?? 0) > now) {
+        b.sailState = 'stop';
+        continue;
+      }
+      const baseInterval = SAIL_INTERVAL_MS[b.sailState ?? 'stop'];
+      const interval = baseInterval > 0
+        ? Math.max(180, Math.round(baseInterval / Math.max(0.1, stats?.speedMultiplier ?? 1)))
+        : 0;
       if (interval <= 0) continue;
       if (now < (b.nextSailAt ?? 0)) continue;
       b.nextSailAt = now + interval;
@@ -424,8 +533,9 @@ export function startBoatSystem(api) {
     stop() { clearInterval(timer); },
     sailOnce,
     setSailState(boat, state) {
-      if (!boat?.boat) return false;
+      if (!normalizeBoatState(boat)) return false;
       if (boat.boat.anchored) return false;
+      if ((boat.boat.sailsDisabledUntil ?? 0) > Date.now()) return false;
       if (!(state in SAIL_INTERVAL_MS)) return false;
       boat.boat.sailState = state;
       boat.boat.nextSailAt = Date.now();
@@ -457,8 +567,11 @@ export function startBoatSystem(api) {
       if (!boat?.boat || !hull) return false;
       boat.itemId = hull.graphic;
       boat.boat.hull = hullKey;
+      boat.boat.hullKind = hullKey;
       boat.boat.boatHpMax = hull.hpMax;
       boat.boat.boatHp = hull.hpMax;
+      boat.boat.armor = hull.armor;
+      boat.boat.speedMultiplier = hull.speedMultiplier;
       boat.boat.label = hull.label;
       return true;
     },
@@ -476,12 +589,16 @@ export function startBoatSystem(api) {
       boat.boat.name = String(newName).slice(0, 30);
       return true;
     },
-    /** Apply damage to a boat — returns true if the boat sank. */
-    damage(boat, amount) {
-      if (!boat?.boat) return false;
-      boat.boat.boatHpMax ??= 1000;
-      boat.boat.boatHp ??= boat.boat.boatHpMax;
-      boat.boat.boatHp = Math.max(0, boat.boat.boatHp - (amount | 0));
+    /** Apply armor-aware damage to a boat — returns true if it sank. */
+    damage(boat, amount, { damageType = 'physical', ignoreArmor = false } = {}) {
+      const state = normalizeBoatState(boat);
+      if (!state) return false;
+      const raw = Math.max(0, amount | 0);
+      const armor = ignoreArmor ? 0 : Math.max(0, Math.min(0.8, Number(state.b.armor) || 0));
+      const typeMultiplier = damageType === 'fire' ? 1.15 : damageType === 'cold' ? 0.85 : 1;
+      const applied = raw <= 0 ? 0 : Math.max(1, Math.round(raw * typeMultiplier * (1 - armor)));
+      boat.boat.boatHp = Math.max(0, boat.boat.boatHp - applied);
+      boat.boat.lastDamage = { raw, applied, damageType, at: Date.now() };
       if (boat.boat.boatHp <= 0 && !boat.boat.wrecked) {
         boat.boat.wrecked = true;
         boat.boat.sailState = 'stop';
@@ -504,6 +621,24 @@ export function startBoatSystem(api) {
       }
       return false;
     },
+    stats(boat) {
+      return boatStats(boat);
+    },
+    canSailTo(boat, x, y, map = boat?.map ?? 1) {
+      if (!boat?.boat || boat.boat.wrecked) return false;
+      return !!isWater(map, x | 0, y | 0);
+    },
+    disableSails(boat, durationMs = 8000) {
+      if (!boat?.boat) return false;
+      boat.boat.sailsDisabledUntil = Math.max(
+        boat.boat.sailsDisabledUntil ?? 0,
+        Date.now() + Math.max(0, durationMs | 0),
+      );
+      boat.boat.sailState = 'stop';
+      boat.boat.course && (boat.boat.course.running = false);
+      tillermanSay(boat, 'The rigging is fouled! We cannot make sail!', api);
+      return true;
+    },
     /** Verify caller has rights (owner or key-holder). */
     hasPilotRights(boat, mob) {
       const b = boat?.boat;
@@ -519,6 +654,7 @@ export function startBoatSystem(api) {
     moveAttachedObjects(boat, dx, dy) {
       return moveAttachedObjects(boat, dx | 0, dy | 0);
     },
+    setFacing,
     /** Spawn a galleon hull at the caller's tile. Caller is the
      *  `[boat spawn <hull>` command; the underlying `placeGalleon`
      *  module-export does the cannon-mount work. */

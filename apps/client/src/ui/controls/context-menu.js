@@ -24,7 +24,7 @@ class ContextMenu {
       z-index:9999; background:#1f1a12; border:1px solid #6e5520;
       box-shadow:0 4px 12px rgba(0,0,0,0.7);
       padding:2px 0; min-width:120px;
-      font:12px Consolas, monospace; color:#e8d0a0;
+      font:500 13px/1.35 "Segoe UI Variable Text", "Segoe UI", Inter, system-ui, sans-serif; color:#eee4d0;
     `;
     for (const it of items) {
       const row = document.createElement('div');

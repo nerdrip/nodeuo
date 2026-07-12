@@ -10,7 +10,7 @@
 // functional commands/templates instead of mirroring the C# inheritance tree.
 
 import { createItem, destroyItemBySerial } from '../_items.js';
-import { itemBySerial } from '../_entities.js';
+import { itemBySerial, mobileBySerial } from '../_entities.js';
 import { allItems, allMobiles, sendToClientsNear } from '../_spatial.js';
 import { spawnNPC } from '../npcs/vendors/_spawn.js';
 
@@ -427,6 +427,25 @@ function tickBoatCourses(api) {
     }
     const target = points[course.index % points.length];
     if (!target) continue;
+    if (b.wrecked || (target.map != null && target.map !== boat.map)) {
+      course.running = false;
+      b.sailState = 'stop';
+      continue;
+    }
+    const now = Date.now();
+    if (course.lastX !== (boat.x | 0) || course.lastY !== (boat.y | 0)) {
+      course.lastX = boat.x | 0;
+      course.lastY = boat.y | 0;
+      course.lastProgressAt = now;
+    } else if (now - (course.lastProgressAt ?? now) > 6000) {
+      course.running = false;
+      course.blocked = true;
+      b.sailState = 'stop';
+      for (const serial of b.riders ?? []) {
+        mobileBySerial(api, serial)?.client?.sendSystemMessage?.('Autopilot stopped: the course is blocked.');
+      }
+      continue;
+    }
     const dx = (target.x | 0) - (boat.x | 0);
     const dy = (target.y | 0) - (boat.y | 0);
     if (Math.abs(dx) <= 0 && Math.abs(dy) <= 0) {
@@ -435,20 +454,104 @@ function tickBoatCourses(api) {
         course.running = false;
         b.sailState = 'stop';
       }
+      if (course.loop && course.index >= points.length) course.index = 0;
       continue;
     }
-    b.facing = Math.abs(dx) >= Math.abs(dy)
-      ? (dx >= 0 ? 'E' : 'W')
-      : (dy >= 0 ? 'S' : 'N');
+    const horizontal = dx >= 0 ? 'E' : 'W';
+    const vertical = dy >= 0 ? 'S' : 'N';
+    const choices = Math.abs(dx) >= Math.abs(dy) ? [horizontal, vertical] : [vertical, horizontal];
+    const deltas = { N: [0, -1], E: [1, 0], S: [0, 1], W: [-1, 0] };
+    const facing = choices.find((candidate) => {
+      const [sx, sy] = deltas[candidate];
+      return api.boats?.canSailTo?.(boat, boat.x + sx, boat.y + sy, boat.map) !== false;
+    }) ?? choices[0];
+    if (api.boats?.setFacing) api.boats.setFacing(boat, facing);
+    else b.facing = facing;
     b.anchored = false;
     b.sailState = course.speed ?? 'medium';
+    course.blocked = false;
     mergeClasses(boat, ['BoatCourse', 'MoveBoatHS', 'UpdateAllTimer']);
   }
+}
+
+function configureBoatCourse(api, ctx, boat, inputArgs = []) {
+  if (!boat?.boat) {
+    ctx.state.sendSystemMessage?.('Stand on/near a boat or pass its serial.');
+    return false;
+  }
+  if (api.boats?.hasPilotRights && !api.boats.hasPilotRights(boat, ctx.sender)) {
+    ctx.state.sendSystemMessage?.('You lack the right to program this boat.');
+    return false;
+  }
+  const args = [...inputArgs];
+  const sub = String(args[0] ?? 'status').toLowerCase();
+  boat.boat.course ??= { waypoints: [], index: 0, running: false, loop: false, speed: 'medium' };
+  const c = boat.boat.course;
+  mergeClasses(boat, ['BoatCourse', 'MoveBoatHS']);
+  if (sub === 'add') {
+    const useHere = String(args[1] ?? '').toLowerCase() === 'here';
+    const x = useHere ? ctx.sender.x : parseInt(args[1], 10);
+    const y = useHere ? ctx.sender.y : parseInt(args[2], 10);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      ctx.state.sendSystemMessage?.('Usage: [boat autopilot add <x> <y> (or: add here)');
+      return false;
+    }
+    if (api.boats?.canSailTo?.(boat, x, y, boat.map) === false) {
+      ctx.state.sendSystemMessage?.('That waypoint is not on navigable water.');
+      return false;
+    }
+    c.waypoints.push({ x, y, map: boat.map ?? 1 });
+    ctx.state.sendSystemMessage?.(`Course point added (${x},${y}). Points: ${c.waypoints.length}.`);
+    return true;
+  }
+  if (sub === 'clear') {
+    c.waypoints = [];
+    c.index = 0;
+    c.running = false;
+    boat.boat.sailState = 'stop';
+    ctx.state.sendSystemMessage?.('Boat course cleared.');
+    return true;
+  }
+  if (sub === 'start') {
+    const speed = String(args[1] ?? c.speed ?? 'medium').toLowerCase();
+    if (!['slow', 'medium', 'full'].includes(speed)) {
+      ctx.state.sendSystemMessage?.('Autopilot speed must be slow, medium or full.');
+      return false;
+    }
+    c.index = Math.min(Math.max(0, c.index | 0), Math.max(0, c.waypoints.length - 1));
+    c.running = c.waypoints.length > 0;
+    c.speed = speed;
+    c.lastX = boat.x | 0;
+    c.lastY = boat.y | 0;
+    c.lastProgressAt = Date.now();
+    c.blocked = false;
+    ctx.state.sendSystemMessage?.(c.running ? `Autopilot started at ${speed} speed.` : 'Add waypoints first.');
+    return c.running;
+  }
+  if (sub === 'stop') {
+    c.running = false;
+    boat.boat.sailState = 'stop';
+    ctx.state.sendSystemMessage?.('Autopilot stopped.');
+    return true;
+  }
+  if (sub === 'loop') {
+    const explicit = String(args[1] ?? '').toLowerCase();
+    c.loop = explicit === 'on' ? true : explicit === 'off' ? false : !c.loop;
+    ctx.state.sendSystemMessage?.(`Boat course loop: ${c.loop ? 'on' : 'off'}.`);
+    return true;
+  }
+  const next = c.waypoints[c.index] ?? c.waypoints[0];
+  ctx.state.sendSystemMessage?.(
+    `Autopilot: ${c.waypoints.length} point(s), next=${next ? `${next.x},${next.y}` : 'none'}, `
+    + `running=${!!c.running}, loop=${!!c.loop}, speed=${c.speed ?? 'medium'}${c.blocked ? ', BLOCKED' : ''}.`,
+  );
+  return true;
 }
 
 function registerCommands(api, disposers) {
   api.commands?.register?.({
     name: 'boatcourse',
+    hidden: true,
     help: '[boatcourse [serial] add <x> <y>|clear|start|stop|loop|status',
     access: 'Player',
     run(ctx) {
@@ -461,52 +564,13 @@ function registerCommands(api, disposers) {
         ctx.state.sendSystemMessage?.('Stand on/near a boat or pass its serial.');
         return;
       }
-      const sub = String(args[0] ?? 'status').toLowerCase();
-      boat.boat.course ??= { waypoints: [], index: 0, running: false, loop: false, speed: 'medium' };
-      const c = boat.boat.course;
-      mergeClasses(boat, ['BoatCourse', 'MoveBoatHS']);
-      if (sub === 'add') {
-        const x = parseInt(args[1], 10);
-        const y = parseInt(args[2], 10);
-        if (!Number.isFinite(x) || !Number.isFinite(y)) {
-          ctx.state.sendSystemMessage?.('Usage: [boatcourse add <x> <y>');
-          return;
-        }
-        c.waypoints.push({ x, y, map: boat.map ?? 1 });
-        ctx.state.sendSystemMessage?.(`Course point added (${x},${y}). Points: ${c.waypoints.length}.`);
-        return;
-      }
-      if (sub === 'clear') {
-        c.waypoints = [];
-        c.index = 0;
-        c.running = false;
-        boat.boat.sailState = 'stop';
-        ctx.state.sendSystemMessage?.('Boat course cleared.');
-        return;
-      }
-      if (sub === 'start') {
-        c.running = c.waypoints.length > 0;
-        c.speed = String(args[1] ?? c.speed ?? 'medium').toLowerCase();
-        ctx.state.sendSystemMessage?.(c.running ? 'Boat course started.' : 'Add waypoints first.');
-        return;
-      }
-      if (sub === 'stop') {
-        c.running = false;
-        boat.boat.sailState = 'stop';
-        ctx.state.sendSystemMessage?.('Boat course stopped.');
-        return;
-      }
-      if (sub === 'loop') {
-        c.loop = !c.loop;
-        ctx.state.sendSystemMessage?.(`Boat course loop: ${c.loop ? 'on' : 'off'}.`);
-        return;
-      }
-      ctx.state.sendSystemMessage?.(`Boat course: ${c.waypoints.length} point(s), index=${c.index}, running=${!!c.running}, loop=${!!c.loop}.`);
+      configureBoatCourse(api, ctx, boat, args);
     },
   });
 
   api.commands?.register?.({
     name: 'boatrepair',
+    hidden: true,
     help: '[boatrepair [serial] emergency|ship',
     access: 'Player',
     run(ctx) {
@@ -527,6 +591,7 @@ function registerCommands(api, disposers) {
 
   api.commands?.register?.({
     name: 'boatturn',
+    hidden: true,
     help: '[boatturn [serial] left|right|around — delayed ServUO-style turn.',
     access: 'Player',
     run(ctx) {
@@ -547,9 +612,9 @@ function registerCommands(api, disposers) {
         around: { N: 'S', S: 'N', E: 'W', W: 'E' },
       }[dir] ?? { N: 'E', E: 'S', S: 'W', W: 'N' };
       api.lifecycle?.setTimeout?.(() => {
-        if (boat.boat) boat.boat.facing = table[boat.boat.facing] ?? 'N';
+        if (boat.boat) api.boats?.setFacing?.(boat, table[boat.boat.facing] ?? 'N');
       }, 500) ?? setTimeout(() => {
-        if (boat.boat) boat.boat.facing = table[boat.boat.facing] ?? 'N';
+        if (boat.boat) api.boats?.setFacing?.(boat, table[boat.boat.facing] ?? 'N');
       }, 500);
       ctx.state.sendSystemMessage?.(`Turn queued: ${dir}.`);
     },
@@ -589,6 +654,7 @@ function registerCommands(api, disposers) {
 
   api.commands?.register?.({
     name: 'housecustom',
+    hidden: true,
     help: '[housecustom start|commit|revert|backup|restore|floor <n>|status',
     access: 'Player',
     run(ctx) {
@@ -623,6 +689,7 @@ function registerCommands(api, disposers) {
 
   api.commands?.register?.({
     name: 'previewhouse',
+    hidden: true,
     help: '[previewhouse <multiId|template> — send a client multi preview cursor.',
     access: 'Player',
     run(ctx) {
@@ -655,6 +722,7 @@ function registerCommands(api, disposers) {
 
   api.commands?.register?.({
     name: 'servuomultis',
+    hidden: true,
     help: '[servuomultis deeds|contest|fixcolumns|decay|nohousing <seconds>',
     access: 'GM',
     run(ctx) {
@@ -766,6 +834,7 @@ export default function register(api) {
     classes: SERVUO_P1_MULTI_CLASSES,
     makePlanks: (boat) => makePlanks(api, boat),
     repairBoat,
+    configureBoatCourse: (ctx, boat, args) => configureBoatCourse(api, ctx, boat, args),
     tickBoatCourses: () => tickBoatCourses(api),
     fixColumns: (center) => fixColumns(api, center),
     decayStatus: (mob) => decayStatus(api, mob),

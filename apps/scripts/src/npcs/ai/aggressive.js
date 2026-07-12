@@ -11,6 +11,7 @@ import { _OUTFIT_TABLE_FOR_TEST as OUTFIT_TABLE } from '../vendors/_spawn.js';
 import { allItems, allMobiles, nearbyClients, sendToClientsNear } from '../../_spatial.js';
 import { mobileBySerial } from '../../_entities.js';
 import { createMobile } from '../../_mobiles.js';
+import { stampStealable } from '../../items/definitions/stealable-pool.js';
 // Monster archetypes (kind name → ServUO `names.xml` pool). Each kind
 // rolls a unique name on spawn so dungeons stop being staffed with twenty
 // identical "a daemon"s. Adding more pools is mechanical — append the
@@ -31,6 +32,44 @@ const MONSTER_NAME_POOLS = {
 // when there's no monster-specific pool. 400/401 = canon human; 605/606
 // elf; 666/667 gargoyle (npc-names.js inferRace handles the routing).
 const HUMANOID_BODIES = new Set([400, 401, 605, 606, 666, 667]);
+
+function configuredAiBehavior(cfg = {}) {
+  if (typeof cfg.ai === 'string' && cfg.ai.trim()) {
+    const requested = cfg.ai.trim();
+    // Names preserved from ServUO's AIType enum which do not have separate
+    // Node behaviors. Map them to the equivalent runtime implementation.
+    if (requested === 'melee') return 'aggressive';
+    if (requested === 'passive') {
+      const body = cfg.body | 0;
+      return body >= 200 && body < 400 ? 'animal' : 'wander';
+    }
+    return requested;
+  }
+  // The extracted ServUO catalogue historically lost AIType.AI_Animal.
+  // Recover it for passive low-body creatures instead of attaching the
+  // melee aggressor loop to cats, rabbits, cows and rats.
+  const body = cfg.body | 0;
+  if (body >= 200 && body < 400 && (cfg.aggroRange ?? 6) <= 0) return 'animal';
+  return 'aggressive';
+}
+
+function desiredAiForMob(mob, cfg) {
+  const configured = configuredAiBehavior(cfg);
+  const saved = typeof mob.aiBehavior === 'string' ? mob.aiBehavior.trim() : '';
+  // Older startup code replaced an unavailable-yet specialised behavior
+  // with `aggressive` and persisted that fallback. Recover from config.
+  if (!saved || (saved === 'aggressive' && configured !== 'aggressive')) return configured;
+  return saved;
+}
+
+function freshAiState(mob, kind, previous = null) {
+  return {
+    targetSerial: 0, nextAttackAt: 0, nextStepAt: 0, nextCastAt: 0,
+    home: { x: mob.homeX ?? mob.x, y: mob.homeY ?? mob.y },
+    kind,
+    ...(previous ?? {}),
+  };
+}
 
 
 /** Heuristic preset picker for humanoid monsters. Templates in
@@ -366,10 +405,15 @@ export default function register(api) {
 
   api.commands.register({
     name: 'spawnmob',
-    help: 'spawnmob <kind>  — spawn a hostile creature (see data/config/monsters.json)',
+    access: 'Admin',
+    help: '[spawnmob <kind> — direct mobile spawn; use [mobs for the visual catalogue.',
     run(ctx, args) {
       const kinds = api.monsters.kinds();
-      const kind = (args[0] ?? kinds[0] ?? '').trim().toLowerCase();
+      if (!args[0]) {
+        ctx.state.sendSystemMessage('Choose a creature in the visual [mobs catalogue, or use [spawnmob <kind>.');
+        return;
+      }
+      const kind = args[0].trim().toLowerCase();
       if (!api.monsters.get(kind)) {
         ctx.state.sendSystemMessage(`Unknown kind. Try: ${kinds.join(', ')}.`);
         return;
@@ -443,19 +487,18 @@ export default function register(api) {
     if (!kind) continue;
     const cfg = api.monsters.get(kind);
     if (!cfg) continue;
+    stampStealable(mob);
     // Persisted `mob.aiBehavior` wins (set by spawnAggressive). Saves
     // predating the field fall back to the cfg.ai dispatch table just
     // like a fresh spawn. Unknown behavior name → generic aggressive.
-    const desiredAi = mob.aiBehavior
-      ?? (typeof cfg.ai === 'string' && cfg.ai.trim() ? cfg.ai.trim() : 'aggressive');
+    const desiredAi = desiredAiForMob(mob, cfg);
     const aiBehavior = api.ai?.behaviors?.has?.(desiredAi) ? desiredAi : 'aggressive';
-    mob.aiBehavior = aiBehavior;
+    // Preserve the intended behavior even if its module is registered later
+    // in this same script-load pass. A deferred reconciliation below swaps
+    // the temporary aggressive binding once all AI modules are available.
+    mob.aiBehavior = desiredAi;
     try {
-      api.ai.attach(mob, aiBehavior, {
-        targetSerial: 0, nextAttackAt: 0, nextStepAt: 0, nextCastAt: 0,
-        home: { x: mob.homeX ?? mob.x, y: mob.homeY ?? mob.y },
-        kind,
-      });
+      api.ai.attach(mob, aiBehavior, freshAiState(mob, kind));
       reattached++;
     } catch (e) { console.error('[aggressive] reattach AI threw:', e); }
   }
@@ -493,6 +536,39 @@ function spawnAggressive(api, world, kind, pos) {
       displayName = api.names?.pickForMob?.({ body: cfg.body });
     }
   }
+
+  // Files load alphabetically: aggressive.js is registered before animal,
+  // archer, mage, ninja, etc. The old eager restore therefore replaced every
+  // persisted specialised AI with `aggressive` and permanently forgot the
+  // desired name. Reconcile on the next event-loop turn, after the complete
+  // scripts directory has registered its behaviors.
+  const reconcileBindings = () => {
+    let corrected = 0;
+    for (const mob of allMobiles(api)) {
+      if (mob.isPlayer || mob.client || mob.vendorKind || !mob.kind) continue;
+      const cfg = api.monsters.get(mob.kind);
+      if (!cfg) continue;
+      const desired = desiredAiForMob(mob, cfg);
+      if (!api.ai?.behaviors?.has?.(desired)) continue;
+      const binding = api.ai.bindings?.get?.(mob.serial);
+      if (binding?.behavior === desired) continue;
+      try {
+        api.ai.attach(mob, desired, freshAiState(mob, mob.kind, binding?.state));
+        mob.aiBehavior = desired;
+        // Compatibility cleanup for saves produced from the old duplicate
+        // rat template (body 238 was incorrectly named "a giant rat").
+        if (mob.kind === 'rat' && (mob.body | 0) === 238 && mob.name === 'a giant rat') {
+          mob.name = cfg.name ?? 'a rat';
+        }
+        corrected++;
+      } catch (e) {
+        api.log?.(`[aggressive] AI reconcile ${mob.kind}/${desired} failed: ${e.message}`);
+      }
+    }
+    if (corrected) api.log?.(`npcs/aggressive: restored ${corrected} specialised AI binding(s)`);
+  };
+  if (api.lifecycle?.setImmediate) api.lifecycle.setImmediate(reconcileBindings);
+  else setImmediate(reconcileBindings);
   if (!displayName) displayName = cfg.name;
   const mob = createMobile(api, world, {
     name: displayName, body: cfg.body, hue: cfg.hue ?? 0,
@@ -511,6 +587,10 @@ function spawnAggressive(api, world, kind, pos) {
     int: cfg.int,
     mana: cfg.mana ?? cfg.manaMax,
     manaMax: cfg.manaMax,
+    tameable: !!cfg.tameable,
+    tameMinSkill: cfg.tameMinSkill,
+    tameMaxSkill: cfg.tameMaxSkill,
+    controlSlots: cfg.controlSlots ?? 1,
   });
   // Stamp `kind` so persistence MOBILE_EXT_KEYS round-trips it; without
   // this the AI reattach pass at script-load can't tell what behavior
@@ -548,17 +628,14 @@ function spawnAggressive(api, world, kind, pos) {
   // anything unknown so a stray `ai: "noodle"` typo doesn't make the
   // mob inert. The behavior name is stamped on `mob.aiBehavior` so
   // re-attach after restart picks the right one (handled below).
-  const desiredAi = (typeof cfg.ai === 'string' && cfg.ai.trim()) ? cfg.ai.trim() : 'aggressive';
+  const desiredAi = configuredAiBehavior(cfg);
   const aiBehavior = api.ai?.behaviors?.has?.(desiredAi) ? desiredAi : 'aggressive';
-  mob.aiBehavior = aiBehavior;
+  mob.aiBehavior = desiredAi;
   // State keys are the union of every AI's expected fields so attach()
   // can short-circuit each behavior's initState() while still feeding
   // mage/caster paths the `nextCastAt` they need (a missing field
   // makes `now >= state.nextCastAt` evaluate NaN → false → no casts).
-  api.ai.attach(mob, aiBehavior, {
-    targetSerial: 0, nextAttackAt: 0, nextStepAt: 0, nextCastAt: 0,
-    home: { x: mob.x, y: mob.y }, kind,
-  });
+  api.ai.attach(mob, aiBehavior, freshAiState(mob, kind));
   // FAZA CY: per-spawn paragon roll. ServUO's BaseCreature flags ~5%
   // of natural spawns as paragon; they get ×4 HP, ×2 damage, an
   // orange hue, and "a paragon ..." prefix on their name. Plus a
@@ -567,6 +644,7 @@ function spawnAggressive(api, world, kind, pos) {
   if (api.systems?.paragons?.maybeParagon) {
     api.systems.paragons.maybeParagon(mob, cfg);
   }
+  stampStealable(mob);
   // Dress humanoids. Templates in monsters.json don't ship outfits so
   // brigands / evil-mages / ronin / chaos-dragoons spawned NAKED
   // through every spawner path (xmlload, classic dungeons, spawner

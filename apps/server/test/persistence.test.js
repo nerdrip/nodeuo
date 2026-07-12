@@ -4,6 +4,20 @@ import { createItem } from '../src/world/items.js';
 import { snapshotWorld, restoreWorld } from '../src/world/persistence.js';
 
 describe('world persistence', () => {
+  it('round-trips CreateWorld and runtime XmlSpawner restoration markers', () => {
+    const w1 = new World();
+    w1._createWorldDone = true;
+    w1._xmlSpawnersApplied.add('xml-1-100-200-7');
+    w1._treasureChestsApplied.add('xml-treasure-1-101-201-3-8');
+
+    const w2 = new World();
+    restoreWorld(w2, JSON.parse(JSON.stringify(snapshotWorld(w1))));
+
+    expect(w2._createWorldDone).toBe(true);
+    expect([...w2._xmlSpawnersApplied]).toEqual(['xml-1-100-200-7']);
+    expect([...w2._treasureChestsApplied]).toEqual(['xml-treasure-1-101-201-3-8']);
+  });
+
   it('snapshot + restore round-trips mobiles and items', () => {
     const w1 = new World();
     const mob = w1.createMobile({ name: 'Alice' });
@@ -42,6 +56,28 @@ describe('world persistence', () => {
     const w = new World();
     expect(() => restoreWorld(w, { version: 99, mobiles: [], items: [] }))
       .toThrow(/unsupported save version/);
+  });
+
+  it('round-trips durable door state without serialising timer handles', () => {
+    const w1 = new World();
+    const door = createItem(w1, { itemId: 0x0676, x: 99, y: 101, z: 0, map: 1, movable: false });
+    door.script = 'door';
+    door.door = {
+      closedId: 0x0675, openId: 0x0676, isOpen: true, facing: 'south',
+      closedX: 100, closedY: 100, closedZ: 0,
+      linkSerial: 0x40001234, secret: true, revealed: true,
+      portcullis: false, keyId: 77, locked: true,
+      _closeTimer: { intentionally: 'not serialisable' },
+    };
+
+    const w2 = new World();
+    restoreWorld(w2, JSON.parse(JSON.stringify(snapshotWorld(w1))));
+    expect(w2.items.get(door.serial).door).toEqual({
+      closedId: 0x0675, openId: 0x0676, isOpen: true, facing: 'south',
+      closedX: 100, closedY: 100, closedZ: 0,
+      linkSerial: 0x40001234, secret: true, revealed: true,
+      portcullis: false, keyId: 77, locked: true,
+    });
   });
 
   it('drops items whose parent serial does not resolve to any mobile or item', () => {

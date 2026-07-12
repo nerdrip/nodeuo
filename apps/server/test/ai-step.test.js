@@ -14,7 +14,7 @@ vi.mock('../src/world/land-provider.js', () => ({
   },
 }));
 
-const { AIScheduler, stepMobile } = await import('../src/world/ai.js');
+const { AIScheduler, stepMobile, wanderBehavior } = await import('../src/world/ai.js');
 const { World } = await import('../src/world/world.js');
 
 describe('AI stepMobile', () => {
@@ -48,5 +48,26 @@ describe('AI stepMobile', () => {
     expect(typeof ai.stepMobile).toBe('function');
     ai.stepMobile(mob, 4); // south — already facing, so step
     expect(mob.y).toBe(51);
+  });
+
+  it('wander AI follows a facing turn with the intended step next tick', () => {
+    const world = new World();
+    const mob = world.createMobile({ x: 100, y: 100, z: 0, map: 1, direction: 0 });
+    const state = {
+      home: { x: 100, y: 100 },
+      nextStepAt: 0,
+      pendingDirection: 2,
+    };
+    const broadcasts = [];
+    const ctx = { world, now: 100, broadcastMove: (m) => broadcasts.push([m.x, m.y]) };
+
+    wanderBehavior.tick(ctx, mob, state);
+    expect([mob.x, mob.y, mob.direction]).toEqual([100, 100, 2]);
+    expect(state.pendingDirection).toBe(2);
+    ctx.now = state.nextStepAt;
+    wanderBehavior.tick(ctx, mob, state);
+    expect([mob.x, mob.y]).toEqual([101, 100]);
+    expect(state.pendingDirection).toBeNull();
+    expect(broadcasts).toHaveLength(2);
   });
 });

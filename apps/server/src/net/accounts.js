@@ -22,6 +22,7 @@ const SCRYPT_N = 16384;
 const SCRYPT_R = 8;
 const SCRYPT_P = 1;
 const KEY_LEN = 32;
+let saveNonce = 0;
 
 /** @returns {string}  scrypt password hash encoding */
 export function hashPassword(plaintext) {
@@ -95,7 +96,8 @@ export class AccountDB {
 
   saveSync() {
     fs.mkdirSync(this.saveDir, { recursive: true });
-    const tmp = this.file + '.tmp';
+    const tmp = `${this.file}.tmp-${process.pid}-${++saveNonce}`;
+    const backup = this.file + '.bak';
     // Serializer: convert Sets → arrays so JSON.stringify doesn't drop
     // them silently. Mirrors the rehydrate step in load().
     const replacer = (_key, value) => {
@@ -104,7 +106,21 @@ export class AccountDB {
       return value;
     };
     fs.writeFileSync(tmp, JSON.stringify([...this.accounts.values()], replacer, 2), 'utf8');
-    fs.renameSync(tmp, this.file);
+    // POSIX rename replaces the destination atomically, while Windows may
+    // return EPERM when accounts.json already exists or is briefly scanned by
+    // antivirus/indexing. Rotate the previous snapshot first and keep it as a
+    // crash fallback. Unique temp names also make nested save triggers safe.
+    try {
+      if (fs.existsSync(backup)) fs.rmSync(backup, { force: true });
+      if (fs.existsSync(this.file)) fs.renameSync(this.file, backup);
+      fs.renameSync(tmp, this.file);
+    } catch (error) {
+      try {
+        if (!fs.existsSync(this.file) && fs.existsSync(backup)) fs.renameSync(backup, this.file);
+      } catch { /* preserve the original error */ }
+      try { fs.rmSync(tmp, { force: true }); } catch { /* best effort */ }
+      throw error;
+    }
   }
 
   /**

@@ -75,6 +75,7 @@ export function applyMoongates(api, opts = {}) {
   //      replaced with the JSON spec values, matching what the picker
   //      gump will offer.
   const orphans = [];
+  const existingGateKeys = new Set();
   for (const it of allItems({ world })) {
     if (it.script !== 'public-moongate') continue;
     const facet = FACET_GATES.find((f) => f.map === (it.map | 0));
@@ -109,6 +110,7 @@ export function applyMoongates(api, opts = {}) {
     // (rare — only happens if someone hand-moved it via [edititem),
     // snap it back to the matching spec coords.
     const spec = facet.gates.find((g) => g.name === (it.name || '').replace(/^Public Moongate \(|\)$/g, ''));
+    if (spec) existingGateKeys.add(`${facet.map}:${spec.name}`);
     if (spec && (it.x !== spec.x || it.y !== spec.y || it.z !== spec.z)) {
       moveItem(api, it, { x: spec.x, y: spec.y, z: spec.z, map: it.map });
       api.markers?.markItemDirty?.(it);
@@ -119,11 +121,12 @@ export function applyMoongates(api, opts = {}) {
     catch { /* gone */ }
   }
   if (orphans.length) api.log?.(`[moongates] purged ${orphans.length} orphans from dropped facets`);
-  let added = 0;
+  let added = 0; let skipped = 0; let failed = 0;
   for (const facet of FACET_GATES) {
     if (wantFacets && !wantFacets.has(facet.map)) continue;
-    if (world._moongatesApplied.has(facet.map)) continue;
     for (const g of facet.gates) {
+      const key = `${facet.map}:${g.name}`;
+      if (existingGateKeys.has(key)) { skipped++; continue; }
       try {
         const item = createItem(api, world, {
           itemId: facet.graphic,
@@ -138,14 +141,16 @@ export function applyMoongates(api, opts = {}) {
         item.gateFacet = facet.map;
         item.creatures = true;
         item.isDecoration = true;
+        existingGateKeys.add(key);
         added++;
       } catch (e) {
+        failed++;
         api.log?.(`moongate spawn failed (${g.name} @ map ${facet.map}): ${e.message}`);
       }
     }
     world._moongatesApplied.add(facet.map);
   }
-  return { added };
+  return { added, skipped, failed };
 }
 
 export function deleteMoongates(api, opts = {}) {

@@ -113,9 +113,15 @@ export function summonOne(api, ctx, opts) {
     });
   } else {
     mob.controlMaster = caster.serial >>> 0;
+    mob.controlled = true;
+    mob.controlOrder = 'follow';
+    mob.controlTarget = caster.serial >>> 0;
+    mob.team = caster.serial >>> 0;
     mob.notoriety = 1;                                  // friendly to caster
     api.ai?.attach?.(mob, 'pet', { command: 'follow', targetSerial: caster.serial });
   }
+  mob._followerCost = followerCost;
+  caster.followers = (caster.followers | 0) + followerCost;
   if (opts.soundId) broadcastSound(api, api.world, caster, opts.soundId);
   ctx.state.sendSystemMessage(opts.label ?? `You summon a ${opts.kind}.`);
   // Re-broadcast the mob with the corrected notoriety. spawnAggressive's

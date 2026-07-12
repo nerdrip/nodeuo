@@ -95,7 +95,7 @@ export function createItem(world, data) {
     'attributes', 'resist', '_magicProps', '_magicResists', '_artifact',
     'weapon', 'shield', 'ar', 'strReq', 'twoHanded', 'skill', 'minDamage', 'maxDamage', 'speed', 'range', 'ammoId',
     'setId', 'setPieces', 'setAttributes', 'setResist', 'setSelfRepair',
-    'equipLayer', 'slot', 'clothing',
+    'equipLayer', 'slot', 'clothing', 'spellbook',
     'spellFocusing', 'spellCastTargetSerial', 'spellCastCount', 'spellId',
     'powerScroll', 'treasureMap', 'seed',
     'container', 'capacity', 'maxWeight', 'lootTable', 'autoFillLoot', 'cleanupAddonType',
@@ -545,8 +545,9 @@ const STACKABLE_ITEM_IDS = new Set([
   0x0EED, 0x0EEF,                     // gold (pile + small pile)
   0x0F7A, 0x0F7B, 0x0F84, 0x0F85,     // reagents: black pearl, blood moss, garlic, ginseng
   0x0F86, 0x0F88, 0x0F8C, 0x0F8D,     // mandrake, nightshade, sulfurous ash, spider silk
-  0x0F90, 0x0F91, 0x0F92, 0x0F93,     // necro reagents
-  0x0F94, 0x0F95,
+  0x0F78, 0x0F7D, 0x0F8F, 0x0F8E,     // necromancy reagents
+  0x0F8A,                              // pig iron
+  0x0F7E, 0x0F80, 0x0F81, 0x4077,     // mysticism reagents
   0x1BD7, 0x1BDD, 0x1BD4, 0x1BFB,     // logs / boards / shafts / arrows
   0x1BF2,                              // iron ingot (other ingots same id, different hue)
   0x103B, 0x097B,                      // bread, roll

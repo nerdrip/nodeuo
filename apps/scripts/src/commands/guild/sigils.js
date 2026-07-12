@@ -24,6 +24,7 @@ export default function register(api) {
 
   api.commands.register({
     name: 'sigils',
+    aliases: ['sigil'],
     help: '[sigils [pickup|drop|towns] <town>',
     access: 'Player',
     run(ctx, args) {
@@ -75,5 +76,5 @@ export default function register(api) {
       }
     },
   });
-  return () => {};
+  return () => api.commands.unregister('sigils');
 }

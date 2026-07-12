@@ -18,6 +18,19 @@ describe('password hashing', () => {
 });
 
 describe('AccountDB', () => {
+  it('replaces an existing accounts snapshot repeatedly on Windows-safe paths', () => {
+    const dir = tmpDir();
+    const db = new AccountDB(dir);
+    db.authenticate('writer', 'secret', { autoCreate: true });
+    for (let i = 0; i < 20; i++) {
+      db.accounts.get('writer').lastLogin = `pass-${i}`;
+      expect(() => db.saveSync()).not.toThrow();
+    }
+    const loaded = new AccountDB(dir);
+    loaded.load();
+    expect(loaded.accounts.get('writer').lastLogin).toBe('pass-19');
+  });
+
   function tmpDir() {
     return fs.mkdtempSync(path.join(os.tmpdir(), 'uo-accounts-'));
   }

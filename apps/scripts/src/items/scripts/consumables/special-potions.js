@@ -161,7 +161,7 @@ function cleanupEodonFields(mob, effect) {
   }
 }
 
-function removeEodonContext(mob, effect, data = {}) {
+function removeEodonContext(mob, effect) {
   removeTimedMods(mob, effect);
   cleanupEodonFields(mob, effect);
   if (mob?._eodonPotions) {
@@ -221,7 +221,7 @@ function applyEodon(user, item) {
       def.tick?.(mob, tickNow, data);
     },
     onRemove(mob) {
-      removeEodonContext(mob, effect, data);
+      removeEodonContext(mob, effect);
     },
   });
   send(user, `You feel the effects of ${def.label}.`);
@@ -271,7 +271,7 @@ export function buildEodonPotion(api) {
   };
 }
 
-export function buildEndlessDecanter(api) {
+export function buildEndlessDecanter(_api) {
   return {
     name: 'endless-decanter',
     onUse(_world, item, user) {

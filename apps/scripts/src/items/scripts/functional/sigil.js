@@ -3,12 +3,11 @@
 // sigil item to the system, so factions could never capture cities.
 //
 // Each registered sigil maps to a physical item placed at `(x, y, map)`
-// via `[sigil place <town>` admin command. Picking it up calls
+// via `[placesigil <town>` admin command. Picking it up calls
 // `sigils.pickup(town, mob.serial)` and lowers the carrier's notoriety
 // to 4 (criminal flag — ServUO standard). Dropping it (or death) calls
 // `sigils.drop(town, mob.serial)`.
 
-import { createItem } from '../../../_items.js';
 import {
   dropSigil,
   getSigil,
@@ -18,37 +17,6 @@ import {
 } from '../../../_sigils.js';
 
 export default function buildSigilScript(api) {
-  // Admin command to place sigils at the GM's feet. Idempotent — calling
-  // it twice for the same town moves the sigil.
-  api.commands?.register?.({
-    name: 'sigil',
-    help: '[sigil place <town> — admin: place a faction sigil at your feet.',
-    access: 'Admin',
-    run(ctx, args) {
-      const sub = String(args?.[0] ?? '').toLowerCase();
-      const town = String(args?.[1] ?? '').toLowerCase();
-      if (sub !== 'place') {
-        ctx.state.sendSystemMessage('Usage: [sigil place <britain|magincia|minoc|trinsic|yew>');
-        return;
-      }
-      try {
-        registerSigil(api, town, ctx.sender.x, ctx.sender.y, ctx.sender.map);
-      } catch (e) {
-        ctx.state.sendSystemMessage(e.message);
-        return;
-      }
-      const it = createItem(api, api.world, {
-        itemId: 0x1869, hue: 0x44,
-        x: ctx.sender.x, y: ctx.sender.y, z: ctx.sender.z, map: ctx.sender.map,
-        name: `Sigil of ${town}`, movable: true,
-        _sigilTown: town, scripts: ['sigil'],
-      });
-      ctx.state.sendSystemMessage(
-        `Sigil for ${town} placed${it ? ` (0x${it.serial.toString(16)})` : ''}.`,
-      );
-    },
-  });
-
   return {
     name: 'sigil',
     /** Pickup hook — fires when a player lifts the sigil item. Returning

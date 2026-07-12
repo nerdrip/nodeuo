@@ -43,7 +43,7 @@ export function seasonOverlayTint(season) {
 }
 
 export function darknessOverlayColor(level, useAlternativeLights = false) {
-  const t = Math.max(0, Math.min(30, level | 0)) / 30;
+  const t = Math.max(0, Math.min(30, Number(level) || 0)) / 30;
   if (useAlternativeLights) {
     // CUO's alternative-light mode keeps dark areas cooler and less
     // sepia, which reads better on shards with many custom coloured
@@ -105,6 +105,8 @@ export class LightOverlay {
     this._lastAltLight = null;
     this._lastApertureRevision = -1;
     this._lastApertureCount = -1;
+    this._displayLevel = null;
+    this._lastTickAt = 0;
     this._syncProfileFlags();
     // Invalidate the redraw cache whenever season flips so the tint
     // wash repaints next tick instead of waiting for an unrelated
@@ -163,7 +165,9 @@ export class LightOverlay {
     // enabled `light.dayNightCycle`, we run a 20-minute synthetic cycle
     // so the client doesn't sit at flat noon forever. Range [4..28] —
     // never quite full dark (so torches stay readable) nor full white.
-    if (this._dayNightCycle && !this._customLight) {
+    const serverLightIsFresh = world.lastLightPacketAt > 0
+      && Date.now() - world.lastLightPacketAt < 60_000;
+    if (this._dayNightCycle && !this._customLight && !serverLightIsFresh) {
       const period = 1200_000;          // 20 min in ms
       const t = (Date.now() % period) / period;        // 0..1
       // Cosine — high noon at t=0.25, midnight at t=0.75.
@@ -199,6 +203,16 @@ export class LightOverlay {
         overall = Math.max(overall, 26);
       }
     }
+    // Ease server/admin changes over a short interval. The target remains
+    // authoritative; only the visual overlay interpolates between packets.
+    const now = performance.now();
+    if (this._displayLevel == null) this._displayLevel = overall;
+    const dt = this._lastTickAt ? Math.min(100, now - this._lastTickAt) : 16;
+    this._lastTickAt = now;
+    const blend = 1 - Math.exp(-dt / 420);
+    this._displayLevel += (overall - this._displayLevel) * blend;
+    if (Math.abs(overall - this._displayLevel) < 0.01) this._displayLevel = overall;
+    overall = this._displayLevel;
     const apertureItems = apertures?.items ?? apertures ?? [];
     const apertureCount = Math.max(0, apertures?.count ?? apertureItems.length ?? 0);
     const apertureRevision = apertureCount > 0 ? (apertures?.revision ?? 0) : 0;
@@ -210,7 +224,7 @@ export class LightOverlay {
     const altLights = this._useAlternativeLights;
     const sId = seasonManager.season | 0;
     const hasApertures = apertureCount > 0;
-    if (overall === this._lastLevel
+    if (Math.abs(overall - this._lastLevel) < 0.005
         && altLights === this._lastAltLight
         && sId === this._lastSeason
         && apertureRevision === this._lastApertureRevision

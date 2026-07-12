@@ -25,6 +25,8 @@ import { installAdminPanelLink } from '../managers/admin-panel-link.js';
 import { TileRenderer } from '../renderer/tile-renderer.js';
 import { MobileRenderer } from '../renderer/mobile-renderer.js';
 import { TILE_HALF_W } from '../renderer/iso.js';
+import { GameWorldPicker } from './game-world-picker.js';
+import { resolveMouseRunState } from '../shared/mouse-walk.js';
 import {
   buildAttackReq,
   buildDropReq,
@@ -64,6 +66,7 @@ import { HealthBarGump }       from '../ui/gumps/health-bar-gump.js';
 import { BuffGump }            from '../ui/gumps/buff-gump.js';
 import { TradingGump }         from '../ui/gumps/trading-gump.js';
 import { TopBarGump }          from '../ui/gumps/top-bar-gump.js';
+import { ActionBarGump }       from '../ui/gumps/action-bar-gump.js';
 import { PopupMenuGump }       from '../ui/gumps/popup-menu-gump.js';
 import { restoreSavedHotbar }  from '../ui/gumps/use-spell-button-gump.js';
 import { questArrow }          from '../ui/gumps/quest-arrow-gump.js';
@@ -116,6 +119,8 @@ const lazyPlayerVendorGump = () => import('../ui/gumps/player-vendor-gump.js').t
 const lazyVendorRentalGump = () => import('../ui/gumps/vendor-rental-gump.js');
 const lazyHuntmasterGump   = () => import('../ui/gumps/huntmaster-trophy-gump.js');
 const lazyMapPinsGump      = () => import('../ui/gumps/map-pin-editor-gump.js');
+const lazySpellComposer    = () => import('../ui/gumps/spell-composer-gump.js').then((m) => m.SpellComposerGump);
+const lazySpecializations  = () => import('../ui/gumps/specialization-gump.js').then((m) => m.SpecializationGump);
 import { profile }             from '../managers/profile-manager.js';
 import { containerManager }    from '../managers/container-manager.js';
 import { walker, movementStats, recordMovementTrace } from '../managers/walker.js';
@@ -131,6 +136,8 @@ import { WorldTextRenderer } from '../renderer/world-text.js';
 import { LightOverlay } from '../renderer/light-overlay.js';
 import { lightPoints } from '../renderer/light-points.js';
 import { MultiGhost } from '../renderer/multi-ghost.js';
+import { SpellRangePreview } from '../renderer/spell-range-preview.js';
+import { NavalRangePreview } from '../renderer/naval-range-preview.js';
 import { HealthLinesManager } from '../managers/health-lines-manager.js';
 import { nameOverheadManager } from '../managers/name-overhead-manager.js';
 import { worldTextManager } from '../managers/world-text-manager.js';
@@ -138,7 +145,9 @@ import { Weather } from '../renderer/weather.js';
 import { DeathScreen } from '../renderer/death-screen.js';
 import { HouseCustomState, houseCustomization } from '../managers/house-customization-manager.js';
 import { spellbookTypeFromKind } from '../shared/spellbook-types.js';
-import { staticEntry } from '../shared/tiledata.js';
+import {
+  NodeUOSpellComposerMessage, NodeUOSpecializationMessage, NodeUONavalMessage,
+} from '@uo/protocol';
 
 export class GameScene extends Scene {
   constructor(gc) {
@@ -155,6 +164,12 @@ export class GameScene extends Scene {
     this._pendingMoves = new Map();
     /** millis until we next allow a walk packet (rate-limit) */
     this._nextWalkAt = 0;
+    this._worldPicker = new GameWorldPicker({
+      world,
+      camera,
+      assets,
+      isMobileLayerReady: () => !!this._mobiles,
+    });
     /** mouse position relative to viewport center; null when not inside */
     this._mouseDx = 0;
     this._mouseDy = 0;
@@ -285,6 +300,17 @@ export class GameScene extends Scene {
     // because `worldOverlay` itself is untransformed.
     lightPoints.install(this.gc.worldOverlay);
     this._multiGhost = new MultiGhost(this._worldLayer);
+    this._spellRangePreview = new SpellRangePreview(this._worldLayer, {
+      landAt: (x, y) => assets.landAt?.(x, y),
+    });
+    this._navalRangePreview = new NavalRangePreview(this._worldLayer);
+    this._unsubs.push(bus.on('nodeuo:naval-preview', ({ kind, payload }) => {
+      if (kind === NodeUONavalMessage.HideRange) this._navalRangePreview?.clear();
+      else this._navalRangePreview?.setSpec(payload);
+    }));
+    this._unsubs.push(bus.on('spell-composer:range-preview', (spec) => {
+      this._spellRangePreview?.setSpec(spec);
+    }));
     this._healthLines = new HealthLinesManager(this._worldLayer);
     // Wave 2: float labels + damage numbers on the world layer so they
     // sort with mobile sprites. Both managers are singletons; install
@@ -451,9 +477,13 @@ export class GameScene extends Scene {
       g._toggleKey = 'topbar';
       this._ui.addGump(g);
     };
+    const _ensureActionBar = () => {
+      if (!this._ui || this._ui.findGump((g) => g._toggleKey === 'actionbar')) return;
+      this._ui.addGump(new ActionBarGump());
+    };
     // Spawn now if the player is already in-world by the time the scene
     // mounts (login-complete fired before we subscribed).
-    if (world.player) _ensureTopBar();
+    if (world.player) { _ensureTopBar(); _ensureActionBar(); }
     this._sub('world:login-complete', () => {
       if (world.player) this._requestName(world.player.serial);
       // Audit #39 client P1 #3 — CUO uses per-character profiles
@@ -470,6 +500,7 @@ export class GameScene extends Scene {
       // close it; we don't reopen automatically.
       if (this._ui) {
         _ensureTopBar();
+        _ensureActionBar();
         // Restore any extra check stays here for back-compat — kept
         // outside the helper because it's the spell-hotbar restore.
         const existing = this._ui.findGump((g) => g._toggleKey === 'topbar');
@@ -494,6 +525,7 @@ export class GameScene extends Scene {
     });
     this._sub('player:resynced', () => {
       this._pendingMoves.clear();
+      this._nextWalkAt = performance.now();
     });
     // "You see" is the header ServUO uses for 0x09 LookReq replies — the
     // overhead-name capture in net/handlers.js consumed those silently;
@@ -926,12 +958,12 @@ export class GameScene extends Scene {
       this._toggleGump('pet-training', async () => {
         // PetTrainingGump expects { petSerial, availablePoints, tricks? }.
         // Sentinel payload: <serialHex>|<name>|<level>|<pct>|<intoLevel>.
-        const [serial, , level] = (payload ?? '0|?|0').split('|');
-        // Heuristic: each level grants 1 trick point.
+        const [serial, , level, , , available, learned] = (payload ?? '0|?|0').split('|');
         return new (await lazyPetTrainingGump())({
           net: this._net,
           petSerial: parseInt(serial, 16) >>> 0,
-          availablePoints: (level | 0),
+          availablePoints: available == null ? (level | 0) : (available | 0),
+          learned: (learned ?? '').split(',').filter(Boolean),
         });
       });
     });
@@ -1018,6 +1050,24 @@ export class GameScene extends Scene {
         return new mod.MapPinEditorGump({ net: this._net ?? net, ...parsed });
       });
     });
+    this._sub('nodeuo:spell-composer', ({ kind, requestId, payload }) => {
+      if (kind !== NodeUOSpellComposerMessage.Open) return;
+      this._toggleGump('spell-composer', async () => {
+        const SpellComposerGump = await lazySpellComposer();
+        return new SpellComposerGump({ requestId, payload });
+      });
+    });
+    this._sub('nodeuo:specializations', ({ kind, requestId, payload }) => {
+      if (kind !== NodeUOSpecializationMessage.Open) return;
+      this._toggleGump('specializations', async () => {
+        const SpecializationGump = await lazySpecializations();
+        return new SpecializationGump({ requestId, payload });
+      });
+    });
+    // Cooldowns are rendered directly on their action-bar slots. Do not open
+    // a second free-floating "Cooldowns" window for every cast; it duplicated
+    // the same state and frequently appeared as an empty, inert panel after
+    // short cooldowns expired.
     const openMapGump = (info) => {
       const serial = info?.serial >>> 0;
       const key = `map:${serial}`;
@@ -1522,17 +1572,19 @@ export class GameScene extends Scene {
     });
     // Touching macroManager once ensures its constructor runs.
     void macroManager;
-    this._sub('audio:sfx', ({ sound, x, y, z }) => {
+    this._sub('audio:sfx', ({ sound, x, y, map, ambient, volume = 1 }) => {
       // Forward positional info so distance attenuation + L/R pan kick
       // in. Earlier code dropped x/y/z and called the non-positional
       // path, which made every sound full-volume centred regardless of
       // source. Falls back to the flat play() when the packet didn't
       // carry coords (rare).
-      if (Number.isFinite(x) && Number.isFinite(y)) {
-        try { audio.playAt?.(sound, x, y, z); }
-        catch { audio.play(sound); }
+      if (ambient) {
+        audio.play(sound, volume);
+      } else if (Number.isFinite(x) && Number.isFinite(y)) {
+        try { audio.playAt?.(sound, x, y, map ?? world.player?.map ?? world.mapId); }
+        catch { audio.play(sound, volume); }
       } else {
-        audio.play(sound);
+        audio.play(sound, volume);
       }
     });
     this._sub('player:warmode', ({ warMode }) => { this._warMode = warMode; this._refreshHud(); });
@@ -1660,6 +1712,8 @@ export class GameScene extends Scene {
     this._worldText?.destroy();
     this._light?.destroy();
     this._multiGhost?.destroy();
+    this._spellRangePreview?.destroy();
+    this._navalRangePreview?.destroy();
     this._healthLines?.destroy();
     this._cmdPanel?.destroy();
     this._weather?.destroy();
@@ -1799,6 +1853,15 @@ export class GameScene extends Scene {
         this._multiGhost.update(tile).catch(() => { /* ignore */ });
       }
     }
+    if (this._spellRangePreview?.active) {
+      const playerScreenX = (camera.viewX | 0) + (camera.viewW | 0) / 2;
+      const playerScreenY = (camera.viewY | 0) + (camera.viewH | 0) / 2;
+      const hovered = this._mouseInside
+        ? this._pickWorldTile(playerScreenX + this._mouseDx, playerScreenY + this._mouseDy)
+        : null;
+      this._spellRangePreview.update(world.player, hovered);
+    }
+    if (this._navalRangePreview?.active) this._navalRangePreview.update(now);
 
     // Per-frame tick for any gump that opted in (minimap, worldmap).
     if (this._ui) {
@@ -1890,7 +1953,7 @@ export class GameScene extends Scene {
         max-height: calc(100vh - 78px);
         overflow-y: auto;
         padding: 10px 12px;
-        font: 11px Consolas, monospace;
+        font: 500 12px/1.4 "Segoe UI Variable Text", "Segoe UI", Inter, system-ui, sans-serif;
         scrollbar-color: rgba(226, 180, 92, 0.55) rgba(0, 0, 0, 0.2);
       }
       #dom-ui .uo-hud-title {
@@ -1955,7 +2018,7 @@ export class GameScene extends Scene {
         overflow-y: auto;
         white-space: pre-wrap;
         line-height: 1.35;
-        font: 11px Consolas, monospace;
+        font: 500 12px/1.45 "Segoe UI Variable Text", "Segoe UI", Inter, system-ui, sans-serif;
         opacity: 0.96;
         scrollbar-color: rgba(226, 180, 92, 0.55) rgba(0, 0, 0, 0.2);
       }
@@ -1975,7 +2038,7 @@ export class GameScene extends Scene {
         border: 1px solid rgba(226, 180, 92, 0.44);
         border-radius: 4px;
         outline: none;
-        font: 12px Consolas, monospace;
+        font: 500 13px "Segoe UI Variable Text", "Segoe UI", Inter, system-ui, sans-serif;
       }
       #dom-ui .uo-chat-mode {
         padding: 0 8px;
@@ -2369,8 +2432,7 @@ export class GameScene extends Scene {
 
   // -------------------------------------------------------------------------
   // Mouse-walk: ClassicUO drives movement from cursor angle relative to
-  // the player. We reproduce that here. The player walks while the LMB
-  // is held down (or we expose continuous walk via a config later);
+  // the player. The player walks while RMB is held;
   // releasing stops sending packets. Run mode (shift held) doubles speed.
 
   _onMouseMove = (e) => {
@@ -2411,11 +2473,16 @@ export class GameScene extends Scene {
     // `window.innerWidth/2` made the avatar drift toward the bottom
     // of the screen on every mouse-walk because the browser centre
     // sat below the player.
-    const playerScreenX = (camera.viewX | 0) + (camera.viewW | 0) / 2;
-    const playerScreenY = (camera.viewY | 0) + (camera.viewH | 0) / 2;
+    const playerPoint = this._playerScreenPoint();
+    const playerScreenX = playerPoint.x;
+    const playerScreenY = playerPoint.y;
     this._mouseDx = e.clientX - playerScreenX;
     this._mouseDy = e.clientY - playerScreenY;
-    this._mouseInside = true;
+    this._mouseInside = e.clientX >= camera.viewX
+      && e.clientX <= camera.viewX + camera.viewW
+      && e.clientY >= camera.viewY
+      && e.clientY <= camera.viewY + camera.viewH
+      && !this._ui?.pickAtScreen(e.clientX, e.clientY);
     if (houseCustomization.state === HouseCustomState.Editing) {
       const tile = this._pickWorldTile(e.clientX, e.clientY);
       if (tile) houseCustomization.setPreviewTile(tile.x, tile.y, tile.z);
@@ -2456,14 +2523,23 @@ export class GameScene extends Scene {
     // Hover tooltip — find a mobile under the cursor and ask the server
     // for properties on the first hover. Subsequent renders use the cache.
     const hit = this._pickWorldEntity(e.clientX, e.clientY);
-    if (hit && hit.serial) {
+    if (dragDrop.isHolding()) {
+      tooltips.hide();
+      bus.emit('world:cursor-hint', { name: 'drag-hold' });
+    } else if (hit && hit.serial) {
       tooltips.show(hit.serial, e.clientX, e.clientY);
+      bus.emit('world:cursor-hint', { name: this._warMode ? 'attack' : 'help' });
     } else {
       tooltips.hide();
+      const itemHit = this._pickWorldItem(e.clientX, e.clientY);
+      bus.emit('world:cursor-hint', {
+        name: itemHit ? (itemHit.movable ? 'drag-grab' : 'help') : null,
+      });
     }
   };
   _onMouseLeave = () => {
     this._mouseInside = false;
+    bus.emit('world:cursor-hint', { name: null });
     if (this._peekPanActive) {
       this._peekPanActive = false;
       camera.resetPan?.();
@@ -2609,6 +2685,7 @@ export class GameScene extends Scene {
   }
   _onMouseUp = (e) => {
     this._mouseHeld = false; this._mouseShift = false;
+    this._mouseAutoRun = false;
     // Cleanup temporary camera peeking. RMB walk and MMB peek both end
     // on mouseup so the next frame recenters on the player.
     if (this._peekPanActive || this._rmbPanActive) {
@@ -2694,10 +2771,7 @@ export class GameScene extends Scene {
    *  the renderer hasn't placed the mob this frame. */
   _screenPosForMobile(m) {
     try {
-      // Use camera world→screen for the mob's tile.
-      const sx = (m.x - (world.player?.x ?? 0)) * 22 + camera.viewX + camera.viewW / 2;
-      const sy = (m.y - (world.player?.y ?? 0)) * 22 + camera.viewY + camera.viewH / 2;
-      return { x: sx, y: sy };
+      return this._worldScreenPoint(m.x, m.y, m.z);
     } catch { return null; }
   }
 
@@ -2744,6 +2818,7 @@ export class GameScene extends Scene {
     // player walks every time you drag/click a paperdoll, journal,
     // bag, status bar, etc. (since those are Pixi nodes, not DOM).
     if (this._ui?.pickAtScreen(e.clientX, e.clientY)) return;
+    if (!this._isInsideGameViewport(e.clientX, e.clientY)) return;
     // House Customizer paint-on-click: when the player is in design
     // mode with a brush selected (or eraser), translate the screen click
     // to a world tile and dispatch through `houseCustomization.place()`
@@ -2794,8 +2869,7 @@ export class GameScene extends Scene {
     const hit = this._pickWorldEntity(e.clientX, e.clientY);
     if (targetManager.active) {
       e.preventDefault();
-      if (targetManager.cursorType !== 0 /* Object */) {
-        // Position / multi: convert click → world tile under cursor.
+      if (targetManager.cursorType === 2 /* Multi */) {
         const tile = this._pickWorldTile(e.clientX, e.clientY);
         if (tile) {
           targetManager.pickPosition(tile.x, tile.y, tile.z, targetManager.multi?.multiId ?? 0);
@@ -2805,11 +2879,22 @@ export class GameScene extends Scene {
         return;
       }
       const itemHitT = !hit?.serial ? this._pickWorldItem(e.clientX, e.clientY) : null;
-      const pickSerial = hit?.serial ?? itemHitT?.serial;
-      if (pickSerial) {
-        targetManager.pickEntity({ serial: pickSerial });
-      } else {
-        targetManager.cancel();
+      if (hit?.serial) targetManager.pickEntity({ serial: hit.serial });
+      else if (itemHitT?.serial) targetManager.pickEntity({
+        serial: itemHitT.serial,
+        x: itemHitT.x,
+        y: itemHitT.y,
+        z: itemHitT.z,
+        graphic: itemHitT.itemId,
+      });
+      else {
+        const staticHit = this._pickWorldStatic(e.clientX, e.clientY);
+        if (staticHit) targetManager.pickEntity(staticHit);
+        else {
+          const tile = this._pickWorldTile(e.clientX, e.clientY);
+          if (tile) targetManager.pickEntity({ serial: 0, ...tile, graphic: 0 });
+          else targetManager.cancel();
+        }
       }
       return;
     }
@@ -2824,6 +2909,7 @@ export class GameScene extends Scene {
         return;
       }
       net.send(buildLookReq(hit.serial));
+      targetManager.selectEntity?.(hit.serial);
       this._namesRequested.add(hit.serial >>> 0);
       this._armDoubleClick(hit.serial);
       // CUO drag-from-mobile gesture: arm a "potential drag" so a
@@ -2916,6 +3002,7 @@ export class GameScene extends Scene {
     // Marcin: "kliknięcie prawym na gumpie zamyka go ALE postać się
     // rusza". This early-return matches `_onLeftDown`'s gump guard.
     if (this._ui?.pickAtScreen(e.clientX, e.clientY)) return;
+    if (!this._isInsideGameViewport(e.clientX, e.clientY)) return;
     const hit = this._pickWorldEntity(e.clientX, e.clientY);
     if (hit?.serial) {
       e.preventDefault();
@@ -2945,6 +3032,12 @@ export class GameScene extends Scene {
     // for the entire hold).
     this._mouseHeld = true;
     this._mouseShift = !!e.shiftKey;
+    this._mouseAutoRun = false;
+    this._cancelAutowalk();
+    const playerPoint = this._playerScreenPoint();
+    this._mouseDx = e.clientX - playerPoint.x;
+    this._mouseDy = e.clientY - playerPoint.y;
+    this._mouseInside = true;
     // Audit rev.4 P2 — arm RMB-drag-pan detection. If the user drags
     // the mouse more than RMB_PAN_THRESHOLD px before releasing, we
     // switch from "walk" to "pan" mode for the rest of the hold. Stash
@@ -2952,6 +3045,7 @@ export class GameScene extends Scene {
     this._rmbDownX = e.clientX;
     this._rmbDownY = e.clientY;
     this._rmbPanActive = false;
+    this._maybeMouseWalk(now);
     e.preventDefault();
   }
 
@@ -3011,26 +3105,19 @@ export class GameScene extends Scene {
   /** Convert a screen-space click to the world tile beneath. Uses the
    *  current camera (screen center = camera.cx). */
   _pickWorldTile(sx, sy) {
-    if (!world.player) return null;
-    const z = camera.zoom || 1;
-    // Player's CURRENT visual screen position — `camera.cx/cy` after
-    // camera.apply(). Earlier code used `window.innerWidth/2`, which:
-    //   1. ignored the user-resized viewport (when viewport center !=
-    //      window center the cursor mapped to a wrong tile by half a
-    //      viewport's worth — items "teleported" sideways on drop)
-    //   2. ignored the in-flight walk-step offset, so clicking exactly
-    //      on the avatar mid-step picked the destination tile rather
-    //      than the source tile.
-    const px = camera.viewX + camera.viewW / 2;
-    const py = camera.viewY + camera.viewH / 2;
-    const dx = sx - px;
-    const dy = sy - py;
-    const fx = dx / (22 * z);
-    const fy = dy / (22 * z);
-    const wx = world.player.x + Math.round((fy + fx) / 2);
-    const wy = world.player.y + Math.round((fy - fx) / 2);
-    const land = assets.landAt(wx, wy);
-    return { x: wx, y: wy, z: land?.z ?? 0 };
+    return this._worldPicker.pickTile(sx, sy);
+  }
+
+  _worldScreenPoint(x, y, z = 0) {
+    return this._worldPicker.worldScreenPoint(x, y, z);
+  }
+
+  /** Exact rendered player foot position, including an in-flight predicted
+   * step. Mouse-walk used the viewport centre before, which becomes wrong
+   * after camera peeking, elevation changes and while a step is lerping;
+   * the resulting angle could cross an octant and send the player backwards. */
+  _playerScreenPoint() {
+    return this._worldPicker.playerScreenPoint();
   }
 
   /** Return the topmost world ITEM under (sx, sy), or null.
@@ -3040,79 +3127,13 @@ export class GameScene extends Scene {
    *  flag mirrors server-side ground-drop emission (0x1A flags & 0x20)
    *  so the click handler can decide lift vs use without a round trip. */
   _pickWorldItem(sx, sy) {
-    if (!world.player || !world.items) return null;
-    const z = camera.zoom || 1;
-    // Use the actual viewport center (the camera-managed rectangle the
-    // world is rendered into) — window.innerWidth/2 was wrong as soon
-    // as the user resized or the viewport got sidebar UI shrinkage.
-    const px = camera.viewX + camera.viewW / 2;
-    const py = camera.viewY + camera.viewH / 2;
-    const TOL_X = Math.max(14, 22 * z);   // tile half-width
-    /** @type {{serial:number, itemId:number, hue:number, amount:number, movable:boolean, dist:number, z:number} | null} */
-    let best = null;
-    const visit = (it) => {
-      // Only ground items. Equipped (layer>0), contained (parent set),
-      // multis (rendered separately), and corpses (parent==0 + flag).
-      if (it.parent && it.parent !== 0) return undefined;
-      if (it.multiId) return undefined;
-      const dxw = it.x - world.player.x, dyw = it.y - world.player.y;
-      const screenX = px + (dxw - dyw) * 22 * z;
-      // Tile FOOT (where the sprite anchor sits) — this is the bottom
-      // of the rendered sprite on land tiles. Tall sprites (walls,
-      // doors, columns) extend UP from here. Hit-test allows the click
-      // to land anywhere from foot UP to roughly sprite top.
-      const footY = py + (dxw + dyw) * 22 * z - (it.z - world.player.z) * 4 * z;
-      // Sprite vertical extent — doors/walls/columns are ~80 px tall;
-      // small ground items are ~22. Use a tiledata-aware estimate when
-      // assets is loaded; default 80 is safe (over-generous lets the
-      // click land on the visible body of tall statics). Bug-hunt #6
-      // client B#7: was reading `window.__assets` which is undefined in
-      // production builds (only `__uo` is exposed and only in DEV) — so
-      // every tall static defaulted to `spriteH = 80`. Use the imported
-      // asset-manager instead.
-      const td = staticEntry(assets.tiledata, it.itemId | 0);
-      const spriteH = td?.height ? Math.max(22, (td.height * 4 + 22)) : 80;
-      const dx = Math.abs(screenX - sx);
-      const dyBelow = sy - footY;             // positive = click below foot
-      const dyAbove = footY - sy;             // positive = click above foot
-      // Click must be within tile half-width horizontally AND between
-      // (footY - spriteH) and (footY + 8). The 8-px below-foot margin
-      // catches "click on the floor right under the door" so big sprites
-      // still register their footprint tile.
-      if (dx > TOL_X) return undefined;
-      if (dyBelow > 8) return undefined;
-      if (dyAbove > spriteH * z) return undefined;
-      // Closer-to-foot wins; tie-break by Z (a higher item like an
-      // apple on a table beats the table when cursor is between them).
-      const d = Math.abs(dyAbove);
-      if (!best || d < best.dist || (d === best.dist && it.z > best.z)) {
-        best = {
-          serial: it.serial >>> 0,
-          itemId: it.itemId | 0,
-          hue: it.hue | 0,
-          amount: it.amount | 0,
-          movable: ((it.flags | 0) & 0x20) !== 0,
-          z: it.z | 0,
-          dist: d,
-        };
-      }
-      return undefined;
-    };
-    if (world.forEachItemNear) {
-      world.forEachItemNear(
-        world.player.x,
-        world.player.y,
-        world.player.map ?? world.mapId ?? 1,
-        24,
-        visit,
-      );
-    } else {
-      const items = world.itemsNear
-        ? world.itemsNear(world.player.x, world.player.y, world.player.map ?? world.mapId ?? 1, 24)
-        : world.items.values();
-      for (const it of items) visit(it);
-    }
-    return best;
+    return this._worldPicker.pickItem(sx, sy);
+  }
+
+  /** Hit-test map statics so target cursors can select sta*.mul doors,
+   * signs and decorations, not only runtime items. */
+  _pickWorldStatic(sx, sy) {
+    return this._worldPicker.pickStatic(sx, sy);
   }
 
   /** Return `{ serial }` of the topmost world mobile under (sx, sy), or null.
@@ -3131,51 +3152,7 @@ export class GameScene extends Scene {
    *  cover the body silhouette while still letting adjacent mobs win
    *  the closest-foot tie-break. */
   _pickWorldEntity(sx, sy) {
-    if (!world.player || !this._mobiles) return null;
-    const z = camera.zoom || 1;
-    const px = camera.viewX + camera.viewW / 2;
-    const py = camera.viewY + camera.viewH / 2;
-    // Sprite half-extents in screen pixels, zoom-aware.
-    const HALF_W = 18 * z;       // ~ tile half-width + slack
-    const HEIGHT = 80 * z;       // body sprite height (head → foot)
-    const FOOT_PAD = 6 * z;      // small slack below the foot tile
-    /** @type {{serial:number, dist:number} | null} */
-    let best = null;
-    const visit = (m) => {
-      const dxw = m.x - world.player.x, dyw = m.y - world.player.y;
-      const screenX = px + (dxw - dyw) * 22 * z;
-      const footY   = py + (dxw + dyw) * 22 * z - (m.z - world.player.z) * 4 * z;
-      // Sprite covers vertical band [footY - HEIGHT, footY + FOOT_PAD]
-      // and horizontal band [screenX - HALF_W, screenX + HALF_W].
-      if (Math.abs(screenX - sx) > HALF_W) return undefined;
-      if (sy > footY + FOOT_PAD) return undefined;
-      if (sy < footY - HEIGHT) return undefined;
-      // Tie-break: closer to the foot wins (so a mob standing in front
-      // of a tall NPC takes the click). Distance uses footY as anchor —
-      // small numbers near the body's feet, larger toward the head.
-      const dyFromFoot = Math.abs(footY - sy);
-      const d = Math.abs(screenX - sx) + dyFromFoot * 0.5;
-      if (!best || d < best.dist) {
-        best = { serial: m.serial, dist: d };
-      }
-      return undefined;
-    };
-    if (world.forEachMobileNear) {
-      world.forEachMobileNear(
-        world.player.x,
-        world.player.y,
-        world.player.map ?? world.mapId ?? 1,
-        24,
-        true,
-        visit,
-      );
-    } else {
-      const nearby = world.mobilesNear
-        ? world.mobilesNear(world.player.x, world.player.y, world.player.map ?? world.mapId ?? 1, 24, true)
-        : world.mobiles.values();
-      for (const m of nearby) visit(m);
-    }
-    return best;
+    return this._worldPicker.pickEntity(sx, sy);
   }
 
   /** Hit-test all viewport-corner Pixi widgets (zoom buttons + resize
@@ -3187,6 +3164,11 @@ export class GameScene extends Scene {
     if (w?.visible && w.hitArea?.contains?.(sx - w.x, sy - w.y)) return true;
     w = this._resizeHandle;
     return !!(w?.visible && w.hitArea?.contains?.(sx - w.x, sy - w.y));
+  }
+
+  _isInsideGameViewport(sx, sy) {
+    return sx >= camera.viewX && sx <= camera.viewX + camera.viewW
+      && sy >= camera.viewY && sy <= camera.viewY + camera.viewH;
   }
 
   _maybeMouseWalk(now = performance.now()) {
@@ -3210,8 +3192,9 @@ export class GameScene extends Scene {
     // half-widths (~55 px), matching CUO retail's "anywhere past your
     // own feet circle = run". Was 5 tiles (110 px) which forced a wide
     // drag before run engaged. Shift still forces immediate run.
-    const RUN_RADIUS = TILE_HALF_W * 2.5;
-    const run = !!this._mouseShift || (r2 > RUN_RADIUS * RUN_RADIUS);
+    const movementMode = resolveMouseRunState(r2, this._mouseAutoRun, this._mouseShift);
+    this._mouseAutoRun = movementMode.autoRun;
+    const run = movementMode.run;
 
     const dir = mouseAngleToDirection(this._mouseDx, this._mouseDy);
     // Direction-change → turn-only step (CUO Mobile.cs:743-779). Pure
@@ -3274,6 +3257,17 @@ export class GameScene extends Scene {
       net.send(buildWarMode(this._warMode));
       this._appendJournal(this._warMode ? '[system] War mode ON' : '[system] War mode OFF');
       return;
+    }
+
+    // Number row activates the unified action bar. Actions themselves use
+    // standard UO packets, so this shortcut works against foreign shards too.
+    if (!e.altKey && !e.ctrlKey && !e.metaKey && /^[0-9]$/.test(e.key)) {
+      const bar = this._ui?.findGump?.((g) => g._toggleKey === 'actionbar');
+      if (bar) {
+        e.preventDefault();
+        bar.activate(e.key === '0' ? 9 : Number(e.key) - 1);
+        return;
+      }
     }
 
     // UI hotkeys mirror common ClassicUO defaults (Paperdoll/Journal/etc).
@@ -3491,9 +3485,12 @@ export class GameScene extends Scene {
       // shorter lerps left a visible pause every tile (Marcin's
       // "skacze przerywa" report).
       const dur = reservation.delayMs;
-      p.beginMoveStep(dx, dy, dz, dur, now);
+      // Pass the protocol run bit explicitly. Inferring it from duration made
+      // a mounted WALK (200 ms) look like Run even though the packet and
+      // footsteps still represented walking.
+      p.beginMoveStep(dx, dy, dz, dur, now, run);
       const sprite = this._mobiles?.sprites.get(p.serial);
-      if (sprite) sprite.markMoving(now);
+      if (sprite) sprite.markMoving(now, run, dur);
       this._pendingMoves.set(seq, {
         dir: direction, run, kind: 'walk',
         sentAt: now,
@@ -3519,7 +3516,9 @@ export class GameScene extends Scene {
   _onMovementAck({ sequence, notoriety }) {
     const pending = this._pendingMoves.get(sequence);
     walker.onAck(sequence);
-    if (walker.resyncRequested) walker.clearResync();
+    // A late ACK can belong to a step queued before a rejection. It must
+    // not release the resync latch: only the authoritative self 0x20 update
+    // does that in net/handlers.js.
     // The client already simulated this step in `_sendMove`. Just
     // drop the pending entry and accept the notoriety byte the server
     // attached. No position/animation work here — doing it would
@@ -3555,11 +3554,15 @@ export class GameScene extends Scene {
     p.offsetX = p.offsetY = p.offsetZ = 0;
     p.offsetEndAt = 0;
     world.moveSequence = 0;
-    walker.clearResync();
     // Future pending moves (inputs that fired between the predicted
     // step and the reject arriving) are no longer valid — drop them
     // so the server doesn't see a chain that diverges further.
     this._pendingMoves.clear();
+    this._cancelAutowalk();
+    // WebSocket ordering drains all already queued 0x02 packets before the
+    // server handles this request. Keep input paused until the resulting
+    // authoritative 0x20 self update arrives.
+    bus.emit('net:resync-request');
     void pending;
   }
 

@@ -15,9 +15,8 @@
 //
 // Per icon:
 //   • Left click   → cast (0x12 TextCommand "<spellId>")
-//   • Right click  → spawn UseSpellButtonGump under the cursor
-//   • Left drag    → spawn UseSpellButtonGump under the cursor (drag the
-//                    icon out to make a hotbar shortcut)
+//   • Left drag    → drop into an exact action-bar slot, or drop on the
+//                    world to create a freely movable shortcut tile
 //
 // All controls are built once at construction time; flipping pages
 // uses Control's built-in `setActivePage` filter (page=N is visible
@@ -38,8 +37,7 @@ import {
   SPELLBOOK_GUMPS, spellsForSchool, spellById,
   spellIconId, expandReagents, circleName,
 } from './spell-data.js';
-import { UseSpellButtonGump } from './use-spell-button-gump.js';
-import { uiManagerInstance } from '../ui-manager-singleton.js';
+import { beginSpellShortcutDrag } from './spell-shortcut-drag.js';
 
 const BOOK_GRAPHIC_BY_SCHOOL = {
   0xFFB1: 0x08AC,
@@ -149,7 +147,7 @@ class SpellIcon extends Control {
       this._pic.node.alpha = 1.0;
       return;
     }
-    const recipe = this.spell?.reagents;
+    const recipe = expandReagents(this.spell);
     if (!recipe) return;
     const have = (id) => {
       const bp = world.player?.equipment?.get?.(21)?.serial;
@@ -167,7 +165,8 @@ class SpellIcon extends Control {
     const REAGENT_IDS = {
       'Black Pearl': 0x0F7A, 'Blood Moss': 0x0F7B, 'Garlic': 0x0F84,
       'Ginseng': 0x0F85, 'Mandrake Root': 0x0F86, 'Nightshade': 0x0F88,
-      'Spider Silk': 0x0F8D, 'Sulfurous Ash': 0x0F8C,
+      'Spider Silk': 0x0F8D, 'Spider\'s Silk': 0x0F8D,
+      'Sulfurous Ash': 0x0F8C,
       'Bat Wing': 0x0F78, 'Daemon Blood': 0x0F7D, 'Grave Dust': 0x0F8F,
       'Nox Crystal': 0x0F8E, 'Pig Iron': 0x0F8A,
     };
@@ -197,35 +196,16 @@ class SpellIcon extends Control {
   }
   onMouseLeave() { this._drawFrame(false); tooltips.hide(); }
   onClick(btn) {
-    if (btn === 2) { this._spawnHotbar(); return; }
+    if (btn !== 0) return;
+    if (!this.known) {
+      bus.emit('chat:system', { text: `${this.spell.name} is not written in this spellbook.` });
+      return;
+    }
     try { net.send(buildTextCommand(0x56, String(this.spell.id))); }
     catch { /* socket transient */ }
   }
-  onDragStart(btn) { this._spawnHotbar(btn ?? 0); }
-  _spawnHotbar(_btn = 0) {
-    const ui = uiManagerInstance.get();
-    if (!ui) return;
-    const gump = new UseSpellButtonGump(
-      this.spell,
-      (ui.lastMouseX || 200) - 22,
-      (ui.lastMouseY || 200) - 22,
-    );
-    ui.addGump(gump);
-    // CUO-style spawn-and-drag: a single drag from the spellbook should
-    // PICK UP the new hotbar icon and follow the cursor until release —
-    // not drop it under the spellbook page and require a second drag to
-    // reposition. Inject the new gump into the manager's drag slot so
-    // _onMouseMove starts moving it with the cursor right away.
-    if (ui._pressed) {
-      ui._pressed.moved = true;
-      ui._dragging = {
-        gump,
-        ox: 22,    // half of icon — keeps the cursor centred on the button
-        oy: 22,
-      };
-      ui.bringToFront?.(gump);
-    }
-    return gump;
+  onDragStart(btn) {
+    if (btn === 0 && this.known) beginSpellShortcutDrag(this.spell);
   }
 }
 
@@ -306,7 +286,10 @@ export class SpellbookGump extends Gump {
 
     // 1. Book backdrop (also drag handle).
     const bookId = BOOK_GRAPHIC_BY_SCHOOL[this.gumpId] ?? 0x08AC;
-    const book = new GumpPic(bookId);
+    // Fixed native book bounds remove the async 32px placeholder → natural
+    // texture relayout that previously left the parchment as a thin strip
+    // while its labels floated outside it.
+    const book = new GumpPic(bookId, { width: BOOK_W, height: BOOK_H });
     book.setPosition(0, 0);
     book.acceptMouseInput = true;
     book.isDragHandle = true;

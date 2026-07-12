@@ -14,12 +14,13 @@ import { Label } from '../controls/label.js';
 import { Combobox } from '../controls/combobox.js';
 import { Button, ButtonAction } from '../controls/button.js';
 import { worldMapEntities } from '../../managers/world-map-entity-manager.js';
-import { packedLandRadarColor } from '../../shared/radar-color.js';
+import { packCanvasColor, packedLandRadarColor } from '../../shared/radar-color.js';
 import { acquireSprite, releaseSprite } from '../../renderer/sprite-pool.js';
 import { bus } from '../../core/event-bus.js';
 
 const VIEWPORT_W = 600;
 const VIEWPORT_H = 400;
+const FOOTER_H = 58;
 const WM_PROFILE_KEYS = Object.freeze({
   showCoordinates: 'worldmap.showCoordinates',
   showParty: 'worldmap.showParty',
@@ -33,20 +34,14 @@ const WM_PROFILE_KEYS = Object.freeze({
 export class WorldmapGump extends WindowGump {
   constructor() {
     super({
-      title: 'World Map', width: VIEWPORT_W + 20, height: VIEWPORT_H + 38,
+      title: 'World Map', width: VIEWPORT_W + 20, height: VIEWPORT_H + FOOTER_H,
       x: 80, y: 60,
-      // Native UO gump card art behind the window — id 0x1391 is the
-      // ServUO MapGump frame (CUO uses 0x139D for the parchment look,
-      // but 0x1391 is more universal across server expansions).
-      //
-      // CRITICAL: 0x1391 is a SINGLE-sprite map-frame, not a 9-patch.
-      // Without `singleSprite: true` the parent WindowGump fed it
-      // through ResizePic which sliced the lone texture into corners +
-      // edges + center as if it were a stretchable 9-patch — the title
-      // bar at the top showed up as black wavy garbage (user report
-      // 2026-05-17 — "gump mapy do poprawy: gora pasek do bani").
-      backgroundId: 0x1391,
-      singleSprite: true,
+      // 0x1391 is a tiny 9×15 map-pin art in this client data set, not a
+      // window frame. Stretching it over 620×438 produced the giant grey
+      // bands/black silhouette visible in the report. Use the canonical
+      // parchment ResizePic chrome shared by the other native windows.
+      backgroundId: 0x0A28,
+      singleSprite: false,
     });
     // Decorative parchment border — drawn over the canvas so the user
     // can still pan/zoom. Without this the map sat on a flat dark
@@ -84,12 +79,21 @@ export class WorldmapGump extends WindowGump {
     this._sprite.position.set(10, 28);
     this.node.addChild(this._sprite);
 
+    // Hard viewport clipping. Route lines/player markers may be outside the
+    // current pan window; without a mask Pixi rendered them over controls
+    // and neighbouring gumps.
+    this._mapMask = new Graphics().rect(10, 28, VIEWPORT_W, VIEWPORT_H).fill({ color: 0xffffff });
+    this.node.addChild(this._mapMask);
+    this._sprite.mask = this._mapMask;
+
     this._playerDot = new Graphics().circle(0, 0, 3).fill({ color: 0xffe680 });
+    this._playerDot.mask = this._mapMask;
     this.node.addChild(this._playerDot);
 
     // Overlays for party / guild blips and user markers. Cleared and
     // re-painted each tick so we don't leak Graphics children.
     this._overlay = new Graphics();
+    this._overlay.mask = this._mapMask;
     this.node.addChild(this._overlay);
 
     // Coordinate read-out at the bottom of the panel.
@@ -103,7 +107,7 @@ export class WorldmapGump extends WindowGump {
     // "Plot Route" toggle button that, when active, switches RMB from
     // marker-add to waypoint-append. The route is rendered as a yellow
     // polyline overlay; double-click "Plot" again to finalise.
-    this._mapFacet = (assets.currentFacet ?? 0) | 0;
+    this._mapFacet = (world.player?.map ?? world.mapId ?? assets.currentFacet ?? 0) | 0;
     // Combobox takes `values: string[]` not `items: [{id,label}]` —
     // the previous shape made the dropdown render empty (head text
     // = '' from `value || values[0] || ''` with values=[]) and the
@@ -127,7 +131,7 @@ export class WorldmapGump extends WindowGump {
     this._route = []; // { x, y } tile coords
     this._plotBtn = new Button({
       normalGumpId: 0x0481, pressedGumpId: 0x0482,
-      width: 80, height: 22, label: 'Plot Route', action: ButtonAction.Activate,
+      width: 80, height: 22, label: 'Plot Route', action: ButtonAction.Activate, flat: true,
     });
     this._plotBtn.setPosition(VIEWPORT_W - 220, 28 + VIEWPORT_H + 2);
     this._plotBtn.onClick = () => this._togglePlot();
@@ -149,6 +153,9 @@ export class WorldmapGump extends WindowGump {
 
     this._lastRedraw = 0;
     this._lastTerrainKey = '';
+    this._staticRadarKey = '';
+    this._staticRadarPendingKey = '';
+    this._staticRadar = new Map();
     this._lastOverlayKey = '';
     this._lastOverlayPaintAt = 0;
     this._visibleSerials = new Uint32Array(32);
@@ -189,6 +196,8 @@ export class WorldmapGump extends WindowGump {
       this._prevEntityEnabled = this._wm?._enabled ?? false;
       this._wm?.setEnabled?.(true);
     }).catch(() => {});
+    this._facetReady = false;
+    this._ensureFacet(this._mapFacet);
     this._render(true);
     this._updatePlayerOverlay(true);
   }
@@ -211,6 +220,8 @@ export class WorldmapGump extends WindowGump {
     this._profileSub?.();
     this._profileResetSub?.();
     this._profileBoundSub?.();
+    this._facetLoadToken = ((this._facetLoadToken | 0) + 1) >>> 0;
+    this._staticRadarToken = ((this._staticRadarToken | 0) + 1) >>> 0;
     releaseSprite(this._sprite);
     this._sprite = null;
     super.dispose?.();
@@ -241,9 +252,22 @@ export class WorldmapGump extends WindowGump {
   onMouseUp() { this._dragging = false; }
 
   /** Audit rev.9 P2 #6 — Combobox-driven facet swap. */
-  _setFacet(f) {
-    this._mapFacet = f | 0;
-    try { assets.setFacet?.(this._mapFacet); } catch { /* facet may not be loaded yet */ }
+  async _setFacet(f) {
+    const facet = f | 0;
+    if (facet < 0 || facet > 5) return;
+    this._mapFacet = facet;
+    await this._ensureFacet(facet);
+  }
+
+  async _ensureFacet(facet) {
+    const token = (this._facetLoadToken = ((this._facetLoadToken | 0) + 1) >>> 0);
+    this._facetReady = false;
+    let ready = false;
+    try { ready = await assets.ensureFacetLoaded?.(facet); }
+    catch { ready = false; }
+    if (token !== this._facetLoadToken || (this._mapFacet | 0) !== (facet | 0)) return;
+    this._facetReady = !!ready;
+    this._lastTerrainFacet = -1;
     this._render(true);
     this._updatePlayerOverlay(true);
   }
@@ -683,7 +707,7 @@ export class WorldmapGump extends WindowGump {
         const row = dy * VIEWPORT_W;
         const ty = y0 + dy;
         for (let dx = 0; dx < w; dx++) {
-          const land = assets.landAt(x0 + dx, ty);
+          const land = assets.landAt(x0 + dx, ty, facet);
           px32[row + dx] = land ? packedLandRadarColor(land.id) : 0xff000000;
         }
       }
@@ -691,7 +715,7 @@ export class WorldmapGump extends WindowGump {
       for (let dy = 0; dy < h; dy++) {
         const ty = y0 + dy;
         for (let dx = 0; dx < w; dx++) {
-          const land = assets.landAt(x0 + dx, ty);
+          const land = assets.landAt(x0 + dx, ty, facet);
           const packed = land ? packedLandRadarColor(land.id) : 0xff000000;
           const baseY = dy * zoom;
           const baseX = dx * zoom;
@@ -705,7 +729,76 @@ export class WorldmapGump extends WindowGump {
         }
       }
     }
+    const staticKey = `${facet}|${x0}|${y0}|${w}|${h}`;
+    if (this._staticRadarKey === staticKey && this._staticRadar.size) {
+      // Statics are what make streets, roofs, bridges and buildings readable
+      // on a radar map. Land-only rendering showed large black/grey blocks
+      // wherever architecture sits on otherwise empty foundation tiles.
+      for (const [tileIndex, color] of this._staticRadar) {
+        const dx = tileIndex % w;
+        const dy = Math.floor(tileIndex / w);
+        const baseY = dy * zoom;
+        const baseX = dx * zoom;
+        const span = Math.min(zoom, VIEWPORT_W - baseX);
+        if (span <= 0) continue;
+        for (let py = 0; py < zoom; py++) {
+          const row = (baseY + py) * VIEWPORT_W + baseX;
+          if (row >= 0 && row < px32.length) px32.fill(color, row, row + span);
+        }
+      }
+    } else {
+      this._prepareStaticRadar(staticKey, facet, x0, y0, w, h);
+    }
     this._ctx.putImageData(this._imgData, 0, 0);
     this._tex.source.update();
+  }
+
+  async _prepareStaticRadar(key, facet, x0, y0, w, h) {
+    if (this._staticRadarPendingKey === key) return;
+    this._staticRadarPendingKey = key;
+    const token = (this._staticRadarToken = ((this._staticRadarToken | 0) + 1) >>> 0);
+    const cx0 = Math.floor(x0 / 8), cy0 = Math.floor(y0 / 8);
+    const cx1 = Math.floor((x0 + w - 1) / 8), cy1 = Math.floor((y0 + h - 1) / 8);
+    const blocks = [];
+    let batch = 0;
+    for (let cx = cx0; cx <= cx1; cx++) {
+      for (let cy = cy0; cy <= cy1; cy++) {
+        const items = await assets.fetchStatics(cx, cy, facet);
+        if (token !== this._staticRadarToken || key !== this._staticRadarPendingKey) return;
+        blocks.push({ cx, cy, items });
+        // Parsing thousands of 8×8 blocks synchronously made opening the
+        // map steal a full frame. Yield every small batch; land colours are
+        // already visible and static detail fills in shortly afterwards.
+        if ((++batch & 63) === 0) {
+          await new Promise((resolve) => {
+            if (typeof requestAnimationFrame === 'function') requestAnimationFrame(resolve);
+            else setTimeout(resolve, 0);
+          });
+        }
+      }
+    }
+    if (token !== this._staticRadarToken || key !== this._staticRadarPendingKey) return;
+    const top = new Map();
+    const palette = assets.radarcol?.statics;
+    for (const { cx, cy, items } of blocks) {
+      if (!Array.isArray(items)) continue;
+      for (const it of items) {
+        const wx = cx * 8 + (it.x | 0), wy = cy * 8 + (it.y | 0);
+        const dx = wx - x0, dy = wy - y0;
+        if (dx < 0 || dy < 0 || dx >= w || dy >= h) continue;
+        const idx = dy * w + dx;
+        const prev = top.get(idx);
+        if (prev && prev.z > (it.z | 0)) continue;
+        const rgb = palette?.[it.id | 0];
+        if (rgb == null) continue;
+        top.set(idx, { z: it.z | 0, color: packCanvasColor(rgb) });
+      }
+    }
+    this._staticRadar = new Map();
+    for (const [idx, value] of top) this._staticRadar.set(idx, value.color);
+    this._staticRadarKey = key;
+    this._staticRadarPendingKey = '';
+    this._lastTerrainFacet = -1;
+    this._render(true);
   }
 }

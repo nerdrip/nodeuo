@@ -106,16 +106,147 @@ function findBoatNear(api, mob, range = MAX_RIDER_RANGE) {
   return null;
 }
 
+function currentBoat(api, mob, range = 3) {
+  const boarded = mob?._boardedBoat ? itemBySerial(api, mob._boardedBoat) : null;
+  return boarded?.boat ? boarded : findBoatNear(api, mob, range);
+}
+
+function showBoatStatus(api, ctx, boat) {
+  const stats = api.boats?.stats?.(boat);
+  if (!stats) {
+    ctx.state.sendSystemMessage('No boat is nearby.');
+    return;
+  }
+  const summary = `${stats.name}: ${stats.hp}/${stats.hpMax} HP (${stats.hpPercent}%), `
+    + `armor ${stats.armorPercent}%, condition ${stats.condition}, speed x${stats.speedMultiplier}.`;
+  if (!api.gumps?.send) {
+    ctx.state.sendSystemMessage(summary);
+    return;
+  }
+  const course = stats.course
+    ? `${stats.course.points} point(s), ${stats.course.running ? 'running' : 'stopped'}${stats.course.loop ? ', loop' : ''}`
+    : 'not programmed';
+  const texts = [
+    stats.name,
+    `Hull: ${stats.hullKind}    Condition: ${stats.condition}`,
+    `Integrity: ${stats.hp} / ${stats.hpMax} (${stats.hpPercent}%)`,
+    `Armor: ${stats.armorPercent}%    Effective speed: x${stats.speedMultiplier}`,
+    `Sails: ${stats.sailState}    Anchor: ${stats.anchored ? 'down' : 'up'}`,
+    `Cannons: ${stats.cannonCount}    Autopilot: ${course}`,
+  ];
+  const hpWidth = Math.max(0, Math.min(300, Math.round(300 * stats.hp / stats.hpMax)));
+  const hpHue = stats.hpPercent <= 25 ? 0x0021 : stats.hpPercent <= 60 ? 0x0030 : 0x0044;
+  const layout = [
+    'page 0', 'resizepic 0 0 5054 390 210',
+    'checkertrans 12 12 366 186',
+    'text 25 20 1152 0', 'text 25 52 1152 1', 'text 25 77 1152 2',
+    'gumppic 25 104 2053', `gumppic 25 104 2054 hue=${hpHue}`,
+    `checkertrans ${25 + hpWidth} 104 ${300 - hpWidth} 14`,
+    'text 25 126 1152 3', 'text 25 151 1152 4', 'text 25 176 1152 5',
+  ].join(' ');
+  api.gumps.send(ctx.state, { x: 90, y: 70, gumpId: 0x424F4154, layout, texts });
+}
+
+function toggleNavalRange(api, ctx, boat, off = false) {
+  const P = api.protocol;
+  const state = ctx.state;
+  const capability = P?.NodeUOCapability?.NavalPreview;
+  if (!boat?.boat) {
+    state.sendSystemMessage('No boat is nearby.');
+    return;
+  }
+  if (!state.supportsNodeUO?.(capability) || !P?.extNodeUONaval) {
+    const ranges = (boat.boat.cannons ?? [])
+      .map((serial) => P && api.systems?.cannons?.cannonProfile?.(itemBySerial(api, serial)))
+      .filter(Boolean)
+      .map((c) => `${c.kind}:${c.range}`);
+    state.sendSystemMessage(ranges.length
+      ? `Cannon ranges (tiles): ${ranges.join(', ')}. Visual lanes require the NodeUO web client.`
+      : 'This boat has no mounted cannons.');
+    return;
+  }
+  if (off || state._navalPreviewSerial === (boat.serial >>> 0)) {
+    state.send(P.extNodeUONaval({ kind: P.NodeUONavalMessage.HideRange, payload: {} }));
+    state._navalPreviewSerial = 0;
+    return;
+  }
+  const cannons = (boat.boat.cannons ?? []).map((serial) => {
+    const item = itemBySerial(api, serial);
+    const profile = api.systems?.cannons?.cannonProfile?.(item);
+    if (!item || !profile) return null;
+    return {
+      serial: item.serial >>> 0,
+      dx: (item.x | 0) - (boat.x | 0),
+      dy: (item.y | 0) - (boat.y | 0),
+      facing: profile.facing,
+      range: profile.range,
+      ready: profile.stage === 'primed' && profile.cooldownRemainingMs <= 0,
+      kind: profile.kind,
+    };
+  }).filter(Boolean);
+  if (!cannons.length) {
+    state.sendSystemMessage('This boat has no mounted cannons.');
+    return;
+  }
+  state.send(P.extNodeUONaval({
+    kind: P.NodeUONavalMessage.ShowRange,
+    payload: {
+      boatSerial: boat.serial >>> 0,
+      x: boat.x | 0, y: boat.y | 0, z: boat.z | 0,
+      cannons,
+      revision: Date.now(),
+      expiresAt: Date.now() + 30_000,
+    },
+  }));
+  state._navalPreviewSerial = boat.serial >>> 0;
+  state.sendSystemMessage('Naval range preview enabled for 30 seconds. Use [boat range off to hide it.');
+}
+
 export default function register(api) {
   if (!api.commands || !api.items || !api.protocol || !api.landProvider) return () => {};
 
   api.commands.register({
     name: 'boat',
-    help: '[boat <spawn|board|leave|forward|left|right|stop>',
+    help: '[boat <status|spawn|board|leave|sail|turn|anchor|autopilot|repair|range>',
     access: 'Player',
     run(ctx) {
       const sub = String(ctx.args[0] ?? '').toLowerCase();
       const mob = ctx.sender;
+
+      if (sub === 'status' || sub === 'stats' || !sub) {
+        showBoatStatus(api, ctx, currentBoat(api, mob));
+        return;
+      }
+
+      if (sub === 'autopilot' || sub === 'course') {
+        const boat = currentBoat(api, mob);
+        const system = api.systems?.servuoMultis;
+        if (!system?.configureBoatCourse) {
+          ctx.state.sendSystemMessage('The autopilot system is unavailable.');
+          return;
+        }
+        system.configureBoatCourse(ctx, boat, ctx.args.slice(1));
+        return;
+      }
+
+      if (sub === 'repair') {
+        const boat = currentBoat(api, mob);
+        if (api.boats?.hasPilotRights && !api.boats.hasPilotRights(boat, mob)) {
+          ctx.state.sendSystemMessage('You lack the right to repair this boat.');
+          return;
+        }
+        const mode = String(ctx.args[1] ?? 'ship').toLowerCase();
+        const result = api.systems?.servuoMultis?.repairBoat?.(boat, mode === 'emergency' ? 'emergency' : 'ship');
+        ctx.state.sendSystemMessage(result?.ok
+          ? `Boat repaired: ${result.hp}/${result.max} HP.`
+          : `Cannot repair: ${result?.reason ?? 'repair system unavailable'}.`);
+        return;
+      }
+
+      if (sub === 'range') {
+        toggleNavalRange(api, ctx, currentBoat(api, mob), String(ctx.args[1] ?? '').toLowerCase() === 'off');
+        return;
+      }
 
       if (sub === 'spawn') {
         if (!isWaterAt(api, mob.map ?? 1, mob.x, mob.y)) {
@@ -174,6 +305,8 @@ export default function register(api) {
           sailState: 'stop', anchored: true,
           ownerSerial: mob.serial >>> 0,
           boatHp: hullCfg?.hpMax ?? 1000, boatHpMax: hullCfg?.hpMax ?? 1000,
+          armor: hullCfg?.armor ?? 0.05,
+          speedMultiplier: hullCfg?.speedMultiplier ?? 1.15,
           hullKind: hullArg || 'rowboat',
         };
         // FAZA BL: spawn 4 plank items, one per side. Players double-
@@ -268,6 +401,12 @@ export default function register(api) {
         const boatSer = mob._boardedBoat;
         const boat = boatSer ? itemBySerial(api, boatSer) : null;
         if (!boat) { ctx.state.sendSystemMessage('You are not on a boat.'); return; }
+        if (!api.boats?.hasPilotRights?.(boat, mob)) {
+          ctx.state.sendSystemMessage('You lack the right to pilot this boat.'); return;
+        }
+        if (boat.boat.anchored || boat.boat.wrecked || (boat.boat.sailsDisabledUntil ?? 0) > Date.now()) {
+          ctx.state.sendSystemMessage('The boat cannot move while anchored, wrecked, or its sails are disabled.'); return;
+        }
         const n = Math.max(1, Math.min(20, Number(ctx.args[1] ?? 1) | 0));
         const [dx, dy] = FACING_DELTAS[boat.boat.facing];
         let moved = 0;
@@ -295,8 +434,13 @@ export default function register(api) {
         const boatSer = mob._boardedBoat;
         const boat = boatSer ? itemBySerial(api, boatSer) : null;
         if (!boat) { ctx.state.sendSystemMessage('You are not on a boat.'); return; }
+        if (!api.boats?.hasPilotRights?.(boat, mob)) {
+          ctx.state.sendSystemMessage('You lack the right to pilot this boat.'); return;
+        }
         const table = sub === 'left' ? FACING_ROTATE_LEFT : FACING_ROTATE_RIGHT;
-        boat.boat.facing = table[boat.boat.facing];
+        const facing = table[boat.boat.facing];
+        if (api.boats?.setFacing) api.boats.setFacing(boat, facing);
+        else boat.boat.facing = facing;
         ctx.state.sendSystemMessage(`The rowboat now faces ${boat.boat.facing}.`);
         return;
       }
@@ -390,21 +534,8 @@ export default function register(api) {
         return;
       }
 
-      // Naval damage simulation (for testing the wreck path).
-      if (sub === 'damage') {
-        const boatSer = mob._boardedBoat;
-        const boat = boatSer ? itemBySerial(api, boatSer) : null;
-        if (!boat?.boat) { ctx.state.sendSystemMessage('You are not on a boat.'); return; }
-        const amount = Math.max(1, Number(ctx.args[1] ?? 50) | 0);
-        const sank = api.boats?.damage(boat, amount);
-        ctx.state.sendSystemMessage(sank
-          ? `The boat sank! HP=${boat.boat.boatHp}/${boat.boat.boatHpMax}.`
-          : `Boat HP: ${boat.boat.boatHp ?? '?'} / ${boat.boat.boatHpMax ?? '?'}.`);
-        return;
-      }
-
       ctx.state.sendSystemMessage(
-        'Usage: [boat <spawn|board|leave|forward|left|right|stop|sail|anchor|claim|key|damage>',
+        'Usage: [boat <status|spawn|board|leave|forward|left|right|stop|sail|anchor|autopilot|repair|range|claim|key>',
       );
     },
   });

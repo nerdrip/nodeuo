@@ -55,9 +55,17 @@ export class AIScheduler {
     this.bindings = new Map();
     /** @type {Map<number, {x:number,y:number,z:number,map:number}>} */
     this._lastBroadcastPositions = new Map();
+    /** Lightweight per-mobile diagnostics; bounded to one snapshot per binding. */
+    this.diagnostics = new Map();
     /** @type {NodeJS.Timeout | null} */
     this._timer = null;
     this.tickIntervalMs = 500;
+    // Production shards can hold 10k+ persisted NPC bindings. There is no
+    // useful simulation work while nobody is online, and walking every
+    // binding would otherwise compete with startup/script loading. Tests keep
+    // the historical tick-without-players behaviour unless explicitly opted
+    // into this production policy.
+    this.pauseWhenNoPlayers = deps?.pauseWhenNoPlayers === true;
   }
 
   registerBehavior(b) {
@@ -74,6 +82,7 @@ export class AIScheduler {
       if (binding.behavior === name) {
         this.bindings.delete(serial);
         this._lastBroadcastPositions.delete(serial >>> 0);
+        this.diagnostics.delete(serial >>> 0);
       }
     }
   }
@@ -92,6 +101,57 @@ export class AIScheduler {
   detach(mob) {
     this.bindings.delete(mob.serial);
     this._lastBroadcastPositions.delete(mob.serial >>> 0);
+    this.diagnostics.delete(mob.serial >>> 0);
+  }
+
+  inspect(serial) {
+    const id = serial >>> 0;
+    const binding = this.bindings.get(id);
+    const mob = this.world.mobiles.get(id);
+    if (!binding || !mob) return null;
+    const targetSerial = (binding.state?.targetSerial ?? mob.combatant ?? 0) >>> 0;
+    const target = targetSerial ? this.world.mobiles.get(targetSerial) : null;
+    const diag = this.diagnostics.get(id) ?? {};
+    let state;
+    try { state = JSON.parse(JSON.stringify(binding.state ?? {})); }
+    catch { state = { error: 'state is not JSON-serializable' }; }
+    return {
+      serial: id,
+      name: mob.name ?? '',
+      behavior: binding.behavior,
+      status: diag.status ?? 'waiting',
+      lastTickAt: diag.lastTickAt ?? 0,
+      lastTickMs: diag.lastTickMs ?? 0,
+      tickCount: diag.tickCount ?? 0,
+      skippedCount: diag.skippedCount ?? 0,
+      lastError: diag.lastError ?? null,
+      position: { x: mob.x | 0, y: mob.y | 0, z: mob.z | 0, map: mob.map | 0 },
+      home: { x: mob.homeX ?? mob.x, y: mob.homeY ?? mob.y, z: mob.homeZ ?? mob.z, range: mob.homeRange ?? 0 },
+      target: target ? {
+        serial: targetSerial, name: target.name ?? '', x: target.x | 0, y: target.y | 0,
+        z: target.z | 0, map: target.map | 0, distance: Math.max(Math.abs(target.x - mob.x), Math.abs(target.y - mob.y)),
+      } : (targetSerial ? { serial: targetSerial, missing: true } : null),
+      state,
+    };
+  }
+
+  previewPath(serial, targetSerial = 0, opts = {}) {
+    const id = serial >>> 0;
+    const mob = this.world.mobiles.get(id);
+    const binding = this.bindings.get(id);
+    if (!mob || !binding) return null;
+    const targetId = (targetSerial || binding.state?.targetSerial || mob.combatant || 0) >>> 0;
+    const target = this.world.mobiles.get(targetId);
+    if (!target || target.map !== mob.map) return { targetSerial: targetId, reachable: false, reason: 'target missing or on another facet', points: [] };
+    const directions = this.findPath(mob, target.x, target.y, { maxNodes: 2048, ...opts });
+    if (!directions) return { targetSerial: targetId, reachable: false, reason: 'no path within node budget', points: [] };
+    let x = mob.x | 0, y = mob.y | 0;
+    const points = [{ x, y, z: mob.z | 0 }];
+    for (const direction of directions.slice(0, 128)) {
+      const [dx, dy] = DIRECTION_DELTAS[direction & 7]; x += dx; y += dy;
+      points.push({ x, y, direction: direction & 7 });
+    }
+    return { targetSerial: targetId, reachable: true, steps: directions.length, truncated: directions.length > 128, points };
   }
 
   /**
@@ -158,12 +218,14 @@ export class AIScheduler {
       ? (this.world.hasOnlineMobiles?.()
         ?? [...this.world.mobiles.values()].some((m) => !!m.client))
       : false;
+    if (this.pauseWhenNoPlayers && !anyOnline) return;
     const hibernateEnabled = anyOnline && !!sectors?.mobileSerialsNear;
     for (const [serial, binding] of this.bindings) {
       const mob = this.world.mobiles.get(serial);
       if (!mob) {
         this.bindings.delete(serial);
         this._lastBroadcastPositions.delete(serial >>> 0);
+        this.diagnostics.delete(serial >>> 0);
         continue;
       }
       const b = this.behaviors.get(binding.behavior);
@@ -201,11 +263,32 @@ export class AIScheduler {
             if (m?.client) { nearPlayer = true; break; }
           }
           mob._aiActiveUntil = now + (nearPlayer ? 1000 : 4000);
-          if (!nearPlayer) continue;
+          if (!nearPlayer) {
+            const prev = this.diagnostics.get(serial) ?? {};
+            this.diagnostics.set(serial, { ...prev, status: 'hibernating', skippedCount: (prev.skippedCount ?? 0) + 1 });
+            continue;
+          }
         }
       }
-      try { b.tick(ctx, mob, binding.state); }
-      catch (e) { console.error(`[ai] ${binding.behavior} tick threw:`, e); }
+      const started = performance.now();
+      try {
+        b.tick(ctx, mob, binding.state);
+        const prev = this.diagnostics.get(serial) ?? {};
+        this.diagnostics.set(serial, {
+          ...prev, status: 'active', lastTickAt: now,
+          lastTickMs: Math.round((performance.now() - started) * 1000) / 1000,
+          tickCount: (prev.tickCount ?? 0) + 1, lastError: null,
+        });
+      } catch (e) {
+        const prev = this.diagnostics.get(serial) ?? {};
+        this.diagnostics.set(serial, {
+          ...prev, status: 'error', lastTickAt: now,
+          lastTickMs: Math.round((performance.now() - started) * 1000) / 1000,
+          tickCount: (prev.tickCount ?? 0) + 1,
+          lastError: String(e?.stack ?? e?.message ?? e).slice(0, 2000),
+        });
+        console.error(`[ai] ${binding.behavior} tick threw:`, e);
+      }
     }
   }
 
@@ -237,6 +320,11 @@ export class AIScheduler {
         if (removePacket) {
           try { state?.send?.(removePacket); } catch { /* ignore */ }
         }
+        // Keep the server-side visibility baseline in sync with the remove.
+        // Otherwise a mob that left and later re-entered was considered
+        // already known, so only 0x77 was sent and the client rebuilt a naked
+        // stub without equipment/HP.
+        state?._visibleMobiles?.delete?.(mobSerial);
       }
     }
     this._lastBroadcastPositions.set(mobSerial, {
@@ -327,23 +415,39 @@ export function stepMobile(mob, direction, world = null) {
 export const wanderBehavior = {
   name: 'wander',
   initState() {
-    return { nextStepAt: Date.now() + 2000 + Math.random() * 3000, home: null };
+    return {
+      nextStepAt: Date.now() + 2000 + Math.random() * 3000,
+      home: null,
+      pendingDirection: null,
+    };
   },
   tick(ctx, mob, state) {
     if (state.home === null) state.home = { x: mob.x, y: mob.y };
     if (ctx.now < state.nextStepAt) return;
-    state.nextStepAt = ctx.now + 1500 + Math.random() * 2500;
-    const dir = Math.floor(Math.random() * 8);
+    let dir = Number.isInteger(state.pendingDirection)
+      ? state.pendingDirection & 7
+      : Math.floor(Math.random() * 8);
     // Leash: if we'd drift more than 8 tiles from home, walk back.
     const [dx, dy] = DIRECTION_DELTAS[dir];
     const nx = mob.x + dx, ny = mob.y + dy;
     if (state.home && (Math.abs(nx - state.home.x) > 8 || Math.abs(ny - state.home.y) > 8)) {
       const back = Math.atan2(state.home.y - mob.y, state.home.x - mob.x);
-      const facing = Math.round(((back + Math.PI * 2.5) / (Math.PI / 4))) & 7;
-      stepMobile(mob, facing, ctx.world);
-    } else {
-      stepMobile(mob, dir, ctx.world);
+      dir = Math.round(((back + Math.PI * 2.5) / (Math.PI / 4))) & 7;
     }
+    const x0 = mob.x | 0, y0 = mob.y | 0;
+    const changed = stepMobile(mob, dir, ctx.world);
+    if (!changed) {
+      state.pendingDirection = null;
+      state.nextStepAt = ctx.now + 600;
+      return;
+    }
+    const moved = mob.x !== x0 || mob.y !== y0;
+    state.pendingDirection = moved ? null : dir;
+    // A facing-only result gets a quick follow-through on the next AI tick
+    // instead of another 1.5-4 s idle roll in an unrelated direction.
+    state.nextStepAt = moved
+      ? ctx.now + 1500 + Math.random() * 2500
+      : ctx.now + 400;
     ctx.broadcastMove(mob);
   },
 };

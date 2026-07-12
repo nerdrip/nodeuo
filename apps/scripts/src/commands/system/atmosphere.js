@@ -23,12 +23,18 @@ export default function (api) {
 
   commands.register({
     name: 'weather',
-    help: 'Set weather (dry|rain|storm|fierce|snow) [intensity].',
+    help: 'Set weather (dry|rain|storm|fierce|snow) [intensity] [temperature].',
     run: (ctx) => {
-      const [kindName, intensityRaw] = ctx.args;
+      const [kindName, intensityRaw, temperatureRaw] = ctx.args;
       const kind = kinds[String(kindName ?? '').toLowerCase()];
       if (kind === undefined) { ctx.reply('Unknown weather kind.'); return; }
-      const intensity = Math.max(0, Math.min(70, Number(intensityRaw ?? 10) | 0));
+      const intensity = kind === protocol.WeatherKind.Dry
+        ? 0
+        : Math.max(0, Math.min(70, Number(intensityRaw ?? 10) | 0));
+      const defaults = { [protocol.WeatherKind.Snow]: -12, [protocol.WeatherKind.Rain]: 8,
+        [protocol.WeatherKind.FierceStorm]: 5, [protocol.WeatherKind.Storm]: 3 };
+      const temperature = Math.max(-127, Math.min(127,
+        Number(temperatureRaw ?? defaults[kind] ?? 0) | 0));
       // Persist on dayNight so new logins receive the current weather.
       // Without this the new client walks into a sunny world while every
       // existing player still sees rain — leading to "weather doesn't
@@ -36,20 +42,9 @@ export default function (api) {
       if (dayNight) {
         dayNight.weatherKind = kind;
         dayNight.weatherIntensity = intensity;
+        dayNight.weatherTemperature = temperature;
       }
-      broadcast(protocol.weather({ kind, intensity }));
-    },
-  });
-
-  commands.register({
-    name: 'season',
-    help: 'Set season id (0..4).',
-    run: (ctx) => {
-      const id = Math.max(0, Math.min(4, Number(ctx.args[0] ?? 1) | 0));
-      // Same reasoning as weather — bind the season to the dayNight
-      // singleton so subsequent logins receive the GM-set value.
-      if (dayNight) dayNight.season = id;
-      broadcast(protocol.seasonChange(id, 1));
+      broadcast(protocol.weather({ kind, intensity, temperature }));
     },
   });
 
@@ -104,7 +99,6 @@ export default function (api) {
 
   return () => {
     commands.unregister('weather');
-    commands.unregister('season');
     commands.unregister('day');
     commands.unregister('night');
     commands.unregister('setlight');

@@ -15,6 +15,12 @@ const clilocs = {
   Buy: 3006121,
   Sell: 3006122,
   Train: 3006146,
+  PetGuard: 3006107,
+  PetFollow: 3006108,
+  PetKill: 3006111,
+  PetStay: 3006114,
+  PetRelease: 3006118,
+  Mount: 1157587,
 };
 
 export default function (api) {
@@ -54,6 +60,51 @@ export default function (api) {
           },
         },
       ];
+      if ((mob.controlMaster >>> 0) === (state.mobile?.serial >>> 0)) {
+        const order = (command, targetSerial = 0) => {
+          mob.petCommand = command;
+          const binding = api.ai?.bindings?.get?.(mob.serial);
+          if (binding?.state) { binding.state.command = command; binding.state.targetSerial = targetSerial >>> 0; }
+        };
+        entries.push(
+          { responseId: 100, cliloc: clilocs.PetFollow, onPick: () => order('follow') },
+          { responseId: 101, cliloc: clilocs.PetStay, onPick: () => order('stay') },
+          { responseId: 102, cliloc: clilocs.PetGuard, onPick: () => order('guard') },
+          { responseId: 103, cliloc: clilocs.PetKill, onPick: () => {
+            state.sendSystemMessage?.('Choose a target for your pet.');
+            api.targeting?.request?.(state, (picked) => {
+              if (picked?.serial) order('attack', picked.serial);
+            }, { kind: 0 });
+          } },
+          { responseId: 104, cliloc: clilocs.Train, onPick: () => {
+            const PT = api.systems?.petTraining;
+            const sn = PT?.xpProgressOf?.(mob) ?? { level: 0, pct: 0, intoLevel: 0 };
+            state.sendSystemMessage?.(`@@OPEN_PETTRAINING_GUMP@@${[
+              (mob.serial >>> 0).toString(16), (mob.name ?? '?').replace(/[|;]/g, '_'),
+              sn.level | 0, sn.pct | 0, sn.intoLevel | 0,
+              PT?.trainingPointsAvailable?.(mob) ?? 0,
+              (mob.petTrainingAbilities ?? []).join(','),
+            ].join('|')}`);
+          } },
+          { responseId: 105, cliloc: clilocs.PetRelease, onPick: () => {
+            mob.controlMaster = 0; mob.notoriety = 3;
+            delete mob.petCommand; delete mob.bonded;
+            api.ai?.attach?.(mob, 'wander');
+            state.sendSystemMessage?.(`${mob.name ?? 'The pet'} has been released.`);
+          } },
+        );
+        const mountCfg = api.monsters?.get?.(mob.kind) ?? {};
+        if (mountCfg.mount || mob._mountCargoSerial) {
+          entries.push({ responseId: 106, cliloc: clilocs.OpenBackpack, onPick: () => {
+            state.ctx?.commands?.dispatch?.('mount cargo', { sender: state.mobile, state, world });
+          } });
+        }
+        if (mountCfg.mount) {
+          entries.push({ responseId: 107, cliloc: clilocs.Mount, onPick: () => {
+            state.ctx?.commands?.dispatch?.('mount', { sender: state.mobile, state, world });
+          } });
+        }
+      }
       if (mob.ai === 'townCrier') {
         entries.push({
           responseId: 2,

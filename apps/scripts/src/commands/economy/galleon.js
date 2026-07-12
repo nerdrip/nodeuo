@@ -15,8 +15,9 @@ export default function register(api) {
 
   api.commands.register({
     name: 'galleon',
+    hidden: true,
     help: '[galleon <britannian|tokuno|orc|gargish> | [galleon dock — place or dry-dock a galleon.',
-    access: 'Player',
+    access: 'GM',
     run(ctx) {
       const sub = String(ctx.args[0] ?? '').toLowerCase();
       const mob = ctx.sender;

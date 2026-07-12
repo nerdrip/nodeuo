@@ -73,6 +73,16 @@ describe('handleResynchronize', () => {
     expect(sent.some((p) => p[0] === 0xF3)).toBe(true);
   });
 
+  it('never streams invisible technical ground triggers', () => {
+    world.items.set(0x4000_0001, {
+      serial: 0x4000_0001, itemId: 0x1BCB, amount: 1,
+      x: 100, y: 100, z: 0, map: 1, parent: null,
+      visible: false, script: 'teleporter',
+    });
+    callResync();
+    expect(sent.some((p) => p[0] === 0xF3)).toBe(false);
+  });
+
   it('does not send NPC/item packets for things out of update range', () => {
     world.mobiles.set(0x2002, {
       serial: 0x2002, body: 17, hue: 0, flags: 0, notoriety: 5,
@@ -87,5 +97,16 @@ describe('handleResynchronize', () => {
     // Only self 0x78 is sent (+ 0x20 + 0xA1). No item packet.
     expect(sent.filter((p) => p[0] === 0x78)).toHaveLength(1);
     expect(sent.some((p) => p[0] === 0xF3)).toBe(false);
+  });
+
+  it('removes serials from the previous visibility window that are no longer nearby', () => {
+    state._visibleItems = new Set([0x4000_1234]);
+    state._visibleMobiles = new Set([0x2000_1234]);
+    callResync();
+    const removed = sent
+      .filter((p) => p[0] === 0x1D)
+      .map((p) => ((p[1] << 24) | (p[2] << 16) | (p[3] << 8) | p[4]) >>> 0);
+    expect(removed).toContain(0x4000_1234);
+    expect(removed).toContain(0x2000_1234);
   });
 });

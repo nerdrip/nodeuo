@@ -52,6 +52,10 @@ const LAYER_ORDER = [
 
 /** @type {{ tiles: Record<string, {page:number,u:number,v:number,w:number,h:number}> } | null} */
 let _gumpManifest = null;
+/** Decoded/cropped gump PNG promises. Bounds repeated Sharp work when an
+ * operator flips through many mobiles wearing the same common equipment. */
+const _tileCache = new Map();
+const TILE_CACHE_MAX = 256;
 
 function loadGumpManifest() {
   if (_gumpManifest) return _gumpManifest;
@@ -67,6 +71,15 @@ function loadGumpManifest() {
 }
 
 async function extractGumpTile(gumpId) {
+  if (_tileCache.has(gumpId)) return _tileCache.get(gumpId);
+  const pending = extractGumpTileUncached(gumpId);
+  _tileCache.set(gumpId, pending);
+  if (_tileCache.size > TILE_CACHE_MAX) _tileCache.delete(_tileCache.keys().next().value);
+  try { return await pending; }
+  catch (error) { _tileCache.delete(gumpId); throw error; }
+}
+
+async function extractGumpTileUncached(gumpId) {
   const m = loadGumpManifest();
   // tiles is an object keyed by stringified decimal id ("12" for 0x000C).
   const tile = m.tiles?.[String(gumpId)] ?? m.tiles?.[gumpId];
@@ -113,7 +126,11 @@ export async function composePaperdoll(world, mob) {
   // Walk equipped layers in CUO order.
   /** @type {Map<number, { itemId:number, hue:number }>} */
   const byLayer = new Map();
-  for (const it of (world?.items?.values?.() ?? [])) {
+  const indexed = world?._childrenByParent?.get?.(mob.serial);
+  const equipped = indexed
+    ? Array.from(indexed, (serial) => world.items.get(serial)).filter(Boolean)
+    : (world?.items?.values?.() ?? []);
+  for (const it of equipped) {
     if (it.parent !== mob.serial) continue;
     if ((it.layer ?? 0) === 0) continue;
     byLayer.set(it.layer | 0, { itemId: it.itemId, hue: it.hue });

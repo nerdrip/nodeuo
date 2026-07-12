@@ -52,6 +52,16 @@ export const BUFF_ICONS = Object.freeze({
   Spellweaving: 0x420, ManaShield: 0x42E,
 });
 
+const BUFF_ICON_BY_NORMALIZED_NAME = new Map(
+  Object.entries(BUFF_ICONS).map(([name, icon]) => [name.toLowerCase().replace(/[^a-z0-9]/g, ''), icon]),
+);
+
+/** Resolve script-friendly names (`night-sight`, `mind rot`) to OSI icons. */
+export function buffIconForEffect(name, fallback = BUFF_ICONS.DismountPrevention) {
+  const key = String(name ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  return BUFF_ICON_BY_NORMALIZED_NAME.get(key) ?? fallback;
+}
+
 /**
  * Attach `eff` to `mob`, replacing any existing effect of the same name.
  * Returns the attached instance so callers can tweak it (e.g. hold a ref
@@ -73,6 +83,8 @@ export function apply(mob, eff) {
     // `onTick` caller silently had no periodic effect at all.
     tick: eff.tick ?? eff.onTick,
     onRemove: eff.onRemove,
+    icon: Number.isFinite(eff.icon) ? (eff.icon & 0xffff)
+      : (Number.isFinite(eff.kind) ? (eff.kind & 0xffff) : buffIconForEffect(eff.name)),
   };
   if (existing >= 0) {
     const prev = mob.effects[existing];

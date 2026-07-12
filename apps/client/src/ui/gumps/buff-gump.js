@@ -14,7 +14,7 @@
 import { WindowGump } from './window-gump.js';
 import { Control } from '../control.js';
 import { TimerControl } from '../controls/timer-control.js';
-import { ItemPic } from '../controls/item-pic.js';
+import { GumpPic } from '../controls/gump-pic.js';
 import { bus } from '../../core/event-bus.js';
 import { profile } from '../../managers/profile-manager.js';
 import { tooltips } from '../../managers/tooltip-manager.js';
@@ -38,7 +38,9 @@ class BuffIcon extends Control {
     // Buff icons are gump.mul graphics in CUO; we render them through
     // ItemPic which falls back to a coloured rect if the graphic id is
     // out of our atlas. Adequate for MVP.
-    this._pic = new ItemPic(buff.icon, { hue: 0 });
+    // BuffIcon values are gump-art ids, not static/item-art ids. ItemPic
+    // happened to show unrelated world objects for many standard effects.
+    this._pic = new GumpPic(buff.icon, { width: ICON - 4, height: ICON - 4 });
     this._pic.setPosition(2, 2);
     this._pic.acceptMouseInput = false;
     this.add(this._pic);
@@ -48,7 +50,11 @@ class BuffIcon extends Control {
     this._frame.clear();
     this._frame.rect(0, 0, ICON, ICON)
       .fill({ color: 0x0d1320, alpha: 0.85 })
-      .stroke({ width: 1, color: hover ? 0xfff0a0 : 0x6a4a18, alpha: 1 });
+      .stroke({
+        width: 1,
+        color: hover ? 0xfff0a0 : (this.buff?.secondary === 'debuff' ? 0xa84545 : 0x4d8756),
+        alpha: 1,
+      });
   }
   onMouseEnter(e) {
     this._draw(true);

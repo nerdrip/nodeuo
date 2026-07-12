@@ -10,11 +10,16 @@ globalThis.localStorage = globalThis.localStorage ?? {
 
 const {
   lightPoints,
+  lightTextureMode,
   measureLightGrid,
   mobileEquipmentLightSpec,
   sampleLightOcclusionForTests,
   staticLightSpec,
 } = await import('../src/renderer/light-points.js');
+
+assert.equal(lightTextureMode(2, true), 'radial', 'player-attached light must use the smooth field');
+assert.equal(lightTextureMode(2, false), 'mask', 'fixed lights should retain light.mul shapes');
+assert.equal(lightTextureMode(0, false), 'radial', 'unmapped lights should use the smooth fallback');
 
 const grid = Uint8Array.from([
   0, 0, 0, 0, 0,

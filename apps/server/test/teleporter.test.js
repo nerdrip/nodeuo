@@ -73,6 +73,50 @@ describe('teleporter script (FAZA CZ)', () => {
     dispatchItemEvent(w, tele, 'onWalkOn', mob);
     expect(mob.x).toBe(50);   // unchanged
   });
+
+  it('uses the central teleport path and refreshes the destination asynchronously', () => {
+    const queued = [];
+    const refreshes = [];
+    const calls = [];
+    const script = buildTeleporterScript({
+      game: {
+        mobile: {
+          teleport(target, dest, options) {
+            calls.push({ target, dest, options });
+            Object.assign(target, dest);
+            return { mapChanged: false };
+          },
+        },
+      },
+      ctx: { handlers: { refreshSurroundings: (state) => refreshes.push(state) } },
+      lifecycle: { setImmediate: (fn) => queued.push(fn) },
+    });
+    const tele = createItem(w, { itemId: 0x1BCB, x: 50, y: 50, z: 0, map: 1 });
+    tele.script = 'teleporter';
+    tele.teleportTo = { x: 210, y: 211, z: 2, map: 1 };
+
+    expect(script.onWalkOn(w, tele, mob)).toBe(true);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].options.refresh).toBe(false);
+    expect([mob.x, mob.y, mob.z]).toEqual([210, 211, 2]);
+    expect(refreshes).toHaveLength(0);
+    expect(queued).toHaveLength(1);
+    queued[0]();
+    expect(refreshes).toEqual([mob.client]);
+  });
+
+  it('does not blanket-block an unrelated chained teleporter', () => {
+    const script = buildTeleporterScript();
+    const first = createItem(w, { itemId: 0x1BCB, x: 50, y: 50, z: 0, map: 1 });
+    first.teleportTo = { x: 200, y: 200, z: 0, map: 1 };
+    const second = createItem(w, { itemId: 0x1BCB, x: 201, y: 200, z: 0, map: 1 });
+    second.teleportTo = { x: 300, y: 300, z: 0, map: 1 };
+
+    expect(script.onWalkOn(w, first, mob)).toBe(true);
+    mob.x = second.x; mob.y = second.y;
+    expect(script.onWalkOn(w, second, mob)).toBe(true);
+    expect([mob.x, mob.y]).toEqual([300, 300]);
+  });
 });
 
 import { afterEach } from 'vitest';

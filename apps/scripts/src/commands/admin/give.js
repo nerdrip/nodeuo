@@ -80,20 +80,12 @@ export default function register(api) {
 
   api.commands.register({
     name: 'give',
+    aliases: ['create'],
     help: '[give <itemId|template> [amount] [hue] — drop the item in your pack.',
     access: 'GM',
     run: runGive,
   });
-  // Alias for ServUO-other-shard converts who type `[create` reflexively.
-  api.commands.register({
-    name: 'create',
-    help: '[create <itemId|template> [amount] [hue] — alias of [give. Drops the item in your pack.',
-    access: 'GM',
-    run: runGive,
-  });
-
   return () => {
     api.commands.unregister('give');
-    api.commands.unregister('create');
   };
 }

@@ -442,6 +442,7 @@ function registerCommands(api, disposers) {
 
   api.commands?.register?.({
     name: 'dailyrares',
+    hidden: true,
     help: '[dailyrares seed — seed ServUO daily rare spawn points.',
     access: 'GM',
     run(ctx) {
@@ -462,6 +463,7 @@ function registerCommands(api, disposers) {
 
   api.commands?.register?.({
     name: 'testcenter',
+    hidden: true,
     help: '[testcenter set <str|dex|int|skillId> <value>|fillbank',
     access: 'GM',
     run(ctx) {
@@ -504,6 +506,7 @@ function registerCommands(api, disposers) {
 
   api.commands?.register?.({
     name: 'anniversary22',
+    hidden: true,
     help: '[anniversary22 token|card|timepiece',
     access: 'GM',
     run(ctx) {

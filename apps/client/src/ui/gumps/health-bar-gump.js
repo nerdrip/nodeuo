@@ -26,9 +26,13 @@ import { GumpPic } from '../controls/gump-pic.js';
 import { world } from '../../world/world.js';
 import { bus } from '../../core/event-bus.js';
 import { net } from '../../net/net-client.js';
-import { buildStatusRequest, buildLookReq, buildCloseStatusBarGump } from '../../net/outgoing.js';
+import {
+  buildStatusRequest, buildUseReq, buildCloseStatusBarGump,
+} from '../../net/outgoing.js';
 import { profile } from '../../managers/profile-manager.js';
 import { targetManager } from '../../managers/target-manager.js';
+import { NOTORIETY_HUE } from '../../shared/notoriety-hues.js';
+import { party } from '../../managers/party-manager.js';
 
 // Canonical UO gump background dimensions. 0x0803 / 0x0804 ship at 154×60
 // in the extracted atlas (matches CUO `HealthBarGump.cs` HPB_WIDTH=115
@@ -39,28 +43,18 @@ const BG_H = 60;
 // Bar layout. Self / pet / party (background 0x0803, three bars) and
 // foreign mob (background 0x0804, single bar) place the bars at
 // different y offsets — CUO ships the same pair of constants.
-const CUSTOM_BAR_X = 38;          // x inside background for fill bars
-const CUSTOM_BAR_W = 100;         // max fill width (full hp)
-const CUSTOM_HP_Y  = 14;
-const CUSTOM_MP_Y  = 24;
-const CUSTOM_ST_Y  = 34;
+const CUSTOM_BAR_X = 34;
+const CUSTOM_BAR_W = 109;
+const CUSTOM_HP_Y  = 12;
+const CUSTOM_MP_Y  = 25;
+const CUSTOM_ST_Y  = 38;
 
 const MOB_BAR_X = 34;
-const MOB_BAR_W = 95;
+const MOB_BAR_W = 109;
 const MOB_HP_Y  = 38;
 
 // Notoriety colour table for the name label. 24-bit RGB only — Pixi v8
 // rejects 32-bit ARGB ints. Mirrors CUO's notoriety hue table.
-const NOTO_HUE = {
-  1: 0xfff0c0,    // innocent / cream
-  2: 0x00ff80,    // friend
-  3: 0xc0c0c0,    // grey
-  4: 0xc080ff,    // criminal (purple)
-  5: 0xff8030,    // enemy orange
-  6: 0xff4040,    // murderer red
-  7: 0xfff060,    // invulnerable yellow
-};
-
 export class HealthBarGump extends Gump {
   constructor(mobileSerial, x = 280, y = 80) {
     super();
@@ -124,11 +118,14 @@ export class HealthBarGump extends Gump {
     // post-swap and the click sailed through into the world handler
     // which cancelled the target prompt.
     this._wireBgClicks(this._bg);
+    this._title.onMouseDown = (button) => this._targetOnMouseDown(button);
     this._title.onClick = () => {
+      if (this._consumeMouseDownTarget()) return;
       if (targetManager?.isActive?.()) {
         targetManager.pickEntity({ serial: this.mobileSerial });
         return;
       }
+      targetManager?.selectEntity?.(this.mobileSerial);
       try { net.send(buildStatusRequest(this.mobileSerial, 4)); }
       catch { /* socket transient */ }
     };
@@ -157,6 +154,8 @@ export class HealthBarGump extends Gump {
       bus.on('mobile:stamina',(info) => { if (info.serial === this.mobileSerial) this._scheduleDraw(); }),
       bus.on('mobile:status', (info) => { if (info.serial === this.mobileSerial) this._scheduleDraw(); }),
       bus.on('mobile:attrs',  (info) => { if (info.serial === this.mobileSerial) this._scheduleDraw(); }),
+      bus.on('mobile:healthbar', (info) => { if (info.serial === this.mobileSerial) this._scheduleDraw(); }),
+      bus.on('party:roster', () => { this._lastDrawKey = ''; this._scheduleDraw(); }),
       bus.on('entity:removed',({serial}) => { if (serial === this.mobileSerial) this.close(); }),
       // Client audit #5 #14 — listen for own-death events. The server
       // stops streaming 0xA1 after death so the bar would otherwise
@@ -197,15 +196,36 @@ export class HealthBarGump extends Gump {
    *  refresh + look-req chain consistent regardless of how many bar
    *  transitions the mob went through. */
   _wireBgClicks(bg) {
+    bg.onMouseDown = (button) => this._targetOnMouseDown(button);
     bg.onClick = () => {
+      if (this._consumeMouseDownTarget()) return;
       if (targetManager?.isActive?.()) {
         targetManager.pickEntity({ serial: this.mobileSerial });
         return;
       }
+      targetManager?.selectEntity?.(this.mobileSerial);
       try { net.send(buildStatusRequest(this.mobileSerial, 4)); }
       catch { /* socket transient */ }
     };
-    bg.onDoubleClick = () => net.send(buildLookReq(this.mobileSerial));
+    bg.onDoubleClick = () => {
+      if (world.player?.warMode) targetManager?.setLastTarget?.(this.mobileSerial);
+      else net.send(buildUseReq(this.mobileSerial));
+    };
+  }
+
+  // ClassicUO resolves an active target on mouse-down, before a healthbar
+  // can begin dragging. Waiting for click/mouse-up made a tiny hand movement
+  // turn the action into a drag and the spell/combat target was lost.
+  _targetOnMouseDown(button) {
+    if (button !== 0 || !targetManager?.isActive?.()) return;
+    targetManager.pickEntity({ serial: this.mobileSerial });
+    this._pickedTargetOnMouseDown = true;
+  }
+
+  _consumeMouseDownTarget() {
+    if (!this._pickedTargetOnMouseDown) return false;
+    this._pickedTargetOnMouseDown = false;
+    return true;
   }
 
   /** Audit rev.4 P2 — open a tiny rename prompt. Stored aliases
@@ -228,27 +248,11 @@ export class HealthBarGump extends Gump {
     } catch (e) { console.warn('[health-bar] alias prompt failed', e); }
   }
 
-  /** Lerp the HP fill colour from BLUE (full) → CYAN → YELLOW → RED
-   *  (low) so the user reads health state at a glance even without
-   *  looking at the numbers. Matches the "blue when full, red when
-   *  ubywa" request — distinct from CUO's flat red, but the player
-   *  wanted a smoother gradient. Returns a 24-bit RGB int. */
+  /** Canonical UO health colour. Width communicates the remaining HP;
+   *  colour remains available for poison/invulnerability state. */
   _hpColor(ratio) {
-    const r = Math.max(0, Math.min(1, ratio));
-    // 0.0 .. 0.5 → red → yellow; 0.5 .. 1.0 → yellow → blue.
-    let R, G, B;
-    if (r < 0.5) {
-      const t = r / 0.5;
-      R = Math.round(0xff * (1 - t) + 0xff * t);  // red→yellow keeps R=ff
-      G = Math.round(0x30 * (1 - t) + 0xc0 * t);
-      B = Math.round(0x30 * (1 - t));
-    } else {
-      const t = (r - 0.5) / 0.5;
-      R = Math.round(0xff * (1 - t));
-      G = Math.round(0xc0 * (1 - t) + 0x80 * t);
-      B = Math.round(0x10 * (1 - t) + 0xff * t);
-    }
-    return (R << 16) | (G << 8) | B;
+    void ratio;
+    return 0xc83232;
   }
 
   /** Draw one bar slot — dark recessed gutter + coloured fill on top.
@@ -271,13 +275,13 @@ export class HealthBarGump extends Gump {
     this._barState[slot] = stateKey;
     gfx.clear();
     // Dark recessed gutter (always visible).
-    gfx.rect(x, y, maxW, 7)
-      .fill({ color: 0x100806, alpha: 0.9 })
+    gfx.rect(x, y, maxW, 11)
+      .fill({ color: 0x8d2020, alpha: 0.96 })
       .stroke({ width: 1, color: 0x000000, alpha: 0.8 });
     // Filled portion.
     const w = Math.max(0, Math.min(maxW, fillW | 0));
     if (w > 0) {
-      gfx.rect(x, y, w, 7).fill({ color });
+      gfx.rect(x, y, w, 11).fill({ color });
       // Highlight strip on top for a "glassy" 3D pop.
       gfx.rect(x, y, w, 2).fill({ color: 0xffffff, alpha: 0.18 });
     }
@@ -317,7 +321,8 @@ export class HealthBarGump extends Gump {
     // labels) which matches classic UO behaviour.
     const isPet   = m.controlMaster != null
       && (m.controlMaster >>> 0) === (world.player?.serial >>> 0);
-    const showFull = isSelf || isPet;
+    const isParty = party.isMember?.(this.mobileSerial) === true;
+    const showFull = isSelf || isPet || isParty;
     const noto = m.notoriety ?? 1;
 
     // Hide the name on the player's own three-bar bar — the user can
@@ -352,6 +357,9 @@ export class HealthBarGump extends Gump {
       mp | 0, mpMax | 0,
       st | 0, stMax | 0,
       m.flags | 0,
+      m.poisoned ? 1 : 0,
+      m.yellowHits ? 1 : 0,
+      m.dead ? 1 : 0,
       m.healthbar ?? '',
     ].join('|');
     if (drawKey === this._lastDrawKey) return;
@@ -359,7 +367,8 @@ export class HealthBarGump extends Gump {
 
     if (!isSelf) {
       this._title.setText(displayName);
-      if (this._title.setHue) this._title.setHue(NOTO_HUE[noto] ?? 0xfff0c0);
+      if (this._title.setHue) this._title.setHue(NOTORIETY_HUE[noto] ?? 0xfff0c0);
+      this._title.node.scale.set(Math.min(1, 120 / Math.max(1, this._title.width)));
       this._title.node.visible = true;
     }
 
@@ -383,7 +392,7 @@ export class HealthBarGump extends Gump {
     // wypozyucjonowany"). Numbers eyeball-matched to the CUO 2D
     // healthbar layout.
     if (showFull) this._title.setPosition(16, 0);
-    else          this._title.setPosition(34, 1);
+    else          this._title.setPosition(16, 14);
     // Notoriety hue tint — paint the bar chrome with the mob's
     // reputation colour. Hostile (orange/red murderer) mobs render red,
     // friends green, criminals purple, etc. Without this the bar
@@ -393,13 +402,16 @@ export class HealthBarGump extends Gump {
     // tinta czerwonego bo mob jest czerwony"). NOTO_HUE maps the
     // canonical 1..7 notoriety value to an RGB tint applied to the
     // GumpPic sprite.
-    const notoHue = NOTO_HUE[noto | 0] ?? 0xfff0c0;
-    this._bg?.setTint?.(notoHue);
+    // Notoriety belongs on the title. Multiplying the already-dark native
+    // chrome by that hue made the 0x0804 background nearly invisible.
+    this._bg?.setTint?.(0xffffff);
 
-    // HP gets a blue→red gradient based on ratio. Status overrides:
+    // Canonical red HP. Status overrides:
     // poisoned (flag 0x04) = green; yellow-hits/invul = yellow.
-    const hpRatio = hp / hpMax;
-    let hpColor = this._hpColor(hpRatio);
+    const hpRatio = Math.max(0, Math.min(1, hp / hpMax));
+    // CUO paints a red empty line and overlays remaining health in blue;
+    // poison/yellow-hits replace that overlay colour.
+    let hpColor = 0x4080ff;
     if (m.flags & 0x04) hpColor = 0x40c040;
     else if ((m.flags & 0x08) || m.healthbar === 'yellow' || noto === 7) hpColor = 0xfff060;
 

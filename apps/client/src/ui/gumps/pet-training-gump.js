@@ -31,13 +31,15 @@ export class PetTrainingGump extends WindowGump {
     super({ title: 'Pet Training', width: 360, height: 60 + 28 * tricks.length, x: 200, y: 120 });
     this._net = opts.net;
     this._petSerial = opts.petSerial >>> 0;
+    this._learned = new Set(opts.learned ?? []);
 
     this.addContent(new Label(`Available points: ${opts.availablePoints}`, { fontSize: 11, hue: 0xffffa0 }), 12, 28);
 
     let y = 56;
     for (const t of tricks) {
-      const enough = opts.availablePoints >= t.cost;
-      const lbl = new Label(`${t.label}  (${t.cost} pt)`, { fontSize: 10, hue: enough ? 0xffffff : 0x808080 });
+      const learned = this._learned.has(t.key);
+      const enough = !learned && opts.availablePoints >= t.cost;
+      const lbl = new Label(`${t.label}  (${learned ? 'learned' : `${t.cost} pt`})`, { fontSize: 10, hue: learned ? 0x70d890 : enough ? 0xffffff : 0x808080 });
       this.addContent(lbl, 36, y + 4);
       const b = new Button({
         normalGumpId: enough ? 0x0481 : 0x0483, pressedGumpId: 0x0482,
@@ -53,7 +55,7 @@ export class PetTrainingGump extends WindowGump {
 
   _train(trickKey) {
     if (this._net?.sendCommand) {
-      try { this._net.sendCommand(`pet train ${trickKey}`); } catch { /* */ }
+      try { this._net.sendCommand(`pet train ${trickKey} ${this._petSerial.toString(16)}`); } catch { /* */ }
     }
   }
 

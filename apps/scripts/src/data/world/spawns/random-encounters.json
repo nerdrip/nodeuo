@@ -1,8 +1,8 @@
 {
   "_comment": "Random wilderness encounter pool. region tag matches classifyRegion(); weight biases pickEncounter selection.",
-  "pollMs": 30000,
-  "encounterChance": 0.04,
-  "cooldownMs": 600000,
+  "pollMs": 60000,
+  "encounterChance": 0.01,
+  "cooldownMs": 2700000,
   "regionTags": ["wilderness", "forest", "graveyard"],
   "encounters": [
     {

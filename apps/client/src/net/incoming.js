@@ -1107,12 +1107,17 @@ export function decodeOverallLight(pkt) {
  *  (e.g. autumn→winter swaps to winter music). Previously decoded as
  *  `cursor`, ignored — music never refreshed on season change. */
 export function decodeSeason(pkt) {
-  return { season: pkt[1], playSound: pkt[2] !== 0 };
+  return { season: Math.max(0, Math.min(4, pkt[1] | 0)), playSound: pkt[2] !== 0 };
 }
 
 /** 0x65 Weather (4B). */
 export function decodeWeather(pkt) {
-  return { kind: pkt[1], particles: pkt[2], temperature: pkt[3] };
+  const rawTemperature = pkt[3] | 0;
+  return {
+    kind: pkt[1],
+    particles: pkt[2],
+    temperature: rawTemperature >= 0x80 ? rawTemperature - 0x100 : rawTemperature,
+  };
 }
 
 /** 0x88 OpenPaperdoll (66B). */

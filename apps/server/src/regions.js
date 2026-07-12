@@ -71,6 +71,25 @@ export class RegionRegistry {
     return out;
   }
 
+  upsert(r) {
+    if (!r?.name) throw new Error('region needs a name');
+    const map = Number(r.map ?? 1) | 0;
+    const index = this.regions.findIndex((entry) => entry.name === r.name && entry.map === map);
+    const defaults = r.type ? (TYPE_DEFAULTS[r.type] ?? {}) : {};
+    const out = { priority: 0, ...defaults, ...r, map };
+    if (index >= 0) this.regions[index] = out;
+    else this.regions.push(out);
+    return out;
+  }
+
+  remove(name, map = null) {
+    const before = this.regions.length;
+    this.regions = this.regions.filter((region) => region.name !== name || (map != null && region.map !== (map | 0)));
+    return before - this.regions.length;
+  }
+
+  all() { return [...this.regions]; }
+
   /**
    * Find all regions containing the given point. Returned in registration
    * order so the v1 "last match wins" contract still holds.

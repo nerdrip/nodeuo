@@ -19,10 +19,9 @@ import { applyDecorations,  deleteDecorations  } from './decorate.js';
 import { applySigns,        deleteSigns        } from './signgen.js';
 import { applyDoors,        deleteDoors        } from './doorgen.js';
 import { applyTeleporters,  deleteTeleporters  } from './telgen.js';
-import { applyXmlSpawners,  deleteXmlSpawners  } from './xmlload.js';
+import { applyXmlSpawners, deleteXmlSpawners, primeVendorSpawners } from './xmlload.js';
 import { applyMoongates,    deleteMoongates    } from '../../spawns/moongates.js';
 import { placeRegionalNpcs } from '../../spawns/regional-npcs.js';
-import { broadcastBulkPlacement } from '../_bulk-broadcast.js';
 import { registerStandardSigils } from '../../items/scripts/functional/sigil.js';
 import { allMobiles } from '../../_spatial.js';
 
@@ -53,7 +52,7 @@ const STAGES = [
   { name: 'RegionalNPCs',
     apply: (api) => {
       const r = placeRegionalNpcs(api);
-      return { added: r.placed };
+      return { added: r.placed, failed: r.errors?.length ?? 0 };
     },
     remove: () => ({ removed: 0 }),
   },
@@ -75,8 +74,31 @@ function countNonPlayerMobs(world) {
 /** Run the selected stages in sequence + post-process (spawner prime,
  *  broadcast, save). Shared by the no-args fast path and the gump's
  *  "Run" button. `enabled` is a bitmask aligned to STAGES.indexOf. */
-function runStages(api, state, opts, enabled = 0xffff) {
-  const totals = { added: 0, ran: 0 };
+function refreshConnectedClients(api) {
+  const refresh = api.ctx?.handlers?.refreshSurroundings;
+  if (typeof refresh !== 'function') return 0;
+  let refreshed = 0;
+  for (const m of allMobiles(api)) {
+    if (!m.client) continue;
+    try { refresh(m.client); refreshed++; }
+    catch (e) { api.log?.(`[createworld] refresh net#${m.client.id ?? '?'}: ${e.message}`); }
+  }
+  return refreshed;
+}
+
+function queueWorldSave(api, state) {
+  try {
+    const r = api.persistence?.requestSave?.(api.world, api.persistence.saveDir);
+    if (r?.then) {
+      r.then(({ bytes, ms }) => {
+        state.sendSystemMessage(`  Saved: ${(bytes / 1024) | 0} KB in ${ms} ms`);
+      }).catch((e) => api.log?.(`[createworld] save threw: ${e.message}`));
+    }
+  } catch (e) { api.log?.(`[createworld] save trigger threw: ${e.message}`); }
+}
+
+function runStages(api, state, opts, enabled = 0xffff, priorFailures = 0) {
+  const totals = { added: 0, ran: 0, failed: priorFailures };
   state.sendSystemMessage('CreateWorld: starting bulk population…');
   for (let i = 0; i < STAGES.length; i++) {
     if (!((enabled >> i) & 1)) {
@@ -87,10 +109,13 @@ function runStages(api, state, opts, enabled = 0xffff) {
     try {
       const r = stage.apply(api, opts);
       const n = r.added ?? 0;
+      const stageFailures = r.failed ?? 0;
       totals.added += n;
+      totals.failed += stageFailures;
       totals.ran++;
-      state.sendSystemMessage(`  ${stage.name}: +${n}`);
+      state.sendSystemMessage(`  ${stage.name}: +${n}` + (stageFailures ? `, failed=${stageFailures}` : ''));
     } catch (e) {
+      totals.failed++;
       state.sendSystemMessage(`  ${stage.name}: FAILED — ${e.message}`);
       api.log?.(`[createworld] ${stage.name} threw: ${e.stack ?? e.message}`);
     }
@@ -105,35 +130,28 @@ function runStages(api, state, opts, enabled = 0xffff) {
   // trickling in 10 s/tick afterward. User report 2026-05-19 "no NPCs
   // in Britain (banker should be there)". Set the flag now, prime the
   // spawner, then continue with broadcast + save.
-  if (totals.ran === STAGES.length) api.world._createWorldDone = true;
+  const allStagesSelected = STAGES.every((_, i) => ((enabled >> i) & 1) === 1);
+  const fullWorldRun = !opts?.facets && allStagesSelected;
+  if (fullWorldRun && totals.ran === STAGES.length && totals.failed === 0) {
+    api.world._createWorldDone = true;
+  }
   try {
-    if (api.spawner?.tick) for (let i = 0; i < 4; i++) api.spawner.tick(Date.now());
+    // Spawner.add deliberately staggers normal first spawns by minutes;
+    // explicit world creation primes only bankers/shopkeepers immediately.
+    primeVendorSpawners(api, 4);
   } catch (e) { api.log?.(`[createworld] spawner prime: ${e.message}`); }
   try {
-    const sent = broadcastBulkPlacement(api);
-    if (sent > 0) state.sendSystemMessage(`  Broadcast: ${sent} item frames`);
-  } catch (e) { api.log?.(`[createworld] broadcast threw: ${e.message}`); }
-  try {
-    const refresh = api.ctx?.handlers?.refreshSurroundings;
-    if (refresh) {
-      for (const m of allMobiles(api)) {
-        if (m.client) refresh(m.client);
-      }
-    }
+    const refreshed = refreshConnectedClients(api);
+    if (refreshed > 0) state.sendSystemMessage(`  Visibility refreshed for ${refreshed} client(s)`);
   } catch (e) { api.log?.(`[createworld] mob refresh: ${e.message}`); }
   // `_createWorldDone` was set above (before the spawner prime tick).
-  try {
-    const r = api.persistence?.requestSave?.(api.world, api.persistence.saveDir);
-    if (r?.then) {
-      r.then(({ bytes, ms }) => {
-        state.sendSystemMessage(`  Saved: ${(bytes/1024)|0} KB in ${ms} ms`);
-      }).catch((e) => api.log?.(`[createworld] save threw: ${e.message}`));
-    }
-  } catch (e) { api.log?.(`[createworld] save trigger threw: ${e.message}`); }
+  queueWorldSave(api, state);
   const npcCount = countNonPlayerMobs(api.world);
   state.sendSystemMessage(
-    `CreateWorld done. Total items added: ${totals.added}. NPCs in world: ${npcCount}.`,
+    `CreateWorld ${totals.failed ? `finished with ${totals.failed} failure(s)` : 'done'}. ` +
+    `Total items added: ${totals.added}. NPCs in world: ${npcCount}.`,
   );
+  return totals;
 }
 
 /** Cheap estimate of "how many items this stage will produce". Reads
@@ -292,7 +310,9 @@ export default function register(api) {
       // Per-facet runs leave it alone — the world is still partially
       // populated and a bare `[createworld` would skip the leftover
       // facets without us needing to re-stamp anything.
-      if (!facets) delete api.world._createWorldDone;
+      if (!facets) api.world._createWorldDone = false;
+      refreshConnectedClients(api);
+      queueWorldSave(api, ctx.state);
       ctx.state.sendSystemMessage(`DeleteWorld done. Total items removed: ${totals.removed}.`);
     },
   });
@@ -307,23 +327,25 @@ export default function register(api) {
       const args = ctx.args ?? [];
       const facets = args.length ? args.map((s) => parseInt(s, 10)).filter(Number.isFinite) : null;
       const opts = facets ? { facets } : {};
-      let removed = 0; let added = 0;
+      let removed = 0; let removeFailures = 0;
+      if (!facets) api.world._createWorldDone = false;
       for (const stage of STAGES) {
-        try { removed += stage.remove(api, opts).removed ?? 0; } catch { /* tolerate */ }
+        try { removed += stage.remove(api, opts).removed ?? 0; }
+        catch (e) {
+          removeFailures++;
+          ctx.state.sendSystemMessage(`  ${stage.name} remove FAILED — ${e.message}`);
+          api.log?.(`[recreateworld] ${stage.name} remove threw: ${e.stack ?? e.message}`);
+        }
       }
       // Clear the hard-block so a follow-on `[createworld` can run
       // without arguments. Per-facet runs (`[recreateworld 1`) leave
       // the flag alone since the world is still partially populated.
-      if (!facets) delete api.world._createWorldDone;
-      for (const stage of STAGES) {
-        try { added += stage.apply(api, opts).added ?? 0; } catch { /* tolerate */ }
-      }
-      try { broadcastBulkPlacement(api); } catch { /* ignore */ }
-      try {
-        if (api.spawner?.tick) for (let i = 0; i < 4; i++) api.spawner.tick(Date.now());
-      } catch { /* ignore */ }
-      api.world._createWorldDone = true;
-      ctx.state.sendSystemMessage(`RecreateWorld: -${removed} +${added}.`);
+      ctx.state.sendSystemMessage(`RecreateWorld: removed ${removed}; repopulating…`);
+      const result = runStages(api, ctx.state, opts, 0xffff, removeFailures);
+      ctx.state.sendSystemMessage(
+        `RecreateWorld: -${removed} +${result.added}` +
+        (result.failed ? `, failures=${result.failed}.` : '.'),
+      );
     },
   });
 

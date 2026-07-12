@@ -20,6 +20,20 @@ describe('mlquests', () => {
     expect(() => mlq.registerQuest({ id: 'q1' })).toThrow();
   });
 
+  it('allows an explicit authored quest to replace an extracted placeholder', () => {
+    mlq.registerQuest({ id: 'escort', extracted: true, objectives: [] });
+    mlq.replaceQuest({
+      id: 'escort',
+      title: 'Authored escort',
+      objectives: [{ type: 'escort', toRegion: 'camp' }],
+    });
+    expect(mlq.getQuest('escort')).toMatchObject({
+      title: 'Authored escort',
+      extracted: false,
+      objectives: [{ type: 'escort', toRegion: 'camp' }],
+    });
+  });
+
   it('offer + trackKill completes a slay quest', () => {
     mlq.registerQuest({
       id: 'kill3rats', objectives: [{ type: 'slay', kind: 'rat', count: 3 }],

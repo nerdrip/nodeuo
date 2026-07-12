@@ -22,7 +22,9 @@ export default function (api) {
     run(ctx) {
       const sub = String(ctx.args[0] ?? 'list').toLowerCase();
       const arg = ctx.args.slice(1).join(' ');
-      const isStaff = ctx.account?.accessLevel === 'GM' || ctx.account?.accessLevel === 'Admin';
+      const access = ctx.state?.account?.accessLevel;
+      const isStaff = access === 'GM' || access === 'GameMaster'
+        || access === 'Admin' || access === 'Administrator';
 
       if (sub === 'list') {
         if (!uniq) {

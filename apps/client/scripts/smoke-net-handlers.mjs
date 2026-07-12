@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { openBookLegacy, openBookNew } from '@uo/protocol';
+import { openBookLegacy, openBookNew, deathAction, healthbarPoison, mobileIncoming, mobileMoving } from '@uo/protocol';
 
 globalThis.localStorage = globalThis.localStorage ?? {
   getItem: () => null,
@@ -173,6 +173,39 @@ world.player.flags = 0x40;
 const defender = world.ensureMobile(0x00000002);
 defender.x = 9;
 defender.y = 10;
+defender.hp = 50;
+defender.hpMax = 50;
+net.handlers.get(0x77)(mobileMoving({
+  serial: defender.serial,
+  body: 0x0190,
+  x: 10,
+  y: 10,
+  z: 0,
+  direction: 0x82,
+  hue: 0,
+  flags: 0,
+  notoriety: 1,
+}));
+assert.equal(defender.direction, 2, '0x77 stores facing without the embedded run bit');
+assert.equal(defender.moveRunning, true, '0x77 preserves running as a separate state');
+assert.equal(defender.hasActiveMoveStep(performance.now()), true, 'real 0x77 tile movement starts interpolation');
+// A later facing-only packet updates direction but must not masquerade as a
+// walk step (the renderer uses this guard before latching locomotion).
+defender.offsetEndAt = 0;
+defender.clearSteps();
+net.handlers.get(0x77)(mobileMoving({
+  serial: defender.serial,
+  body: 0x0190,
+  x: defender.x,
+  y: defender.y,
+  z: defender.z,
+  direction: 4,
+  hue: 0,
+  flags: 0,
+  notoriety: 1,
+}));
+assert.equal(defender.direction, 4, 'facing-only 0x77 still rotates the mobile');
+assert.equal(defender.hasActiveMoveStep(performance.now()), false, 'facing-only 0x77 does not start locomotion');
 const swing = once('combat:swing');
 net.handlers.get(0x2F)(new Uint8Array([
   0x2F, 0x00,
@@ -192,6 +225,51 @@ legacyCombatDamage.off();
 legacyVisualDamage.off();
 assert.deepEqual(legacyCombatDamage.value, { serial: 2, amount: 25 });
 assert.deepEqual(legacyVisualDamage.value, { serial: 2, amount: 25 });
+
+const colorUpdate = once('mobile:healthbar');
+net.handlers.get(0x17)(healthbarPoison(defender.serial, 2));
+colorUpdate.off();
+assert.equal(defender.poisoned, true, 'healthbar color packet updates poison state');
+assert.equal(colorUpdate.value.serial, defender.serial);
+
+defender.steps.push({ dx: 1, dy: 0, dz: 0, run: false });
+net.handlers.get(0xAF)(deathAction({
+  serial: defender.serial,
+  corpseSerial: 0x40001000,
+  running: true,
+}));
+assert.equal(defender.dead, true, 'death action marks the mobile dead immediately');
+assert.equal(defender.hp, 0, 'death action zeroes HP before the corpse replaces the mobile');
+assert.equal(defender.steps.length, 0, 'death action cancels queued movement');
+
+// ServUO's player-death stream removes the living mobile and immediately
+// reintroduces the same serial with a ghost body. The world singleton must
+// follow the new Mobile instance; keeping the removed object freezes camera,
+// movement and status updates even though packets continue to arrive.
+const playerSerial = world.player.serial >>> 0;
+const staleLivingPlayer = world.player;
+net.handlers.get(0x1D)(new Uint8Array([
+  0x1D,
+  (playerSerial >>> 24) & 0xff,
+  (playerSerial >>> 16) & 0xff,
+  (playerSerial >>> 8) & 0xff,
+  playerSerial & 0xff,
+]));
+assert.equal(world.mobiles.has(playerSerial), false, 'remove entity should evict the living player instance');
+net.handlers.get(0x78)(mobileIncoming({
+  serial: playerSerial,
+  body: 0x0192,
+  x: 11,
+  y: 10,
+  z: 0,
+  direction: 2,
+  flags: 0,
+  notoriety: 1,
+}));
+assert.notEqual(world.player, staleLivingPlayer, 'ghost incoming should replace the stale player singleton');
+assert.equal(world.player, world.mobiles.get(playerSerial), 'player singleton should reference the indexed ghost mobile');
+assert.equal(world.player.isPlayer, true, 'rebuilt ghost keeps local-player identity');
+assert.equal(world.player.isDead, true, 'ghost body is recognized as dead immediately');
 
 bus.clear();
 console.log('[smoke:net-handlers] ok');

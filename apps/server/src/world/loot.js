@@ -516,6 +516,52 @@ export class LootRegistry {
   get(name) { return this.tables.get(name); }
   names() { return [...this.tables.keys()].sort(); }
 
+  /** Pure Monte-Carlo table preview. Never creates items or consumes uniques. */
+  simulate(tableName, { trials = 10_000, rng = Math.random } = {}) {
+    const count = Math.max(100, Math.min(100_000, trials | 0));
+    if (!this.tables.has(tableName)) return { ok: false, error: `unknown loot table: ${tableName}` };
+    const totals = new Map();
+    const itemsPerRoll = new Map();
+    const missingTables = new Set();
+    const amountOf = (entry) => {
+      if (Array.isArray(entry.amount)) {
+        const lo = entry.amount[0] | 0, hi = entry.amount[1] | 0;
+        return lo + Math.floor(rng() * (Math.max(lo, hi) - lo + 1));
+      }
+      return Math.max(1, entry.amount | 0 || 1);
+    };
+    const keyOf = (entry) => entry.template
+      ? `template:${entry.template}`
+      : entry.artifact ? `artifact:${entry.tier ?? entry.filter ?? 'any'}`
+      : entry.magicItem ? `magic:${entry.magicItem.slot ?? entry.magicItem ?? 'any'}`
+      : `item:0x${(entry.itemId | 0).toString(16)}`;
+    const rollTable = (name, dropped, depth = 0) => {
+      if (depth > 8) return;
+      const table = this.tables.get(name);
+      if (!table) { missingTables.add(name); return; }
+      for (const entry of table.entries) {
+        if (entry.chance !== undefined && rng() >= entry.chance) continue;
+        if (entry.table) { rollTable(entry.table, dropped, depth + 1); continue; }
+        const key = keyOf(entry); const amount = amountOf(entry);
+        const stat = totals.get(key) ?? { key, rolls: 0, totalAmount: 0 };
+        stat.rolls++; stat.totalAmount += amount; totals.set(key, stat); dropped.count++;
+      }
+    };
+    for (let i = 0; i < count; i++) {
+      const dropped = { count: 0 }; rollTable(tableName, dropped);
+      itemsPerRoll.set(dropped.count, (itemsPerRoll.get(dropped.count) ?? 0) + 1);
+    }
+    return {
+      ok: true, table: tableName, trials: count,
+      drops: [...totals.values()].map((stat) => ({
+        ...stat, dropRate: stat.rolls / count, averageAmountPerRoll: stat.totalAmount / count,
+        averageStackWhenDropped: stat.totalAmount / stat.rolls,
+      })).sort((a, b) => b.dropRate - a.dropRate),
+      itemCountHistogram: [...itemsPerRoll].sort((a, b) => a[0] - b[0]).map(([items, rolls]) => ({ items, rolls, rate: rolls / count })),
+      warnings: [...missingTables].map((name) => `Missing nested table: ${name}`),
+    };
+  }
+
   /**
    * Roll a named table into a container. Returns the list of created items.
    *

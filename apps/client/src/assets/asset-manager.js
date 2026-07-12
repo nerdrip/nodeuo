@@ -35,6 +35,10 @@ const ATLAS_BOOT_MOBILE_PAGE_LIMIT = 2;
 const MOBILE_CYCLE_PREFETCH_CONCURRENCY = 2;
 const ATLAS_PAGE_CACHE_MAX = 96;
 const ATLAS_PAGE_CACHE_TRIM = 8;
+// Upper-bound estimate for decoded GPU residency. PNG pages become RGBA8 on
+// upload (4 bytes/pixel); KTX2 may use less, so this remains conservative.
+const ATLAS_PAGE_CACHE_BUDGET_BYTES = 768 * 1024 * 1024;
+const ATLAS_PAGE_CACHE_TRIM_BYTES = 64 * 1024 * 1024;
 const OVERLAY_KEY_FACET = 0x100000000;
 const OVERLAY_KEY_AXIS = 0x10000;
 
@@ -86,6 +90,10 @@ function waitForAssetIdle(timeout = 24) {
 // anim.mul (no UOP needed). Verified by hand against the live atlas —
 // all targets here resolve to >= 32×32 frames.
 const BODY_FALLBACK = Object.freeze({
+  // Some retail manifests expose the lava-snake body as an empty entry.
+  // The same-family serpent keeps snake movement/death instead of falling
+  // through to the generic daemon body.
+  52: 51,     // Lava Snake               -> Giant Serpent
   // Stygian Abyss / Mondain post-AOS bodies (Bodyconv anim4/anim5 entries).
   716: 28,    // Chicken Lizard          → Giant Spider (closest "small skittery thing")
   717: 28,    // Clockwork Scorpion      → Giant Spider
@@ -119,11 +127,12 @@ const BODY_FALLBACK = Object.freeze({
   830: 24,    // Primeval Lich           → Wraith
   831: 6,     // Parrot Bird             → Bird
   832: 6,     // Phoenix                 → Bird
-  // Animal range with stub frames in this client's anim.mul (cat/rabbit/rat
-  // etc. live in AnimationFrame UOPs in newer mul sets).
+  // Animal range fallbacks are used only for genuinely missing/placeholder
+  // frames. Small animals legitimately contain 8-15 px-wide silhouettes;
+  // those must never be classified as corrupt merely because they are tiny.
   201: 226,   // Cat                     → Llama
   205: 226,   // Rabbit                  → Llama
-  238: 226,   // Rat                     → Llama
+  238: 215,   // Rat                     → Giant Rat (same creature family)
   234: 235,   // Great Hart              → Hart variant
   235: 235,   // Hart                    → self (already best)
   287: 51,    // Blood Worm              → Giant Serpent
@@ -232,8 +241,10 @@ class AssetManager {
     this._atlasPageLoads = new Map();
     /** @type {Map<string, Promise<void>>} in-flight unloads by atlas page key */
     this._atlasPageUnloads = new Map();
-    /** @type {Map<string, number>} number of sub-textures ever created from a page */
+    /** @type {Map<string, number>} cached sub-textures currently retaining a page */
     this._atlasPageUseCounts = new Map();
+    /** @type {Map<string, number>} conservative decoded GPU bytes per page */
+    this._atlasPageBytes = new Map();
     /** Verdata-style remap tables. Populated by `applyPatches()` once
      *  init() pulls /assets/patches.json. Maps SOURCE id → REPLACEMENT id;
      *  consulted at the top of every texture lookup so a single JSON
@@ -855,16 +866,29 @@ class AssetManager {
     while (map.size > max) {
       const k = map.keys().next().value;
       const t = map.get(k);
-      const texture = t?.texture ?? t;
-      const pageKey = texture?._uoAtlasPageKey;
-      try { texture?.destroy?.(false); } catch { /* ignore */ }
-      if (pageKey) {
-        const refs = Math.max(0, (this._atlasPageUseCounts.get(pageKey) || 0) - 1);
-        if (refs === 0) this._atlasPageUseCounts.delete(pageKey);
-        else this._atlasPageUseCounts.set(pageKey, refs);
-      }
+      this._releaseCachedTexture(t);
       map.delete(k);
     }
+  }
+
+  _releaseCachedTexture(value) {
+    const texture = value?.texture ?? value;
+    const pageKey = texture?._uoAtlasPageKey;
+    const dispose = () => {
+      try { texture?.destroy?.(false); } catch { /* ignore */ }
+      if (!pageKey) return;
+      const refs = Math.max(0, (this._atlasPageUseCounts.get(pageKey) || 0) - 1);
+      if (refs === 0) this._atlasPageUseCounts.delete(pageKey);
+      else this._atlasPageUseCounts.set(pageKey, refs);
+    };
+    // Never invalidate a texture underneath a visible pooled Sprite.
+    // SpritePool invokes this callback after its final live assignment
+    // releases the texture; until then the atlas page remains protected.
+    if ((texture?._uoLiveSpriteRefs | 0) > 0) {
+      texture._uoDisposeWhenUnused = dispose;
+      return;
+    }
+    dispose();
   }
 
   /** Move a cache hit to the back of the Map so `_capCache` evicts the
@@ -908,14 +932,30 @@ class AssetManager {
     if (key) this._touchAtlasPageKey(key);
   }
 
-  _capAtlasPages(max = ATLAS_PAGE_CACHE_MAX) {
-    if (this._atlasPages.size <= max) return;
+  _atlasBytesTotal() {
+    let total = 0;
+    for (const key of this._atlasPages.keys()) total += this._atlasPageBytes.get(key) || 0;
+    return total;
+  }
+
+  _capAtlasPages(max = ATLAS_PAGE_CACHE_MAX, protectedKey = null) {
+    let bytes = this._atlasBytesTotal();
+    const overCount = this._atlasPages.size > max;
+    const overBytes = bytes > ATLAS_PAGE_CACHE_BUDGET_BYTES;
+    if (!overCount && !overBytes) return;
     const target = Math.max(0, max - ATLAS_PAGE_CACHE_TRIM);
+    const byteTarget = Math.max(0, ATLAS_PAGE_CACHE_BUDGET_BYTES - ATLAS_PAGE_CACHE_TRIM_BYTES);
     for (const [key, tex] of this._atlasPages) {
-      if (this._atlasPages.size <= target) break;
+      if (this._atlasPages.size <= target && bytes <= byteTarget) break;
+      // The caller is about to create a sub-texture from this freshly loaded
+      // page. Evicting it here returned a Texture that the sync lookup could
+      // no longer find on the very next line, causing an endless reload loop.
+      if (key === protectedKey) continue;
       if ((this._atlasPageUseCounts.get(key) || 0) > 0) continue;
       if (this._atlasPageLoads.has(key) || this._atlasPageUnloads.has(key)) continue;
       this._atlasPages.delete(key);
+      bytes -= this._atlasPageBytes.get(key) || 0;
+      this._atlasPageBytes.delete(key);
       const url = tex?._uoAtlasPageUrl;
       if (url) {
         const unload = Assets.unload(url)
@@ -943,6 +983,9 @@ class AssetManager {
       unused: this._atlasPages.size - used,
       unloading: this._atlasPageUnloads.size,
       limit: ATLAS_PAGE_CACHE_MAX,
+      estimatedBytes: this._atlasBytesTotal(),
+      byteLimit: ATLAS_PAGE_CACHE_BUDGET_BYTES,
+      overByteBudget: this._atlasBytesTotal() > ATLAS_PAGE_CACHE_BUDGET_BYTES,
     };
   }
 
@@ -1066,6 +1109,7 @@ class AssetManager {
     if (patches.gumps) {
       for (const k of Object.keys(patches.gumps)) {
         const id = parseId(k);
+        this._releaseCachedTexture(this._gumpTextures.get(id));
         this._gumpTextures.delete(id);
         this._gumpTextureLoads.delete(id);
         this._missingGumpTextures.delete(id);
@@ -1074,6 +1118,7 @@ class AssetManager {
     if (patches.statics) {
       for (const k of Object.keys(patches.statics)) {
         const id = parseId(k);
+        this._releaseCachedTexture(this._staticTextures.get(id));
         this._staticTextures.delete(id);
         this._staticTextureLoads.delete(id);
         this._missingStaticTextures.delete(id);
@@ -1174,11 +1219,13 @@ class AssetManager {
         // next load picks up the patched payload from the extracted
         // atlas (which the extractor should have rebuilt with verdata
         // applied). Defensive: skip if the cache key is absent.
+        this._releaseCachedTexture(this._staticTextures.get(blockId));
         this._staticTextures.delete(blockId);
         this._staticTextureLoads.delete(blockId);
         this._missingStaticTextures.delete(blockId);
         nStatics++;
       } else if (fileId === 0x07 /* gump */) {
+        this._releaseCachedTexture(this._gumpTextures.get(blockId));
         this._gumpTextures.delete(blockId);
         this._gumpTextureLoads.delete(blockId);
         this._missingGumpTextures.delete(blockId);
@@ -1374,15 +1421,17 @@ class AssetManager {
    *  `AnimationFrame*.uop` containers which our extractor doesn't read
    *  yet. Their MUL idx slots are either stub-sized (a few hundred bytes
    *  containing "1px placeholder" frames) or empty. When the resolved
-   *  frame is suspiciously small (< 16 px on a side) for a Monster /
+   *  frame is an actual placeholder (at most 2×2 px) for a Monster /
    *  Animal body, we substitute a known-good generic body so the user
-   *  sees something plausible instead of "two pixels of hair". The
+   *  sees something plausible instead of "two pixels of hair". A 9×13
+   *  rat/cat frame is valid art, not a broken UOP stub. The
    *  remap table below is hand-curated — extend it as new broken
    *  bodies surface. */
   _mobileFrameMeta(body, action, direction, frame) {
     if (!this.mobilesAtlas) return null;
     const meta = this._tryMobileFrame(body, action, direction, frame);
-    if (meta && (meta.meta.w >= 16 || meta.meta.h >= 16)) return meta;
+    const isPlaceholder = meta && meta.meta.w <= 2 && meta.meta.h <= 2;
+    if (meta && !isPlaceholder) return meta;
     // Fallback: pick a substitute body from BODY_FALLBACK and retry.
     const sub = BODY_FALLBACK[body | 0];
     if (sub != null) {
@@ -1429,15 +1478,19 @@ class AssetManager {
       if (dkeys.length === 0) return null;
       dirFrames = actionEntry.dirs[dkeys[0]];
     }
-    const meta = dirFrames[frame] ?? dirFrames[0];
+    const frameCount = dirFrames.length;
+    const actualFrame = frameCount > 0
+      ? (((frame | 0) % frameCount) + frameCount) % frameCount
+      : 0;
+    const meta = dirFrames[actualFrame] ?? dirFrames[0];
     if (!meta) return null;
     return {
       realBody,
       action: actionEntry === b.actions?.[resolvedAction] ? resolvedAction : action,
       direction,
-      frame,
+      frame: actualFrame,
       meta,
-      frameCount: dirFrames.length,
+      frameCount,
     };
   }
 
@@ -1524,6 +1577,7 @@ class AssetManager {
     const cached = this._mobileTextures.get(key);
     if (cached) {
       stats.hits++;
+      this._touchCache(this._mobileTextures, key, cached);
       this._recordMobileFrameSample(t0);
       return cached;
     }
@@ -1560,7 +1614,7 @@ class AssetManager {
       while (this._mobileTextures.size > target) {
         const k = this._mobileTextures.keys().next().value;
         const v = this._mobileTextures.get(k);
-        try { v?.texture?.destroy?.(false); } catch { /* ignore */ }
+        this._releaseCachedTexture(v);
         this._mobileTextures.delete(k);
       }
     }
@@ -1778,7 +1832,11 @@ class AssetManager {
         tex._uoAtlasPageKind = kind;
         tex._uoAtlasPageUrl = url;
         this._atlasPages.set(key, tex);
-        this._capAtlasPages();
+        const source = tex.source;
+        const width = source?.pixelWidth || source?.width || tex.width || 0;
+        const height = source?.pixelHeight || source?.height || tex.height || 0;
+        this._atlasPageBytes.set(key, Math.max(0, width * height * 4));
+        this._capAtlasPages(ATLAS_PAGE_CACHE_MAX, key);
         return tex;
       } catch (e) {
         // KTX2 may be unsupported by the runtime even when the file
@@ -1801,24 +1859,28 @@ class AssetManager {
     if (slot.mapData && slot.staidx && slot.staticsData) return slot;
     onProgress(0.0, `facet ${facet} loading`);
     const mapJob = slot.mapMeta && !slot.mapData
-      ? fetch(`${BASE}/map${facet}.bin`).then((r) => r.arrayBuffer()).catch((e) => {
+      ? fetchBinary(`${BASE}/map${facet}.bin`).catch((e) => {
           console.warn(`[assets] map${facet}.bin load failed`, e); return null;
         })
       : Promise.resolve(null);
     const idxJob = slot.staticsMeta && !slot.staidx
-      ? fetch(`${BASE}/staidx${facet}.bin`).then((r) => r.arrayBuffer()).catch((e) => {
+      ? fetchBinary(`${BASE}/staidx${facet}.bin`).catch((e) => {
           console.warn(`[assets] staidx${facet}.bin load failed`, e); return null;
         })
       : Promise.resolve(null);
     const datJob = slot.staticsMeta && !slot.staticsData
-      ? fetch(`${BASE}/statics${facet}.bin`).then((r) => r.arrayBuffer()).catch((e) => {
+      ? fetchBinary(`${BASE}/statics${facet}.bin`).catch((e) => {
           console.warn(`[assets] statics${facet}.bin load failed`, e); return null;
         })
       : Promise.resolve(null);
     const [mapAb, idxAb, datAb] = await Promise.all([mapJob, idxJob, datJob]);
-    if (mapAb) slot.mapData = new DataView(mapAb);
+    const expectedMapBytes = (slot.mapMeta?.totalBlocks | 0) * (slot.mapMeta?.blockBytes | 0);
+    if (mapAb && mapAb.byteLength >= expectedMapBytes) slot.mapData = new DataView(mapAb);
+    else if (mapAb) console.warn(`[assets] map${facet}.bin truncated: ${mapAb.byteLength}/${expectedMapBytes}B`);
     onProgress(0.5, `facet ${facet} terrain`);
-    if (idxAb) slot.staidx = new Uint8Array(idxAb);
+    const expectedIdxBytes = (slot.staticsMeta?.totalBlocks | 0) * 8;
+    if (idxAb && idxAb.byteLength >= expectedIdxBytes) slot.staidx = new Uint8Array(idxAb);
+    else if (idxAb) console.warn(`[assets] staidx${facet}.bin truncated: ${idxAb.byteLength}/${expectedIdxBytes}B`);
     if (datAb) slot.staticsData = new DataView(datAb);
     onProgress(1.0, `facet ${facet} ready`);
     return slot;
@@ -1833,7 +1895,7 @@ class AssetManager {
     if (facet < 0 || facet > 5) return false;
     if (this.currentFacet === facet && this._mapData) return true;
     const slot = await this._loadFacetBins(facet);
-    if (!slot) return false;
+    if (!slot?.mapData) return false;
     this.currentFacet = facet;
     this.activeFacet  = facet;        // alias used by landAt overlay key
     this.mapMeta     = slot.mapMeta;
@@ -1848,6 +1910,18 @@ class AssetManager {
     // admin server (UO_ADMIN_PORT off) is tolerated silently.
     this.fetchLandOverlay(facet).catch(() => {});
     return true;
+  }
+
+  /** Load a facet's terrain/static buffers without switching the live
+   * game renderer to it. WorldMap uses this when the user previews a
+   * different facet; calling setFacet() from a UI combobox previously
+   * changed the actual world underneath the player and rendered one frame
+   * from whichever facet happened to finish loading first. */
+  async ensureFacetLoaded(facet) {
+    facet = facet | 0;
+    if (facet < 0 || facet > 5) return false;
+    const slot = await this._loadFacetBins(facet);
+    return !!slot?.mapData;
   }
 
   /** Resolve a {meta, mapData, staidx, staticsData, staticCache} slot for a
@@ -1901,6 +1975,7 @@ class AssetManager {
     if (cx < 0 || cy < 0 || cx >= slot.mapMeta.blocksWide || cy >= slot.mapMeta.blocksTall) return null;
     const block = cx * slot.mapMeta.blocksTall + cy;
     const offset = block * BLOCK_BYTES;
+    if (offset < 0 || offset + BLOCK_BYTES > slot.mapData.byteLength) return null;
     return new DataView(slot.mapData.buffer, slot.mapData.byteOffset + offset, BLOCK_BYTES);
   }
 
@@ -1916,8 +1991,20 @@ class AssetManager {
       const f = (e.facet ?? 0) | 0;
       const k = packedFacetXY(f, e.x | 0, e.y | 0);
       this._landOverlay.set(k, { tileId: e.tileId | 0, z: e.z | 0 });
-      const cx = Math.floor(e.x / 8), cy = Math.floor(e.y / 8);
+      const tx = e.x | 0, ty = e.y | 0;
+      const cx = Math.floor(tx / 8), cy = Math.floor(ty / 8);
       dirtyChunks.add(packedFacetXY(f, cx, cy));
+      // A land Z is also a corner of the west, north and north-west tiles.
+      // When an edit lands on a chunk boundary those neighbours must rebuild
+      // their stretched meshes too, otherwise a permanent crack remains at
+      // the 8×8 seam until the player leaves the area.
+      const onWestEdge = (tx & 7) === 0;
+      const onNorthEdge = (ty & 7) === 0;
+      if (onWestEdge && cx > 0) dirtyChunks.add(packedFacetXY(f, cx - 1, cy));
+      if (onNorthEdge && cy > 0) dirtyChunks.add(packedFacetXY(f, cx, cy - 1));
+      if (onWestEdge && onNorthEdge && cx > 0 && cy > 0) {
+        dirtyChunks.add(packedFacetXY(f, cx - 1, cy - 1));
+      }
     }
     // Client audit #4 H2 — was lazy `import('../core/event-bus.js')`
     // with a Promise.then that arrived AFTER the first burst of map
@@ -1967,25 +2054,35 @@ class AssetManager {
     let cached = slot.staticCache.get(block);
     if (cached !== undefined) return cached;
 
-    const offset = (slot.staidx[block * 8 + 0]      )
-                 | (slot.staidx[block * 8 + 1] << 8 )
-                 | (slot.staidx[block * 8 + 2] << 16)
-                 | (slot.staidx[block * 8 + 3] << 24);
-    const size   = (slot.staidx[block * 8 + 4]      )
-                 | (slot.staidx[block * 8 + 5] << 8 )
-                 | (slot.staidx[block * 8 + 6] << 16)
-                 | (slot.staidx[block * 8 + 7] << 24);
+    const idxOffset = block * 8;
+    if (idxOffset < 0 || idxOffset + 8 > slot.staidx.byteLength) return [];
+    const offset = ((slot.staidx[idxOffset + 0]      )
+                 | (slot.staidx[idxOffset + 1] << 8 )
+                 | (slot.staidx[idxOffset + 2] << 16)
+                 | (slot.staidx[idxOffset + 3] << 24)) >>> 0;
+    const size   = ((slot.staidx[idxOffset + 4]      )
+                 | (slot.staidx[idxOffset + 5] << 8 )
+                 | (slot.staidx[idxOffset + 6] << 16)
+                 | (slot.staidx[idxOffset + 7] << 24)) >>> 0;
     if (offset === 0xFFFFFFFF || size <= 0) {
       slot.staticCache.set(block, []);
       return [];
     }
     const dv = slot.staticsData;
+    if (offset + size > dv.byteLength) {
+      console.warn(`[assets] corrupt statics block ${block}: ${offset}+${size} > ${dv.byteLength}`);
+      slot.staticCache.set(block, []);
+      return [];
+    }
     const items = [];
     for (let i = 0; i + 7 <= size; i += 7) {
+      const x = dv.getUint8(offset + i + 2);
+      const y = dv.getUint8(offset + i + 3);
+      if (x >= 8 || y >= 8) continue;
       items.push({
         id:  dv.getUint16(offset + i + 0, true),
-        x:   dv.getUint8(offset + i + 2),
-        y:   dv.getUint8(offset + i + 3),
+        x,
+        y,
         z:   dv.getInt8(offset + i + 4),
         hue: dv.getUint16(offset + i + 5, true),
       });
@@ -2015,6 +2112,19 @@ const HEAVY_MANIFESTS = new Set([
   'multi.json',        // ~500 KB
   'cliloc.json',       // ~2 MB
 ]);
+
+async function fetchBinary(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`${url} → HTTP ${r.status}`);
+  const type = String(r.headers?.get?.('content-type') ?? '').toLowerCase();
+  // Vite and some reverse proxies answer an unknown asset path with the
+  // HTML application shell. Treating that as map.bin creates valid-looking
+  // DataViews full of random terrain until a later out-of-bounds read.
+  if (type.startsWith('text/') || type.includes('html') || type.includes('json')) {
+    throw new Error(`${url} → unexpected content-type ${type || '(missing)'}`);
+  }
+  return r.arrayBuffer();
+}
 
 async function fetchJson(url) {
   const name = url.split('/').pop() ?? url;

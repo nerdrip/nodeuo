@@ -17,6 +17,7 @@ import { world } from '../world/world.js';
 import { bus } from '../core/event-bus.js';
 import { assets } from '../assets/asset-manager.js';
 import { profile } from '../managers/profile-manager.js';
+import { UI_FONT_FAMILY, UI_TEXT_RESOLUTION } from '../ui/text-quality.js';
 
 const SPEECH_TTL_MS = 3500;
 const POPUP_TTL_MS  = 1500;
@@ -31,15 +32,18 @@ function worldTextStyle(fill, fontSize) {
   style = new TextStyle({
     fill: fill | 0,
     fontSize: fontSize | 0,
-    fontFamily: 'Consolas, monospace',
-    stroke: { color: 0x000000, width: 3 },
+    fontFamily: UI_FONT_FAMILY,
+    fontWeight: 600,
+    stroke: { color: 0x000000, width: 2, join: 'round' },
   });
   _textStyleCache.set(key, style);
   return style;
 }
 
 function acquireWorldTextNode(text, style) {
-  const node = _textNodePool.pop() ?? new Text({ text: '', style });
+  const node = _textNodePool.pop() ?? new Text({
+    text: '', style, resolution: UI_TEXT_RESOLUTION, roundPixels: true,
+  });
   node.text = text;
   node.style = style;
   node.visible = true;

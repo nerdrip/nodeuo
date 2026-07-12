@@ -9,7 +9,7 @@
 import { spawnNPC } from './vendors/_spawn.js';
 import { mobileBySerial } from '../_entities.js';
 import { createMobile, destroyMobileBySerial } from '../_mobiles.js';
-import { nearbyMobiles, sendToClientsNear, allMobiles } from '../_spatial.js';
+import { sendToClientsNear, allMobiles } from '../_spatial.js';
 
 export const SERVUO_P1_MOBILE_CLASSES = Object.freeze([
   'OppositionGroup',

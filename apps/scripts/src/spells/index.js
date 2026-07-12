@@ -190,7 +190,23 @@ export default function register(rootApi) {
           // read properties of undefined (reading 'mobiles')" mid-cast
           // and the outer try/catch swallowed it, so spells silently
           // no-op'd in any context where rootApi lacked `world`.
-          const callApi = ctx.world ? { ...api, world: ctx.world } : api;
+          const baseApi = ctx.world ? { ...api, world: ctx.world } : api;
+          // The central cast pipeline owns the caster's preparation gesture.
+          // Legacy per-spell modules also call combat.animate(caster, 0x10),
+          // which otherwise produces a second cast animation after target
+          // selection. Preserve hit/reaction animations on the victim while
+          // suppressing only that duplicate caster gesture.
+          const baseCombat = baseApi.combat ?? {};
+          const callApi = {
+            ...baseApi,
+            combat: {
+              ...baseCombat,
+              animate: (world, mob, ...args) => {
+                if (mob === ctx.caster) return undefined;
+                return baseCombat.animate?.(world, mob, ...args);
+              },
+            },
+          };
           spell.cast(callApi, _buildScriptCtx(ctx.caster), ctx.target);
         } catch (e) {
           rootApi.log?.(`spell ${spell.name} effect threw: ${e?.message ?? e}`);

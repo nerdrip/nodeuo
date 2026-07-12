@@ -22,7 +22,7 @@
 // Persistence: `mob.virtues` is in MOBILE_EXT_KEYS so the field round-
 // trips through the JSON snapshot.
 
-import { extVirtueState } from '@uo/protocol';
+import { extVirtueState, NodeUOCapability } from '@uo/protocol';
 
 export const VIRTUES = Object.freeze([
   'humility', 'sacrifice', 'compassion', 'spirituality',
@@ -72,6 +72,7 @@ export function awardVirtue(mob, key, amount) {
  */
 export function pushVirtues(mob) {
   if (!mob?.client?.send) return;
+  if (!mob.client.supportsNodeUO?.(NodeUOCapability.RichGumps)) return;
   if (typeof extVirtueState !== 'function') return;
   const v = mob.virtues ?? {};
   mob.client.send(extVirtueState({

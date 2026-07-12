@@ -44,6 +44,7 @@ export function readHotbarEntries() {
 function writeHotbarEntries(entries) {
   try { localStorage.setItem(hotbarKey(), JSON.stringify(entries)); }
   catch { /* quota / disabled — silent */ }
+  bus.emit('hotbar:changed', { entries });
 }
 
 /** Add or update a single shortcut entry, keyed by spellId. */

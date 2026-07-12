@@ -136,6 +136,22 @@ describe('ScriptRuntime', () => {
     expect(api._logs.some((l) => /no default export/.test(l))).toBe(true);
   });
 
+  it('loads item lifecycle factories only through their canonical manifest', async () => {
+    const dir = mkTempDir();
+    fs.mkdirSync(path.join(dir, 'items', 'scripts'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'data.js'), `
+      export default (api) => { api._manifestRuns = (api._manifestRuns ?? 0) + 1; };
+    `);
+    fs.writeFileSync(path.join(dir, 'items', 'scripts', 'factory.js'), `
+      export default (api) => { api._factoryRuns = (api._factoryRuns ?? 0) + 1; return { name: 'factory' }; };
+    `);
+    const api = stubApi();
+    const rt = new ScriptRuntime(dir, api);
+    await rt.load();
+    expect(api._manifestRuns).toBe(1);
+    expect(api._factoryRuns ?? 0).toBe(0);
+  });
+
   it('provides per-script lifecycle cleanup on reload', async () => {
     const dir = mkTempDir();
     fs.writeFileSync(path.join(dir, 'life.js'), `
@@ -208,6 +224,36 @@ describe('ScriptRuntime', () => {
     await rt.load();
     expect([...registered]).toEqual(['legacy']);
     expect(calls).toEqual(['register:legacy', 'unregister:legacy', 'register:legacy']);
+  });
+
+  it('does not claim or unregister a command rejected by the registry', async () => {
+    const dir = mkTempDir();
+    fs.writeFileSync(path.join(dir, 'collision.js'), `
+      export default (api) => {
+        api.commands.register({ name: 'owned-elsewhere', run() {} });
+      };
+    `);
+    const registered = new Set(['owned-elsewhere']);
+    const unregistered = [];
+    const api = {
+      ...stubApi(),
+      commands: {
+        register(spec) {
+          if (registered.has(spec.name)) return false;
+          registered.add(spec.name);
+          return true;
+        },
+        unregister(name) {
+          unregistered.push(name);
+          registered.delete(name);
+        },
+      },
+    };
+    const rt = new ScriptRuntime(dir, api);
+    await rt.load();
+    await rt.load();
+    expect([...registered]).toEqual(['owned-elsewhere']);
+    expect(unregistered).toEqual([]);
   });
 
   it('scopes destructured command registries', async () => {

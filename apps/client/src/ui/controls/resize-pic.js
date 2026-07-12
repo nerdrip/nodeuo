@@ -80,19 +80,30 @@ export class ResizePic extends Control {
     // Edge sizes derive from corner art: top edge height = top-left height,
     // left edge width = top-left width, etc. Use the first present slice
     // for each dimension.
-    const tlW = z[0]?.w || z[2]?.w || z[6]?.w || 8;
-    const tlH = z[0]?.h || z[1]?.h || z[2]?.h || 8;
-    const trW = z[2]?.w || tlW;
-    const blH = z[6]?.h || tlH;
-    const brW = z[8]?.w || trW;
+    let tlW = z[0]?.w || z[2]?.w || z[6]?.w || 8;
+    let tlH = z[0]?.h || z[1]?.h || z[2]?.h || 8;
+    let trW = z[2]?.w || tlW;
+    let blW = z[6]?.w || tlW;
+    let blH = z[6]?.h || tlH;
+    let brW = z[8]?.w || trW;
     // Position + scale every slice.
     const W = this.width, H = this.height;
+    // CUO clips ResizePic to its requested rectangle. We do not maintain a
+    // separate stencil per window, so proportionally shrink opposing corner
+    // slices when a tiny gump is smaller than its native 9-patch borders.
+    // This prevents negative positions/giant strips escaping the gump.
+    const topScale = Math.min(1, W / Math.max(1, tlW + trW));
+    tlW *= topScale; trW *= topScale;
+    const bottomScale = Math.min(1, W / Math.max(1, blW + brW));
+    blW *= bottomScale; brW *= bottomScale;
+    const verticalScale = Math.min(1, H / Math.max(1, tlH + blH));
+    tlH *= verticalScale; blH *= verticalScale;
     if (s[0]) { s[0].position.set(0, 0); s[0].width = tlW; s[0].height = tlH; }
     if (s[2]) { s[2].position.set(W - trW, 0); s[2].width = trW; s[2].height = tlH; }
-    if (s[6]) { s[6].position.set(0, H - blH); s[6].width = tlW; s[6].height = blH; }
+    if (s[6]) { s[6].position.set(0, H - blH); s[6].width = blW; s[6].height = blH; }
     if (s[8]) { s[8].position.set(W - brW, H - blH); s[8].width = brW; s[8].height = blH; }
     if (s[1]) { s[1].position.set(tlW, 0); s[1].width = Math.max(0, W - tlW - trW); s[1].height = tlH; }
-    if (s[7]) { s[7].position.set(tlW, H - blH); s[7].width = Math.max(0, W - tlW - brW); s[7].height = blH; }
+    if (s[7]) { s[7].position.set(blW, H - blH); s[7].width = Math.max(0, W - blW - brW); s[7].height = blH; }
     if (s[3]) { s[3].position.set(0, tlH); s[3].width = tlW; s[3].height = Math.max(0, H - tlH - blH); }
     if (s[5]) { s[5].position.set(W - trW, tlH); s[5].width = trW; s[5].height = Math.max(0, H - tlH - blH); }
     if (s[4]) { s[4].position.set(tlW, tlH); s[4].width = Math.max(0, W - tlW - trW); s[4].height = Math.max(0, H - tlH - blH); }

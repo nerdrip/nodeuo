@@ -2,14 +2,10 @@
 // boots, sandals. Body covering items mostly with cosmetic value but
 // equippable to layer slots so paperdoll renders them.
 //
-// Layer ids match the canonical UO TileFlag layer:
-//   2  = shirt              5  = pants
-//   13 = tunic               14 = ring/wrist
-//   17 = neck                18 = waist
-//   19 = innertorso          20 = bracelet
-//   22 = middletorso         23 = earrings
-//   24 = arms                25 = cloak
-//   ... see ServUO Mobile.cs Layer enum.
+// Layer ids match ServUO's Layer enum (not TileFlag indexes):
+//   3 shoes, 4 pants, 5 shirt, 6 helm, 12 waist, 13 inner torso,
+//   17 middle torso, 20 cloak, 22 outer torso, 23 outer legs,
+//   25 mount. Layer 25 must never be used by clothing.
 
 
 
@@ -30,8 +26,8 @@ function clothing(def) {
 clothing({ id: 0x1F03, name: 'Robe',         layer: 22, weight: 3 });
 clothing({ id: 0x1F04, name: 'Hooded Robe',  layer: 22, weight: 4 });
 clothing({ id: 0x2683, name: "Mage's Robe",  layer: 22, weight: 3 });
-clothing({ id: 0x1515, name: 'Cloak',        layer: 25, weight: 3 });
-clothing({ id: 0x230A, name: 'Long Cloak',   layer: 25, weight: 4 });
+clothing({ id: 0x1515, name: 'Cloak',        layer: 20, weight: 3 });
+clothing({ id: 0x230A, name: 'Long Cloak',   layer: 20, weight: 4 });
 clothing({ id: 0x230B, name: 'Surcoat',      layer: 22, weight: 3 });
 
 // ---- Tunics / doublets (layer 13 outerTorso) ------------------------
@@ -46,10 +42,10 @@ clothing({ id: 0x1517, name: 'Shirt',        layer:  5, weight: 2 });
 // ---- Pants / kilts / skirts (layer 4 pants) -------------------------
 clothing({ id: 0x152E, name: 'Long Pants',   layer:  4, weight: 2 });
 clothing({ id: 0x1539, name: 'Short Pants',  layer:  4, weight: 2 });
-clothing({ id: 0x1537, name: 'Kilt',         layer:  4, weight: 2 });
-clothing({ id: 0x1516, name: 'Skirt',        layer:  4, weight: 2 });
-clothing({ id: 0x1518, name: 'Half-Apron',   layer: 22, weight: 1 });
-clothing({ id: 0x153B, name: 'Full Apron',   layer: 22, weight: 1 });
+clothing({ id: 0x1537, name: 'Kilt',         layer: 23, weight: 2 });
+clothing({ id: 0x1516, name: 'Skirt',        layer: 23, weight: 2 });
+clothing({ id: 0x1518, name: 'Half-Apron',   layer: 12, weight: 1 });
+clothing({ id: 0x153B, name: 'Full Apron',   layer: 17, weight: 1 });
 
 // ---- Hats / bandanas / wreaths (layer 6 hat) ------------------------
 clothing({ id: 0x1714, name: 'Bandana',      layer:  6, weight: 1 });
@@ -72,8 +68,8 @@ clothing({ id: 0x170D, name: 'Sandals',      layer:  3, weight: 1 });
 clothing({ id: 0x170F, name: 'Thigh Boots',  layer:  3, weight: 5 });
 
 // ---- Belts / sashes (layer 8 waist) ---------------------------------
-clothing({ id: 0x153A, name: 'Sash',         layer:  8, weight: 1 });
-clothing({ id: 0x2641, name: 'Body Sash',    layer:  8, weight: 1 });
+clothing({ id: 0x153A, name: 'Sash',         layer: 12, weight: 1 });
+clothing({ id: 0x2641, name: 'Body Sash',    layer: 12, weight: 1 });
 clothing({
   id: 0xA1F6,
   name: 'First Aid Belt',

@@ -29,19 +29,31 @@ class CorpseManager {
   constructor() {
     /** @type {{corpse:number, obj:number, dir:number, run:boolean}[]} */
     this._entries = [];
+    /** Facing retained until the corpse item itself arrives. 0xAF, 0x1D
+     * and 0x1A may be reordered across network flushes. */
+    this._pendingFacing = new Map();
     /** Auto-opened corpses (so we don't re-trigger on every world tick). */
     this._autoOpened = new Set();
     /** Wait until the user is in-game (we get `world:login-complete`).
      *  Subscribing earlier would risk firing on a stale corpse set from
      *  a previous session. */
     bus.on('world:login-complete', () => this._installAutoOpen());
+    bus.on('net:close', () => this.clear());
   }
 
   /** @param {number} corpse @param {number} obj @param {number} dir @param {boolean} run */
   add(corpse, obj, dir, run = false) {
     const cs = corpse >>> 0, os = obj >>> 0;
     if (this._entries.some((c) => c.corpse === cs)) return;
-    this._entries.push({ corpse: cs, obj: os, dir: dir & 0x7, run: !!run });
+    const facing = { dir: dir & 0x7, run: !!run };
+    this._entries.push({ corpse: cs, obj: os, ...facing });
+    this._pendingFacing.set(cs, facing);
+    const existing = world.items.get(cs);
+    if (existing) {
+      existing.layer = (facing.dir & 0x7) | (facing.run ? 0x80 : 0);
+      existing._deathRevealAt = performance.now() + 240;
+      bus.emit('corpse:facing-changed', { serial: cs, facing });
+    }
     // Auto-open immediately if the player is already standing close
     // enough (Corpse spawned right next to us — e.g. a kill we just made).
     this._maybeAutoOpen(cs);
@@ -51,7 +63,12 @@ class CorpseManager {
     if (this._autoOpenInstalled) return;
     this._autoOpenInstalled = true;
     bus.on('player:moved',    () => this._scanRange());
-    bus.on('item:incoming',   () => this._scanRange());
+    bus.on('item:placed', (it) => {
+      const serial = it?.serial >>> 0;
+      const facing = this._pendingFacing.get(serial);
+      if (facing && it) it.layer = (facing.dir & 0x7) | (facing.run ? 0x80 : 0);
+      this._scanRange();
+    });
   }
 
   /** Iterate all known corpses and open any within autoOpenRange tiles. */
@@ -86,10 +103,11 @@ class CorpseManager {
     for (let i = this._entries.length - 1; i >= 0; i--) {
       const c = this._entries[i];
       if ((cs && c.corpse === cs) || (os && c.obj === os)) {
-        if (cs) {
-          const it = world.items.get(cs);
-          if (it) it.layer = (c.dir & 0x7) | (c.run ? 0x80 : 0);
-        }
+        const it = world.items.get(c.corpse);
+        if (it) it.layer = (c.dir & 0x7) | (c.run ? 0x80 : 0);
+        // Removing only the mobile must not discard facing before its
+        // corpse item arrives. Removing the corpse ends the lifecycle.
+        if (cs && c.corpse === cs) this._pendingFacing.delete(c.corpse);
         this._entries.splice(i, 1);
       }
     }
@@ -116,6 +134,8 @@ class CorpseManager {
     const cs = serial >>> 0;
     const e = this._entries.find((c) => c.corpse === cs);
     if (e) return { dir: e.dir & 0x7, run: e.run };
+    const pending = this._pendingFacing.get(cs);
+    if (pending) return { dir: pending.dir & 0x7, run: pending.run };
     const it = world.items.get(cs);
     if (it && typeof it.layer === 'number' && it.layer > 0) {
       return { dir: it.layer & 0x7, run: (it.layer & 0x80) !== 0 };
@@ -123,7 +143,7 @@ class CorpseManager {
     return { dir: 0, run: false };
   }
 
-  clear() { this._entries.length = 0; this._autoOpened.clear(); }
+  clear() { this._entries.length = 0; this._pendingFacing.clear(); this._autoOpened.clear(); }
 }
 
 export const corpseManager = new CorpseManager();

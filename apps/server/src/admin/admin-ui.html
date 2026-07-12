@@ -141,6 +141,11 @@
   <button data-tab="data">Data (raw)</button>
   <button data-tab="data-editor" style="color:#80ff80">🌳 Data Editor</button>
   <button data-tab="spawners">Spawners</button>
+  <button data-tab="world-design" style="color:#8fe3b0">World Design</button>
+  <button data-tab="ai-graphs" style="color:#80d8ff">AI Graphs</button>
+  <button data-tab="simulators" style="color:#ffd080">Simulators</button>
+  <button data-tab="animations" style="color:#c69cff">Animations</button>
+  <button data-tab="operations" style="color:#6fe7ff">Operations</button>
   <button data-tab="logs">Logs</button>
   <button data-tab="world">World</button>
   <button data-tab="isoeditor" style="color:#80ff80">🗺 Iso Editor</button>
@@ -182,6 +187,11 @@ window.logout = logout;
 const tabs = {};
 function registerTab(name, fn) { tabs[name] = fn; }
 function activate(name) {
+  const current = document.querySelector('nav button.active')?.dataset?.tab;
+  if (current === 'scripts' && name !== 'scripts' && scriptDirty()
+      && !confirm('Discard unsaved script changes?')) return;
+  if (name !== 'logs' && logTimer) { clearInterval(logTimer); logTimer = null; }
+  if (name !== 'animations' && animTimer) { clearInterval(animTimer); animTimer = null; }
   for (const b of document.querySelectorAll('nav button'))
     b.classList.toggle('active', b.dataset.tab === name);
   document.getElementById('main').innerHTML = '';
@@ -314,24 +324,26 @@ async function openAccount(username) {
 }
 
 async function editAccount(username, level, banned) {
-  // ServUO AccessLevel ladder (low to high): Player, Counselor, Seer,
-  // GM, Admin. The PATCH endpoint accepts the string verbatim.
-  const newLevel = prompt(
-    `accessLevel for ${username}\n` +
-    `(Player / Counselor / Seer / GM / Admin):`, level);
-  if (!newLevel) return;
-  const valid = ['Player', 'Counselor', 'Counsellor', 'Seer', 'GM', 'GameMaster', 'Admin', 'Administrator'];
-  if (!valid.includes(newLevel)) {
-    alert(`Invalid access level. Valid: ${valid.join(', ')}`);
-    return;
-  }
-  const banAns = confirm(`Banned? (currently ${banned})\nClick OK to BAN, Cancel to UNBAN`);
-  try {
-    await api('PATCH', `/api/accounts/${encodeURIComponent(username)}`, {
-      accessLevel: newLevel, banned: banAns,
-    });
-    activate('accounts');
-  } catch (e) { alert('edit failed: ' + e.message); }
+  const levels = ['Player', 'Counselor', 'Seer', 'GameMaster', 'GM', 'Admin'];
+  showModal(`Edit account: ${username}`, `
+    <label style="display:grid;gap:5px;margin-bottom:12px">Access level
+      <select id="account-level" style="width:100%">
+        ${levels.map((v) => `<option value="${v}" ${v === level ? 'selected' : ''}>${v}</option>`).join('')}
+      </select>
+    </label>
+    <label style="display:flex;align-items:center;gap:8px">
+      <input id="account-banned" type="checkbox" ${banned ? 'checked' : ''} /> Account banned
+    </label>
+  `, [
+    { label: 'Save changes', primary: true, action: async () => {
+      await api('PATCH', `/api/accounts/${encodeURIComponent(username)}`, {
+        accessLevel: document.getElementById('account-level').value,
+        banned: document.getElementById('account-banned').checked,
+      });
+      activate('accounts');
+    } },
+    { label: 'Cancel' },
+  ]);
 }
 
 async function deleteAccount(username) {
@@ -344,20 +356,22 @@ async function deleteAccount(username) {
 
 // ---------------------------- Characters / mobiles ------------------------
 let mobsKind = 'players';     // 'players' | 'npcs' | 'all'
+let mobOffset = 0;
+const MOB_PAGE = 200;
 registerTab('characters', async () => {
   document.getElementById('main').innerHTML = `
     <div class="card">
       <h2>Characters / mobiles</h2>
       <div class="row" style="border-bottom:1px solid #4a3818;padding-bottom:6px">
-        <button data-kind="players" class="kindbtn primary">👤 Players</button>
-        <button data-kind="vendors" class="kindbtn">🛒 Vendors</button>
-        <button data-kind="npcs"    class="kindbtn">🐺 Monsters</button>
-        <button data-kind="all"     class="kindbtn">All</button>
+        <button data-kind="players" class="kindbtn ${mobsKind === 'players' ? 'primary' : ''}">👤 Players</button>
+        <button data-kind="vendors" class="kindbtn ${mobsKind === 'vendors' ? 'primary' : ''}">🛒 Vendors</button>
+        <button data-kind="npcs"    class="kindbtn ${mobsKind === 'npcs' ? 'primary' : ''}">🐺 Monsters</button>
+        <button data-kind="all"     class="kindbtn ${mobsKind === 'all' ? 'primary' : ''}">All</button>
         <span id="m-count" style="margin-left:auto;opacity:.6"></span>
       </div>
       <div class="row" style="margin-top:6px">
         <input id="m-filter" placeholder="filter by name or 0xSerial" />
-        <button onclick="loadMobiles()">search</button>
+        <button onclick="searchMobiles()">search</button>
       </div>
       <div id="mobs-result"></div>
     </div>
@@ -365,6 +379,7 @@ registerTab('characters', async () => {
   `;
   document.querySelectorAll('.kindbtn').forEach((b) => b.addEventListener('click', () => {
     mobsKind = b.dataset.kind;
+    mobOffset = 0;
     document.querySelectorAll('.kindbtn').forEach((x) => x.classList.toggle('primary', x === b));
     loadMobiles();
   }));
@@ -372,20 +387,7 @@ registerTab('characters', async () => {
 });
 async function loadMobiles() {
   const f = document.getElementById('m-filter').value;
-  // server `players=1` returns only those with mob.client OR mob.isPlayer.
-  // For NPC view we ask for everything and filter client-side.
-  const p = mobsKind === 'players' ? '1' : '';
-  const r = await api('GET', `/api/mobiles?filter=${encodeURIComponent(f)}&players=${p}&limit=500`);
-  if (mobsKind === 'vendors') {
-    // Civic NPCs / shopkeepers — anything tagged with vendorKind by
-    // npcs/vendor.js. Excludes monsters and free-roaming creatures so
-    // the "where's my banker?" lookup actually shows just bankers,
-    // healers, animal trainers, etc.
-    r.mobiles = r.mobiles.filter((m) => !!m.vendorKind);
-  } else if (mobsKind === 'npcs') {
-    // Monsters / wild creatures — non-player, non-vendor mobs.
-    r.mobiles = r.mobiles.filter((m) => !m.online && !m.isPlayer && !m.vendorKind);
-  }
+  const r = await api('GET', `/api/mobiles?filter=${encodeURIComponent(f)}&kind=${mobsKind}&limit=${MOB_PAGE}&offset=${mobOffset}`);
   const rows = r.mobiles.map((m) => `
     <tr>
       <td>${m.serial}</td>
@@ -406,9 +408,14 @@ async function loadMobiles() {
       <thead><tr><th>Serial</th><th>Name</th><th>Body</th><th>Pos</th><th>HP</th><th></th><th></th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
+    <div class="row" style="justify-content:flex-end;margin-top:8px">
+      <button ${mobOffset <= 0 ? 'disabled' : ''} onclick="mobOffset=Math.max(0,mobOffset-MOB_PAGE);loadMobiles()">← Previous</button>
+      <span style="opacity:.7">${r.count ? mobOffset + 1 : 0}–${Math.min(r.count, mobOffset + r.mobiles.length)} of ${r.count}</span>
+      <button ${mobOffset + r.mobiles.length >= r.count ? 'disabled' : ''} onclick="mobOffset+=MOB_PAGE;loadMobiles()">Next →</button>
+    </div>
   `;
   const cnt = document.getElementById('m-count');
-  if (cnt) cnt.textContent = `${r.mobiles.length} ${mobsKind}`;
+  if (cnt) cnt.textContent = `${r.count} ${mobsKind}`;
   // Remember "last selected mobile" — used by the items tab as the default
   // teleport target. Pick the first online player on each refresh so the
   // typical "tp my admin character to that item" flow doesn't ask every
@@ -416,6 +423,7 @@ async function loadMobiles() {
   const firstOnline = r.mobiles.find((m) => m.online);
   if (firstOnline) localStorage.setItem('uo-admin-tp-mob', firstOnline.serial);
 }
+function searchMobiles() { mobOffset = 0; loadMobiles(); }
 async function viewMob(serial) {
   let m;
   try { m = await api('GET', `/api/mobiles/${serial}`); }
@@ -442,6 +450,7 @@ async function viewMob(serial) {
         </div>
         <div style="margin-top:6px">
           <button class="small" onclick="setTpTarget('${m.serial}')">use as tp target</button>
+          <button class="small" onclick="loadAiDebug('${m.serial}')">AI debug</button>
           ${m.online ? `<button class="small danger" onclick="kickMob('${m.serial}')">kick</button>` : ''}
         </div>
       </div>
@@ -451,10 +460,42 @@ async function viewMob(serial) {
         <ul class="scroll-h">${eq || '<i>none</i>'}</ul>
         <h3>Backpack (${m.backpackContents.length})</h3>
         <ul class="scroll-h">${pack || '<i>empty</i>'}</ul>
+        <div id="ai-debug-${m.serial}"></div>
       </div>
     </div>
   `;
 }
+async function loadAiDebug(serial) {
+  const host = document.getElementById(`ai-debug-${serial}`);
+  if (!host) return;
+  host.innerHTML = '<p class="muted">Loading AI state…</p>';
+  try {
+    const [ai, path] = await Promise.all([
+      api('GET', `/api/ai/${serial}`),
+      api('GET', `/api/ai/${serial}/path`),
+    ]);
+    if (ai.error) { host.innerHTML = `<p class="muted">${esc(ai.error)}</p>`; return; }
+    const target = ai.target
+      ? `${esc(ai.target.name ?? '?')} (${ai.target.serial}) · distance ${ai.target.distance ?? '?'}` : 'none';
+    const points = path.reachable
+      ? path.points.slice(0, 24).map((p) => `${p.x},${p.y}`).join(' → ')
+      : esc(path.reason ?? 'no active target');
+    host.innerHTML = `
+      <h3>AI live state <span class="pill">${esc(ai.status)}</span></h3>
+      <div class="kv">
+        <b>Behavior</b><div>${esc(ai.behavior)}</div>
+        <b>Target</b><div>${target}</div>
+        <b>Last tick</b><div>${ai.lastTickMs} ms · ${ai.tickCount} ticks · ${ai.skippedCount} skipped</div>
+        <b>Path</b><div>${path.reachable ? path.steps + ' steps' : 'unreachable'}</div>
+      </div>
+      ${ai.lastError ? `<pre style="color:#ff7777">${esc(ai.lastError)}</pre>` : ''}
+      <details><summary>Behavior state</summary><pre>${esc(JSON.stringify(ai.state, null, 2))}</pre></details>
+      <details open><summary>Path/target preview</summary><div class="muted" style="overflow-wrap:anywhere">${points}</div></details>`;
+  } catch (error) {
+    host.innerHTML = `<p style="color:#ff7777">${esc(error.message)}</p>`;
+  }
+}
+window.loadAiDebug = loadAiDebug;
 function setTpTarget(serial) {
   localStorage.setItem('uo-admin-tp-mob', serial);
   flashToast(`tp target = ${serial}`);
@@ -496,6 +537,8 @@ function renderMobileKV(m) {
 }
 
 // ---------------------------- Items ---------------------------------------
+let itemOffset = 0;
+const ITEM_PAGE = 200;
 registerTab('items', async () => {
   document.getElementById('main').innerHTML = `
     <div class="card">
@@ -503,7 +546,7 @@ registerTab('items', async () => {
       <div class="row">
         <input id="i-filter" placeholder="filter by name / 0xItemId / 0xSerial" />
         <label><input type="checkbox" id="i-ground" /> only on ground</label>
-        <button onclick="loadItems()">search</button>
+        <button onclick="searchItems()">search</button>
       </div>
       <div id="items-result"></div>
     </div>
@@ -513,7 +556,7 @@ registerTab('items', async () => {
 async function loadItems() {
   const f = document.getElementById('i-filter').value;
   const g = document.getElementById('i-ground').checked ? '1' : '';
-  const r = await api('GET', `/api/items?filter=${encodeURIComponent(f)}&ground=${g}`);
+  const r = await api('GET', `/api/items?filter=${encodeURIComponent(f)}&ground=${g}&limit=${ITEM_PAGE}&offset=${itemOffset}`);
   const rows = r.items.map((it) => `
     <tr>
       <td>${it.serial}</td>
@@ -535,8 +578,14 @@ async function loadItems() {
       <thead><tr><th>Serial</th><th>ItemId</th><th>Name</th><th>Amount</th><th>Where</th><th></th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
+    <div class="row" style="justify-content:flex-end;margin-top:8px">
+      <button ${itemOffset <= 0 ? 'disabled' : ''} onclick="itemOffset=Math.max(0,itemOffset-ITEM_PAGE);loadItems()">← Previous</button>
+      <span style="opacity:.7">${r.count ? itemOffset + 1 : 0}–${Math.min(r.count, itemOffset + r.items.length)} of ${r.count}</span>
+      <button ${itemOffset + r.items.length >= r.count ? 'disabled' : ''} onclick="itemOffset+=ITEM_PAGE;loadItems()">Next →</button>
+    </div>
   `;
 }
+function searchItems() { itemOffset = 0; loadItems(); }
 async function deleteItem(serial) {
   if (!confirm('Delete item ' + serial + '?')) return;
   try { await api('DELETE', `/api/items/${serial}`); loadItems(); }
@@ -597,6 +646,12 @@ window.flashToast = flashToast;
 
 // ---------------------------- Scripts (file editor) -----------------------
 let currentScriptPath = null;
+let currentScriptPristine = '';
+let currentScriptMtime = null;
+function scriptDirty() {
+  const editor = document.getElementById('s-editor');
+  return !!currentScriptPath && !!editor && editor.value !== currentScriptPristine;
+}
 registerTab('scripts', async () => {
   const data = await api('GET', '/api/scripts');
   document.getElementById('main').innerHTML = `
@@ -605,6 +660,7 @@ registerTab('scripts', async () => {
         <button class="primary" onclick="newScript()">+ new file</button>
         <button onclick="saveScript()">💾 save (Ctrl+S)</button>
         <button onclick="reloadScripts()">↻ reload runtime</button>
+        <label style="display:flex;align-items:center;gap:4px;font-size:11px"><input id="s-live" type="checkbox" checked> reload changed script after save</label>
         <span style="margin-left:auto;opacity:.6">root: ${esc(data.root)}</span>
       </div>
       <div class="script-split">
@@ -619,7 +675,7 @@ registerTab('scripts', async () => {
   `;
   document.getElementById('s-tree').innerHTML = renderTree(data.tree);
   document.getElementById('s-editor').addEventListener('keydown', (e) => {
-    if (e.ctrlKey && (e.key === 's' || e.key === 'S')) { e.preventDefault(); saveScript(); }
+    if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) { e.preventDefault(); saveScript(); }
   });
 });
 function renderTree(nodes, depth = 0) {
@@ -633,10 +689,13 @@ function renderTree(nodes, depth = 0) {
   }).join('');
 }
 async function openScript(path, el) {
+  if (scriptDirty() && !confirm('Discard unsaved script changes?')) return;
   currentScriptPath = path;
   const r = await api('GET', `/api/scripts/file?path=${encodeURIComponent(path)}`);
   if (r.error) { alert(r.error); return; }
   document.getElementById('s-editor').value = r.content;
+  currentScriptPristine = r.content;
+  currentScriptMtime = r.mtime;
   document.getElementById('s-status').textContent =
     `${r.path} — ${r.size} bytes — modified ${new Date(r.mtime).toISOString()}`;
   document.querySelectorAll('.script-tree .item').forEach((e) => e.classList.remove('active'));
@@ -646,8 +705,16 @@ async function saveScript() {
   if (!currentScriptPath) { alert('no file open'); return; }
   const content = document.getElementById('s-editor').value;
   try {
-    const r = await api('PUT', `/api/scripts/file?path=${encodeURIComponent(currentScriptPath)}`, { content });
-    document.getElementById('s-status').textContent = `${r.path} — saved ${r.size} bytes`;
+    const r = await api('PUT', `/api/scripts/file?path=${encodeURIComponent(currentScriptPath)}`, {
+      content,
+      expectedMtime: currentScriptMtime,
+      reload: document.getElementById('s-live')?.checked ?? true,
+    });
+    if (r.error) throw new Error(r.error);
+    currentScriptPristine = content;
+    currentScriptMtime = r.mtime;
+    const live = r.reloaded ? ` · reload ${r.reloaded.ok ? 'ok' : 'failed'} (${r.reloaded.ms}ms)` : '';
+    document.getElementById('s-status').textContent = `${r.path} — saved ${r.size} bytes${live}`;
   } catch (e) { alert('save failed: ' + e.message); }
 }
 async function newScript() {
@@ -775,6 +842,45 @@ async function reloadDataFile() {
   } catch (e) { alert('reload failed: ' + e.message); }
 }
 
+// ---------------------------- World Design --------------------------------
+let wdRegions = [], wdLoot = [], wdQuests = [], wdRegionIndex = -1;
+registerTab('world-design', async () => {
+  document.getElementById('main').innerHTML = `
+    <div class="card"><h2>World Design</h2><p class="muted">Validated live editors. Changes affect the running shard; script reload can still replace script-owned definitions.</p></div>
+    <div class="card"><h2>Regions</h2><div class="toolbar"><select id="wd-region-select" onchange="wdPickRegion(this.value)"><option value="-1">New region…</option></select><button onclick="wdNewRegion()">New</button><button class="primary" onclick="wdSaveRegion()">Validate & save</button><button class="danger" onclick="wdDeleteRegion()">Delete</button></div>
+      <div id="wd-region-form" style="display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:7px"></div><div id="wd-region-diagnostics"></div></div>
+    <div class="card"><h2>Spawner coverage heatmap</h2><div class="toolbar"><label>Map <input id="wd-heat-map" type="number" value="1" min="0" max="5"></label><label>Cell <input id="wd-heat-cell" type="number" value="64" min="8" max="512"></label><button onclick="wdLoadHeatmap()">Refresh</button></div><div id="wd-heatmap"></div></div>
+    <div class="card"><h2>Loot table editor</h2><div class="toolbar"><select id="wd-loot-select" onchange="wdPickLoot(this.value)"></select><button class="primary" onclick="wdSaveLoot()">Validate & apply</button></div><textarea id="wd-loot-json" style="width:100%;height:220px;font-family:monospace"></textarea><div id="wd-loot-status"></div></div>
+    <div class="card"><h2>Quest + dialogue editor</h2><div class="toolbar"><select id="wd-quest-select" onchange="wdPickQuest(this.value)"></select><button class="primary" onclick="wdSaveQuest()">Validate & apply</button></div><textarea id="wd-quest-json" style="width:100%;height:260px;font-family:monospace"></textarea><div id="wd-quest-status"></div></div>`;
+  await wdReload();
+});
+function wdRegionForm(region={}) {
+  const r = region.rects?.[0] ?? {};
+  document.getElementById('wd-region-form').innerHTML = `
+    <label>Name<input id="wd-r-name" value="${esc(region.name??'')}"></label><label>Map<input id="wd-r-map" type="number" min="0" max="5" value="${region.map??1}"></label>
+    <label>Type<select id="wd-r-type">${['base','guarded','town','dungeon','nomurder'].map(x=>`<option ${x===(region.type??'base')?'selected':''}>${x}</option>`).join('')}</select></label><label>Priority<input id="wd-r-priority" type="number" value="${region.priority??0}"></label>
+    ${['x1','y1','x2','y2'].map(k=>`<label>${k}<input id="wd-r-${k}" type="number" value="${r[k]??0}"></label>`).join('')}
+    <label><input id="wd-r-guarded" type="checkbox" ${region.guarded?'checked':''}> guarded</label><label><input id="wd-r-nokill" type="checkbox" ${region.noKill?'checked':''}> no kill</label><label><input id="wd-r-nomurder" type="checkbox" ${region.noMurder?'checked':''}> no murder</label><label><input id="wd-r-gate" type="checkbox" ${region.allowGate!==false?'checked':''}> allow gate</label>
+    <label style="grid-column:span 2">Music<input id="wd-r-music" value="${esc(region.music??'')}"></label><label style="grid-column:span 2">Blocked spells (comma)<input id="wd-r-spells" value="${esc((region.blockedSpells??[]).join(', '))}"></label>`;
+}
+async function wdReload(){
+  const [rr,ll,qq]=await Promise.all([api('GET','/api/regions'),api('GET','/api/loot-tables'),api('GET','/api/quests')]);
+  wdRegions=rr.regions??[];wdLoot=ll.tables??[];wdQuests=qq.quests??[];
+  const rs=document.getElementById('wd-region-select');rs.innerHTML='<option value="-1">New region…</option>'+wdRegions.map((r,i)=>`<option value="${i}">${esc(r.name)} · map ${r.map}</option>`).join('');wdRegionForm();wdRenderRegionDiagnostics(rr.diagnostics);
+  const ls=document.getElementById('wd-loot-select');ls.innerHTML='<option value="-1">New table…</option>'+wdLoot.map((t,i)=>`<option value="${i}">${esc(t.name)}</option>`).join('');document.getElementById('wd-loot-json').value=JSON.stringify({name:'new-table',entries:[]},null,2);
+  const qs=document.getElementById('wd-quest-select');qs.innerHTML='<option value="-1">New quest…</option>'+wdQuests.map((q,i)=>`<option value="${i}">${esc(q.name??q.id)}</option>`).join('');document.getElementById('wd-quest-json').value=JSON.stringify({id:'new-quest',name:'New quest',giver:'',description:'',objectives:[],reward:{gold:0},dialog:{}},null,2);
+  wdLoadHeatmap();
+}
+function wdPickRegion(i){wdRegionIndex=+i;wdRegionForm(wdRegions[wdRegionIndex]??{});}function wdNewRegion(){wdRegionIndex=-1;document.getElementById('wd-region-select').value='-1';wdRegionForm();}
+function wdRegionPayload(){const n=id=>+document.getElementById(id).value;return{name:document.getElementById('wd-r-name').value,map:n('wd-r-map'),type:document.getElementById('wd-r-type').value,priority:n('wd-r-priority'),rects:[{x1:n('wd-r-x1'),y1:n('wd-r-y1'),x2:n('wd-r-x2'),y2:n('wd-r-y2')}],guarded:document.getElementById('wd-r-guarded').checked,noKill:document.getElementById('wd-r-nokill').checked,noMurder:document.getElementById('wd-r-nomurder').checked,allowGate:document.getElementById('wd-r-gate').checked,music:document.getElementById('wd-r-music').value,blockedSpells:document.getElementById('wd-r-spells').value.split(',').map(x=>x.trim()).filter(Boolean)};}
+async function wdSaveRegion(){const r=await api('POST','/api/regions',wdRegionPayload());if(!r.ok){document.getElementById('wd-region-diagnostics').innerHTML=`<pre style="color:#ff7777">${esc((r.errors??[]).join('\n'))}</pre>`;return;}flashToast('Region saved');await wdReload();}
+async function wdDeleteRegion(){const r=wdRegions[wdRegionIndex];if(!r||!confirm(`Delete ${r.name}?`))return;await api('DELETE',`/api/regions/${encodeURIComponent(r.name)}?map=${r.map}`);await wdReload();}
+function wdRenderRegionDiagnostics(d={}){const host=document.getElementById('wd-region-diagnostics');host.innerHTML=`<p class="muted">${d.count??0} regions · ${(d.overlaps??[]).length} overlaps · ${(d.invalid??[]).length} invalid</p>${(d.overlaps??[]).slice(0,20).map(o=>`<div class="row"><span class="pill">map ${o.map}</span>${esc(o.a)} ↔ ${esc(o.b)} · ${o.tiles} tiles ${o.priorityConflict?'<b style="color:#ffb070">same priority</b>':''}</div>`).join('')}`;}
+async function wdLoadHeatmap(){const map=+document.getElementById('wd-heat-map').value,cell=+document.getElementById('wd-heat-cell').value;const r=await api('GET',`/api/spawners/heatmap?map=${map}&cellSize=${cell}`);document.getElementById('wd-heatmap').innerHTML=`<p class="muted">${r.groups.length} groups · ${r.liveMobiles} mobiles on map</p><table><thead><tr><th>Cell</th><th>Groups</th><th>Active/capacity</th><th>Load</th></tr></thead><tbody>${r.cells.slice(0,100).map(c=>`<tr><td>${c.x},${c.y}</td><td>${c.groups}</td><td>${c.active}/${c.capacity}</td><td><progress max="${Math.max(1,c.capacity)}" value="${c.active}"></progress></td></tr>`).join('')}</tbody></table>`;}
+function wdPickLoot(i){document.getElementById('wd-loot-json').value=JSON.stringify(wdLoot[+i]??{name:'new-table',entries:[]},null,2);}async function wdSaveLoot(){const host=document.getElementById('wd-loot-status');try{const r=await api('POST','/api/loot-tables',JSON.parse(document.getElementById('wd-loot-json').value));host.innerHTML=`<pre style="color:${r.ok?'#80ff80':'#ff7777'}">${esc([...(r.errors??[]),...(r.warnings??[])].join('\n')||'Valid and applied')}</pre>`;if(r.ok)await wdReload();}catch(e){host.textContent=e.message;}}
+function wdPickQuest(i){document.getElementById('wd-quest-json').value=JSON.stringify(wdQuests[+i]??{id:'new-quest',name:'New quest',objectives:[],reward:{gold:0},dialog:{}},null,2);}async function wdSaveQuest(){const host=document.getElementById('wd-quest-status');try{const r=await api('POST','/api/quests',JSON.parse(document.getElementById('wd-quest-json').value));host.innerHTML=`<pre style="color:${r.ok?'#80ff80':'#ff7777'}">${esc([...(r.errors??[]),...(r.warnings??[])].join('\n')||'Valid and applied')}</pre>`;if(r.ok)await wdReload();}catch(e){host.textContent=e.message;}}
+Object.assign(window,{wdPickRegion,wdNewRegion,wdSaveRegion,wdDeleteRegion,wdLoadHeatmap,wdPickLoot,wdSaveLoot,wdPickQuest,wdSaveQuest});
+
 // ---------------------------- Spawners ------------------------------------
 async function deleteSpawner(id) {
   if (!confirm(`Delete spawner "${id}"? Active mobs survive; only the spawn-group is removed.`)) return;
@@ -788,14 +894,17 @@ async function saveSpawner(formId, existingId) {
   const data = Object.fromEntries(new FormData(form));
   const payload = {
     id: existingId || data.id,
-    map: parseInt(data.map, 10) || 1,
+    map: Number.isInteger(Number(data.map)) ? Number(data.map) : 1,
     rect: {
       x1: parseInt(data.x1, 10) | 0,
       y1: parseInt(data.y1, 10) | 0,
       x2: parseInt(data.x2, 10) | 0,
       y2: parseInt(data.y2, 10) | 0,
     },
-    kinds: String(data.kinds || '').split(',').map((s) => s.trim()).filter(Boolean),
+    kinds: String(data.kinds || '').split(',').map((s) => s.trim()).filter(Boolean).map((entry) => {
+      const match = /^(.*?):(\d+)$/.exec(entry);
+      return match ? [match[1].trim(), Math.max(1, Number(match[2]) | 0)] : entry;
+    }),
     maxCount: parseInt(data.maxCount, 10) || 5,
     respawnMs: [
       parseInt(data.respawnLo, 10) || 30000,
@@ -833,7 +942,7 @@ function spawnerForm(formId, existing) {
       <label>Proximity range<input name="proximityRange" type="number" value="${e.proximityRange ?? 0}"></label>
       <label>Home range<input name="homeRange" type="number" value="${e.homeRange ?? 5}"></label>
       <div style="grid-column:span 2;display:flex;gap:6px">
-        <button class="primary" onclick="saveSpawner('${formId}', ${existing ? `'${esc(existing.id)}'` : 'null'})">${existing ? 'Save' : 'Create'}</button>
+        <button class="primary" onclick="saveSpawner('${escJS(formId)}', ${existing ? `'${escJS(existing.id)}'` : 'null'})">${existing ? 'Save' : 'Create'}</button>
       </div>
     </form>`;
 }
@@ -853,9 +962,9 @@ registerTab('spawners', async () => {
         <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis">${esc(s.kinds?.map?.((k)=>Array.isArray(k)?k.join(':'):k).join(', ') ?? '')}</td>
         <td>${s.active ?? 0}/${s.maxCount ?? '?'}</td>
         <td style="white-space:nowrap">
-          <button onclick="tpToSpawner('${esc(s.id)}')">tp</button>
-          <button onclick="toggleEditor('${esc(s.id)}')">edit</button>
-          <button class="danger" onclick="deleteSpawner('${esc(s.id)}')">×</button>
+          <button onclick="tpToSpawner('${escJS(s.id)}')">tp</button>
+          <button onclick="toggleEditor('${escJS(s.id)}')">edit</button>
+          <button class="danger" onclick="deleteSpawner('${escJS(s.id)}')">×</button>
         </td>
     </tr>
     <tr id="edit-${esc(s.id)}" style="display:none"><td colspan="7" style="background:#1a1208">${spawnerForm('spform-' + esc(s.id), s)}</td></tr>
@@ -877,8 +986,121 @@ registerTab('spawners', async () => {
 // `tpMe()` which uses the logged-in admin's character. This stub just
 // keeps the old export name in case anything still references it.
 
+// ------------------------- Visual AI graphs -------------------------------
+let aiGraphCatalog = { nodeTypes: [], graphs: [] };
+let activeAiGraph = null;
+const newAiGraph = () => ({ id:'new-behavior', name:'New behavior', start:'start', nodes:[
+  { id:'start', type:'start', next:'find', params:{} },
+  { id:'find', type:'acquire-player', next:'chase', fail:'wait', params:{range:12} },
+  { id:'chase', type:'move-to-target', next:'wait', fail:'find', params:{stopRange:1} },
+  { id:'wait', type:'wait', next:'start', params:{ms:500} },
+] });
+registerTab('ai-graphs', async () => {
+  aiGraphCatalog = await api('GET','/api/ai-graphs');
+  activeAiGraph = structuredClone(aiGraphCatalog.graphs[0] ?? newAiGraph());
+  renderAiGraphEditor();
+});
+function renderAiGraphEditor() {
+  const graph = activeAiGraph ?? newAiGraph();
+  const picks = aiGraphCatalog.graphs.map((g)=>`<option value="${esc(g.id)}" ${g.id===graph.id?'selected':''}>${esc(g.name)} (${esc(g.id)})</option>`).join('');
+  document.getElementById('main').innerHTML = `
+    <div class="toolbar"><select onchange="selectAiGraph(this.value)">${picks}</select>
+      <button onclick="activeAiGraph=newAiGraph();renderAiGraphEditor()">New</button>
+      <button class="primary" onclick="saveAiGraph()">Save graph</button>
+      <button onclick="addAiNode()">+ Node</button><button onclick="attachAiGraph()">Attach to mobile</button>
+      <button class="danger" onclick="deleteAiGraph()">Delete</button></div>
+    <div class="card"><label>ID <input id="aig-id" value="${esc(graph.id)}"></label>
+      <label>Name <input id="aig-name" value="${esc(graph.name)}"></label>
+      <label>Start <input id="aig-start" value="${esc(graph.start)}"></label>
+      <p class="muted">Server-authoritative data graph. Browser code is never stored or executed.</p></div>
+    <div style="display:flex;flex-wrap:wrap;gap:12px;padding:12px;background:#090d14;border:1px solid #35435a;min-height:420px">
+      ${graph.nodes.map((node,index)=>renderAiNode(node,index,graph)).join('')}</div>`;
+}
+function renderAiNode(node,index,graph) {
+  const ids=[''].concat(graph.nodes.map((n)=>n.id));
+  const edge=(field)=>`<select data-field="${field}">${ids.map((v)=>`<option value="${esc(v)}" ${node[field]===v?'selected':''}>${esc(v||'—')}</option>`).join('')}</select>`;
+  return `<div class="card aig-node" data-index="${index}" style="width:250px;border-color:${node.id===graph.start?'#d7a941':'#35435a'}">
+    <div style="display:flex;justify-content:space-between"><b>#${index+1}</b><button class="small danger" onclick="removeAiNode(${index})">×</button></div>
+    <label>Node id <input data-field="id" value="${esc(node.id)}"></label>
+    <label>Type <select data-field="type">${aiGraphCatalog.nodeTypes.map((t)=>`<option ${node.type===t?'selected':''}>${esc(t)}</option>`).join('')}</select></label>
+    <div class="kv"><b>next</b><div>${edge('next')}</div><b>yes</b><div>${edge('yes')}</div><b>no</b><div>${edge('no')}</div><b>fail</b><div>${edge('fail')}</div></div>
+    <label>Params JSON<textarea data-field="params" rows="4">${esc(JSON.stringify(node.params??{},null,2))}</textarea></label></div>`;
+}
+function collectAiGraph() {
+  const graph={id:document.getElementById('aig-id').value,name:document.getElementById('aig-name').value,start:document.getElementById('aig-start').value,nodes:[]};
+  for(const el of document.querySelectorAll('.aig-node')){
+    const value=(field)=>el.querySelector(`[data-field="${field}"]`).value;
+    let params={}; try{params=JSON.parse(value('params')||'{}');}catch{throw new Error(`Invalid params JSON in ${value('id')}`);}
+    graph.nodes.push({id:value('id'),type:value('type'),next:value('next'),yes:value('yes'),no:value('no'),fail:value('fail'),params});
+  }
+  return graph;
+}
+function selectAiGraph(id){activeAiGraph=structuredClone(aiGraphCatalog.graphs.find((g)=>g.id===id)??newAiGraph());renderAiGraphEditor();}
+function addAiNode(){activeAiGraph=collectAiGraph();activeAiGraph.nodes.push({id:`node-${activeAiGraph.nodes.length+1}`,type:'wait',next:activeAiGraph.start,params:{ms:500}});renderAiGraphEditor();}
+function removeAiNode(index){activeAiGraph=collectAiGraph();activeAiGraph.nodes.splice(index,1);renderAiGraphEditor();}
+async function saveAiGraph(){try{const graph=collectAiGraph();const r=await api('PUT',`/api/ai-graphs/${encodeURIComponent(graph.id)}`,graph);if(!r.ok)throw new Error((r.errors??[r.error]).join('\n'));aiGraphCatalog=await api('GET','/api/ai-graphs');activeAiGraph=structuredClone(r.graph);renderAiGraphEditor();flashToast('AI graph saved and hot-reloaded');}catch(e){alert(e.message);}}
+async function deleteAiGraph(){if(!activeAiGraph||!confirm(`Delete ${activeAiGraph.id}?`))return;await api('DELETE',`/api/ai-graphs/${encodeURIComponent(activeAiGraph.id)}`);activate('ai-graphs');}
+async function attachAiGraph(){const serial=prompt('Mobile serial (hex or decimal):');if(!serial)return;const r=await api('POST',`/api/ai-graphs/${encodeURIComponent(activeAiGraph.id)}/attach`,{serial});if(r.error)alert(r.error);else flashToast(`Attached ${r.behavior}`);}
+Object.assign(window,{newAiGraph,renderAiGraphEditor,selectAiGraph,addAiNode,removeAiNode,saveAiGraph,deleteAiGraph,attachAiGraph});
+
+// ------------------------- Combat + loot simulators -----------------------
+registerTab('simulators', async () => {
+  const loot = await api('GET','/api/simulate/loot');
+  document.getElementById('main').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div class="card"><h2>Combat simulator</h2>
+        <p class="muted">Uses cloned live mobiles; the world is not mutated.</p>
+        <label>Attacker serial<input id="sim-atk" placeholder="0x…"></label>
+        <label>Defender serial<input id="sim-def" placeholder="0x…"></label>
+        <label>Trials<input id="sim-trials" type="number" value="5000" min="100" max="100000"></label>
+        <button class="primary" onclick="runCombatSim()">Run simulation</button><div id="sim-combat-out"></div>
+      </div>
+      <div class="card"><h2>Loot simulator</h2>
+        <p class="muted">Pure table rolls; does not create items or consume unique artifacts.</p>
+        <label>Table<select id="sim-loot">${(loot.tables??[]).map((name)=>`<option>${esc(name)}</option>`).join('')}</select></label>
+        <label>Trials<input id="sim-loot-trials" type="number" value="10000" min="100" max="100000"></label>
+        <button class="primary" onclick="runLootSim()">Run simulation</button><div id="sim-loot-out"></div>
+      </div>
+    </div>`;
+});
+async function runCombatSim(){const out=document.getElementById('sim-combat-out');out.textContent='Running…';try{const r=await api('POST','/api/simulate/combat',{attackerSerial:document.getElementById('sim-atk').value,defenderSerial:document.getElementById('sim-def').value,trials:+document.getElementById('sim-trials').value,seed:1});if(!r.ok)throw new Error(r.error);out.innerHTML=`<div class="kv"><b>Hit</b><div>${(r.hitChance*100).toFixed(1)}%</div><b>DPS</b><div>${r.dps.toFixed(2)}</div><b>TTK</b><div>${r.estimatedTtkSeconds?.toFixed(2)??'∞'} s</div><b>Damage</b><div>${r.damage.min} / ${r.damage.median} / ${r.damage.p90} / ${r.damage.max} (min/med/p90/max)</div><b>Cadence</b><div>${r.swingDelayMs} ms</div></div>`;}catch(e){out.textContent=e.message;}}
+async function runLootSim(){const out=document.getElementById('sim-loot-out');out.textContent='Running…';try{const table=document.getElementById('sim-loot').value;const trials=+document.getElementById('sim-loot-trials').value;const r=await api('GET',`/api/simulate/loot?table=${encodeURIComponent(table)}&trials=${trials}`);if(!r.ok)throw new Error(r.error);out.innerHTML=`<table><thead><tr><th>Drop</th><th>Chance</th><th>Avg/roll</th></tr></thead><tbody>${r.drops.map((d)=>`<tr><td>${esc(d.key)}</td><td>${(d.dropRate*100).toFixed(2)}%</td><td>${d.averageAmountPerRoll.toFixed(3)}</td></tr>`).join('')}</tbody></table><details><summary>Item-count histogram</summary><pre>${esc(JSON.stringify(r.itemCountHistogram,null,2))}</pre></details>`;}catch(e){out.textContent=e.message;}}
+Object.assign(window,{runCombatSim,runLootSim});
+
+// ------------------------- Body animation preview -------------------------
+let animTimer = null, animBodyData = null, animFrame = 0;
+registerTab('animations', async () => {
+  document.getElementById('main').innerHTML = `<div class="card"><h2>Body / action / direction preview</h2>
+    <div class="toolbar"><label>Body <input id="anim-body" value="0xD7"></label><button onclick="loadAnimationBody()">Load</button><button onclick="validateAnimations()">Validate all monster definitions</button></div>
+    <div style="display:grid;grid-template-columns:280px 1fr;gap:16px"><div style="height:300px;background:#090d14;display:grid;place-items:center;border:1px solid #35435a"><img id="anim-img" style="max-width:260px;max-height:280px;image-rendering:pixelated"></div>
+    <div><label>Action<select id="anim-action" onchange="restartAnimation()"></select></label><label>Direction<select id="anim-dir" onchange="restartAnimation()"></select></label><div id="anim-meta"></div></div></div>
+    <div id="anim-validation"></div></div>`;
+  await loadAnimationBody();
+});
+async function loadAnimationBody(){const body=document.getElementById('anim-body').value;animBodyData=await api('GET',`/api/animations/body/${encodeURIComponent(body)}`);const action=document.getElementById('anim-action');action.innerHTML=(animBodyData.actions??[]).map((a)=>`<option value="${a.action}">${a.action}</option>`).join('');document.getElementById('anim-meta').innerHTML=`<div class="kv"><b>Requested</b><div>${animBodyData.requested}</div><b>Resolved body</b><div>${animBodyData.resolved}${animBodyData.alias?' (body.def alias)':''}</div><b>Type</b><div>${esc(animBodyData.info?.type??'unknown')}</div><b>Status</b><div>${animBodyData.ok?'OK':animBodyData.errors.length+' error(s)'}</div></div>${animBodyData.errors?.length?`<pre style="color:#ff7777">${esc(animBodyData.errors.join('\n'))}</pre>`:''}`;restartAnimation();}
+function restartAnimation(){if(animTimer)clearInterval(animTimer);animFrame=0;const actionId=+document.getElementById('anim-action').value;const action=animBodyData?.actions?.find((a)=>a.action===actionId);const dir=document.getElementById('anim-dir');const previous=dir.value;dir.innerHTML=(action?.directions??[]).map((d)=>`<option value="${d.direction}">${d.direction} (${d.frames} frames)</option>`).join('');if([...dir.options].some((o)=>o.value===previous))dir.value=previous;drawAnimationFrame();animTimer=setInterval(drawAnimationFrame,120);}
+function drawAnimationFrame(){const body=document.getElementById('anim-body')?.value,action=+document.getElementById('anim-action')?.value,dir=+document.getElementById('anim-dir')?.value;if(body==null)return;const entry=animBodyData?.actions?.find((a)=>a.action===action)?.directions?.find((d)=>d.direction===dir);if(!entry?.frames)return;document.getElementById('anim-img').src=`/api/animations/frame/${encodeURIComponent(body)}/${action}/${dir}/${animFrame++%entry.frames}`;}
+async function validateAnimations(){const host=document.getElementById('anim-validation');host.textContent='Validating…';const r=await api('GET','/api/animations/validate');const bad=r.results.filter((x)=>!x.ok);host.innerHTML=`<h3>Definitions: ${r.total} · invalid ${r.invalid} · warnings ${r.warnings}</h3><table><thead><tr><th>Kind</th><th>Body</th><th>Problems</th></tr></thead><tbody>${bad.map((x)=>`<tr><td>${esc(x.kind)}</td><td>${x.body} → ${x.resolved}</td><td>${esc(x.errors.join('; '))}</td></tr>`).join('')||'<tr><td colspan="3">All registered monster bodies have required actions and directions.</td></tr>'}</tbody></table>`;}
+Object.assign(window,{loadAnimationBody,restartAnimation,validateAnimations});
+
 // ---------------------------- Logs ----------------------------------------
 let logTimer = null;
+registerTab('operations', async () => {
+  document.getElementById('main').innerHTML=`<div class="card"><h2>Operational readiness</h2><div class="toolbar"><button class="primary" onclick="opsReadiness()">Run readiness check</button><button onclick="opsIntegrity()">Deep world integrity</button><button onclick="opsSaveCheck(false)">Verify saves</button><button onclick="opsSaveCheck(true)">Save + verify</button><button onclick="opsRefresh()">Refresh metrics</button></div><div id="ops-ready"></div></div><div class="card"><h2>Protocol + client compatibility</h2><div id="ops-network"></div></div><div class="card"><h2>Command health</h2><div id="ops-commands"></div></div><div class="card"><h2>Feature boundary</h2><div id="ops-features"></div></div><div class="card"><h2>Recent audit events</h2><div id="ops-audit"></div></div>`;
+  await opsRefresh();await opsReadiness();
+});
+function opsBytes(n){if(n<1024)return n+' B';if(n<1048576)return(n/1024).toFixed(1)+' KiB';return(n/1048576).toFixed(1)+' MiB';}
+async function opsRefresh(){const [net,compat,cmd,features,audit]=await Promise.all([api('GET','/api/operations/protocol'),api('GET','/api/operations/compatibility'),api('GET','/api/operations/commands'),api('GET','/api/operations/features'),api('GET','/api/operations/audit?limit=100')]);
+  document.getElementById('ops-network').innerHTML=`<div class="stats"><div><b>${net.rxPackets}</b><span>RX packets</span></div><div><b>${opsBytes(net.rxBytes)}</b><span>RX bytes</span></div><div><b>${net.txPackets}</b><span>TX packets</span></div><div><b>${opsBytes(net.txBytes)}</b><span>TX bytes</span></div><div><b>${net.protocolErrors}</b><span>framing errors</span></div><div><b>${net.handlerErrors}</b><span>handler errors</span></div></div><p class="muted">Clients: ${compat.connected} · ${Object.entries(compat.byTransport).map(([k,v])=>`${esc(k)} ${v}`).join(' · ')||'none'}</p><table><thead><tr><th>RX opcode</th><th>Packets</th><th>Bytes</th><th>Avg handler</th><th>Errors</th></tr></thead><tbody>${net.rxOpcodes.slice(0,20).map(o=>`<tr><td>0x${o.opcode.toString(16).padStart(2,'0')}</td><td>${o.packets}</td><td>${opsBytes(o.bytes)}</td><td>${o.averageHandlerMs} ms</td><td>${o.errors}</td></tr>`).join('')}</tbody></table>`;
+  document.getElementById('ops-commands').innerHTML=`<p class="muted">Unknown: ${cmd.unknownCount??0} · registration collisions: ${(cmd.collisions??[]).length}</p><table><thead><tr><th>Command</th><th>Calls</th><th>Denied</th><th>Errors</th><th>Avg/max</th></tr></thead><tbody>${(cmd.commands??[]).slice(0,100).map(c=>`<tr><td>[${esc(c.name)}</td><td>${c.calls}</td><td>${c.denied}</td><td>${c.errors}</td><td>${c.averageMs}/${c.maxMs.toFixed?.(2)??c.maxMs} ms</td></tr>`).join('')}</tbody></table>`;
+  document.getElementById('ops-features').innerHTML=`<p><b>${esc(features.protocol)}</b> · mask 0x${(+features.currentMask).toString(16)}</p><div class="row">${features.capabilities.map(f=>`<span class="pill ${f.enabled?'online':''}">${esc(f.name)}</span>`).join('')}</div><pre>${esc(JSON.stringify(features.server,null,2))}</pre>`;
+  document.getElementById('ops-audit').innerHTML=`<table><thead><tr><th>Time</th><th>Kind</th><th>Actor</th><th>Target</th><th>Detail</th></tr></thead><tbody>${audit.entries.map(e=>`<tr><td>${new Date(e.at).toLocaleTimeString()}</td><td>${esc(e.kind)}</td><td>${esc(e.actor??'—')}</td><td>${esc(e.target??'—')}</td><td>${esc(e.detail??'')}</td></tr>`).join('')}</tbody></table>`;
+}
+async function opsReadiness(){const h=document.getElementById('ops-ready');h.textContent='Scanning…';const r=await api('GET','/api/operations/readiness');h.innerHTML=`<h3 style="color:${r.ok?'#80ff80':'#ffb070'}">${r.ok?'READY':'ATTENTION REQUIRED'}</h3><div class="kv"><b>World</b><div>${r.integrity.ok?'consistent':esc(JSON.stringify(r.integrity.counts))}</div><b>Saves</b><div>${r.saves.ok?'verified':'missing/corrupt'}</div><b>Commands</b><div>${r.commands.collisions} collisions · ${r.commands.errors} runtime errors</div><b>Clients</b><div>${r.compatibility.connected} connected</div></div>`;}
+async function opsIntegrity(){const r=await api('POST','/api/operations/integrity',{});document.getElementById('ops-ready').innerHTML=`<h3>${r.ok?'World is consistent':'Integrity issues found'}</h3><pre>${esc(JSON.stringify({scanned:r.scanned,counts:r.counts,issues:r.issues.slice(0,200)},null,2))}</pre>`;}
+async function opsSaveCheck(saveFirst){const r=await api('POST','/api/operations/save-check',{saveFirst});document.getElementById('ops-ready').innerHTML=`<h3>${r.verification.ok?'Save verified':'Save verification failed'}</h3><pre>${esc(JSON.stringify(r,null,2))}</pre>`;}
+Object.assign(window,{opsRefresh,opsReadiness,opsIntegrity,opsSaveCheck});
+
 registerTab('logs', async () => {
   document.getElementById('main').innerHTML = `
     <div class="card">
@@ -1004,18 +1226,31 @@ registerTab('data-editor', async () => {
 
 
 // ---------------------------- Modal ---------------------------------------
-function showModal(title, html) {
+function showModal(title, html, actions = []) {
   document.getElementById('modal-host').innerHTML = `
     <div class="modal-bg" onclick="if(event.target===this)closeModal()">
       <div class="modal">
         <h3>${esc(title)}</h3>
         ${html}
-        <div style="text-align:right;margin-top:12px">
-          <button onclick="closeModal()">close</button>
-        </div>
+        <div id="modal-actions" style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px"></div>
       </div>
     </div>
   `;
+  const footer = document.getElementById('modal-actions');
+  const specs = actions.length ? actions : [{ label: 'Close' }];
+  for (const spec of specs) {
+    const button = document.createElement('button');
+    button.textContent = spec.label ?? 'Close';
+    if (spec.danger) button.classList.add('danger');
+    if (spec.primary) button.classList.add('primary');
+    button.addEventListener('click', async () => {
+      if (!spec.action) { closeModal(); return; }
+      button.disabled = true;
+      try { await spec.action(); closeModal(); }
+      catch (e) { button.disabled = false; alert(e?.message ?? String(e)); }
+    });
+    footer.appendChild(button);
+  }
 }
 function closeModal() { document.getElementById('modal-host').innerHTML = ''; }
 
