@@ -19,7 +19,7 @@ const NAME_PLATE_STYLE = new TextStyle({
   fontFamily: UI_FONT_FAMILY, fontWeight: 650,
   stroke: { color: 0x000000, width: 2, join: 'round' },
 });
-import { worldToScreenX, worldToScreenY, depthKey, LAYER_MOBILE, TILE_HALF_H } from './iso.js';
+import { worldToScreenX, worldToScreenY, depthKey, LAYER_MOBILE } from './iso.js';
 import { world } from '../world/world.js';
 import { assets } from '../assets/asset-manager.js';
 import { applyHueTo } from './hue-filter.js';
@@ -30,6 +30,7 @@ import { auraManager } from '../managers/aura-manager.js';
 import { macroManager } from '../managers/macro-manager.js';
 import { profile } from '../managers/profile-manager.js';
 import { acquireSprite, releaseSprite } from './sprite-pool.js';
+import { mountInfoForItem } from '../shared/mount-data.js';
 
 // Shared shadow indices buffer — every MobileSprite reuses it (Pixi only
 // reads it on geometry construction). Saves an allocation per mob.
@@ -142,6 +143,7 @@ class MobileSprite {
     this._mountAnim = new MobileAnimation();
     this._mountBody = 0;
     this._mountHueApplied = -1;
+    this._riderOffsetY = 0;
     /** desaturate + alpha filter applied while mob is hidden / dead */
     this._dimFilter = null;
     /** monotone X+Y so we can detect whole-tile crossings for footstep audio */
@@ -661,7 +663,7 @@ class MobileSprite {
       // visually disappear against the parchment / sand floor. The
       // canonical UO bitmap for body 0x190 already ships with skin
       // tone, so leaving mob.hue at 0 (no filter) renders correctly.
-      const effectiveHue = mob.hue | 0;
+      const effectiveHue = assets.mobileRenderHue?.(renderBody, mob.hue) ?? (mob.hue | 0);
       const hueMode = effectiveHue === 0 ? 0 : 1;
       if (effectiveHue !== this._spriteHue && assets.huesTexture && assets.huesMeta) {
         applyHueTo(this._sprite, effectiveHue, hueMode, assets.huesTexture, assets.huesMeta.count);
@@ -688,11 +690,24 @@ class MobileSprite {
           this._mountSprite = null;
           this._mountBody   = 0;
           this._mountHueApplied = -1;
+          this._riderOffsetY = 0;
           this._stackDirty = true;
+        } else {
+          this._riderOffsetY = 0;
         }
       } catch (e) {
         if (!this._mountWarned) { console.warn('[mobile] mount render failed', e); this._mountWarned = true; }
       }
+      // CUO draws the mount at the tile origin, then applies the mount-table
+      // offset to the rider and every worn layer. Keeping that as one shared
+      // offset prevents shirts/robes from hovering away from the body on
+      // unicorns, skeletal steeds and newer tall mounts.
+      const riderY = this._riderOffsetY | 0;
+      this._sprite.position.set(0, riderY);
+      this._body.position.set(0, riderY);
+      this._dir.position.set(0, riderY);
+      if (this._shadow) this._shadow.position.set(0, riderY);
+      for (const sp of this._equipSprites.values()) sp.position.set(0, riderY);
 
       // Hidden / dead — desaturate + alpha. CUO uses
       // `EnableBlackWhiteEffect` shader for the dead variant; we share a
@@ -861,7 +876,8 @@ class MobileSprite {
     // breathing room. Falls back to a sensible static height when the
     // sprite hasn't resolved yet (early tick / atlas miss).
     const meta = this._anim._currentMeta;
-    const headY = meta && meta.h > 0 ? -(meta.h + meta.cy + 6) : -78;
+    const headY = (meta && meta.h > 0 ? -(meta.h + meta.cy + 6) : -78)
+      + (this._riderOffsetY | 0);
     if (this._label.y !== headY) this._label.y = headY;
     // Publish the head pixel offset on the Mobile so other overlays
     // (world-text speech bubbles, future damage popups) can sit above
@@ -901,6 +917,7 @@ class MobileSprite {
   _refreshMount(mob, dt = 1 / 60) {
     const eq = mob.equipment?.get?.(25);
     if (!eq) {
+      this._riderOffsetY = 0;
       // Just dismounted? Fade the mount sprite out before destroying
       // so the rider doesn't pop free of the mount in one frame.
       if (this._mountSprite) {
@@ -919,20 +936,16 @@ class MobileSprite {
       }
       return;
     }
-    // Audit #31 P2 #8 — ethereal-mount items have no `tiledata.animId`
-    // (they're "carriable statues" graphically). CUO `Item.cs:381` hard-
-    // codes the remap from item graphic → mount body. Without this the
-    // ethereal unicorn / kirin / steed all early-returned at the
-    // `!mountBody` guard below and the rider appeared to float.
     const g = eq.itemId | 0;
-    let mountBody;
-    if (g === 0x3E9B || g === 0x3E9D)      mountBody = 0x00C0;  // ethereal unicorn
-    else if (g === 0x3E9C)                  mountBody = 0x00BF;  // ethereal kirin
-    else if (g === 0x3E9E)                  mountBody = 0x00C1;  // ethereal beetle
-    else if (g === 0x3EAA)                  mountBody = 0x00CC;  // ethereal swamp dragon
-    else mountBody = (assets.tiledata?.statics?.[g]?.animId | 0) || 0;
+    const mountInfo = mountInfoForItem(g);
+    // ClassicUO's canonical mount table wins. Tiledata remains a compatibility
+    // fallback for custom emulator mounts outside the retail range.
+    const mountBody = mountInfo?.body
+      ?? ((assets.tiledata?.statics?.[g]?.animId | 0) || 0);
+    this._riderOffsetY = mountInfo?.riderOffsetY ?? 0;
     if (!mountBody) {
       if (this._mountSprite) { releaseSprite(this._mountSprite); this._mountSprite = null; }
+      this._riderOffsetY = 0;
       return;
     }
     // (Re)compute frame parameters whenever body or direction changes.
@@ -990,7 +1003,7 @@ class MobileSprite {
     this._mountSprite.scale.x = resolved.mirror ? -1 : 1;
     this._mountSprite.scale.y = 1;
     this._mountSprite.position.set(0, 0);
-    const mountHue = eq.hue | 0;
+    const mountHue = assets.mobileRenderHue?.(mountBody, eq.hue) ?? (eq.hue | 0);
     if (mountHue !== this._mountHueApplied && assets.huesTexture && assets.huesMeta) {
       applyHueTo(this._mountSprite, mountHue, mountHue === 0 ? 0 : 1, assets.huesTexture, assets.huesMeta.count);
       this._mountHueApplied = mountHue;
@@ -1136,10 +1149,7 @@ function equipHash(mob) {
 }
 
 function hasMobileManifestEntry(body, group, direction) {
-  const al = assets.mobilesAtlas?.aliases?.[body];
-  const rb = al?.body ?? al?.trueBody ?? body;
-  const dirs = assets.mobilesAtlas?.bodies?.[rb]?.actions?.[group]?.dirs;
-  return !!(dirs && (dirs[direction] || dirs['0']));
+  return assets.mobileActionExists?.(body, group, direction) === true;
 }
 
 export class MobileRenderer {
@@ -1291,13 +1301,17 @@ export class MobileRenderer {
       //   • walk S: max(20, 21) = 21 → mobile sorts at NEW row →
       //             same instant-snap behaviour as before; tile at
       //             (x+1, y+1) row 22 still wins (correct iso).
-      // OLD row is recovered from offsetStartY (set in beginMoveStep
-      // as `-(dx+dy)*22 + dz*4`). Z component introduces a small
-      // off-by-1 on stair climbs but the visual artefact there is
-      // already masked by the height step.
-      const newRow = m.x + m.y;
-      const startOffY = m.offsetStartY ?? 0;
-      const oldRow = newRow + Math.round(startOffY / TILE_HALF_H);
+      // Never reconstruct the old row from offsetStartY. That screen-space
+      // value includes elevation (`dz * 4`), so a normal 5-z stair produced
+      // round((22 + 20) / 22) == 2 and sorted the avatar a whole extra row
+      // toward the camera — in front of the stairwell wall. Mobile keeps the
+      // exact logical start/end rows for the active step instead.
+      const newRow = Number.isFinite(m.moveSortEndRow)
+        ? m.moveSortEndRow
+        : (m.x + m.y);
+      const oldRow = Number.isFinite(m.moveSortStartRow)
+        ? m.moveSortStartRow
+        : newRow;
       const effRow = oldRow > newRow ? oldRow : newRow;
       const mzBias = (m.z | 0) + 2;
       const z = depthKey(effRow, 0, mzBias, LAYER_MOBILE);

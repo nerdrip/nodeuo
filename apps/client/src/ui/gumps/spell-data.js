@@ -97,6 +97,33 @@ export const MAGERY_SPELLS = [
   { id: 64, name: 'Water Elemental', circle: 8, mana: 40, reagents: 'BM, MR, SS' },
 ];
 
+// Canonical Words of Power from ClassicUO SpellsMagery.cs. Kept as a
+// compact id-indexed table so the parchment detail page can match CUO
+// without bloating every spell descriptor.
+const MAGERY_WORDS = [
+  'Uus Jux', 'In Mani Ylem', 'Rel Wis', 'In Mani',
+  'In Por Ylem', 'In Lor', 'Flam Sanct', 'Des Mani',
+  'Ex Uus', 'Uus Wis', 'An Nox', 'An Mani',
+  'In Jux', 'An Jux', 'Uus Sanct', 'Uus Mani',
+  'Rel Sanct', 'Vas Flam', 'An Por', 'In Nox',
+  'Ort Por Ylem', 'Rel Por', 'Ex Por', 'In Sanct Ylem',
+  'Vas An Nox', 'Vas Uus Sanct', 'Des Sanct', 'In Flam Grav',
+  'In Vas Mani', 'Por Ort Grav', 'Ort Rel', 'Kal Ort Por',
+  'In Jux Hur Ylem', 'An Grav', 'Kal In Ex', 'In Jux Sanct',
+  'Por Corp Wis', 'An Ex Por', 'In Nox Grav', 'Kal Xen',
+  'An Ort', 'Corp Por', 'Vas Ort Flam', 'An Lor Xen',
+  'Kal Por Ylem', 'Vas Des Sanct', 'In Ex Grav', 'Wis Quas',
+  'Vas Ort Grav', 'In Sanct Grav', 'Kal Vas Flam', 'Vas Rel Por',
+  'Ort Sanct', 'Vas An Ort', 'Flam Kal Des Ylem', 'Vas Ylem Rel',
+  'In Vas Por', 'Vas Corp Por', 'An Corp', 'Kal Vas Xen Hur',
+  'Kal Vas Xen Corp', 'Kal Vas Xen Ylem', 'Kal Vas Xen Flam', 'Kal Vas Xen An Flam',
+];
+
+export function spellWords(spell) {
+  const id = spell?.id | 0;
+  return id >= 1 && id <= MAGERY_WORDS.length ? MAGERY_WORDS[id - 1] : '';
+}
+
 export const NECROMANCY_SPELLS = [
   { id: 101, name: 'Animate Dead',     circle: 1, mana: 23 },
   { id: 102, name: 'Blood Oath',        circle: 1, mana: 13 },

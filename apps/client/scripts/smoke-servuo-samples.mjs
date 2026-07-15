@@ -7,6 +7,7 @@ globalThis.localStorage = globalThis.localStorage ?? {
 };
 
 const { bus } = await import('../src/core/event-bus.js');
+const { decodeContextMenu } = await import('../src/net/incoming.js');
 const { SERVER_OPCODES, VAR, frameServerStream } = await import('../src/net/incoming-table.js');
 const { registerHandlers } = await import('../src/net/handlers.js');
 const { world } = await import('../src/world/world.js');
@@ -98,6 +99,23 @@ const samples = [
 ];
 
 for (const sample of samples) assertPacketShape(sample.pkt);
+
+// ServUO/ClassicUO mode-2 context entry: u32 cliloc, u16 response id,
+// u16 flags. Pin both 3M and ordinary 1M clilocs so Properties/Set Hue can
+// never regress into raw #numbers again.
+const contextPayload = new Uint8Array([
+  0x00, 0x02,                         // version
+  0x40, 0x00, 0x12, 0x34,             // target serial
+  0x02,                               // count
+  0x00, 0x2d, 0xdf, 0x14, 0x00, 0x01, 0x00, 0x00, // 3006228-ish / id 1
+  0x00, 0x10, 0x37, 0x69, 0x00, 0x02, 0x00, 0x00, // 1062761 / id 2
+]);
+const decodedContext = decodeContextMenu(contextPayload);
+assert.equal(decodedContext.serial, 0x40001234);
+assert.deepEqual(decodedContext.entries.map(({ responseId, cliloc, flags }) => ({ responseId, cliloc, flags })), [
+  { responseId: 1, cliloc: 3006228, flags: 0 },
+  { responseId: 2, cliloc: 1062761, flags: 0 },
+]);
 
 const framed = frameServerStream(concat(samples.map((sample) => sample.pkt)));
 assert.deepEqual(framed.warnings, [], 'representative ServUO/legacy sample stream should not resync');

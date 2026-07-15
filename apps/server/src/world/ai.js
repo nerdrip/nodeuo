@@ -13,6 +13,7 @@ import { nearbyClients } from './visibility.js';
 import { resolveStep } from './movement.js';
 import { findPath } from './pathfind.js';
 import { dispatchTileWalkEvents } from './item-scripts.js';
+import { runtimeGovernor } from '../systems/runtime-governor.js';
 
 /**
  * @typedef {Object} AIContext
@@ -60,6 +61,10 @@ export class AIScheduler {
     /** @type {NodeJS.Timeout | null} */
     this._timer = null;
     this.tickIntervalMs = 500;
+    this.tickBudgetMs = Math.max(2, Number(deps?.tickBudgetMs) || 12);
+    this.maxTicksPerPulse = Math.max(1, Number(deps?.maxTicksPerPulse) || 500);
+    this._tickCursor = 0;
+    this.schedulerDiagnostics = { pulses: 0, budgetYields: 0, maxPulseMs: 0, lastPulseMs: 0 };
     // Production shards can hold 10k+ persisted NPC bindings. There is no
     // useful simulation work while nobody is online, and walking every
     // binding would otherwise compete with startup/script loading. Tests keep
@@ -194,6 +199,7 @@ export class AIScheduler {
   }
 
   _tickAll() {
+    const pulseStarted = performance.now();
     const now = Date.now();
     const ctx = {
       world: this.world,
@@ -220,12 +226,36 @@ export class AIScheduler {
       : false;
     if (this.pauseWhenNoPlayers && !anyOnline) return;
     const hibernateEnabled = anyOnline && !!sectors?.mobileSerialsNear;
-    for (const [serial, binding] of this.bindings) {
+    const entries = [...this.bindings.entries()];
+    const total = entries.length;
+    const adaptiveBudget = runtimeGovernor.budgets.ai;
+    const mobileBudget = Math.max(1, Math.min(this.maxTicksPerPulse, adaptiveBudget.current | 0));
+    const start = total > 0 ? this._tickCursor % total : 0;
+    let visited = 0;
+    for (; visited < total && visited < mobileBudget; visited++) {
+      if (visited > 0 && performance.now() - pulseStarted >= this.tickBudgetMs) {
+        this.schedulerDiagnostics.budgetYields++;
+        break;
+      }
+      const [serial, binding] = entries[(start + visited) % total];
       const mob = this.world.mobiles.get(serial);
       if (!mob) {
         this.bindings.delete(serial);
         this._lastBroadcastPositions.delete(serial >>> 0);
         this.diagnostics.delete(serial >>> 0);
+        continue;
+      }
+      // Mounted pets stay persisted/indexed but are not independent world
+      // actors while their rider owns the Layer.Mount representation. Letting
+      // pet/wander AI tick here broadcasts a fresh 0x77 after `[mount` sent
+      // removeEntity, resurrecting a duplicate horse on every client.
+      if (mob.mounted) {
+        const prev = this.diagnostics.get(serial) ?? {};
+        this.diagnostics.set(serial, {
+          ...prev,
+          status: 'mounted',
+          skippedCount: (prev.skippedCount ?? 0) + 1,
+        });
         continue;
       }
       const b = this.behaviors.get(binding.behavior);
@@ -290,6 +320,13 @@ export class AIScheduler {
         console.error(`[ai] ${binding.behavior} tick threw:`, e);
       }
     }
+    if (total > 0) this._tickCursor = (start + Math.max(1, visited)) % total;
+    const pulseMs = performance.now() - pulseStarted;
+    adaptiveBudget.observe(pulseMs);
+    if (visited < total) adaptiveBudget.noteSkipped(total - visited);
+    this.schedulerDiagnostics.pulses++;
+    this.schedulerDiagnostics.lastPulseMs = Math.round(pulseMs * 1000) / 1000;
+    this.schedulerDiagnostics.maxPulseMs = Math.max(this.schedulerDiagnostics.maxPulseMs, this.schedulerDiagnostics.lastPulseMs);
   }
 
   _broadcastMove(mob) {

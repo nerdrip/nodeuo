@@ -67,6 +67,7 @@ export function attach(target, name, opts = {}) {
   inst.opts = cleanOpts(opts);
   inst.createdAt = Date.now();
   target._xmlAttach[name] = inst;
+  target._world?._xmlAttachmentEntities?.add?.(target.serial >>> 0);
   try { inst.onCreate?.(target, opts); }
   catch (e) { console.error(`[xml-attach ${name}.onCreate]`, e?.message ?? e); }
   return inst;
@@ -74,7 +75,11 @@ export function attach(target, name, opts = {}) {
 
 export function detach(target, name) {
   if (!target?._xmlAttach) return false;
-  return delete target._xmlAttach[name];
+  const removed = delete target._xmlAttach[name];
+  if (removed && Object.keys(target._xmlAttach).length === 0) {
+    target._world?._xmlAttachmentEntities?.delete?.(target.serial >>> 0);
+  }
+  return removed;
 }
 
 export function get(target, name) {
@@ -116,9 +121,24 @@ export function tickAttachments(world, now = Date.now()) {
         catch (e) { console.error(`[xml-attach ${a.type}.onTick]`, e?.message ?? e); }
       }
     }
+    if (Object.keys(bag).length === 0) {
+      world._xmlAttachmentEntities?.delete?.(target.serial >>> 0);
+    }
   };
-  for (const m of world.mobiles.values()) visit(m);
-  for (const i of world.items.values()) visit(i);
+  world._xmlAttachmentEntities ??= new Set();
+  if (!world._xmlAttachmentIndexReady) {
+    for (const m of world.mobiles.values()) if (m?._xmlAttach) world._xmlAttachmentEntities.add(m.serial >>> 0);
+    for (const i of world.items.values()) if (i?._xmlAttach) world._xmlAttachmentEntities.add(i.serial >>> 0);
+    world._xmlAttachmentIndexReady = true;
+  }
+  for (const serial of world._xmlAttachmentEntities) {
+    const target = world.mobiles.get(serial) ?? world.items.get(serial);
+    if (!target?._xmlAttach) {
+      world._xmlAttachmentEntities.delete(serial);
+      continue;
+    }
+    visit(target);
+  }
 }
 
 // =====================================================================

@@ -40,6 +40,9 @@ export const NODEUO_SPECIALIZATION_SUBCOMMAND = 0xF103;
 export const NODEUO_COOLDOWN_SUBCOMMAND = 0xF104;
 export const NODEUO_NAVAL_SUBCOMMAND = 0xF105;
 export const NODEUO_HOUSE_TOOLS_SUBCOMMAND = 0xF106;
+export const NODEUO_SKILL_INSIGHTS_SUBCOMMAND = 0xF107;
+export const NODEUO_TRADE_AUDIT_SUBCOMMAND = 0xF108;
+export const NODEUO_VENDOR_INSIGHTS_SUBCOMMAND = 0xF109;
 export const NODEUO_PROTOCOL_MAJOR = 1;
 export const NODEUO_PROTOCOL_MINOR = 0;
 export const NodeUOCapability = Object.freeze({
@@ -54,6 +57,10 @@ export const NodeUOCapability = Object.freeze({
   CooldownBars:     1 << 8,
   NavalPreview:     1 << 9,
   HouseTools:       1 << 10,
+  CraftingWorkbench:1 << 11,
+  SkillInsights:    1 << 12,
+  TradeAudit:       1 << 13,
+  VendorInsights:   1 << 14,
 });
 export const NODEUO_CAPABILITIES_ALL = Object.values(NodeUOCapability)
   .reduce((mask, flag) => (mask | flag) >>> 0, 0);
@@ -181,6 +188,39 @@ export function extNodeUOHouseTools({
   if (bytes.length > 32 * 1024) throw new RangeError('House tools payload exceeds 32 KiB');
   const ctx = beginExtended(NODEUO_HOUSE_TOOLS_SUBCOMMAND, 12 + bytes.length);
   ctx.w.writeU8(kind & 0xff);
+  ctx.w.writeU32(requestId >>> 0);
+  ctx.w.writeU16(bytes.length);
+  ctx.w.writeBytes(bytes);
+  return finishExtended(ctx);
+}
+
+/** Optional server-authoritative training insight after a skill use. */
+export function extNodeUOSkillInsights({ requestId = 0, payload = {} } = {}) {
+  const bytes = new TextEncoder().encode(JSON.stringify(payload ?? {}));
+  if (bytes.length > 8 * 1024) throw new RangeError('Skill insight payload exceeds 8 KiB');
+  const ctx = beginExtended(NODEUO_SKILL_INSIGHTS_SUBCOMMAND, 12 + bytes.length);
+  ctx.w.writeU32(requestId >>> 0);
+  ctx.w.writeU16(bytes.length);
+  ctx.w.writeBytes(bytes);
+  return finishExtended(ctx);
+}
+
+/** Optional non-authoritative trade transaction status for the web UI. */
+export function extNodeUOTradeAudit({ requestId = 0, payload = {} } = {}) {
+  const bytes = new TextEncoder().encode(JSON.stringify(payload ?? {}));
+  if (bytes.length > 4 * 1024) throw new RangeError('Trade audit payload exceeds 4 KiB');
+  const ctx = beginExtended(NODEUO_TRADE_AUDIT_SUBCOMMAND, 12 + bytes.length);
+  ctx.w.writeU32(requestId >>> 0);
+  ctx.w.writeU16(bytes.length);
+  ctx.w.writeBytes(bytes);
+  return finishExtended(ctx);
+}
+
+/** Optional price comparison/history metadata for the NodeUO shop UI. */
+export function extNodeUOVendorInsights({ requestId = 0, payload = {} } = {}) {
+  const bytes = new TextEncoder().encode(JSON.stringify(payload ?? {}));
+  if (bytes.length > 16 * 1024) throw new RangeError('Vendor insight payload exceeds 16 KiB');
+  const ctx = beginExtended(NODEUO_VENDOR_INSIGHTS_SUBCOMMAND, 12 + bytes.length);
   ctx.w.writeU32(requestId >>> 0);
   ctx.w.writeU16(bytes.length);
   ctx.w.writeBytes(bytes);

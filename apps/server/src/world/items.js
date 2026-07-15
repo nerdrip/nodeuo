@@ -10,6 +10,7 @@ import {
   getItemByTag as contentItemByTag,
   itemVariants,
 } from '../content/items/index.js';
+import { runtimeGovernor } from '../systems/runtime-governor.js';
 
 /**
  * Setter for the template-by-itemId resolver. main.js wires this at
@@ -73,6 +74,9 @@ export function createItem(world, data) {
     // starter outfit relies on this being round-tripped through createItem.
     layer: data.layer ?? 0,
   };
+  Object.defineProperty(item, '_world', {
+    value: world, writable: true, configurable: true, enumerable: false,
+  });
   if (data.addonName != null) item.addonName = data.addonName;
   if (data.addonNames != null) item.addonNames = data.addonNames;
   if (data.training != null) item.training = data.training;
@@ -162,6 +166,7 @@ export function createItem(world, data) {
     '_multi', '_multiAcl', '_multiOwner', '_multiName',
     'miniHouseType', 'isRewardItem', 'rewardItem',
     'isDecoration', 'height',
+    'door', 'solid', 'sign', 'teleporter', 'destination', 'spawner', 'xmlSpawner', 'areaEffect', 'fieldSpell',
   ]) {
     if (data[key] != null) item[key] = data[key];
     else if (contentDef?.[key] != null) item[key] = contentDef[key];
@@ -186,6 +191,8 @@ export function createItem(world, data) {
   }
   world.items.set(serial, item);
   world.sectors?.addItem(item);
+  if (!item.parent) world._groundItemCount = Math.max(0, (world._groundItemCount | 0) + 1);
+  world.syncSpatialItem?.(item);
   // Tick index — register scripted items that opt into `onTick`. The
   // 1-Hz tick loop walks this Set instead of every world.items entry
   // (110k after [createworld). `_scriptHasTick` is a cached predicate
@@ -277,7 +284,10 @@ export function destroyItem(world, serial) {
   }
   world.items.delete(serial);
   world.sectors?.removeItem(serial);
+  if (it && !it.parent) world._groundItemCount = Math.max(0, (world._groundItemCount | 0) - 1);
+  world.removeSpatialItem?.(serial);
   world._tickingItems?.delete?.(serial);
+  world._xmlAttachmentEntities?.delete?.(serial);
   world._corpses?.delete?.(serial);
   // Reverse parent index — drop this serial from the bucket it lived in
   // AND drop any children bucket where this serial was the parent
@@ -303,6 +313,14 @@ export function setItemParent(world, item, newParent) {
   if (!item) return;
   const oldParent = item.parent;
   item.parent = newParent;
+  runtimeGovernor.transactions.auditParent(item, oldParent, newParent);
+  if (oldParent == null && newParent != null) world._groundItemCount = Math.max(0, (world._groundItemCount | 0) - 1);
+  else if (oldParent != null && newParent == null) world._groundItemCount = Math.max(0, (world._groundItemCount | 0) + 1);
+  // A parent transition is also a spatial transition: parented objects must
+  // disappear from sector/tile/typed indexes immediately, while a drop to
+  // ground becomes queryable before the next visibility refresh.
+  world.sectors?.moveItem?.(item);
+  world.syncSpatialItem?.(item);
   const idx = world._childrenByParent;
   if (!idx) return;
   if (oldParent != null) {

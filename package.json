@@ -32,6 +32,8 @@
     "audit:50": "node tools/audit/nodeuo-50-suite.mjs",
     "audit:50:full": "node tools/audit/nodeuo-50-suite.mjs --full",
     "audit:50:soak": "node tools/audit/nodeuo-50-suite.mjs --full --soak-hours=12"
+    ,"audit:wave2-300": "node tools/audit/wave2-300-quality-suite.mjs"
+    ,"audit:wave2-300:full": "node tools/audit/wave2-300-quality-suite.mjs --full"
   },
   "devDependencies": {
     "@types/node": "^22.19.19",

@@ -26,6 +26,8 @@ import { bus } from '../core/event-bus.js';
 import { world } from '../world/world.js';
 import { acquireSprite, releaseSprite } from './sprite-pool.js';
 import { effectLifetimeMs } from './effect-timing.js';
+import { profile } from '../managers/profile-manager.js';
+import { clientRuntimeProfile } from '../shared/runtime-governor.js';
 
 class ActiveEffect {
   constructor(info) {
@@ -205,6 +207,14 @@ export class EffectRenderer {
     this._destroyEffect(oldest);
   }
 
+  _quality() {
+    const selected = profile.get('graphics.effectsQuality');
+    return selected === 'low' || selected === 'high' ? selected
+      : clientRuntimeProfile.tier === 'low' ? 'low' : 'high';
+  }
+
+  _effectLimit() { return this._quality() === 'low' ? 80 : EffectRenderer.MAX_EFFECTS; }
+
   _effectAnchor(info = {}) {
     const p = world.player;
     const x = Number.isFinite(info.tx) ? info.tx
@@ -220,7 +230,7 @@ export class EffectRenderer {
   }
 
   _spawnBurst(info) {
-    if (this.effects.length >= EffectRenderer.MAX_EFFECTS) {
+    if (this.effects.length >= this._effectLimit()) {
       this._dropOldestEffect();
     }
     const eff = this._acquireEffect(info);
@@ -260,7 +270,7 @@ export class EffectRenderer {
   async _spawn(info) {
     // Drop the oldest effect when we're at the cap so a spell-fest
     // doesn't accumulate hundreds of sprites in `this.effects`.
-    if (this.effects.length >= EffectRenderer.MAX_EFFECTS) {
+    if (this.effects.length >= this._effectLimit()) {
       this._dropOldestEffect();
     }
     const eff = this._acquireEffect(info);
@@ -445,7 +455,7 @@ export class EffectRenderer {
       // Lightning bolt: redraw jagged polyline + flicker. ~350ms life.
       if (eff._lightning) {
         if (eff._lightningPts && eff.elapsed - (eff._lastLightningAt ?? -Infinity) < 45) {
-          const flicker = Math.sin(eff.elapsed / 30) > 0 ? 1 : 0.4;
+          const flicker = profile.get('graphics.noFlicker') === true ? 1 : (Math.sin(eff.elapsed / 30) > 0 ? 1 : 0.4);
           eff._lightning.alpha = flicker;
           this.effects[write++] = eff;
           continue;
@@ -460,7 +470,7 @@ export class EffectRenderer {
         const topY = projY - 260;
         const botX = projX;
         const botY = projY;
-        const SEGMENTS = 8;
+        const SEGMENTS = this._quality() === 'low' ? 5 : 8;
         const pts = eff._lightningPts || (eff._lightningPts = new Array((SEGMENTS + 1) * 2));
         let pi = 0;
         pts[pi++] = topX;
@@ -473,7 +483,7 @@ export class EffectRenderer {
         pts[pi++] = botX;
         pts[pi++] = botY;
         eff._lightning.clear();
-        const flicker = Math.sin(eff.elapsed / 30) > 0 ? 1 : 0.4;
+        const flicker = profile.get('graphics.noFlicker') === true ? 1 : (Math.sin(eff.elapsed / 30) > 0 ? 1 : 0.4);
         eff._lightning.alpha = flicker;
         eff._lightning.poly(pts, false)
           .stroke({ width: 6, color: 0x609cff, alpha: 0.48 })
@@ -517,7 +527,7 @@ export class EffectRenderer {
           .stroke({ width: 2, color, alpha: alpha * 0.75 });
         eff._burst.circle(cx, cy, radius * 0.45)
           .stroke({ width: 1, color: 0xffffff, alpha: alpha * 0.5 });
-        const sparks = info.kind === 'hued-short-fallback' ? 6 : 9;
+        const sparks = this._quality() === 'low' ? 4 : (info.kind === 'hued-short-fallback' ? 6 : 9);
         for (let i = 0; i < sparks; i++) {
           const a = eff._burstSeed + (i / sparks) * Math.PI * 2 + t * 1.2;
           const inner = radius * 0.35;

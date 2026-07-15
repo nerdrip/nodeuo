@@ -26,6 +26,7 @@ globalThis.localStorage = {
 const { UIManager } = await import('../src/ui/ui-manager.js');
 const { Gump } = await import('../src/ui/gump.js');
 const { Control } = await import('../src/ui/control.js');
+const { bus } = await import('../src/core/event-bus.js');
 
 function mouse(button, x, y) {
   return {
@@ -95,6 +96,39 @@ assert.equal(movable.x, 225, 'gump drag should update x from armed drag offset')
 assert.equal(movable.y, 25, 'gump drag should update y from armed drag offset');
 ui._onMouseUp(mouse(0, 250 * 1.25, 45 * 1.25));
 assert.equal(ui._dragging, null, 'gump drag should clear on mouse up');
+
+const contextGump = new TestGump(320, 20);
+const contextItem = new TestControl(10, 10, 24, 24);
+contextItem.contextMenuOnRightClick = true;
+contextItem.keyboardFocusable = true;
+let contextClicks = 0;
+contextItem.onClick = (btn) => { if (btn === 2) contextClicks++; };
+contextGump.add(contextItem);
+ui.addGump(contextGump);
+const contextX = (contextGump.x + contextItem.x + 5) * 1.25;
+const contextY = (contextGump.y + contextItem.y + 5) * 1.25;
+assert.equal(
+  ui.pickAtScreen(contextX, contextY)?.control,
+  contextItem,
+  'context item should be the RMB hit target',
+);
+let popupAnchor = null;
+const offAnchor = bus.on('popup:anchor', (value) => { popupAnchor = value; });
+ui._onMouseDown(mouse(2, contextX, contextY));
+assert.ok(ui.gumps.includes(contextGump), 'RMB on an item context target must not close its container');
+assert.deepEqual(popupAnchor, { x: contextX, y: contextY }, 'context menu keeps the originating pointer anchor');
+ui._onMouseUp(mouse(2, contextX, contextY));
+assert.equal(contextClicks, 1, 'RMB on an item should reach its context-menu click handler');
+offAnchor();
+
+ui._onMouseDown(mouse(0, contextX, contextY));
+ui._onMouseUp(mouse(0, contextX, contextY));
+assert.equal(ui.focused, contextItem);
+assert.equal(ui._focusVisible, false, 'mouse focus must not draw the yellow keyboard ring');
+assert.equal(ui._focusRing.visible, false);
+ui._onKeyDown({ key: 'Tab', shiftKey: false, preventDefault() {}, defaultPrevented: false });
+assert.equal(ui._focusVisible, true, 'Tab navigation retains an accessible focus ring');
+assert.deepEqual(ui.screenToLogical(125, 250), { x: 100, y: 200 });
 
 ui.destroy();
 console.log('[smoke:ui-drag-drop] ok');

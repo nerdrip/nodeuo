@@ -125,6 +125,8 @@ describe('ScriptRuntime', () => {
     await rt.load();
     expect(api._goodRan).toBe(true);
     expect(api._logs.some((l) => /bad\.js.*boom/.test(l))).toBe(true);
+    expect(rt.profile).toMatchObject({ loaded: 1, failed: 1, errors: [expect.objectContaining({ file: 'bad.js', phase: 'init', message: 'boom' })] });
+    expect(rt.loaded.map((entry) => path.basename(entry.file))).toEqual(['good.js']);
   });
 
   it('skips modules without a default export', async () => {

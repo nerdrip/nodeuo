@@ -6,7 +6,7 @@
 // The container's children are sorted on (Y + Z) to match ClassicUO's
 // back-to-front draw order.
 
-import { Sprite, Graphics, MeshSimple, Text, TextStyle } from 'pixi.js';
+import { Container, Sprite, Graphics, Text, TextStyle, Ticker } from 'pixi.js';
 import { CHUNK_SIZE } from '../world/map.js';
 import { TILE_W, TILE_H, TILE_HALF_W, TILE_HALF_H, Z_STEP, worldToScreenX, worldToScreenY,
          depthKey, LAYER_LAND, LAYER_STATIC, LAYER_ITEM } from './iso.js';
@@ -14,14 +14,23 @@ import { assets } from '../assets/asset-manager.js';
 import { world } from '../world/world.js';
 import { bus } from '../core/event-bus.js';
 import { applyHueTo } from './hue-filter.js';
-import { acquireSprite, releaseSprite } from './sprite-pool.js';
+import { acquireLandMesh, acquireSprite, landMeshPool, releaseLandMesh, releaseSprite } from './sprite-pool.js';
 import { seasonManager } from '../managers/season-manager.js';
 import { profile as profileManager } from '../managers/profile-manager.js';
 import { lightPoints, staticLightSpec } from './light-points.js';
 import { houseCustomization } from '../managers/house-customization-manager.js';
-import { staticEntry } from '../shared/tiledata.js';
+import { landEntry, staticEntry } from '../shared/tiledata.js';
+import { FLAG_WET } from '../shared/tiledata-flags.js';
 import { displayItemIdForAmount } from '../shared/stack-graphics.js';
 import { isAnimdataStaticGraphic } from './static-animation.js';
+import { clientRuntimeProfile, FrameTaskScheduler } from '../shared/runtime-governor.js';
+
+function releaseRenderObject(displayObject) {
+  if (!displayObject) return;
+  if (displayObject instanceof Sprite) releaseSprite(displayObject);
+  else if (displayObject._uoLandMeshPool) releaseLandMesh(displayObject);
+  else { try { displayObject.destroy(); } catch { /* ignore */ } }
+}
 import { MobileAnimation, Action } from './mobile-animation.js';
 import { corpseManager } from '../managers/corpse-manager.js';
 import { DoorTileIndex } from './door-tile-index.js';
@@ -39,6 +48,10 @@ const doorTileIndex = new DoorTileIndex({
 const EMPTY_ARRAY = Object.freeze([]);
 const STATIC_ANIM_TICK_MS = 50;
 const MAX_ADD_CHILD_BATCH = 256;
+const MAX_CHUNK_POPULATES = 3;
+const CHUNK_REVEAL_MS = 300;
+const CHUNK_REVEAL_STAGGER_MS = 18;
+const CHUNK_REVEAL_TINT = 0x8FA7B5;
 const FOLIAGE_STUMP_GRAPHIC = 0x0CCB;
 const FIELD_GRAPHIC_MIN = 0x398C;
 const FIELD_GRAPHIC_MAX = 0x399F;
@@ -56,6 +69,103 @@ const ROOF_DEBUG_LABEL_STYLE = new TextStyle({
   fontFamily: 'Consolas, monospace',
   stroke: { color: 0x000000, width: 3 },
 });
+
+// One shared ticker drives every unresolved chunk and terrain reveal. A
+// listener per chunk becomes surprisingly expensive during teleports, while
+// this remains one O(visible-loading) pass and detaches when streaming ends.
+const activeChunkShimmers = new Set();
+const activeChunkReveals = new Set();
+let chunkTransitionTickerInstalled = false;
+
+function _chunkTransitionsTick() {
+  const now = performance.now();
+  for (const entry of activeChunkShimmers) {
+    if (!entry.gfx || entry.gfx.destroyed) {
+      activeChunkShimmers.delete(entry);
+      continue;
+    }
+    const phase = ((now - entry.startedAt) % 1050) / 1050;
+    const wave = phase * entry.phases.length;
+    for (let i = 0; i < entry.phases.length; i++) {
+      // Eight diagonal groups chase each other across the 8×8 tile grid.
+      // Circular distance keeps the wave seamless at the period boundary.
+      const rawDistance = Math.abs(wave - i);
+      const distance = Math.min(rawDistance, entry.phases.length - rawDistance);
+      const strength = Math.max(0, 1 - distance);
+      entry.phases[i].alpha = 0.09 + strength * 0.48;
+    }
+  }
+  for (const entry of activeChunkReveals) {
+    let complete = true;
+    const elapsed = now - entry.startedAt;
+    for (const row of entry.sprites) {
+      if (!row.sprite || row.sprite.destroyed) continue;
+      const p = Math.max(0, Math.min(1, (elapsed - row.delay) / (entry.duration ?? CHUNK_REVEAL_MS)));
+      const eased = p * p * (3 - 2 * p);
+      row.sprite.alpha = row.finalAlpha * eased;
+      if (Number.isFinite(row.finalTint) && 'tint' in row.sprite) {
+        row.sprite.tint = _mixRgb(CHUNK_REVEAL_TINT, row.finalTint, eased);
+      }
+      if (p < 1) complete = false;
+    }
+    if (complete) {
+      activeChunkReveals.delete(entry);
+      entry.done?.();
+    }
+  }
+  if (activeChunkShimmers.size === 0 && activeChunkReveals.size === 0) {
+    Ticker.shared.remove(_chunkTransitionsTick);
+    chunkTransitionTickerInstalled = false;
+  }
+}
+
+function _mixRgb(from, to, amount) {
+  const t = Math.max(0, Math.min(1, amount));
+  const fr = (from >>> 16) & 0xFF, fg = (from >>> 8) & 0xFF, fb = from & 0xFF;
+  const tr = (to >>> 16) & 0xFF, tg = (to >>> 8) & 0xFF, tb = to & 0xFF;
+  const r = Math.round(fr + (tr - fr) * t);
+  const g = Math.round(fg + (tg - fg) * t);
+  const b = Math.round(fb + (tb - fb) * t);
+  return (r << 16) | (g << 8) | b;
+}
+
+function _ensureChunkTransitionTicker() {
+  if (chunkTransitionTickerInstalled) return;
+  Ticker.shared.add(_chunkTransitionsTick);
+  chunkTransitionTickerInstalled = true;
+}
+
+function _reducedMotionRequested() {
+  return globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
+    || globalThis.localStorage?.getItem?.('uo.reduced-motion') === '1';
+}
+
+const CHUNK_DIRECTION_VECTORS = Object.freeze([
+  [0, -1], [1, -1], [1, 0], [1, 1],
+  [0, 1], [-1, 1], [-1, 0], [-1, -1],
+]);
+
+/** Fast conservative screen intersection for an 8×8 isometric block.
+ * `tileRadius` gives a square in world coordinates and consequently queues
+ * roughly twice as many chunks as the rectangular viewport can show. This
+ * projection test keeps an elevation/tall-art margin while discarding those
+ * invisible corner chunks before they compete for range/atlas requests. */
+function _chunkIntersectsViewport(cx, cy, centerX, centerY, viewport, padPx = 0) {
+  if (!viewport || !Number.isFinite(viewport.viewW) || !Number.isFinite(viewport.viewH)) return true;
+  const zoom = Math.max(0.25, Number(viewport.zoom) || 1);
+  const wx = cx * CHUNK_SIZE + CHUNK_SIZE / 2;
+  const wy = cy * CHUNK_SIZE + CHUNK_SIZE / 2;
+  const fallbackZ = Number(viewport.centerZ) || 0;
+  const wz = assets.landAt(wx | 0, wy | 0)?.z ?? fallbackZ;
+  const sx = worldToScreenX(wx, wy) - worldToScreenX(centerX, centerY);
+  const sy = worldToScreenY(wx, wy, wz) - worldToScreenY(centerX, centerY, fallbackZ);
+  const chunkHalf = CHUNK_SIZE * TILE_HALF_W;
+  const halfW = viewport.viewW / (2 * zoom);
+  const halfH = viewport.viewH / (2 * zoom);
+  const elevationAndTallArtPad = 96;
+  return Math.abs(sx) <= halfW + chunkHalf + padPx
+    && Math.abs(sy) <= halfH + chunkHalf + elevationAndTallArtPad + padPx;
+}
 
 function _isCaveLandGraphic(id) {
   const g = id | 0;
@@ -148,6 +258,7 @@ class ChunkVisual {
   constructor(cx, cy, parent) {
     this.cx = cx; this.cy = cy;
     this.parent = parent;
+    this._createdAt = performance.now();
     /** ready becomes true after fetchBlock + statics complete & sprites mounted */
     this.ready = false;
     /** All sprites this chunk owns — added directly to the flat parent
@@ -156,6 +267,8 @@ class ChunkVisual {
     this._sprites = [];
     /** @type {{sprite: import('pixi.js').Sprite, baseId: number}[]} */
     this._animated = [];
+    /** Wet static art rendered twice like CUO AnimatedWaterEffect. */
+    this._water = [];
     /** Tall statics (potential roofs / upper walls) tracked for cut-off
      *  visibility when the player walks indoors.
      *  Each entry: { sprite, z, isRoof, x, y } in world coords. */
@@ -169,37 +282,72 @@ class ChunkVisual {
     this._mountChunkShimmer();
   }
 
-  /** Build a diamond-shaped shimmer Graphics covering the chunk's iso
-   *  footprint (8×8 tiles). Disposed by `populate()` once the real
-   *  land sprites land in the parent layer. */
+  /** Build a tile-accurate shimmer for the unresolved 8×8 block. A single
+   *  convex chunk diamond looked like a giant blue ribbon on elevated land:
+   *  it was drawn at z=0 and filled the empty space between 64 projected
+   *  tiles. Eight interleaved Graphics groups instead follow the actual land
+   *  Z and produce a visible diagonal loading wave. */
   _mountChunkShimmer() {
-    const SIZE = CHUNK_SIZE;
-    // The four iso corners of the chunk in screen space, anchored at
-    // the chunk's top-left tile (dx=0, dy=0).
-    const x = this.cx * SIZE;
-    const y = this.cy * SIZE;
-    const topX   = worldToScreenX(x,        y);
-    const topY   = worldToScreenY(x,        y,        0);
-    const rightX = worldToScreenX(x + SIZE, y);
-    const rightY = worldToScreenY(x + SIZE, y,        0);
-    const botX   = worldToScreenX(x + SIZE, y + SIZE);
-    const botY   = worldToScreenY(x + SIZE, y + SIZE, 0);
-    const leftX  = worldToScreenX(x,        y + SIZE);
-    const leftY  = worldToScreenY(x,        y + SIZE, 0);
-    const gfx = new Graphics();
-    gfx.poly([topX, topY, rightX, rightY, botX, botY, leftX, leftY], true)
-      .fill({ color: 0x50545c, alpha: 0.18 });
-    // Heavy back-of-stack so every resolved land tile paints over it.
+    const gfx = new Container();
+    const phases = Array.from({ length: 8 }, () => {
+      const phase = new Graphics();
+      phase.eventMode = 'none';
+      phase.alpha = 0.09;
+      gfx.addChild(phase);
+      return phase;
+    });
     gfx.zIndex = -1;
     gfx.eventMode = 'none';
+    gfx.visible = false;
     this.parent.addChild(gfx);
+    const entry = { gfx, phases, startedAt: performance.now() };
+    if (!_reducedMotionRequested()) {
+      activeChunkShimmers.add(entry);
+      _ensureChunkTransitionTicker();
+    } else {
+      for (const phase of phases) phase.alpha = 0.22;
+    }
     this._shimmer = {
       gfx,
-      dispose() { try { gfx.destroy(); } catch { /* already detached */ } },
+      phases,
+      entry,
+      dispose() {
+        activeChunkShimmers.delete(entry);
+        try { gfx.destroy({ children: true }); } catch { /* already detached */ }
+      },
     };
+    this._refreshChunkShimmerGeometry();
   }
 
-  _disposeChunkShimmer() {
+  _refreshChunkShimmerGeometry() {
+    const shimmer = this._shimmer;
+    if (!shimmer) return false;
+    for (const phase of shimmer.phases) phase.clear();
+    const x0 = this.cx * CHUNK_SIZE;
+    const y0 = this.cy * CHUNK_SIZE;
+    let painted = 0;
+    for (let dy = 0; dy < CHUNK_SIZE; dy++) {
+      for (let dx = 0; dx < CHUNK_SIZE; dx++) {
+        const wx = x0 + dx;
+        const wy = y0 + dy;
+        const tile = assets.landAt(wx, wy);
+        if (!tile) continue;
+        const sx = worldToScreenX(wx, wy);
+        const sy = worldToScreenY(wx, wy, tile.z | 0);
+        // One-pixel breathing room makes the wave read as individual land
+        // tiles instead of reconstructing the old solid chunk polygon.
+        shimmer.phases[Math.min(7, Math.floor((dx + dy) / 2))]
+          .poly([sx, sy - 21, sx + 21, sy, sx, sy + 21, sx - 21, sy], true)
+          .fill({ color: 0x9ca8b5, alpha: 1 });
+        painted++;
+      }
+    }
+    shimmer.gfx.visible = painted > 0;
+    return painted > 0;
+  }
+
+  _disposeChunkShimmer(force = false) {
+    if (this._landReveal && !force) return;
     if (!this._shimmer) return;
     try { this._shimmer.gfx.parent?.removeChild(this._shimmer.gfx); }
     catch { /* already detached */ }
@@ -207,12 +355,51 @@ class ChunkVisual {
     this._shimmer = null;
   }
 
+  _startLandReveal(sprites) {
+    if (!sprites.length || _reducedMotionRequested()) {
+      this._disposeChunkShimmer();
+      return;
+    }
+    const entry = {
+      startedAt: performance.now(),
+      sprites: sprites.map((sprite) => ({
+        sprite,
+        finalAlpha: Number.isFinite(sprite.alpha) ? sprite.alpha : 1,
+        finalTint: Number.isFinite(sprite.tint) ? sprite.tint : 0xFFFFFF,
+        // A full diagonal sweep (rather than four repeating bands) makes the
+        // streamed block visibly assemble from its NW edge. The last tile is
+        // settled in ~550 ms: clear enough to read, still below gameplay lag.
+        delay: (
+          ((sprite._worldX | 0) - this.cx * CHUNK_SIZE)
+          + ((sprite._worldY | 0) - this.cy * CHUNK_SIZE)
+        ) * CHUNK_REVEAL_STAGGER_MS,
+      })),
+      done: () => {
+        if (this._landReveal !== entry) return;
+        this._landReveal = null;
+        this._disposeChunkShimmer(true);
+      },
+    };
+    for (const row of entry.sprites) {
+      row.sprite.alpha = 0;
+      if ('tint' in row.sprite) row.sprite.tint = CHUNK_REVEAL_TINT;
+    }
+    this._landReveal = entry;
+    activeChunkReveals.add(entry);
+    _ensureChunkTransitionTicker();
+  }
+
+  _cancelLandReveal() {
+    if (!this._landReveal) return;
+    activeChunkReveals.delete(this._landReveal);
+    this._landReveal = null;
+  }
+
   _addChunkSprites(sprites) {
     if (!Array.isArray(sprites) || sprites.length === 0) return;
     if (this._destroyed) {
       for (const sp of sprites) {
-        if (sp instanceof Sprite) releaseSprite(sp);
-        else { try { sp.destroy(); } catch { /* ignore */ } }
+        releaseRenderObject(sp);
       }
       return;
     }
@@ -225,9 +412,24 @@ class ChunkVisual {
 
   async populate() {
     if (this.ready || this._destroyed) return;
-    const block = await assets.fetchBlock(this.cx, this.cy);
+    // Start land and statics I/O together, but never make the visible terrain
+    // wait for the heavier static index/data request. The old Promise.all
+    // kept entire map holes on screen until doors, roofs and decorations had
+    // also arrived. Neighbour blocks are still warmed before slope meshes are
+    // built because their corner Z values are required for stretching.
+    const blockPromises = [
+      assets.fetchBlock(this.cx, this.cy),
+      assets.fetchBlock(this.cx + 1, this.cy),
+      assets.fetchBlock(this.cx, this.cy + 1),
+      assets.fetchBlock(this.cx + 1, this.cy + 1),
+    ];
+    const staticsPromise = assets.fetchStatics(this.cx, this.cy).catch(() => []);
+    const block = await blockPromises[0];
     if (!block || this._destroyed) { this._disposeChunkShimmer(); return; }
-    const statics = await assets.fetchStatics(this.cx, this.cy);
+    // Now that the main block exists, repaint the placeholder at the actual
+    // per-tile elevation instead of z=0 while neighbour/atlas work continues.
+    this._refreshChunkShimmerGeometry();
+    await Promise.all(blockPromises.slice(1));
     if (this._destroyed) { this._disposeChunkShimmer(); return; }
 
     const x0 = this.cx * CHUNK_SIZE;
@@ -261,8 +463,7 @@ class ChunkVisual {
       // resolved sprites instead of orphaning them on the shared parent.
       for (const r of landSprites) {
         if (r.status === 'fulfilled' && r.value) {
-          if (r.value instanceof Sprite) releaseSprite(r.value);
-          else { try { r.value.destroy(); } catch { /* ignore */ } }
+          releaseRenderObject(r.value);
         }
       }
       return;
@@ -273,9 +474,9 @@ class ChunkVisual {
       mountedLand.push(r.value);
     }
     this._addChunkSprites(mountedLand);
-    // Land is the opaque base. Do not keep a loading primitive alive while
-    // the much larger static-page set resolves asynchronously on top.
-    this._disposeChunkShimmer();
+    // Reveal the opaque base over the still-pulsing isometric placeholder.
+    // The shimmer disposes itself after the short diagonal fade completes.
+    this._startLandReveal(mountedLand);
     if (caveBorderTiles) {
       const caveBorders = [];
       for (const t of caveBorderTiles) {
@@ -296,6 +497,8 @@ class ChunkVisual {
     const chunkKey = (this.cy << 16) | (this.cx & 0xffff);
     const suppressedDoorTiles = doorTileIndex.tilesForChunkKey(chunkKey);
 
+    const statics = await staticsPromise;
+    if (this._destroyed) return;
     const staticPromises = [];
     if (Array.isArray(statics)) {
       for (const it of statics) {
@@ -340,8 +543,7 @@ class ChunkVisual {
     if (this._destroyed) {
       for (const { sp } of staticResults) {
         if (!sp) continue;
-        if (sp instanceof Sprite) releaseSprite(sp);
-        else { try { sp.destroy(); } catch { /* ignore */ } }
+        releaseRenderObject(sp);
       }
       return;
     }
@@ -395,7 +597,9 @@ class ChunkVisual {
       // floor, not stack above neighbouring walls.
       if (isBridge) priorityZ = it.z - 1;
       sp.zIndex = depthKey(wx, wy, priorityZ, LAYER_STATIC);
+      if (sp._uoWaterOverlay) sp._uoWaterOverlay.zIndex = sp.zIndex + 0.25;
       mountedStatics.push(sp);
+      if (sp._uoWaterOverlay) mountedStatics.push(sp._uoWaterOverlay);
 
       // Track every static that COULD cover a person-height mobile so
       // the circle-of-transparency loop can fade them. Skip bridges /
@@ -464,8 +668,29 @@ class ChunkVisual {
     const zRight  = assets.landAt(wx + 1, wy)?.z ?? z;
     const zLeft   = assets.landAt(wx,     wy + 1)?.z ?? z;
     const zBottom = assets.landAt(wx + 1, wy + 1)?.z ?? z;
-    const stretched = (zTop !== zRight) || (zTop !== zLeft) || (zTop !== zBottom);
-    const avgZ = stretched ? Math.round((zTop + zBottom + zLeft + zRight) / 4) : z;
+    const cornersDiffer = (zTop !== zRight) || (zTop !== zLeft) || (zTop !== zBottom);
+    // ClassicUO Land.ApplyStretch does NOT stretch every tile whose four
+    // corner heights differ. It first requires a valid texmaps.mul entry;
+    // wet/no-texmap land and missing texmaps remain ordinary flat art.
+    // Stretching raw 44x44 land-art across the 35-Z cliff jumps around
+    // Trinsic (1869,2750) produced the huge blue polygons reported by the
+    // user: a single water/shore diamond was pulled over ~140 screen px,
+    // and dozens of adjacent tiles combined into one blocky sheet.
+    const texId = landEntry(assets.tiledata, id)?.texId | 0;
+    const hasTexmap = texId > 0 && !!assets.texmapAtlas?.tiles?.[texId];
+    // ClassicUO stretches every non-flat land tile with a valid texmap,
+    // including the authored 25–35 Z escarpments around Trinsic. Flattening
+    // those transitions leaves the lower water and upper bank disconnected,
+    // exposing the blue scene background as large coastline holes.
+    const stretched = cornersDiffer && hasTexmap;
+    // CUO chooses the smoother diagonal for AverageZ; a four-corner mean
+    // makes shoreline land sort too high and exposes dark saw-teeth between
+    // the z=-5 water statics and z=0 bank.
+    const avgZ = stretched
+      ? (Math.abs(zTop - zBottom) <= Math.abs(zLeft - zRight)
+          ? ((zTop + zBottom) >> 1)
+          : ((zLeft + zRight) >> 1))
+      : z;
 
     const centerX = worldToScreenX(wx, wy);
     const centerY = worldToScreenY(wx, wy, 0);        // Z baked into yOffsets
@@ -479,29 +704,18 @@ class ChunkVisual {
     // unpredictably across an axis-aligned diamond, producing the
     // pin-striped / blurry-grass look the user reported.
     if (stretched) {
-      // Tone parity: art.mul and texmaps.mul carry slightly different
-      // palettes for the same terrain id (the texmaps are dim, the
-      // art tiles brighter), so flat → stretched transitions used to
-      // show as visible colour seams along stairs / hills / ramps.
-      // Prefer the art.mul tile bitmap (same source as the flat
-      // tiles' diamond) and only fall back to the texmap when no
-      // art entry exists for this id. Mirrors CUO's
-      // `_pretendNoStretchedTiles` debug toggle which is recommended
-      // whenever the texmap atlas tones diverge from the art atlas.
-      const tex = assets.landTextureSync?.(id) ?? await assets.landTexture(id);
-      if (tex) {
-        return makeStretchedLand(tex, centerX, centerY, wx, wy, avgZ,
-                                 zTop, zRight, zLeft, zBottom);
+      // Canonical CUO LandView path: stretched terrain is sampled from
+      // texmaps.mul (a square colour map whose corners map onto the four
+      // land vertices). Raw art.mul diamonds are only for flat land.
+      const tmTex = await assets.texmapTexture(texId);
+      if (tmTex) {
+        return makeStretchedTexmap(tmTex, centerX, centerY, wx, wy, avgZ,
+                                   zTop, zRight, zLeft, zBottom);
       }
-      const texId = assets.tiledata?.land?.[id]?.texId | 0;
-      if (texId > 0) {
-        const tmTex = await assets.texmapTexture(texId);
-        if (tmTex) {
-          return makeStretchedTexmap(tmTex, centerX, centerY, wx, wy, avgZ,
-                                     zTop, zRight, zLeft, zBottom);
-        }
-      }
-    } else {
+      // A page can disappear between manifest lookup and async load. Fall
+      // through to flat art, matching CUO's invalid-texmap safety path.
+    }
+    {
       const tex = assets.landTextureSync?.(id) ?? await assets.landTexture(id);
       if (tex) {
         const sp = acquireSprite(tex);
@@ -515,6 +729,7 @@ class ChunkVisual {
         // them in insertion order (visually random per chunk re-mount).
         const isWater = id >= 0xA8 && id <= 0xCC;
         sp.zIndex = depthKey(wx, wy, z, LAYER_LAND) + (isWater ? -1 : 0);
+        sp._worldX = wx | 0; sp._worldY = wy | 0; sp._worldZ = z | 0; sp._uoKind = 'land';
         return sp;
       }
     }
@@ -539,6 +754,7 @@ class ChunkVisual {
     g.fill({ color, alpha: 1 });
     g.position.set(centerX, centerY);
     g.zIndex = depthKey(wx, wy, avgZ, LAYER_LAND) - 1;
+    g._worldX = wx | 0; g._worldY = wy | 0; g._worldZ = avgZ | 0; g._uoKind = 'land-fallback';
     return g;
   }
 
@@ -551,6 +767,7 @@ class ChunkVisual {
     sp.anchor.set(0.5, 1);
     sp.position.set(centerX, centerY + TILE_HALF_H);
     sp.zIndex = depthKey(wx, wy, z, LAYER_STATIC);
+    sp._worldX = wx | 0; sp._worldY = wy | 0; sp._worldZ = z | 0; sp._uoKind = 'static';
     if (hue && assets.huesTexture && assets.huesMeta) {
       applyHueTo(sp, hue, 1, assets.huesTexture, assets.huesMeta.count);
     }
@@ -563,6 +780,25 @@ class ChunkVisual {
     // `TileDataLoader.StaticData[Graphic].IsAnimated`.
     if (_shouldAnimateStaticGraphic(id)) {
       this._animated.push({ sprite: sp, baseId: id });
+    }
+    // ClassicUO `DrawStaticAnimated(..., isWet:true)` paints wet statics a
+    // second time with a slow sine/cosine scale. UO rivers are primarily
+    // 0x1797..0x17B2 wet STATICS at z=-5 laid over lower land, so animating
+    // land ids alone does nothing. Keep the base sharp and add a low-alpha
+    // centred overlay to get motion without the harsh shoreline overdraw of
+    // two fully opaque browser sprites.
+    const flags = staticEntry(assets.tiledata, id)?.flags ?? 0;
+    if ((flags & FLAG_WET) !== 0 && profileManager?.get?.('graphics.animatedWater') !== false) {
+      const overlay = acquireSprite(tex);
+      overlay.anchor.set(0.5, 1);
+      overlay.position.copyFrom(sp.position);
+      overlay.zIndex = sp.zIndex + 0.25;
+      overlay.alpha = 0.18;
+      if (hue && assets.huesTexture && assets.huesMeta) {
+        applyHueTo(overlay, hue, 1, assets.huesTexture, assets.huesMeta.count);
+      }
+      sp._uoWaterOverlay = overlay;
+      this._water.push({ sprite: sp, overlay, phase: ((wx * 17 + wy * 31) & 63) / 63 });
     }
     // Register a point light for known emitters (torches, fireplaces,
     // lava, etc.). Stored on the sprite so chunk eviction can release.
@@ -584,13 +820,27 @@ class ChunkVisual {
    *  when atlas pages are warm; async fallback is scheduled at most once
    *  per pending frame id. */
   tick(nowMs) {
-    if (!this._animated.length) return;
+    if (!this._animated.length && !this._water.length) return;
+    if (this._water.length) {
+      const t = nowMs / 1000;
+      const intensity = Math.max(0, Math.min(2, Number(profileManager?.get?.('graphics.waterIntensity')) || 1));
+      for (const w of this._water) {
+        if (!w.overlay || w.overlay.destroyed) continue;
+        const phase = t + w.phase * 0.7;
+        w.overlay.scale.set(
+          1 + intensity * (0.045 + Math.sin(phase) * 0.025),
+          1 + intensity * (0.035 + Math.cos(phase) * 0.018),
+        );
+        w.overlay.alpha = Math.min(0.35, intensity * (0.14 + (Math.sin(phase * 0.8) + 1) * 0.035));
+      }
+    }
     for (const a of this._animated) {
       const id = assets.currentAnimatedGraphic(a.baseId, nowMs);
       if (id === a.sprite._lastAnimId) continue;
       const cached = assets.staticTextureSync?.(id);
       if (cached) {
         a.sprite.texture = cached;
+        if (a.sprite._uoWaterOverlay) a.sprite._uoWaterOverlay.texture = cached;
         a.sprite._lastAnimId = id;
         a._pendingAnimId = 0;
         continue;
@@ -599,9 +849,10 @@ class ChunkVisual {
       a._pendingAnimId = id;
       const generation = a.sprite._uoPoolGeneration;
       assets.staticTexture(id).then((tex) => {
-        if (tex && a._pendingAnimId === id && a.sprite && !a.sprite.destroyed
-            && a.sprite._uoPoolGeneration === generation) {
-          a.sprite.texture = tex;
+          if (tex && a._pendingAnimId === id && a.sprite && !a.sprite.destroyed
+              && a.sprite._uoPoolGeneration === generation) {
+            a.sprite.texture = tex;
+            if (a.sprite._uoWaterOverlay) a.sprite._uoWaterOverlay.texture = tex;
           a.sprite._lastAnimId = id;
         }
       }).finally(() => {
@@ -616,8 +867,10 @@ class ChunkVisual {
     // parent. See populate() for the matching `if (this._destroyed)`
     // guards after each await point.
     this._destroyed = true;
-    this._disposeChunkShimmer();
+    this._cancelLandReveal();
+    this._disposeChunkShimmer(true);
     this._animated.length = 0;
+    this._water.length = 0;
     this._tallStatics.length = 0;
     this._tallStaticsByTile.clear();
     this._foliage.length = 0;
@@ -628,77 +881,12 @@ class ChunkVisual {
         try { lightPoints.remove(sp._lightId); } catch { /* ignore */ }
         sp._lightId = null;
       }
-      // MeshSimple instances aren't Sprites — keep destroying them. Pooled
-      // sprites go back to the free-list via releaseSprite. We can tell
-      // them apart by `sp instanceof Sprite` but the pool's release()
-      // already handles non-sprite gracefully (no-op if no destroy).
-      if (sp instanceof Sprite) releaseSprite(sp);
-      else { try { sp.destroy(); } catch { /* ignore */ } }
+      // Sprites and stretched-land meshes have separate bounded pools.
+      if (sp?._uoWaterOverlay) sp._uoWaterOverlay = null;
+      releaseRenderObject(sp);
     }
     this._sprites.length = 0;
   }
-}
-
-/** Build a 4-vertex MeshSimple for a slope-warped land tile.
- *
- *  Mirrors `UltimaBatcher2D.DrawStretchedLand` (Batcher2D.cs:241-306).
- *  The 4 diamond corners (Top/Right/Left/Bottom) are displaced
- *  vertically by their corner Z values × 4 px, producing tilted
- *  parallelograms for slopes — the visual cue the user expects from
- *  isometric UO. Without this, a stack of differently-elevated tiles
- *  reads as an aerial 2-D map.
- *
- *  Vertex layout in mesh-local coords (mesh.position is the tile bbox
- *  top-left, equivalent to centerX-22, centerY-22):
- *      Top    = ( 22, 0  - zTop    * 4 )
- *      Right  = ( 44, 22 - zRight  * 4 )
- *      Left   = ( 0,  22 - zLeft   * 4 )
- *      Bottom = ( 22, 44 - zBottom * 4 )
- *
- *  UVs map to the diamond corners inscribed in the 44×44 art-tile
- *  bitmap (corners of the 44×44 frame are transparent — only the
- *  diamond pixels are painted). Triangulation: (Top, Right, Bottom)
- *  + (Top, Bottom, Left). */
-function makeStretchedLand(tex, centerX, centerY, wx, wy, depthZ,
-                           zTop, zRight, zLeft, zBottom) {
-  const yT = -zTop    * Z_STEP;
-  const yR = TILE_HALF_H - zRight  * Z_STEP;
-  const yL = TILE_HALF_H - zLeft   * Z_STEP;
-  const yB = TILE_H      - zBottom * Z_STEP;
-
-  const vertices = new Float32Array([
-    TILE_HALF_W, yT,   // 0: top
-    TILE_W,      yR,   // 1: right
-    0,           yL,   // 2: left
-    TILE_HALF_W, yB,   // 3: bottom
-  ]);
-  // UV coords for the diamond corners inside the 44×44 land texture.
-  // Sampling exactly at u=0/1 leaves the GPU on the seam between this
-  // tile's diamond pixels and the transparent corners, which produces a
-  // 1-pixel halo when the atlas page is filtered. Pull half-a-texel
-  // inwards so we stay safely inside the diamond. The atlas tiles are
-  // packed with no padding, so this also avoids bleeding the next cell.
-  const w = tex.frame?.width  ?? tex.width  ?? TILE_W;
-  const h = tex.frame?.height ?? tex.height ?? TILE_H;
-  const halfTexU = 0.5 / w;
-  const halfTexV = 0.5 / h;
-  const uvs = new Float32Array([
-    0.5,            halfTexV,            // top
-    1 - halfTexU,   0.5,                 // right
-    halfTexU,       0.5,                 // left
-    0.5,            1 - halfTexV,        // bottom
-  ]);
-  const indices = new Uint32Array([
-    0, 1, 3,   // top, right, bottom
-    0, 3, 2,   // top, bottom, left
-  ]);
-  const mesh = new MeshSimple({ texture: tex, vertices, uvs, indices });
-  // See makeStretchedTexmap below for why we drop the onRender callback.
-  mesh.autoUpdate = false;
-  mesh.onRender = null;
-  mesh.position.set(centerX - TILE_HALF_W, centerY - TILE_HALF_H);
-  mesh.zIndex = depthKey(wx, wy, depthZ, LAYER_LAND);
-  return mesh;
 }
 
 /** Stretched-land mesh using a 64×64 texmaps.mul texture. The texmap
@@ -743,7 +931,7 @@ function makeStretchedTexmap(tex, centerX, centerY, wx, wy, depthZ,
     0, 1, 3,   // top, right, bottom
     0, 3, 2,   // top, bottom, left
   ]);
-  const mesh = new MeshSimple({ texture: tex, vertices, uvs, indices });
+  const mesh = acquireLandMesh(tex, vertices, uvs, indices);
   // Disable Pixi's per-frame onRender callback. Land vertices are
   // immutable for the lifetime of the mesh, so the auto-update
   // callback (which reads `this.geometry.getBuffer('aPosition')`) just
@@ -755,6 +943,17 @@ function makeStretchedTexmap(tex, centerX, centerY, wx, wy, depthZ,
   mesh.onRender = null;
   mesh.position.set(centerX - TILE_HALF_W, centerY - TILE_HALF_H);
   mesh.zIndex = depthKey(wx, wy, depthZ, LAYER_LAND);
+  // Tiny diagnostic payload used by the exact-coordinate browser smoke. It
+  // also makes a live renderer dump identify which authored cliff produced a
+  // mesh without retaining any atlas/image data.
+  mesh._uoLandX = wx | 0;
+  mesh._uoLandY = wy | 0;
+  mesh._worldX = wx | 0;
+  mesh._worldY = wy | 0;
+  mesh._worldZ = depthZ | 0;
+  mesh._uoKind = 'land-mesh';
+  mesh._uoLandCornerDelta = Math.max(zTop, zRight, zLeft, zBottom)
+    - Math.min(zTop, zRight, zLeft, zBottom);
   return mesh;
 }
 
@@ -785,12 +984,10 @@ class WorldItemSprite {
   destroy() {
     this.mountGeneration = ((this.mountGeneration | 0) + 1) >>> 0;
     if (this.sprite) {
-      if (this.sprite instanceof Sprite) releaseSprite(this.sprite);
-      else { try { this.sprite.destroy(); } catch { /* ignore */ } }
+      releaseRenderObject(this.sprite);
     }
     for (const c of this.children) {
-      if (c instanceof Sprite) releaseSprite(c);
-      else { try { c.destroy(); } catch { /* ignore */ } }
+      releaseRenderObject(c);
     }
     this.children.length = 0;
     this.sprite = null;
@@ -841,6 +1038,16 @@ export class TileRenderer {
     this._cotOverlay = null;
     this._roofDebugOverlay = null;
     this._roofDebugLabel = null;
+    this._chunkDebugOverlay = new Graphics();
+    this._chunkDebugOverlay.eventMode = 'none';
+    this._chunkDebugOverlay.zIndex = 0x7ffff0;
+    this.parent.addChild(this._chunkDebugOverlay);
+    this._zDepthDebugLabel = new Text({ text: '', style: ROOF_DEBUG_LABEL_STYLE });
+    this._zDepthDebugLabel.eventMode = 'none';
+    this._zDepthDebugLabel.visible = false;
+    this._zDepthDebugLabel.zIndex = 0x7ffff1;
+    this.parent.addChild(this._zDepthDebugLabel);
+    this._facetGeneration = 1;
 
     /** Queue for `item:placed` bursts (TP refresh streams 100+ in one
      *  tick). Each item:placed used to fire `_mountItem` immediately,
@@ -852,6 +1059,21 @@ export class TileRenderer {
     this._mountQueueHead = 0;
     this._mountRaf = 0;
     this._pendingInvalidate = new Set();
+    /** Chunk construction is deliberately frame-budgeted. Creating every
+     * visible 8×8 chunk at once drained thousands of cached texture promises
+     * in one microtask wave (the 600 ms long tasks visible in the debug HUD).
+     * Three chunks may resolve concurrently and the next group starts on the
+     * following animation frame, nearest-to-player first. */
+    this._chunkPopulateQueue = [];
+    this._chunkPopulateActive = 0;
+    this._chunkPopulateRaf = 0; // compatibility diagnostic; streaming uses _streamScheduler
+    this._chunkDrainScheduled = false;
+    this._mountDrainScheduled = false;
+    this._streamScheduler = new FrameTaskScheduler();
+    this._maxChunkPopulates = clientRuntimeProfile.chunkPopulates ?? MAX_CHUNK_POPULATES;
+    this._mountBatchSize = clientRuntimeProfile.mountBatch ?? 32;
+    this._streamFrameAt = 0;
+    this._streamFrameEma = 16.7;
     this._previewBrush = null;
     this._housePreviewSprite = null;
     this._housePreviewGraphic = 0;
@@ -871,6 +1093,9 @@ export class TileRenderer {
       // emits this event. Tear down every chunk visual + world-item sprite
       // so the next `update()` rehydrates from the new facet's bins.
       bus.on('facet:changed', () => this._resetForFacetChange()),
+      bus.on('debug:tile-selected', ({ x, y } = {}) => {
+        this._debugTile = Number.isFinite(x) && Number.isFinite(y) ? { x: x | 0, y: y | 0 } : null;
+      }),
       // Map editor live update: admin painted a tile, asset-manager
       // updated its overlay map, fires `chunk:invalidate` per affected
       // 8×8 chunk. Tear down the chunk visual so the next update()
@@ -883,6 +1108,7 @@ export class TileRenderer {
             || path === 'ui.hideVegetation'
             || path === 'ui.enableCaveBorder'
             || path === 'ui.fieldsType'
+            || path === 'graphics.animatedWater'
             || path === 'debug.skipAnimData') {
           this._remountVisualWorld();
           return;
@@ -899,6 +1125,20 @@ export class TileRenderer {
       // therefore a season transition must rebuild loaded chunks.
       bus.on('season:changed', () => {
         this._remountVisualWorld();
+      }),
+      bus.on('frame:tick', (now) => {
+        if (this._streamFrameAt) {
+          const frameMs = Math.max(1, Math.min(250, Number(now) - this._streamFrameAt));
+          this._streamFrameEma = this._streamFrameEma * 0.9 + frameMs * 0.1;
+          const background = globalThis.document?.hidden === true;
+          const stressed = background || this._streamFrameEma > 24;
+          const healthy = !background && this._streamFrameEma < 18;
+          this._maxChunkPopulates = stressed ? 1 : healthy ? clientRuntimeProfile.chunkPopulates : Math.min(2, clientRuntimeProfile.chunkPopulates);
+          this._mountBatchSize = stressed ? Math.min(10, clientRuntimeProfile.mountBatch) : healthy ? clientRuntimeProfile.mountBatch : Math.min(20, clientRuntimeProfile.mountBatch);
+        }
+        this._streamFrameAt = Number(now) || performance.now();
+        this._streamScheduler.observeFrame(this._streamFrameEma);
+        this._streamScheduler.drain();
       }),
       // Audit #46 P3 — House-customization preview brush. When the
       // user picks a new tile in the editor we tint the ghost sprite
@@ -954,7 +1194,112 @@ export class TileRenderer {
     });
   }
 
+  _clearChunkPopulateQueue() {
+    this._chunkPopulateQueue.length = 0;
+    this._streamScheduler.cancelOwner(this);
+    this._chunkDrainScheduled = false;
+    this._mountDrainScheduled = false;
+    if (this._chunkPopulateRaf) {
+      cancelAnimationFrame(this._chunkPopulateRaf);
+      this._chunkPopulateRaf = 0;
+    }
+  }
+
+  diagnosticsSnapshot() {
+    let stale = 0;
+    for (const [key] of this.visuals) if (!this._visibleChunkKeys?.has?.(key)) stale++;
+    return {
+      chunks: this.visuals.size,
+      readyChunks: [...this.visuals.values()].filter((chunk) => chunk.ready).length,
+      queuedChunks: this._chunkPopulateQueue.length,
+      activePopulates: this._chunkPopulateActive,
+      staleChunks: stale,
+      queuedItems: Math.max(0, this._mountQueue.length - this._mountQueueHead),
+      maxChunkPopulates: this._maxChunkPopulates,
+      mountBatchSize: this._mountBatchSize,
+      frameEmaMs: Number(this._streamFrameEma.toFixed(2)),
+      revision: this._chunkRevision >>> 0,
+      scheduler: { ...this._streamScheduler.stats, budgetMs: this._streamScheduler.budgetMs },
+      landMeshes: landMeshPool.stats(),
+      softLimit: clientRuntimeProfile.chunkSoftLimit,
+      hardLimit: clientRuntimeProfile.chunkHardLimit,
+      staleAlarms: this._staleChunkAlarms | 0,
+      populateTimings: [...this.visuals.values()]
+        .filter((chunk) => Number.isFinite(chunk._populateMs))
+        .sort((a, b) => b._populateMs - a._populateMs)
+        .slice(0, 12)
+        .map((chunk) => ({ cx: chunk.cx, cy: chunk.cy, ms: Number(chunk._populateMs.toFixed(2)), at: chunk._populateFinishedAt ?? 0 })),
+      lastPopulateAt: Math.max(0, ...[...this.visuals.values()].map((chunk) => Number(chunk._populateFinishedAt) || 0)),
+    };
+  }
+
+  _scheduleChunkPopulate(vis, centerCx, centerCy, tier = 0) {
+    if (!vis || vis._populateQueued || vis.ready || vis._destroyed) return;
+    vis._populateQueued = true;
+    const dx = vis.cx - centerCx;
+    const dy = vis.cy - centerCy;
+    const [vx, vy] = CHUNK_DIRECTION_VECTORS[(world.player?.direction ?? 0) & 7];
+    const directionalLead = dx * vx + dy * vy;
+    // Visible chunks always outrank prefetch. Within a tier, prefer nearby
+    // chunks and then the direction the player is moving towards.
+    vis._populatePriority = (tier | 0) * 10_000 + (dx * dx + dy * dy) * 100 - directionalLead * 8;
+    vis._populateTier = tier | 0;
+    vis._queuedAt = performance.now();
+    this._chunkPopulateQueue.push(vis);
+    this._requestChunkPopulateDrain();
+  }
+
+  _requestChunkPopulateDrain() {
+    if (this._chunkDrainScheduled || this._chunkPopulateQueue.length === 0) return;
+    this._chunkDrainScheduled = true;
+    const priority = this._chunkPopulateQueue.some((chunk) => (chunk._populateTier | 0) === 0) ? 0 : 2;
+    this._streamScheduler.schedule('chunks:drain', () => {
+      this._chunkDrainScheduled = false;
+      this._drainChunkPopulateQueue();
+    }, { priority, owner: this });
+  }
+
+  _drainChunkPopulateQueue() {
+    while (this._chunkPopulateActive < this._maxChunkPopulates
+        && this._chunkPopulateQueue.length > 0) {
+      // Queue sizes are bounded by the visible chunk window (~170). A linear
+      // nearest lookup is cheaper than maintaining a heap across teleports
+      // and lets a newly-visible centre chunk overtake old prefetch work.
+      let best = 0;
+      for (let i = 1; i < this._chunkPopulateQueue.length; i++) {
+        if ((this._chunkPopulateQueue[i]._populatePriority ?? Infinity)
+            < (this._chunkPopulateQueue[best]._populatePriority ?? Infinity)) best = i;
+      }
+      const vis = this._chunkPopulateQueue.splice(best, 1)[0];
+      vis._populateQueued = false;
+      if (vis._destroyed || vis.ready || this.visuals.get((vis.cy << 16) | (vis.cx & 0xffff)) !== vis) {
+        continue;
+      }
+      this._chunkPopulateActive++;
+      const populateStartedAt = performance.now();
+      vis._populateStartedAt = populateStartedAt;
+      vis.populate()
+        .then(() => {
+          vis._populateMs = performance.now() - populateStartedAt;
+          vis._populateFinishedAt = Date.now();
+          this._chunkRevision = (this._chunkRevision + 1) >>> 0;
+        })
+        .catch((e) => {
+          vis._disposeChunkShimmer();
+          vis._populateError = e;
+          console.error('[tile] populate failed', e);
+        })
+        .finally(() => {
+          this._chunkPopulateActive = Math.max(0, this._chunkPopulateActive - 1);
+          // Yield to paint even when all atlas promises were already cached.
+          this._requestChunkPopulateDrain();
+        });
+    }
+  }
+
   _resetForFacetChange() {
+    this._facetGeneration++;
+    this._clearChunkPopulateQueue();
     for (const vis of this.visuals.values()) vis.destroy();
     this.visuals.clear();
     if (this._chunkIdleSince) this._chunkIdleSince.clear();
@@ -990,6 +1335,8 @@ export class TileRenderer {
   }
 
   _remountVisualWorld() {
+    this._facetGeneration++;
+    this._clearChunkPopulateQueue();
     for (const vis of this.visuals.values()) vis.destroy();
     this.visuals.clear();
     if (this._chunkIdleSince) this._chunkIdleSince.clear();
@@ -1033,10 +1380,10 @@ export class TileRenderer {
   _enqueueMount(it) {
     if (!it) return;
     this._mountQueue.push(it);
-    if (this._mountRaf) return;
+    if (this._mountDrainScheduled) return;
     const drain = () => {
-      this._mountRaf = 0;
-      const BATCH = 32;
+      this._mountDrainScheduled = false;
+      const BATCH = this._mountBatchSize;
       const start = this._mountQueueHead | 0;
       const end = Math.min(start + BATCH, this._mountQueue.length);
       for (let i = start; i < end; i++) {
@@ -1053,10 +1400,12 @@ export class TileRenderer {
         this._mountQueueHead = 0;
       }
       if (this._mountQueue.length) {
-        this._mountRaf = requestAnimationFrame(drain);
+        this._mountDrainScheduled = true;
+        this._streamScheduler.schedule('items:mount', drain, { priority: 1, owner: this });
       }
     };
-    this._mountRaf = requestAnimationFrame(drain);
+    this._mountDrainScheduled = true;
+    this._streamScheduler.schedule('items:mount', drain, { priority: 1, owner: this });
   }
 
   /** Classify a static sprite for indoor / roof-cut visibility tracking.
@@ -1402,8 +1751,9 @@ export class TileRenderer {
     sp.zIndex = depthKey(wx, wy, wz, LAYER_ITEM);
     sp._worldX = wx | 0;
     sp._worldY = wy | 0;
-    if (hue && assets.huesTexture && assets.huesMeta) {
-      applyHueTo(sp, hue, 1, assets.huesTexture, assets.huesMeta.count);
+    const effectiveHue = assets.mobileRenderHue?.(animBody, hue) ?? hue;
+    if (effectiveHue && assets.huesTexture && assets.huesMeta) {
+      applyHueTo(sp, effectiveHue, 1, assets.huesTexture, assets.huesMeta.count);
     }
     this.parent.addChild(sp);
     return sp;
@@ -1575,7 +1925,15 @@ export class TileRenderer {
     // legitimate ceilings hide stuff above them.
     const consider = (t) => {
       if (t.isTransparent) return;
-      if (!_boundsContains(t.bounds, px, py)) return;
+      // CUO samples the player's exact cell, plus the south-east neighbour
+      // for slanted roof pieces. Component bounds are only used after cover
+      // is established. Using the whole rectangle here classified streets
+      // and courtyards as indoors and removed every connected roof.
+      const onPlayerTile = (t.x | 0) === (px | 0) && (t.y | 0) === (py | 0);
+      const onRoofProbe = !!t.isRoof
+        && (t.x | 0) === ((px | 0) + 1)
+        && (t.y | 0) === ((py | 0) + 1);
+      if (!onPlayerTile && !onRoofProbe) return;
       // Only roofs, elevated surface ceilings, or tall walls (height
       // >= 20 forms an actual ceiling, not just a low pedestal) qualify.
       // Random decor on a table is `isRoof: false`, `isWall: false`,
@@ -1732,7 +2090,7 @@ export class TileRenderer {
     label.zIndex = g.zIndex + 1;
   }
 
-  update(centerX, centerY, tileRadius, now = performance.now()) {
+  update(centerX, centerY, tileRadius, now = performance.now(), viewport = null) {
     if (!assets.mapMeta) {
       // Assets not yet loaded — fall back to a single dark backdrop so the
       // viewport isn't blank.
@@ -1779,7 +2137,7 @@ export class TileRenderer {
       for (const vis of this.visuals.values()) {
         if (!vis.ready) continue;
         if (vis.cx < cx0 || vis.cx > cx1 || vis.cy < cy0 || vis.cy > cy1) continue;
-        if (vis._animated.length === 0) continue;
+        if (vis._animated.length === 0 && vis._water.length === 0) continue;
         vis.tick(now);
       }
       // World-item animation tick — moongates / fire pits / fountains /
@@ -1984,26 +2342,28 @@ export class TileRenderer {
       for (const vis of this.visuals.values()) vis._visibleStamp = 0;
     }
     this._visibleChunkStamp = visibleStamp;
+    const visibleChunkKeys = this._visibleChunkKeys ?? (this._visibleChunkKeys = new Set());
+    visibleChunkKeys.clear();
     for (let cy = cy0; cy <= cy1; cy++) {
       for (let cx = cx0; cx <= cx1; cx++) {
         if (cx < 0 || cy < 0) continue;
         if (cx >= assets.mapMeta.blocksWide)  continue;
         if (cy >= assets.mapMeta.blocksTall)  continue;
+        if (!_chunkIntersectsViewport(cx, cy, centerX, centerY, viewport, 48)) continue;
         const key = (cy << 16) | (cx & 0xffff);
         let vis = this.visuals.get(key);
         if (!vis) {
           vis = new ChunkVisual(cx, cy, this.parent);
           this.visuals.set(key, vis);
-          // Async populate (fetches block + statics + creates sprites).
-          vis.populate()
-            .then(() => { this._chunkRevision = (this._chunkRevision + 1) >>> 0; })
-            .catch((e) => {
-              vis._disposeChunkShimmer();
-              vis._populateError = e;
-              console.error('[tile] populate failed', e);
-            });
+          this._scheduleChunkPopulate(
+            vis,
+            Math.floor(centerX / CHUNK_SIZE),
+            Math.floor(centerY / CHUNK_SIZE),
+            0,
+          );
         }
         vis._visibleStamp = visibleStamp;
+        visibleChunkKeys.add(key);
       }
     }
 
@@ -2016,25 +2376,30 @@ export class TileRenderer {
     const ric = (typeof globalThis !== 'undefined' ? globalThis.requestIdleCallback : null);
     if (!this._prefetchScheduled && typeof ric === 'function') {
       this._prefetchScheduled = true;
+      const prefetchGeneration = this._facetGeneration;
       const px0 = cx0 - 1, py0 = cy0 - 1;
       const px1 = cx1 + 1, py1 = cy1 + 1;
       ric(() => {
         this._prefetchScheduled = false;
+        if (prefetchGeneration !== this._facetGeneration) return;
         for (let cy = py0; cy <= py1; cy++) {
           for (let cx = px0; cx <= px1; cx++) {
             if (cx < 0 || cy < 0) continue;
             if (cx >= assets.mapMeta.blocksWide) continue;
             if (cy >= assets.mapMeta.blocksTall) continue;
+            if (!_chunkIntersectsViewport(
+              cx, cy, centerX, centerY, viewport, CHUNK_SIZE * TILE_HALF_W,
+            )) continue;
             const key = (cy << 16) | (cx & 0xffff);
             if (this.visuals.has(key)) continue;
             const vis = new ChunkVisual(cx, cy, this.parent);
             this.visuals.set(key, vis);
-            vis.populate()
-              .then(() => { this._chunkRevision = (this._chunkRevision + 1) >>> 0; })
-              .catch((e) => {
-                vis._disposeChunkShimmer();
-                vis._populateError = e;
-              });
+            this._scheduleChunkPopulate(
+              vis,
+              Math.floor(centerX / CHUNK_SIZE),
+              Math.floor(centerY / CHUNK_SIZE),
+              2,
+            );
           }
         }
       }, { timeout: 1000 });
@@ -2075,6 +2440,90 @@ export class TileRenderer {
         this.visuals.delete(key);
         this._chunkIdleSince.delete(key);
         this._chunkRevision = (this._chunkRevision + 1) >>> 0;
+      }
+    }
+    this._enforceChunkResidency(cxC, cyC, visibleStamp, nowMs);
+    this._updateChunkDebugOverlay(visibleStamp, nowMs);
+  }
+
+  _enforceChunkResidency(centerCx, centerCy, visibleStamp, nowMs) {
+    const soft = Math.max(32, clientRuntimeProfile.chunkSoftLimit | 0);
+    const hard = Math.max(soft, clientRuntimeProfile.chunkHardLimit | 0);
+    const candidates = [];
+    for (const [key, vis] of this.visuals) {
+      if (vis._visibleStamp === visibleStamp) continue;
+      const distance = Math.max(Math.abs(vis.cx - centerCx), Math.abs(vis.cy - centerCy));
+      const idleSince = this._chunkIdleSince?.get?.(key) || nowMs;
+      if (nowMs - idleSince > 15_000 && !vis._staleAlarmed) {
+        vis._staleAlarmed = true;
+        this._staleChunkAlarms = (this._staleChunkAlarms | 0) + 1;
+        bus.emit('diagnostics:stale-chunk', { cx: vis.cx, cy: vis.cy, idleMs: nowMs - idleSince });
+      }
+      candidates.push({ key, vis, distance, idleSince });
+    }
+    if (this.visuals.size <= soft) return;
+    candidates.sort((a, b) => (b.distance - a.distance) || (a.idleSince - b.idleSince));
+    const target = this.visuals.size > hard ? soft : Math.max(soft, this.visuals.size - 4);
+    for (const row of candidates) {
+      if (this.visuals.size <= target) break;
+      row.vis.destroy();
+      this.visuals.delete(row.key);
+      this._chunkIdleSince?.delete?.(row.key);
+      this._chunkRevision = (this._chunkRevision + 1) >>> 0;
+    }
+    if (this._chunkPopulateQueue.length) {
+      this._chunkPopulateQueue = this._chunkPopulateQueue.filter((vis) => !vis._destroyed);
+    }
+  }
+
+  _updateChunkDebugOverlay(visibleStamp, nowMs) {
+    const borders = profileManager?.get?.('debug.chunkOverlay') === true;
+    const heatmap = profileManager?.get?.('debug.chunkHeatmap') === true;
+    const depth = profileManager?.get?.('debug.zDepthOverlay') === true && this._debugTile;
+    const overlay = this._chunkDebugOverlay;
+    if (!borders && !heatmap && !depth) {
+      if (overlay && overlay.visible) { overlay.clear(); overlay.visible = false; }
+      if (this._zDepthDebugLabel) this._zDepthDebugLabel.visible = false;
+      return;
+    }
+    if (nowMs - (this._lastChunkDebugPaintAt || 0) < 180
+        && this._lastChunkDebugRevision === this._chunkRevision) return;
+    this._lastChunkDebugPaintAt = nowMs;
+    this._lastChunkDebugRevision = this._chunkRevision;
+    overlay.visible = true;
+    overlay.clear();
+    for (const vis of this.visuals.values()) {
+      const x = vis.cx * CHUNK_SIZE; const y = vis.cy * CHUNK_SIZE;
+      const points = [
+        worldToScreenX(x, y), worldToScreenY(x, y, 0),
+        worldToScreenX(x + CHUNK_SIZE, y), worldToScreenY(x + CHUNK_SIZE, y, 0),
+        worldToScreenX(x + CHUNK_SIZE, y + CHUNK_SIZE), worldToScreenY(x + CHUNK_SIZE, y + CHUNK_SIZE, 0),
+        worldToScreenX(x, y + CHUNK_SIZE), worldToScreenY(x, y + CHUNK_SIZE, 0),
+      ];
+      const ms = Math.max(0, Number(vis._populateMs) || 0);
+      const heat = Math.min(1, ms / 40);
+      if (heatmap && ms) overlay.poly(points, true).fill({
+        color: heat > 0.66 ? 0xff3030 : heat > 0.33 ? 0xffb030 : 0x35d06f,
+        alpha: 0.08 + heat * 0.18,
+      });
+      if (borders) {
+        const color = vis._populateError ? 0xff3030 : vis.ready ? 0x35d06f
+          : vis._visibleStamp === visibleStamp ? 0xffb030 : 0x4aa3ff;
+        overlay.poly(points, true).stroke({ width: 1, color, alpha: 0.78 });
+      }
+    }
+    if (this._zDepthDebugLabel) {
+      this._zDepthDebugLabel.visible = !!depth;
+      if (depth) {
+        const { x, y } = this._debugTile;
+        const ordered = this.parent.children
+          .filter((child) => child !== overlay && child !== this._zDepthDebugLabel
+            && child._worldX === x && child._worldY === y)
+          .sort((a, b) => _zIndexOf(a) - _zIndexOf(b));
+        this._zDepthDebugLabel.text = ordered.length
+          ? ordered.slice(0, 12).map((child, index) => `${index + 1}. ${child._uoKind || child.constructor?.name || 'object'} z=${_zIndexOf(child)}`).join('\n')
+          : `tile ${x},${y}: no mounted entries`;
+        this._zDepthDebugLabel.position.set(worldToScreenX(x, y) + 26, worldToScreenY(x, y, 0) - 24);
       }
     }
   }
@@ -2130,6 +2579,7 @@ export class TileRenderer {
   }
 
   destroy() {
+    this._clearChunkPopulateQueue();
     for (const u of this._unsubs ?? []) u();
     if (this._unsubs) this._unsubs.length = 0;
     for (const vis of this.visuals.values()) vis.destroy();
@@ -2157,5 +2607,7 @@ export class TileRenderer {
     this._clearHousePreview();
     this._clearCotDebugOverlay();
     this._clearRoofDebugOverlay();
+    try { this._chunkDebugOverlay?.destroy?.(); } catch { /* ignore */ }
+    try { this._zDepthDebugLabel?.destroy?.(); } catch { /* ignore */ }
   }
 }

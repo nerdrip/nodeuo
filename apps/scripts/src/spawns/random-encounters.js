@@ -52,6 +52,25 @@ export function classifyRegion(api, mob) {
   return 'wilderness';
 }
 
+/** Pick a spawn tile that is still in the same eligible region. This matters
+ * on city borders: the traveller can stand one tile outside Moonglow while a
+ * random offset lands the brigand on the guarded side of the wall. */
+export function encounterSpawnPoint(api, mob, expectedTag, random = Math.random) {
+  for (let attempt = 0; attempt < 16; attempt++) {
+    const angle = random() * Math.PI * 2;
+    const radius = 4 + Math.floor(random() * 4);
+    const point = {
+      x: (mob.x | 0) + Math.round(Math.cos(angle) * radius),
+      y: (mob.y | 0) + Math.round(Math.sin(angle) * radius),
+      z: mob.z | 0,
+      map: mob.map ?? 1,
+    };
+    if (classifyRegion(api, point) !== expectedTag) continue;
+    return point;
+  }
+  return null;
+}
+
 function pickEncounter(tag) {
   const eligible = ENCOUNTERS.filter((e) => e.region === tag);
   if (eligible.length === 0) return null;
@@ -63,17 +82,19 @@ function pickEncounter(tag) {
   return eligible[eligible.length - 1];
 }
 
-function spawnEncounter(api, mob, enc) {
+function spawnEncounter(api, mob, enc, { allowProtected = false } = {}) {
   const factory = api.ctx?.spawnFactory ?? api.spawnFactory;
   const spawned = [];
   for (const cfg of enc.mobs) {
     for (let i = 0; i < cfg.count; i++) {
-      const dx = ((Math.random() - 0.5) * 8) | 0;
-      const dy = ((Math.random() - 0.5) * 8) | 0;
+      const point = allowProtected
+        ? { x: mob.x, y: mob.y, z: mob.z, map: mob.map ?? 1 }
+        : encounterSpawnPoint(api, mob, enc.region);
+      if (!point) continue;
       let m = null;
       if (factory) {
         try { m = factory(api.world, cfg.kind, {
-          x: mob.x + dx, y: mob.y + dy, z: mob.z, map: mob.map ?? 1,
+          x: point.x, y: point.y, z: point.z, map: point.map,
         }); } catch { /* fall through */ }
       }
       if (m) {
@@ -168,7 +189,9 @@ export default function register(api) {
           const enc = ENCOUNTERS.find((e) => e.name === name)
                    ?? pickEncounter(classifyRegion(api, ctx.sender) ?? 'wilderness');
           if (!enc) { ctx.state.sendSystemMessage?.('No such encounter.'); return; }
-          const spawned = spawnEncounter(api, ctx.sender, enc);
+          // Explicit GM force is a debugging operation and may intentionally
+          // be used inside a town; automatic encounters remain protected.
+          const spawned = spawnEncounter(api, ctx.sender, enc, { allowProtected: true });
           ctx.state.sendSystemMessage?.(`Spawned ${spawned.length} mob(s) for "${enc.name}".`);
           ctx.sender.client.sendSystemMessage?.(enc.speech);
           return;

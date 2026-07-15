@@ -44,6 +44,7 @@ import zlib from 'node:zlib';
 import { Worker } from 'node:worker_threads';
 import { fileURLToPath } from 'node:url';
 import { isMobileSerial, isItemSerial } from './serial.js';
+import { CURRENT_SNAPSHOT_VERSION, migrateSnapshot } from './persistence-migrations.js';
 
 // Worker-thread JSON.stringify enabled for snapshots >= this many bytes.
 // Cost of structured-cloning the snap to the worker is ~30-50 % of the
@@ -93,7 +94,7 @@ function workerStringify(basename, snap, useGzip) {
 
 const BINARY_SAVE = process.env.UO_BINARY_SAVE === '1';
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = CURRENT_SNAPSHOT_VERSION;
 
 /**
  * Serialize the world to a plain JS object suitable for JSON.stringify.
@@ -595,6 +596,7 @@ const ITEM_EXT_KEYS = [
   // `_noDecay` opts an item out entirely (used by quest items, GM marks,
   // anything that shouldn't disappear unattended).
   'decayAt', '_noDecay',
+  'sourceKind', 'sourceBody', 'sourceWasPlayer', 'carveYields', 'carvedAt',
   // Spellbook marker — set by `handleUseReq` the first time a spellbook
   // graphic gets opened. The hand-mutex (`handleWearItem`) reads it to
   // allow staff (2H weapon) + spellbook (1H slot) to coexist, which is
@@ -690,6 +692,9 @@ function copyExtensions(source, keys) {
         items: v.items instanceof Map
           ? Object.fromEntries(v.items)
           : (v.items && typeof v.items === 'object' ? v.items : {}),
+        allowedBuyers: v.allowedBuyers instanceof Set
+          ? [...v.allowedBuyers]
+          : (Array.isArray(v.allowedBuyers) ? v.allowedBuyers : []),
       };
     } else if (v instanceof Set) {
       out[k] = [...v];
@@ -736,6 +741,8 @@ function serializeItem(it) {
 function serializeWorldMeta(world) {
   return {
     createWorldDone: !!world._createWorldDone,
+    createWorldVersion: Math.max(0, world._createWorldVersion | 0),
+    saveGeneration: Math.max(0, world._saveGeneration | 0),
     xmlSpawnersApplied: [...(world._xmlSpawnersApplied ?? [])],
     treasureChestsApplied: [...(world._treasureChestsApplied ?? [])],
   };
@@ -899,9 +906,11 @@ export function splitSnapshot(world) {
   // Round-trip a tiny world-meta block so admin guards (`[createworld`
   // refusal once-applied, etc.) survive a reboot. Lives on the
   // `items` slice since that's the one always present.
+  const generation = Math.max(1, (world._saveGeneration | 0) + 1);
+  world._saveGeneration = generation;
   const worldMeta = serializeWorldMeta(world);
   const wrap = (s, withMeta = false) => ({
-    version: SAVE_VERSION, mobiles: s.mobiles, items: s.items, serials,
+    version: SAVE_VERSION, generation, mobiles: s.mobiles, items: s.items, serials,
     ...(withMeta ? { worldMeta } : {}),
   });
   return {
@@ -919,7 +928,11 @@ export function splitSnapshot(world) {
 export function restoreWorld(world, snap) {
   if (!snap || typeof snap !== 'object') throw new Error('invalid snapshot');
   if (snap.version !== SAVE_VERSION) {
-    throw new Error(`unsupported save version ${snap.version}, expected ${SAVE_VERSION}`);
+    const migrated = migrateSnapshot(snap);
+    if (!migrated.plan.ok || migrated.snapshot?.version !== SAVE_VERSION) {
+      throw new Error(`unsupported save version ${snap.version}, expected ${SAVE_VERSION}`);
+    }
+    snap = migrated.snapshot;
   }
   // Drop anyone mid-session; callers should only restore at startup.
   world.mobiles.clear();
@@ -931,11 +944,15 @@ export function restoreWorld(world, snap) {
   world._childrenByParent?.clear?.();
   // Same for the lazy index sets — they'll lazy-rebuild on first need.
   world._pets?.clear?.();
+  world._combatMobiles?.clear?.();
+  world._tickingMobiles?.clear?.();
   world._boats?.clear?.();
   world._tickingItems?.clear?.();
   world._bosses?.clear?.();
   world._peerlessBosses?.clear?.();
   world._mobsWithEffects?.clear?.();
+  world._xmlAttachmentEntities?.clear?.();
+  world._xmlAttachmentIndexReady = false;
   world._plants?.clear?.();
   world._onlineMobiles?.clear?.();
   world._corpses?.clear?.();
@@ -962,6 +979,9 @@ export function restoreWorld(world, snap) {
       continue;
     }
     const restoredMob = { ...m, client: null };
+    Object.defineProperty(restoredMob, '_world', {
+      value: world, writable: true, configurable: true, enumerable: false,
+    });
     // Wave 13: re-wrap vendor Maps that copyExtensions flattened to
     // plain objects on save. Without this, `_customerHistory.get` and
     // `_haggledBy.get` on a vendor that survived a save→load throw
@@ -989,6 +1009,7 @@ export function restoreWorld(world, snap) {
       if (!(pv.items instanceof Map)) {
         pv.items = new Map(Object.entries(pv.items ?? {}).map(([k, v]) => [+k, v]));
       }
+      if (!(pv.allowedBuyers instanceof Set)) pv.allowedBuyers = new Set(pv.allowedBuyers ?? []);
       pv.bankBalance = pv.bankBalance | 0;
       pv.rentalGold = pv.rentalGold | 0;
     }
@@ -1003,6 +1024,12 @@ export function restoreWorld(world, snap) {
     // restart — bonded promotions skipped, starvation paused.
     if (restoredMob.controlMaster && !restoredMob.client && !restoredMob.ghost) {
       world._pets?.add?.(restoredMob.serial);
+    }
+    if ((restoredMob._combatUntil ?? 0) > Date.now()) {
+      world._combatMobiles?.add?.(restoredMob.serial);
+    }
+    if (Array.isArray(restoredMob.effects) && restoredMob.effects.length > 0) {
+      world._mobsWithEffects?.add?.(restoredMob.serial);
     }
   }
   for (const it of snap.items ?? []) {
@@ -1022,6 +1049,9 @@ export function restoreWorld(world, snap) {
       continue;
     }
     const restored = { ...it };
+    Object.defineProperty(restored, '_world', {
+      value: world, writable: true, configurable: true, enumerable: false,
+    });
     // Wave 4: re-wrap boat.riders array → Set so existing .add()/.has()
     // callers in scripts/commands/boat.js keep working unchanged.
     if (restored.boat && Array.isArray(restored.boat.riders)) {
@@ -1078,6 +1108,12 @@ export function restoreWorld(world, snap) {
   // `worldMeta: undefined` so this branch is a no-op for those.
   if (snap.worldMeta && typeof snap.worldMeta === 'object') {
     if (snap.worldMeta.createWorldDone) world._createWorldDone = true;
+    if (Number.isFinite(snap.worldMeta.createWorldVersion)) {
+      world._createWorldVersion = Math.max(0, snap.worldMeta.createWorldVersion | 0);
+    }
+    if (Number.isFinite(snap.worldMeta.saveGeneration)) {
+      world._saveGeneration = Math.max(0, snap.worldMeta.saveGeneration | 0);
+    }
     for (const id of snap.worldMeta.xmlSpawnersApplied ?? []) {
       if (typeof id === 'string' && id) world._xmlSpawnersApplied.add(id);
     }
@@ -1124,6 +1160,22 @@ function _atomicWrite(tmpPath, finalPath, payload) {
  *  return shape. The order matters only for backward compat (a legacy
  *  `world.json` is still recognised on load if these don't exist). */
 const SAVE_BASENAMES = ['players', 'mobs', 'items'];
+const SAVE_JOURNAL = 'save-journal.json';
+
+function saveJournalPayload(generation, status) {
+  return JSON.stringify({
+    version: 1,
+    generation: generation | 0,
+    status,
+    basenames: SAVE_BASENAMES,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+function writeSaveJournalSync(saveDir, generation, status) {
+  const finalPath = path.join(saveDir, SAVE_JOURNAL);
+  _atomicWrite(`${finalPath}.tmp`, finalPath, saveJournalPayload(generation, status));
+}
 
 // ===== Houses persistence ============================================
 // HouseRegistry lives outside the mobile/item world but is just as
@@ -1213,7 +1265,6 @@ export function saveHousesSync(houses, saveDir) {
 
 export function saveHousesAsync(houses, saveDir) {
   if (!houses || !houses.houses) return Promise.resolve({ bytes: 0, format: 'json' });
-  fs.mkdirSync(saveDir, { recursive: true });
   const finalJson = path.join(saveDir, 'houses.json');
   const finalGz   = path.join(saveDir, 'houses.json.gz');
   const tmp       = path.join(saveDir, 'houses.json.tmp');
@@ -1225,20 +1276,20 @@ export function saveHousesAsync(houses, saveDir) {
   let json;
   try { json = JSON.stringify(payload); } catch (e) { return Promise.reject(e); }
   if (BINARY_SAVE) {
-    let gz;
-    try { gz = zlib.gzipSync(Buffer.from(json, 'utf8'), { level: 6 }); }
-    catch (e) { return Promise.reject(e); }
-    return fs.promises.writeFile(tmp, gz)
-      .then(() => fs.existsSync(finalGz)
-        ? fs.promises.copyFile(finalGz, finalGz + '.bak').catch(() => null)
-        : null)
+    return fs.promises.mkdir(saveDir, { recursive: true })
+      .then(() => new Promise((resolve, reject) => {
+        zlib.gzip(Buffer.from(json, 'utf8'), { level: 6 },
+          (err, buf) => err ? reject(err) : resolve(buf));
+      }))
+      .then((gz) => fs.promises.writeFile(tmp, gz).then(() => gz))
+      .then((gz) => fs.promises.copyFile(finalGz, finalGz + '.bak')
+        .catch(() => null).then(() => gz))
       .then(() => fs.promises.rename(tmp, finalGz))
-      .then(() => ({ bytes: gz.length, format: 'gzip' }));
+      .then(async () => ({ bytes: (await fs.promises.stat(finalGz)).size, format: 'gzip' }));
   }
-  return fs.promises.writeFile(tmp, json, 'utf8')
-    .then(() => fs.existsSync(finalJson)
-      ? fs.promises.copyFile(finalJson, finalJson + '.bak').catch(() => null)
-      : null)
+  return fs.promises.mkdir(saveDir, { recursive: true })
+    .then(() => fs.promises.writeFile(tmp, json, 'utf8'))
+    .then(() => fs.promises.copyFile(finalJson, finalJson + '.bak').catch(() => null))
     .then(() => fs.promises.rename(tmp, finalJson))
     .then(() => ({ bytes: json.length, format: 'json' }));
 }
@@ -1311,16 +1362,14 @@ export function saveBazaarSync(stalls, saveDir) {
 
 export function saveBazaarAsync(stalls, saveDir) {
   if (!Array.isArray(stalls)) return Promise.resolve({ bytes: 0 });
-  fs.mkdirSync(saveDir, { recursive: true });
   const finalJson = path.join(saveDir, 'bazaar.json');
   const tmp       = path.join(saveDir, 'bazaar.json.tmp');
   const payload = { version: SAVE_VERSION, stalls };
   let json;
   try { json = JSON.stringify(payload); } catch (e) { return Promise.reject(e); }
-  return fs.promises.writeFile(tmp, json, 'utf8')
-    .then(() => fs.existsSync(finalJson)
-      ? fs.promises.copyFile(finalJson, finalJson + '.bak').catch(() => null)
-      : null)
+  return fs.promises.mkdir(saveDir, { recursive: true })
+    .then(() => fs.promises.writeFile(tmp, json, 'utf8'))
+    .then(() => fs.promises.copyFile(finalJson, finalJson + '.bak').catch(() => null))
     .then(() => fs.promises.rename(tmp, finalJson))
     .then(() => ({ bytes: json.length }));
 }
@@ -1355,6 +1404,20 @@ export function saveWorldStateSync(state, saveDir) {
   const tmp       = path.join(saveDir, 'world-state.json.tmp');
   const payload = { version: SAVE_VERSION, ...state };
   _atomicWrite(tmp, finalJson, JSON.stringify(payload));
+}
+
+/** Non-blocking autosave variant. The synchronous function remains for the
+ * final shutdown save, where durability is more important than latency. */
+export async function saveWorldStateAsync(state, saveDir) {
+  if (!state) return { bytes: 0 };
+  const finalJson = path.join(saveDir, 'world-state.json');
+  const tmp = path.join(saveDir, 'world-state.json.tmp');
+  const json = JSON.stringify({ version: SAVE_VERSION, ...state });
+  await fs.promises.mkdir(saveDir, { recursive: true });
+  await fs.promises.writeFile(tmp, json, 'utf8');
+  await fs.promises.copyFile(finalJson, `${finalJson}.bak`).catch(() => null);
+  await fs.promises.rename(tmp, finalJson);
+  return { bytes: json.length };
 }
 
 export function loadWorldStateSync(saveDir) {
@@ -1397,6 +1460,8 @@ export function loadWorldStateSync(saveDir) {
 export function saveWorldSync(world, saveDir) {
   fs.mkdirSync(saveDir, { recursive: true });
   const split = splitSnapshot(world);
+  const generation = split.items.generation | 0;
+  writeSaveJournalSync(saveDir, generation, 'writing');
   const writeOne = (basename, snap) => {
     const finalJson = path.join(saveDir, `${basename}.json`);
     const finalGz   = path.join(saveDir, `${basename}.json.gz`);
@@ -1413,6 +1478,7 @@ export function saveWorldSync(world, saveDir) {
     }
   };
   for (const basename of SAVE_BASENAMES) writeOne(basename, split[basename]);
+  writeSaveJournalSync(saveDir, generation, 'committed');
   // Retire legacy `world.json` — its content has fully migrated into
   // mobs.json + items.json. Keep a `.legacy` rename so an operator can
   // diff against it before deleting.
@@ -1438,7 +1504,7 @@ export function saveWorldSync(world, saveDir) {
 export function saveWorldAsync(world, saveDir) {
   const t0 = Date.now();
   const split = splitSnapshot(world);
-  fs.mkdirSync(saveDir, { recursive: true });
+  const generation = split.items.generation | 0;
 
   // Async/yielding flavour — yields to the event loop BETWEEN each
   // basename so a 4-6 MB mobs.json doesn't park the AI tick + WS
@@ -1465,19 +1531,15 @@ export function saveWorldAsync(world, saveDir) {
         const r = await workerStringify(basename, snap, BINARY_SAVE);
         if (r?.gz) {
           await fs.promises.writeFile(tmp, r.gz);
-          if (fs.existsSync(finalGz)) {
-            try { await fs.promises.copyFile(finalGz, finalGz + '.bak'); }
-            catch { /* non-fatal */ }
-          }
+          try { await fs.promises.copyFile(finalGz, finalGz + '.bak'); }
+          catch { /* non-fatal */ }
           await fs.promises.rename(tmp, finalGz);
           return { bytes: r.gz.length, jsonBytes: r.jsonBytes, format: 'gzip' };
         }
         if (r?.json) {
           await fs.promises.writeFile(tmp, r.json, 'utf8');
-          if (fs.existsSync(finalJson)) {
-            try { await fs.promises.copyFile(finalJson, finalJson + '.bak'); }
-            catch { /* non-fatal */ }
-          }
+          try { await fs.promises.copyFile(finalJson, finalJson + '.bak'); }
+          catch { /* non-fatal */ }
           await fs.promises.rename(tmp, finalJson);
           return { bytes: r.json.length, format: 'json' };
         }
@@ -1493,32 +1555,37 @@ export function saveWorldAsync(world, saveDir) {
           (err, buf) => err ? reject(err) : resolve(buf));
       });
       await fs.promises.writeFile(tmp, gz);
-      if (fs.existsSync(finalGz)) {
-        try { await fs.promises.copyFile(finalGz, finalGz + '.bak'); }
-        catch { /* non-fatal */ }
-      }
+      try { await fs.promises.copyFile(finalGz, finalGz + '.bak'); }
+      catch { /* non-fatal */ }
       await fs.promises.rename(tmp, finalGz);
       return { bytes: gz.length, jsonBytes: json.length, format: 'gzip' };
     }
     await fs.promises.writeFile(tmp, json, 'utf8');
-    if (fs.existsSync(finalJson)) {
-      try { await fs.promises.copyFile(finalJson, finalJson + '.bak'); }
-      catch { /* non-fatal */ }
-    }
+    try { await fs.promises.copyFile(finalJson, finalJson + '.bak'); }
+    catch { /* non-fatal */ }
     await fs.promises.rename(tmp, finalJson);
     return { bytes: json.length, format: 'json' };
   };
 
-  return Promise.all(SAVE_BASENAMES.map((b) => writeOne(b, split[b])))
-    .then((results) => {
+  const begin = fs.promises.mkdir(saveDir, { recursive: true })
+    .then(() => fs.promises.writeFile(
+      path.join(saveDir, SAVE_JOURNAL),
+      saveJournalPayload(generation, 'writing'),
+      'utf8',
+    ));
+  return begin.then(() => Promise.all(SAVE_BASENAMES.map((b) => writeOne(b, split[b]))))
+    .then(async (results) => {
+      await fs.promises.writeFile(
+        path.join(saveDir, SAVE_JOURNAL),
+        saveJournalPayload(generation, 'committed'),
+        'utf8',
+      );
       // Best-effort retirement of legacy world.json (now fully covered
       // by mobs.json + items.json). Failure is non-fatal — the loader
       // still picks `mobs.json` over `world.json` at boot.
       for (const ext of ['.json', '.json.gz']) {
         const p = path.join(saveDir, `world${ext}`);
-        if (fs.existsSync(p)) {
-          try { fs.renameSync(p, p + '.legacy'); } catch { /* ignore */ }
-        }
+        try { await fs.promises.rename(p, p + '.legacy'); } catch { /* ignore */ }
       }
       return {
         bytes:     results.reduce((a, r) => a + (r.bytes ?? 0), 0),
@@ -1549,15 +1616,21 @@ export function loadWorldSync(world, saveDir) {
     }
     return fs.readFileSync(file, 'utf8');
   };
+  let interruptedSave = false;
+  try {
+    const journal = JSON.parse(fs.readFileSync(path.join(saveDir, SAVE_JOURNAL), 'utf8'));
+    interruptedSave = journal?.status === 'writing';
+    if (interruptedSave) {
+      console.warn(`[persistence] recovering interrupted generation ${journal.generation ?? '?'}`);
+    }
+  } catch { /* old shard or corrupt advisory journal */ }
+
   // For each basename, pick the first non-corrupt candidate (binary,
   // json, then their `.bak` siblings). Returns the parsed snap or null.
   const loadOne = (basename) => {
-    const candidates = [
-      path.join(saveDir, `${basename}.json.gz`),
-      path.join(saveDir, `${basename}.json`),
-      path.join(saveDir, `${basename}.json.gz.bak`),
-      path.join(saveDir, `${basename}.json.bak`),
-    ];
+    const primary = [path.join(saveDir, `${basename}.json.gz`), path.join(saveDir, `${basename}.json`)];
+    const backups = [path.join(saveDir, `${basename}.json.gz.bak`), path.join(saveDir, `${basename}.json.bak`)];
+    const candidates = interruptedSave ? [...backups, ...primary] : [...primary, ...backups];
     for (const c of candidates) {
       const raw = tryRead(c);
       if (!raw) continue;
@@ -1588,12 +1661,14 @@ export function loadWorldSync(world, saveDir) {
   // some other partition's snap.
   const merged = {
     version: snaps[0].version,
+    generation: Math.max(0, ...snaps.map((s) => s.generation ?? 0)) || undefined,
     mobiles: snaps.flatMap((s) => s.mobiles ?? []),
     items:   snaps.flatMap((s) => s.items   ?? []),
     serials: {
       nextMobile: Math.max(0, ...snaps.map((s) => s.serials?.nextMobile ?? 0)) || undefined,
       nextItem:   Math.max(0, ...snaps.map((s) => s.serials?.nextItem   ?? 0)) || undefined,
     },
+    worldMeta: [...snaps].reverse().find((s) => s.worldMeta)?.worldMeta,
   };
   try {
     restoreWorld(world, merged);
@@ -1616,6 +1691,17 @@ export function loadWorldSync(world, saveDir) {
 const _inFlight = new Map();
 /** @type {Map<string, { world: any }>} */
 const _trailing = new Map();
+/** Per-save-directory operational counters. Kept out of snapshots and bounded
+ * to one row per active shard directory. */
+const _saveDiagnostics = new Map();
+
+export function persistenceDiagnostics(saveDir) {
+  const key = String(saveDir);
+  const value = _saveDiagnostics.get(key) ?? { requests: 0, completed: 0, failed: 0, coalesced: 0,
+    totalBytes: 0, totalMs: 0, lastBytes: 0, lastMs: 0, lastStartedAt: 0, lastCompletedAt: 0, lastError: null };
+  return { ...value, averageMs: value.completed ? Number((value.totalMs / value.completed).toFixed(2)) : 0,
+    inFlight: _inFlight.has(key), trailing: _trailing.has(key) };
+}
 /** Wait for any in-flight async save to settle. BH #12 B12: shutdown's
  *  `saveWorldSync` raced with a still-streaming `saveWorldAsync` over
  *  the same `<basename>.json.tmp` paths, corrupting the final save. */
@@ -1630,11 +1716,31 @@ export async function awaitInFlightSaves(timeoutMs = 5000) {
 
 export function requestSave(world, saveDir) {
   const key = String(saveDir);
+  const stats = _saveDiagnostics.get(key) ?? { requests: 0, completed: 0, failed: 0, coalesced: 0,
+    totalBytes: 0, totalMs: 0, lastBytes: 0, lastMs: 0, lastStartedAt: 0, lastCompletedAt: 0, lastError: null };
+  stats.requests++;
+  _saveDiagnostics.set(key, stats);
   if (_inFlight.has(key)) {
+    stats.coalesced++;
     _trailing.set(key, { world });
     return _inFlight.get(key);
   }
-  const p = saveWorldAsync(world, saveDir).finally(() => {
+  stats.lastStartedAt = Date.now();
+  const p = saveWorldAsync(world, saveDir).then((result) => {
+    stats.completed++;
+    stats.lastBytes = Math.max(0, Number(result?.bytes) || 0);
+    stats.lastMs = Math.max(0, Number(result?.ms) || 0);
+    stats.totalBytes += stats.lastBytes;
+    stats.totalMs += stats.lastMs;
+    stats.lastCompletedAt = Date.now();
+    stats.lastError = null;
+    return result;
+  }, (error) => {
+    stats.failed++;
+    stats.lastCompletedAt = Date.now();
+    stats.lastError = String(error?.message ?? error).slice(0, 1000);
+    throw error;
+  }).finally(() => {
     _inFlight.delete(key);
     const t = _trailing.get(key);
     if (t) {

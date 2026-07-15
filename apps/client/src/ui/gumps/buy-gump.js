@@ -30,9 +30,13 @@ import { ItemPic } from '../controls/item-pic.js';
 import { ScrollArea } from '../controls/scroll-area.js';
 import { Button, ButtonAction } from '../controls/button.js';
 import { Control } from '../control.js';
+import { TextInput } from '../controls/text-input.js';
 import { net } from '../../net/net-client.js';
 import { buildBuyRequest, buildSellRequest } from '../../net/outgoing.js';
 import { bus } from '../../core/event-bus.js';
+import { world } from '../../world/world.js';
+import { calculateVirtualWindow } from '../../shared/virtual-list.js';
+import { tooltips } from '../../managers/tooltip-manager.js';
 
 // CUO ShopGump frame dimensions. Both panes are 283 wide but the right
 // (basket) pane is 248 tall vs the left's 307 — the difference accounts
@@ -58,9 +62,19 @@ const RIGHT_INNER_W = RIGHT_W - 60;
 const RIGHT_INNER_H = RIGHT_H - 110;
 
 const ROW_H = 36;
+const VENDOR_FAVORITES_KEY = 'uo.vendor.favorites.v1';
+const VENDOR_HISTORY_KEY = 'uo.vendor.price-history.v1';
+
+function readStored(key, fallback) {
+  try { return JSON.parse(globalThis.localStorage?.getItem?.(key) ?? 'null') ?? fallback; }
+  catch { return fallback; }
+}
+function writeStored(key, value) {
+  try { globalThis.localStorage?.setItem?.(key, JSON.stringify(value)); } catch { /* advisory */ }
+}
 
 class ShopRow extends Control {
-  constructor(line, paneWidth, onClick, onRightClick) {
+  constructor(line, paneWidth, onClick, onRightClick, onMax = null) {
     super();
     this.line = line;
     this.width = paneWidth;
@@ -98,9 +112,9 @@ class ShopRow extends Control {
     this._price.setPosition(40, 20);
     this._price.acceptMouseInput = false;
     this.add(this._price);
-    this.update(line, onClick, onRightClick);
+    this.update(line, onClick, onRightClick, onMax);
   }
-  update(line, onClick, onRightClick) {
+  update(line, onClick, onRightClick, onMax = null) {
     this.line = line;
     if (line.itemId !== undefined) {
       this._pic.node.visible = true;
@@ -110,9 +124,13 @@ class ShopRow extends Control {
       this._pic.node.visible = false;
     }
     this._desc.setText(line.description ?? line.name ?? '?');
-    this._price.setText(`${line.price | 0}gp`);
+    const history = Array.isArray(line.priceHistory) ? line.priceHistory : [];
+    const prices = history.map((entry) => entry.price | 0);
+    const range = prices.length > 1 ? ` · ${Math.min(...prices)}–${Math.max(...prices)}` : '';
+    this._price.setText(`${line.price | 0}gp${range}`);
     this._onClick = onClick;
     this._onRightClick = onRightClick;
+    this._onMax = onMax;
     this._hoverTint.visible = false;
     this.visible = true;
     this.node.visible = true;
@@ -122,12 +140,23 @@ class ShopRow extends Control {
     if (qty > 1) this._desc.setText(`${base} ×${qty}`);
     else         this._desc.setText(base);
   }
-  onMouseEnter() { this._hoverTint.visible = true; }
-  onMouseLeave() { this._hoverTint.visible = false; }
-  onMouseDown(button, e) {
-    if (button === 2) this._onRightClick?.(e);
-    else              this._onClick?.(e);
+  onMouseEnter(e) {
+    this._hoverTint.visible = true;
+    if (this.line?.serial) {
+      tooltips.showImmediate?.(
+        this.line.serial,
+        e?.global?.x ?? 0,
+        e?.global?.y ?? 0,
+        this.line.description ?? this.line.name ?? 'item',
+      );
+    }
   }
+  onMouseLeave() { this._hoverTint.visible = false; tooltips.scheduleHide?.(280); }
+  onMouseDown(button, _lx, _ly, event) {
+    if (button === 2) this._onRightClick?.(event);
+    else              this._onClick?.(event);
+  }
+  onDoubleClick() { this._onMax?.(); }
 }
 
 class BaseShopGump extends Gump {
@@ -141,7 +170,20 @@ class BaseShopGump extends Gump {
     this._basketRows = new Map();
     this._basketRowPool = [];
     this._basketSeen = new Set();
+    this._stockRows = [];
+    this._stockRowPool = [];
     this._unsubs = [];
+    this._favoriteIds = new Set(readStored(VENDOR_FAVORITES_KEY, []).map(Number));
+    this._priceHistory = readStored(VENDOR_HISTORY_KEY, {});
+    this._favoritesOnly = false;
+    for (const line of items) {
+      const id = line.itemId | 0;
+      if (!id || !Number.isFinite(line.price)) continue;
+      const history = Array.isArray(this._priceHistory[id]) ? this._priceHistory[id] : [];
+      this._priceHistory[id] = [...history, { price: line.price | 0, at: Date.now() }].slice(-20);
+      line.priceHistory = this._priceHistory[id];
+    }
+    writeStored(VENDOR_HISTORY_KEY, this._priceHistory);
 
     this.canMove = true;
     this.canClose = true;
@@ -154,6 +196,10 @@ class BaseShopGump extends Gump {
     this._buildHeader();
     this._buildPanes();
     this._buildButtons();
+    this._unsubs.push(bus.on('shop:close', ({ serial } = {}) => {
+      if (!serial || (serial >>> 0) === this.vendor) this.close();
+    }));
+    this._unsubs.push(bus.on('message:journal', ({ text } = {}) => this._onTransactionMessage(text)));
   }
 
   get type() { return this.isSell ? 'sell-shop' : 'buy-shop'; }
@@ -196,6 +242,37 @@ class BaseShopGump extends Gump {
     rightTitle.setPosition(LEFT_W + GAP + 28, 30);
     rightTitle.acceptMouseInput = false;
     this.add(rightTitle);
+
+    this._search = new TextInput({
+      width: 142, height: 20, placeholder: 'Filter…', fontSize: 11,
+    });
+    this._search.setPosition(92, 25);
+    this._search.onChange = () => this._renderStock();
+    this.add(this._search);
+
+    const favorites = new Button({
+      normalGumpId: 0, pressedGumpId: 0, width: 42, height: 20,
+      label: '★ All', flat: true, action: ButtonAction.Activate,
+    });
+    favorites.setPosition(238, 25);
+    favorites.onClick = () => {
+      this._favoritesOnly = !this._favoritesOnly;
+      favorites.setLabel(this._favoritesOnly ? '★ Only' : '★ All');
+      this._renderStock();
+    };
+    this.add(favorites);
+
+    this._qtyInput = new TextInput({ width: 42, height: 20, value: '1', maxLength: 4, fontSize: 11 });
+    this._qtyInput.setPosition(LEFT_W + GAP + 106, 25);
+    this._qtyInput.onSubmit = () => this._applySelectedQuantity();
+    this.add(this._qtyInput);
+    const max = new Button({
+      normalGumpId: 0, pressedGumpId: 0, width: 42, height: 20,
+      label: 'Max', flat: true, action: ButtonAction.Activate,
+    });
+    max.setPosition(LEFT_W + GAP + 152, 25);
+    max.onClick = () => this._applySelectedQuantity(true);
+    this.add(max);
   }
 
   _buildPanes() {
@@ -203,23 +280,84 @@ class BaseShopGump extends Gump {
     this._left = new ScrollArea({ width: LEFT_INNER_W, height: LEFT_INNER_H });
     this._left.setPosition(LEFT_INNER_X, LEFT_INNER_Y);
     this.add(this._left);
-    let ly = 0;
-    for (const it of this.items) {
-      const key = it.serial ?? `${it.description}:${it.price}`;
-      const row = new ShopRow(it, LEFT_INNER_W,
-        (e) => this._addToBasket(it, e?.shift ? Math.min(it.amount ?? 10, 5) : 1),
-        () => this._removeFromBasket(key, true));
-      row.setPosition(0, ly);
-      this._left.add(row);
-      ly += ROW_H + 2;
-    }
-    this._left.setContentHeight(ly);
+    this._left.onScroll = () => this._renderStock();
+    this._renderStock();
 
     // ---- RIGHT — basket ----------------------------------------------
     this._right = new ScrollArea({ width: RIGHT_INNER_W, height: RIGHT_INNER_H });
     this._right.setPosition(LEFT_W + GAP + RIGHT_INNER_X, RIGHT_INNER_Y);
     this.add(this._right);
     this._refreshBasket();
+  }
+
+  _lineKey(line) {
+    return line.serial != null
+      ? `s:${line.serial >>> 0}`
+      : `i:${line.itemId ?? 0}:${line.hue ?? 0}:${line.description ?? line.name ?? ''}:${line.price ?? 0}`;
+  }
+
+  _renderStock() {
+    if (!this._left || this._left.node?.destroyed) return;
+    for (const row of this._stockRows) {
+      row.node.visible = false;
+      this._stockRowPool.push(row);
+    }
+    this._stockRows.length = 0;
+    const query = this._search?.value?.trim().toLocaleLowerCase() ?? '';
+    const items = this.items.filter((line) => {
+      const name = String(line.description ?? line.name ?? '').toLocaleLowerCase();
+      const validSell = !this.isSell || !!line.serial;
+      const favorite = this._favoriteIds.has(line.itemId | 0);
+      return validSell && (!this._favoritesOnly || favorite) && (!query || name.includes(query));
+    }).sort((a, b) => Number(this._favoriteIds.has(b.itemId | 0)) - Number(this._favoriteIds.has(a.itemId | 0)));
+    const window = calculateVirtualWindow({
+      scrollY: this._left.scrollY,
+      viewportSize: LEFT_INNER_H,
+      itemSize: ROW_H + 2,
+      itemCount: items.length,
+      overscan: 2,
+    });
+    this._left.beginBulkUpdate();
+    for (let index = window.start; index < window.end; index++) {
+      const it = items[index];
+      const row = this._stockRowPool.pop() ?? new ShopRow(it, LEFT_INNER_W);
+      row.update(it,
+        (e) => this._addToBasket(it, e?.shift ? 5 : 1),
+        () => this._toggleFavorite(it),
+        () => this._setBasketQuantity(it, it.amount ?? 1));
+      row.setPosition(0, index * (ROW_H + 2));
+      if (!row.parent) this._left.add(row);
+      this._stockRows.push(row);
+    }
+    this._left.endBulkUpdate();
+    this._left.setContentHeight(items.length * (ROW_H + 2));
+  }
+
+  _toggleFavorite(line) {
+    const id = line.itemId | 0;
+    if (!id) return;
+    if (this._favoriteIds.has(id)) this._favoriteIds.delete(id);
+    else this._favoriteIds.add(id);
+    writeStored(VENDOR_FAVORITES_KEY, [...this._favoriteIds]);
+    this._renderStock();
+  }
+
+  _setBasketQuantity(line, quantity) {
+    const available = Math.max(0, Number(line.amount ?? 1) | 0);
+    const qty = Math.max(0, Math.min(available, quantity | 0));
+    const key = this._lineKey(line);
+    if (qty <= 0) this._basket.delete(key);
+    else this._basket.set(key, { line, qty });
+    this._selectedBasketKey = key;
+    this._qtyInput?.setValue?.(String(Math.max(1, qty)), { silent: true });
+    this._refreshBasket();
+  }
+
+  _applySelectedQuantity(max = false) {
+    const entry = this._basket.get(this._selectedBasketKey);
+    if (!entry) return;
+    const qty = max ? (entry.line.amount ?? 1) : Number.parseInt(this._qtyInput.value, 10);
+    this._setBasketQuantity(entry.line, Number.isFinite(qty) ? qty : entry.qty);
   }
 
   _buildButtons() {
@@ -237,9 +375,10 @@ class BaseShopGump extends Gump {
       b.setPosition(x, y);
       b.onClick = fn;
       this.add(b);
+      return b;
     };
     mkBtn('Clear',  LEFT_W + GAP + 20, () => { this._basket.clear(); this._refreshBasket(); });
-    mkBtn('Accept', LEFT_W + GAP + RIGHT_W - 100, () => this._submit());
+    this._acceptButton = mkBtn('Accept', LEFT_W + GAP + RIGHT_W - 100, () => this._submit());
 
     // Total label — gold colour, centered between the buttons. Updated
     // by _refreshBasket so it tracks the running cart cost.
@@ -249,13 +388,21 @@ class BaseShopGump extends Gump {
     this._totalLabel.setPosition(LEFT_W + GAP + (RIGHT_W >> 1) - 40, y + 2);
     this._totalLabel.acceptMouseInput = false;
     this.add(this._totalLabel);
+    this._resultLabel = new Label('', { fontSize: 9, hue: 0xb8d7a8, maxWidth: RIGHT_W - 40 });
+    this._resultLabel.setPosition(LEFT_W + GAP + 20, y + 28);
+    this.add(this._resultLabel);
   }
 
   _addToBasket(line, qty) {
-    const key = line.serial ?? `${line.description}:${line.price}`;
+    const key = this._lineKey(line);
+    const available = Math.max(0, Number(line.amount ?? 1) | 0);
+    if (available <= 0) return;
     const cur = this._basket.get(key);
-    if (cur) cur.qty += qty;
-    else     this._basket.set(key, { line, qty });
+    const next = Math.max(0, Math.min(available, (cur?.qty ?? 0) + Math.max(1, qty | 0)));
+    if (cur) cur.qty = next;
+    else     this._basket.set(key, { line, qty: next });
+    this._selectedBasketKey = key;
+    this._qtyInput?.setValue?.(String(next), { silent: true });
     this._refreshBasket();
   }
 
@@ -277,15 +424,17 @@ class BaseShopGump extends Gump {
       total += entry.qty * (entry.line.price | 0);
       let row = this._basketRows.get(key);
       if (!row) {
-        row = this._basketRowPool.pop() ?? new ShopRow(entry.line, RIGHT_INNER_W,
-          () => this._removeFromBasket(key, false),
-          () => this._removeFromBasket(key, true));
+        row = this._basketRowPool.pop() ?? new ShopRow(entry.line, RIGHT_INNER_W);
         this._basketRows.set(key, row);
         if (!row.parent) this._right.add(row);
       }
       row.update(entry.line,
-        () => this._removeFromBasket(key, false),
-        () => this._removeFromBasket(key, true));
+        () => {
+          this._selectedBasketKey = key;
+          this._qtyInput?.setValue?.(String(entry.qty), { silent: true });
+        },
+        () => this._removeFromBasket(key, true),
+        () => this._setBasketQuantity(entry.line, entry.line.amount ?? 1));
       row.setQty(entry.qty);
       row.setPosition(0, y);
       y += ROW_H + 2;
@@ -299,7 +448,11 @@ class BaseShopGump extends Gump {
     }
     seen.clear();
     this._right.setContentHeight(y);
-    if (this._totalLabel) this._totalLabel.setText(`Total: ${total}gp`);
+    if (this._totalLabel) {
+      const gold = world.player?.gold;
+      this._totalLabel.setText(`Total: ${total}gp${Number.isFinite(gold) ? ` / ${gold}gp` : ''}`);
+      this._totalLabel.setHue?.(Number.isFinite(gold) && total > gold ? 0xff806c : 0xffe070);
+    }
   }
 
   _submit() {
@@ -307,18 +460,53 @@ class BaseShopGump extends Gump {
     for (const { line, qty } of this._basket.values()) {
       if (line.serial) picks.push({ serial: line.serial, amount: qty });
     }
-    if (picks.length === 0) { this.close(); return; }
+    if (picks.length === 0) { this._resultLabel?.setText?.('Select at least one item.'); return; }
     try {
       const pkt = this.isSell
         ? buildSellRequest(this.vendor, picks)
         : buildBuyRequest (this.vendor, picks);
       net.send(pkt);
+      this._submitting = true;
+      this._acceptButton.enabled = false;
+      this._acceptButton.acceptMouseInput = false;
+      this._acceptButton.node.alpha = 0.55;
+      this._resultLabel?.setText?.('Waiting for the server…');
     } catch (e) { console.error('[shop] submit failed', e); }
-    this.close();
+  }
+
+  _onTransactionMessage(text) {
+    if (!this._submitting || typeof text !== 'string') return;
+    const lower = text.toLowerCase();
+    const relevant = lower.includes('goods are yours') || lower.includes('out of stock')
+      || lower.includes('you need ') || lower.includes('you receive ')
+      || lower.includes('granted free');
+    if (!relevant) return;
+    this._resultLabel?.setText?.(text.replace(/^\[system\]\s*/i, ''));
+    const success = lower.includes('goods are yours') || lower.includes('granted free') || lower.includes('you receive ');
+    if (success) {
+      for (const { line, qty } of this._basket.values()) {
+        line.amount = Math.max(0, (line.amount ?? 1) - qty);
+      }
+      this.items = this.items.filter((line) => (line.amount ?? 1) > 0);
+      this._basket.clear();
+      this._refreshBasket();
+      this._renderStock();
+    }
+    if (!lower.includes('out of stock')) {
+      this._submitting = false;
+      this._acceptButton.enabled = true;
+      this._acceptButton.acceptMouseInput = true;
+      this._acceptButton.node.alpha = 1;
+    }
   }
 
   dispose() {
     for (const u of this._unsubs ?? []) u?.();
+    this._stockRows.length = 0;
+    for (const row of this._stockRowPool) row.dispose?.();
+    this._stockRowPool.length = 0;
+    this._basketRows.clear();
+    this._basketRowPool.length = 0;
     super.dispose();
   }
 }

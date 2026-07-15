@@ -55,6 +55,10 @@ export class SkillsGump extends WindowGump {
     this._unsubs = [
       bus.on('skills:list',   (info) => this._onList(info)),
       bus.on('skills:update', (info) => this._onUpdate(info)),
+      bus.on('nodeuo:skill-insight', ({ payload }) => {
+        this._skillInsight = payload ?? null;
+        this._redraw();
+      }),
     ];
     // Ask the server for our skills list. CUO sends 0x34 StatusReq with
     // kind=5 (skills) the moment the gump opens; without it the server
@@ -392,6 +396,15 @@ export class SkillsGump extends WindowGump {
     const total = this._acquireFooterLabel(`Total: ${(totalSum / 10).toFixed(1)}`);
     total.node.position.set(2, y);
     y += 16;
+    if (this._skillInsight?.lifecycle) {
+      const insight = this._skillInsight;
+      const life = insight.lifecycle;
+      const training = this._acquireFooterLabel(
+        `Training #${insight.skillId}: ${Number(insight.base).toFixed(1)}/${Number(insight.cap).toFixed(1)} · uses ${life.attempts} · gains tracked server-side`,
+      );
+      training.node.position.set(2, y);
+      y += 16;
+    }
     this._scroll.setContentHeight(y);
     this._finishLabelFrame();
   }

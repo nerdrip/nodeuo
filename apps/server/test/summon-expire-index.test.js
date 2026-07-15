@@ -44,4 +44,21 @@ describe('summon expiry index', () => {
     expect(world.mobiles.has(summon.serial)).toBe(false);
     expect(world._summons?.has(summon.serial)).toBe(false);
   });
+
+  it('releases follower slots for controlled and autonomous summons', () => {
+    const world = new World();
+    const caster = world.createMobile({ name: 'mage', x: 10, y: 10, map: 1 });
+    caster.followers = 4;
+    const vortex = world.createMobile({ name: 'vortex', x: 11, y: 10, map: 1 });
+    vortex.summoned = true;
+    vortex.summonedBy = caster.serial;
+    vortex._followerCost = 4;
+    vortex.summonedUntil = Date.now() - 1;
+    registerSummon(world, vortex);
+
+    tickSummons(world);
+
+    expect(caster.followers).toBe(0);
+    expect(world.mobiles.has(vortex.serial)).toBe(false);
+  });
 });

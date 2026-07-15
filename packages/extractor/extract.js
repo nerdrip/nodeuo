@@ -192,7 +192,7 @@ if (only.has('anim')) {
   if (!existsSync(mul)) {
     console.warn(`[anim]    skip — ${mul} missing`);
   } else {
-    console.log(`[anim]    decoding idle frames per body…`);
+    console.log(`[anim]    decoding complete mobile/equipment animation groups…`);
     const r = await extractAnim(src, out);
     console.log(`[anim]    ${r.count} bodies → ${r.pages} atlas page(s) + mobiles-atlas.json`);
     any = true;

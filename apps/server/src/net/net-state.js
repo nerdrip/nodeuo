@@ -22,6 +22,15 @@ import * as diagnostics from '../systems/operational-diagnostics.js';
 // so disconnect a client that falls this far behind instead of retaining an
 // unbounded queue for it.
 export const MAX_PENDING_SEND_BYTES = 4 * 1024 * 1024;
+export const SOFT_PENDING_SEND_BYTES = 1024 * 1024;
+export const TCP_MAX_PENDING_SEND_BYTES = 2 * 1024 * 1024;
+export const TCP_SOFT_PENDING_SEND_BYTES = 512 * 1024;
+export const MAX_PENDING_RECEIVE_BYTES = 256 * 1024;
+export const MAX_PACKETS_PER_TURN = 256;
+export const MAX_INCOMING_PACKETS_PER_SECOND = 1024;
+export const MAX_DEFERRED_COSMETIC_PACKETS = 512;
+export const MAX_COSMETIC_SENDS_PER_TURN = 128;
+export const COSMETIC_MAX_AGE_MS = 1000;
 
 /** @enum {string} */
 export const Stage = Object.freeze({
@@ -47,6 +56,11 @@ export class NetState {
     this.ws = ws;
     this.ctx = ctx;
     this.id = ctx.id;
+    this.interactionToken = `${ctx.id}:${Date.now().toString(36)}:${Math.random().toString(36).slice(2)}`;
+    this.transportKind = ws?.socket ? 'tcp' : 'websocket';
+    this.backpressureLimits = this.transportKind === 'tcp'
+      ? { soft: TCP_SOFT_PENDING_SEND_BYTES, hard: TCP_MAX_PENDING_SEND_BYTES }
+      : { soft: SOFT_PENDING_SEND_BYTES, hard: MAX_PENDING_SEND_BYTES };
     this.stage = Stage.LoginSeed;
     /** Source IP (or `null` for in-process tests). Surfaced to handlers
      *  so AccountAttackLimiter can compose per-IP × per-account keys. */
@@ -56,6 +70,8 @@ export class NetState {
     this.nodeUOTransport = ctx.nodeUOTransport === true;
     this.nodeUOProtocol = null;
     this.nodeUOCapabilities = 0;
+    this._nodeUOCapabilityOffer = null;
+    this._nodeUOCapabilityTimer = null;
     /** @type {string | null} */
     this.accountName = null;
     /** @type {import('./accounts.js').Account | null} */
@@ -76,9 +92,20 @@ export class NetState {
     this.openContainers = new Set();
     /** @type {Uint8Array} */
     this._rx = new Uint8Array(0);
+    this._rxDrainScheduled = false;
+    this._packetWindowStarted = performance.now();
+    this._packetWindowCount = 0;
     this._closed = false;
     this._closing = false;
     this._cleanupDone = false;
+    this.roundTripMs = null;
+    this._rttPingSentAt = 0;
+    this._rttTimer = null;
+    this._deferredCosmetic = new Map();
+    this._cosmeticFlushTimer = null;
+    this.backpressureStats = { deferred: 0, coalesced: 0, flushed: 0, dropped: 0,
+      staleDropped: 0, cappedTurns: 0, totalWaitMs: 0, maxWaitMs: 0 };
+    this.ctx.connections?.add?.(this);
     diagnostics.connectionOpened(this);
 
     ws.binaryType = 'arraybuffer';
@@ -104,6 +131,24 @@ export class NetState {
       // payload-too-large, or socket-level failures that precede a close.
       console.warn(`[net#${this.id}] ws error: ${err?.message ?? err} (${err?.code ?? '?'})`);
     });
+    // WebSocket control-frame RTT is transport metadata, not a custom UO
+    // opcode. Desktop/TCP clients remain byte-for-byte standard and simply
+    // expose ping as unavailable in the admin inspector.
+    if (typeof ws.ping === 'function') {
+      ws.on('pong', () => {
+        if (!this._rttPingSentAt) return;
+        const sample = Math.max(0, performance.now() - this._rttPingSentAt);
+        this.roundTripMs = this.roundTripMs == null ? sample : this.roundTripMs * 0.75 + sample * 0.25;
+        this._rttPingSentAt = 0;
+        diagnostics.connectionUpdated(this);
+      });
+      this._rttTimer = setInterval(() => {
+        if (this._closed || this.ws.readyState !== 1 || this._rttPingSentAt) return;
+        this._rttPingSentAt = performance.now();
+        try { this.ws.ping(); } catch { this._rttPingSentAt = 0; }
+      }, 10_000);
+      this._rttTimer.unref?.();
+    }
   }
 
   /**
@@ -121,18 +166,26 @@ export class NetState {
     // and never send the payload, pinning ~64KB per repeat forever.
     // 256 KB is comfortably larger than any single UO packet (largest
     // known is ~12 KB for full house customisation).
-    const MAX_RX = 256 * 1024;
-    if (merged.length > MAX_RX) {
+    if (merged.length > MAX_PENDING_RECEIVE_BYTES) {
       console.warn(`[net#${this.id}] rx overflow ${merged.length}B → forcing close`);
       this._rx = new Uint8Array(0);
       try { this.close?.(); } catch { /* ignore */ }
       return;
     }
+    this._rx = merged;
+    // A prior coalesced frame hit the per-turn budget. Keep accumulating up
+    // to the hard byte cap and let the scheduled continuation drain it; this
+    // prevents a burst of WS/TCP events from bypassing the fairness budget.
+    if (this._rxDrainScheduled) return;
 
     let packets = [];
     let consumed = 0;
+    let limited = false;
     try {
-      ({ packets, consumed } = frameIncoming(merged, { dropReqSize: this.dropReqSize }));
+      ({ packets, consumed, limited } = frameIncoming(merged, {
+        dropReqSize: this.dropReqSize,
+        maxPackets: MAX_PACKETS_PER_TURN,
+      }));
       this._rx = merged.subarray(consumed);
     } catch (e) {
       const offRaw = (typeof e.offset === 'number' && e.offset >= 0) ? e.offset : -1;
@@ -167,6 +220,19 @@ export class NetState {
       this._rx = new Uint8Array(0);
     }
 
+    const packetNow = performance.now();
+    if ((packetNow - this._packetWindowStarted) >= 1000) {
+      this._packetWindowStarted = packetNow;
+      this._packetWindowCount = 0;
+    }
+    this._packetWindowCount += packets.length;
+    if (this._packetWindowCount > MAX_INCOMING_PACKETS_PER_SECOND) {
+      console.warn(`[net#${this.id}] packet flood ${this._packetWindowCount}/s → closing`);
+      diagnostics.protocolError();
+      this.close('packet rate overflow');
+      return;
+    }
+
     for (const pkt of packets) {
       const op = pkt[0];
       const info = opcodeInfo(op);
@@ -177,13 +243,13 @@ export class NetState {
       if (!handler) {
         // Unknown-but-registered opcode. Just log and skip.
         console.warn(`[net#${this.id}] no handler for 0x${op.toString(16)} (${info?.name})`);
-        diagnostics.packet('rx', op, pkt.length, 0, true);
+        diagnostics.packet('rx', op, pkt.length, 0, true, this);
         continue;
       }
       const startedAt = performance.now();
       try {
         handler(this, pkt);
-        diagnostics.packet('rx', op, pkt.length, performance.now() - startedAt);
+        diagnostics.packet('rx', op, pkt.length, performance.now() - startedAt, false, this);
       } catch (e) {
         // Gameplay handlers can throw on edge-case data (mis-formed packets,
         // bugs in script-registered commands, etc.). Losing the entire
@@ -191,9 +257,17 @@ export class NetState {
         // going so the player doesn't get kicked mid-command. If the
         // session is genuinely broken, subsequent ops will fail too.
         console.error(`[net#${this.id}] handler 0x${op.toString(16)} threw:`, e);
-        diagnostics.packet('rx', op, pkt.length, performance.now() - startedAt, true);
+        diagnostics.packet('rx', op, pkt.length, performance.now() - startedAt, true, this);
         diagnostics.handlerError();
       }
+    }
+
+    if (limited && this._rx.length > 0 && !this._closed) {
+      this._rxDrainScheduled = true;
+      setImmediate(() => {
+        this._rxDrainScheduled = false;
+        this._feed(new Uint8Array(0));
+      });
     }
   }
 
@@ -210,12 +284,24 @@ export class NetState {
    *
    * @param {Uint8Array} packet
    */
-  send(packet) {
+  send(packet, { priority = 'normal', coalesceKey = null } = {}) {
     if (this._closed || this.ws.readyState !== 1 /* OPEN */) return;
     const pending = Number(this.ws.bufferedAmount) || 0;
-    if (pending > MAX_PENDING_SEND_BYTES) {
+    if (pending > this.backpressureLimits.hard) {
       console.warn(`[net#${this.id}] slow client buffered ${pending}B → closing`);
       this.close('send queue overflow');
+      return;
+    }
+    if (priority === 'cosmetic' && pending > this.backpressureLimits.soft) {
+      const key = String(coalesceKey ?? `opcode:${packet[0]}`);
+      if (this._deferredCosmetic.has(key)) this.backpressureStats.coalesced++;
+      else this.backpressureStats.deferred++;
+      this._deferredCosmetic.set(key, { packet: packet.slice(), queuedAt: performance.now() });
+      while (this._deferredCosmetic.size > MAX_DEFERRED_COSMETIC_PACKETS) {
+        this._deferredCosmetic.delete(this._deferredCosmetic.keys().next().value);
+        this.backpressureStats.dropped++;
+      }
+      this._scheduleCosmeticFlush();
       return;
     }
     if (this.ctx.config.logPackets) {
@@ -225,8 +311,55 @@ export class NetState {
     const useHuffman = this.ctx.config.huffmanOutgoing && inGamePhase;
     const payload = useHuffman ? huffmanCompress(packet) : packet;
     this.ws.send(payload, { binary: true });
-    diagnostics.packet('tx', packet[0], payload.length);
+    diagnostics.packet('tx', packet[0], payload.length, 0, false, this);
     diagnostics.connectionUpdated(this);
+  }
+
+  sendCosmetic(packet, coalesceKey = null) {
+    return this.send(packet, { priority: 'cosmetic', coalesceKey });
+  }
+
+  _scheduleCosmeticFlush() {
+    if (this._cosmeticFlushTimer || this._closed) return;
+    this._cosmeticFlushTimer = setTimeout(() => {
+      this._cosmeticFlushTimer = null;
+      if (this._closed || this.ws.readyState !== 1) return;
+      if ((Number(this.ws.bufferedAmount) || 0) > this.backpressureLimits.soft) {
+        this._scheduleCosmeticFlush();
+        return;
+      }
+      const now = performance.now();
+      const pending = [...this._deferredCosmetic.entries()];
+      let sent = 0;
+      for (const [key, row] of pending) {
+        const wait = now - row.queuedAt;
+        if (wait > COSMETIC_MAX_AGE_MS) {
+          this._deferredCosmetic.delete(key);
+          this.backpressureStats.dropped++;
+          this.backpressureStats.staleDropped++;
+          continue;
+        }
+        if (sent >= MAX_COSMETIC_SENDS_PER_TURN) {
+          this.backpressureStats.cappedTurns++;
+          break;
+        }
+        this._deferredCosmetic.delete(key);
+        this.backpressureStats.totalWaitMs += wait;
+        this.backpressureStats.maxWaitMs = Math.max(this.backpressureStats.maxWaitMs, wait);
+        this.backpressureStats.flushed++;
+        this.send(row.packet);
+        sent++;
+      }
+      if (this._deferredCosmetic.size) this._scheduleCosmeticFlush();
+    }, 25);
+    this._cosmeticFlushTimer.unref?.();
+  }
+
+  backpressureSnapshot() {
+    const stats = this.backpressureStats;
+    return { ...stats, transport: this.transportKind, limits: { ...this.backpressureLimits },
+      pendingBytes: Number(this.ws?.bufferedAmount) || 0,
+      averageWaitMs: stats.flushed ? Number((stats.totalWaitMs / stats.flushed).toFixed(3)) : 0 };
   }
 
   close(reason) {
@@ -287,6 +420,13 @@ export class NetState {
   _onClose() {
     if (this._cleanupDone) return;
     this._cleanupDone = true;
+    this.ctx.connections?.delete?.(this);
+    if (this._rttTimer) clearInterval(this._rttTimer);
+    this._rttTimer = null;
+    if (this._cosmeticFlushTimer) clearTimeout(this._cosmeticFlushTimer);
+    this._cosmeticFlushTimer = null;
+    this.backpressureStats.dropped += this._deferredCosmetic.size;
+    this._deferredCosmetic.clear();
     this._closed = true;
     diagnostics.connectionClosed(this, 'socket closed');
     if (this.mobile) {
@@ -377,8 +517,15 @@ export class NetState {
     // activeGumps / activePrompts would accumulate on long-running shards
     // and, worse, a reconnecting player could inherit a dangling callback
     // from the previous login.
+    for (const entry of this.targetCallbacks?.values?.() ?? []) {
+      if (entry?.timer) clearTimeout(entry.timer);
+    }
     this.targetCallbacks?.clear?.();
+    if (this._nodeUOCapabilityTimer) clearTimeout(this._nodeUOCapabilityTimer);
+    this._nodeUOCapabilityTimer = null;
     this.activeGumps?.clear?.();
+    if (this._gumpExpiryTimer) clearTimeout(this._gumpExpiryTimer);
+    this._gumpExpiryTimer = null;
     this.activePrompts?.clear?.();
     this.openContainers?.clear?.();
     if (this.mobile) chatChannels.leaveAll(this.mobile);

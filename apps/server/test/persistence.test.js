@@ -1,12 +1,17 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { World } from '../src/world/world.js';
 import { createItem } from '../src/world/items.js';
-import { snapshotWorld, restoreWorld } from '../src/world/persistence.js';
+import { snapshotWorld, restoreWorld, saveWorldSync, loadWorldSync } from '../src/world/persistence.js';
+import { migrateSnapshot, planSnapshotMigration } from '../src/world/persistence-migrations.js';
 
 describe('world persistence', () => {
   it('round-trips CreateWorld and runtime XmlSpawner restoration markers', () => {
     const w1 = new World();
     w1._createWorldDone = true;
+    w1._createWorldVersion = 3;
     w1._xmlSpawnersApplied.add('xml-1-100-200-7');
     w1._treasureChestsApplied.add('xml-treasure-1-101-201-3-8');
 
@@ -14,6 +19,7 @@ describe('world persistence', () => {
     restoreWorld(w2, JSON.parse(JSON.stringify(snapshotWorld(w1))));
 
     expect(w2._createWorldDone).toBe(true);
+    expect(w2._createWorldVersion).toBe(3);
     expect([...w2._xmlSpawnersApplied]).toEqual(['xml-1-100-200-7']);
     expect([...w2._treasureChestsApplied]).toEqual(['xml-treasure-1-101-201-3-8']);
   });
@@ -56,6 +62,18 @@ describe('world persistence', () => {
     const w = new World();
     expect(() => restoreWorld(w, { version: 99, mobiles: [], items: [] }))
       .toThrow(/unsupported save version/);
+  });
+
+  it('dry-runs and applies legacy migrations with an explicit rollback plan', () => {
+    const legacy = { version: 0, mobiles: null, items: null };
+    const dry = migrateSnapshot(legacy, { dryRun: true });
+    expect(dry.snapshot).toBe(legacy);
+    expect(dry.plan).toMatchObject({ ok: true, from: 0, target: 1 });
+    expect(dry.plan.rollback).toMatchObject({ strategy: 'restore-backup', backupRequired: true });
+
+    const applied = migrateSnapshot(legacy);
+    expect(applied.snapshot).toMatchObject({ version: 1, mobiles: [], items: [] });
+    expect(planSnapshotMigration({ version: 99 })).toMatchObject({ ok: false, reason: 'newer-than-runtime' });
   });
 
   it('round-trips durable door state without serialising timer handles', () => {
@@ -125,5 +143,27 @@ describe('world persistence', () => {
     expect(w.mobiles.has(0x00000002)).toBe(true);
     expect(w.items.size).toBe(1);
     expect(w.items.has(0x40000004)).toBe(true);
+  });
+
+  it('recovers the last committed generation after an interrupted save', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nodeuo-save-chaos-'));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const first = new World();
+      first.createMobile({ name: 'Committed', x: 10, y: 20, z: 0, map: 1 });
+      saveWorldSync(first, dir);
+      const second = new World();
+      second.createMobile({ name: 'Interrupted', x: 30, y: 40, z: 0, map: 1 });
+      saveWorldSync(second, dir); // leaves the committed generation in .bak
+      fs.writeFileSync(path.join(dir, 'save-journal.json'), JSON.stringify({ generation: 3, status: 'writing' }));
+
+      const recovered = new World();
+      expect(loadWorldSync(recovered, dir)).toBe(true);
+      expect([...recovered.mobiles.values()].map((mob) => mob.name)).toContain('Committed');
+      expect([...recovered.mobiles.values()].map((mob) => mob.name)).not.toContain('Interrupted');
+    } finally {
+      warn.mockRestore();
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

@@ -93,7 +93,7 @@ export class CommandPanel {
     el.id = 'uo-cmd-panel';
     el.className = 'uo-panel uo-command-panel';
     el.style.cssText = `
-      position: fixed; top: 8px; right: 326px; bottom: 60px; z-index: 9300;
+      position: fixed; top: 8px; right: 8px; bottom: calc(50vh + 4px); z-index: 9300;
       width: 300px; max-height: none;
       box-sizing: border-box;
       background: linear-gradient(180deg, rgba(24, 27, 31, 0.96), rgba(12, 14, 17, 0.94));
@@ -163,7 +163,7 @@ export class CommandPanel {
       this._access_el.style.display = 'none';
     } else {
       this._el.style.width = '300px';
-      this._el.style.bottom = '60px';
+      this._el.style.bottom = 'calc(50vh + 4px)';
       this._body.style.display = 'flex';
       this._collapse_el.textContent = '▶';
       this._title_el.style.display = '';

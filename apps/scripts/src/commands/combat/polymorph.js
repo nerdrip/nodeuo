@@ -6,6 +6,7 @@
 
 import { normalizeSkillValue } from '../../_rules.js';
 import { allMobiles } from '../../_spatial.js';
+import { equipmentForMobile } from '../../_equipment.js';
 
 const FORMS = {
   cat:        { body: 0x00C9, name: 'cat' },
@@ -90,7 +91,7 @@ function broadcastBody(api, mob) {
     serial: mob.serial, body: mob.body, x: mob.x, y: mob.y, z: mob.z,
     direction: mob.direction ?? 0, hue: mob.hue ?? 0,
     flags: mob.flags ?? 0, notoriety: mob.notoriety ?? 1,
-    equipment: [],
+    equipment: equipmentForMobile(api, mob, { paperdollOnly: true }),
   });
   for (const m of allMobiles(api)) {
     if (!m.client || m === mob) continue;

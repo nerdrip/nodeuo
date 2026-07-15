@@ -5,8 +5,42 @@
 //
 // Returns the spawned mob (or null on failure).
 
-import { broadcastSound, clientsNear } from './_helpers.js';
+import { broadcastSound, clientsNear, skillValue } from './_helpers.js';
 import { createMobile, destroyMobileBySerial } from '../_mobiles.js';
+import { allMobiles } from '../_spatial.js';
+
+const SUMMON_OFFSETS = [
+  [1, 0], [1, 1], [0, 1], [-1, 1],
+  [-1, 0], [-1, -1], [0, -1], [1, -1],
+  [2, 0], [0, 2], [-2, 0], [0, -2],
+];
+
+/** ServUO SpellHelper.Summon does not display a placement cursor; it finds a
+ * legal tile near the caster. Preserve that behavior and avoid materialising
+ * pets inside a wall or on top of another mobile. Explicit spots (EV) are
+ * validated but are not silently moved away from the selected tile. */
+function findSummonSpot(api, caster, requested = null) {
+  const base = requested ?? caster;
+  const facet = base.map ?? caster.map ?? 1;
+  const candidates = requested
+    ? [[base.x | 0, base.y | 0, base.z ?? caster.z]]
+    : SUMMON_OFFSETS.map(([dx, dy]) => [caster.x + dx, caster.y + dy, caster.z]);
+  const resolve = api.game?.movement?.findStandingZ;
+  for (const [x, y, requestedZ] of candidates) {
+    let occupied = false;
+    for (const other of allMobiles(api)) {
+      if (other.map === facet && other.x === x && other.y === y && (other.hp ?? 1) > 0) {
+        occupied = true;
+        break;
+      }
+    }
+    if (occupied) continue;
+    const z = resolve ? resolve(facet, x, y, requestedZ) : requestedZ;
+    if (z == null) continue;
+    return { x, y, z, map: facet };
+  }
+  return null;
+}
 
 /** Fallback path: if `api.ctx.spawnFactory` returned null we drop down
  *  to manual createMobile using the registered template directly. The
@@ -73,7 +107,18 @@ export function summonOne(api, ctx, opts) {
     return null;
   }
   const factory = api.ctx?.spawnFactory;
-  const spot = opts.spot ?? { x: caster.x + 1, y: caster.y, z: caster.z, map: caster.map ?? 1 };
+  const picked = opts.spot ?? ctx.target?.entity ?? ctx.target ?? null;
+  const requestedSpot = picked && Number.isFinite(picked.x) && Number.isFinite(picked.y)
+    ? {
+        x: picked.x | 0, y: picked.y | 0, z: picked.z ?? caster.z,
+        map: picked.map ?? caster.map ?? 1,
+      }
+    : null;
+  const spot = findSummonSpot(api, caster, requestedSpot);
+  if (!spot) {
+    ctx.state.sendSystemMessage?.('There is no room for the summoned creature.');
+    return null;
+  }
   // Try the registered factory first (`npcs/aggressive.js` wires this with
   // gold/loot/AI hookup). When it returns null — happens when the wrapper
   // bails on an edge case OR the script-loaded api.ctx reference drifted —
@@ -91,6 +136,7 @@ export function summonOne(api, ctx, opts) {
     ctx.state.sendSystemMessage(`Your summoning fails (${opts.kind}: ${reason}).`);
     return null;
   }
+  mob.kind ||= opts.kind;
   mob.summoned = true;
   mob.summonedBy = caster.serial >>> 0;
   if (opts.aggressive) {
@@ -118,6 +164,8 @@ export function summonOne(api, ctx, opts) {
     mob.controlTarget = caster.serial >>> 0;
     mob.team = caster.serial >>> 0;
     mob.notoriety = 1;                                  // friendly to caster
+    mob.aiBehavior = 'pet';
+    mob.petCommand = 'follow';
     api.ai?.attach?.(mob, 'pet', { command: 'follow', targetSerial: caster.serial });
   }
   mob._followerCost = followerCost;
@@ -142,7 +190,18 @@ export function summonOne(api, ctx, opts) {
       m.client.send(refresh);
     }
   }
-  setTimeout(() => {
+  const magery = skillValue(caster, 26);
+  // ServUO duration: (2 * Magery.Fixed) / 5 seconds. Fixed is skill*10,
+  // therefore a 100.0 mage receives 400 seconds rather than a fixed 120.
+  const durationMs = opts.durationMs ?? Math.max(10, magery || 30) * 4_000;
+  mob.summonedUntil = Date.now() + durationMs;
+  const registerSummon = api.systems?.summons?.registerSummon;
+  if (registerSummon) {
+    // Production uses the indexed 1 Hz sweep: one timer for the entire shard.
+    registerSummon(api.world, mob);
+  } else {
+    // Isolated script harnesses do not wire the summon system.
+    setTimeout(() => {
     try {
       // Audit #31 P1 #4 — was `api.world.mobiles.delete(mob.serial)`, a
       // raw storage drop that orphaned reverse-parent index entries
@@ -165,6 +224,7 @@ export function summonOne(api, ctx, opts) {
       }
     } catch { /* gone */ }
     caster.client?.sendSystemMessage?.('Your summoning returns to the ether.');
-  }, opts.durationMs ?? 120_000).unref?.();
+    }, durationMs).unref?.();
+  }
   return mob;
 }

@@ -97,7 +97,10 @@ export function createShimmer(width, height, opts = {}) {
   repaint();
 
   const entry = { gfx, t0: performance.now() };
-  _addShimmer(entry);
+  const reduceMotion = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
+    || globalThis.localStorage?.getItem?.('uo.reduced-motion') === '1';
+  if (reduceMotion) gfx.alpha = (SHIMMER_LOW + SHIMMER_HIGH) / 2;
+  else _addShimmer(entry);
 
   return {
     gfx,
@@ -109,7 +112,7 @@ export function createShimmer(width, height, opts = {}) {
     dispose() {
       if (disposed) return;
       disposed = true;
-      _removeShimmer(entry);
+      if (!reduceMotion) _removeShimmer(entry);
       try { gfx.destroy(); } catch { /* ignore */ }
     },
   };

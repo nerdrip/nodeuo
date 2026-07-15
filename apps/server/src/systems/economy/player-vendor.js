@@ -1,4 +1,5 @@
 import { setItemParent } from '../../world/items.js';
+import { runtimeGovernor } from '../runtime-governor.js';
 
 // Player Vendor system — players hire NPC vendors to sell their goods
 // while they are offline. Mirrors ServUO `Mobiles/Vendors/PlayerVendor.cs`
@@ -75,6 +76,8 @@ export function placeVendor(world, owner, opts = {}) {
     homeX: x, homeY: y, homeZ: z, homeMap: map,
     abandonAt: null,
     rented: !!opts.rented,
+    public: opts.public !== false,
+    allowedBuyers: new Set(opts.allowedBuyers ?? []),
   };
   _vendors.add(vendor);
   return vendor;
@@ -109,20 +112,47 @@ export function removeStock(vendor, itemSerial) {
 /** Buy an item from the vendor — gold is debited from the buyer's pack
  *  (caller responsible) and credited to vendor's bankBalance. */
 export function buyItem(world, vendor, buyer, itemSerial) {
-  if (!vendor?.playerVendor) return { ok: false, reason: 'no-vendor' };
+  const tx = runtimeGovernor.transactions.begin('vendor', {
+    correlationId: `vendor:${vendor?.serial ?? 0}:${buyer?.serial ?? 0}:${Date.now().toString(36)}`,
+    vendor: vendor?.serial >>> 0, buyer: buyer?.serial >>> 0, item: itemSerial >>> 0,
+  });
+  const fail = (reason) => { runtimeGovernor.transactions.rollback(tx, reason); return { ok: false, reason }; };
+  if (!vendor?.playerVendor) return fail('no-vendor');
+  if (!buyer || vendor.playerVendor.ownerSerial === buyer.serial) return fail('owner-cannot-buy');
+  if ((vendor.map ?? 1) !== (buyer.map ?? 1)
+      || Math.max(Math.abs((vendor.x | 0) - (buyer.x | 0)), Math.abs((vendor.y | 0) - (buyer.y | 0))) > 3) {
+    return fail('out-of-range');
+  }
+  if (!vendor.playerVendor.public && !vendor.playerVendor.allowedBuyers?.has?.(buyer.serial)) {
+    return fail('access-denied');
+  }
   const entry = vendor.playerVendor.items.get(itemSerial);
-  if (!entry) return { ok: false, reason: 'no-item' };
+  if (!entry) return fail('no-item');
   // Gold check is the caller's job (player command verifies + debits
   // the buyer's pack). We just pull the item off the vendor and credit.
   const item = world.items.get(itemSerial);
   if (!item) {
     vendor.playerVendor.items.delete(itemSerial);
-    return { ok: false, reason: 'item-vanished' };
+    return fail('item-vanished');
   }
   vendor.playerVendor.items.delete(itemSerial);
   vendor.playerVendor.bankBalance += entry.price;
+  runtimeGovernor.transactions.item(tx, item.serial, 'transfer', { vendor: vendor.serial, buyer: buyer.serial, price: entry.price });
+  runtimeGovernor.transactions.commit(tx);
   // Caller will reparent the item to buyer's pack.
   return { ok: true, entry, item };
+}
+
+/** Restore a purchase whose inventory/payment commit failed. */
+export function rollbackPurchase(world, vendor, result) {
+  if (!vendor?.playerVendor || !result?.entry || !result?.item) return false;
+  vendor.playerVendor.items.set(result.entry.serial, result.entry);
+  vendor.playerVendor.bankBalance = Math.max(0, vendor.playerVendor.bankBalance - (result.entry.price | 0));
+  setItemParent(world, result.item, vendor.serial);
+  const tx = runtimeGovernor.transactions.begin('vendor-rollback', { vendor: vendor.serial >>> 0, item: result.item.serial >>> 0 });
+  runtimeGovernor.transactions.item(tx, result.item.serial, 'restore', { parent: vendor.serial });
+  runtimeGovernor.transactions.rollback(tx, 'purchase commit failed');
+  return true;
 }
 
 /** Owner adds gold to the vendor's bank. */
@@ -161,6 +191,15 @@ export function browseSnapshot(vendor) {
       description: e.description ?? '',
     })),
   };
+}
+
+export function canBrowse(vendor, buyer) {
+  const pv = vendor?.playerVendor;
+  if (!pv || !buyer) return false;
+  if (pv.ownerSerial === buyer.serial) return true;
+  if ((vendor.map ?? 1) !== (buyer.map ?? 1)
+      || Math.max(Math.abs((vendor.x | 0) - (buyer.x | 0)), Math.abs((vendor.y | 0) - (buyer.y | 0))) > 3) return false;
+  return pv.public !== false || pv.allowedBuyers?.has?.(buyer.serial);
 }
 
 /**

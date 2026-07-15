@@ -85,8 +85,8 @@ class CounterSlot extends Control {
   }
   onMouseEnter() { this._draw(true); }
   onMouseLeave() { this._draw(false); }
-  onClick(e) {
-    if (e?.button === 2) { this.bind(null); this._onSet?.(this.slotIdx, null); return; }
+  onClick(button) {
+    if (button === 2) { this.bind(null); this._onSet?.(this.slotIdx, null); return; }
     // Bind from currently-held item (drag-drop manager).
     const held = dragDrop.held;
     if (held && held.itemId) {

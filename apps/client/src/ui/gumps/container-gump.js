@@ -11,6 +11,7 @@
 // Wire layout unchanged: (gridX, gridY) carry pixel offsets relative
 // to the content area. Server stores them, we round-trip them.
 
+import { Graphics } from 'pixi.js';
 import { WindowGump } from './window-gump.js';
 import { Label } from '../controls/label.js';
 import { ItemPic } from '../controls/item-pic.js';
@@ -20,7 +21,7 @@ import { world } from '../../world/world.js';
 import { dragDrop } from '../../managers/drag-drop.js';
 import { assets } from '../../assets/asset-manager.js';
 import { net } from '../../net/net-client.js';
-import { buildSecureTrade } from '../../net/outgoing.js';
+import { buildSecureTrade, buildPopupMenuRequest } from '../../net/outgoing.js';
 import { profile } from '../../managers/profile-manager.js';
 import { targetManager } from '../../managers/target-manager.js';
 import { Control } from '../control.js';
@@ -28,6 +29,7 @@ import { SplitMenuGump } from './split-menu-gump.js';
 import { uiManagerInstance } from '../ui-manager-singleton.js';
 import { containerManager } from '../../managers/container-manager.js';
 import { displayItemIdForAmount } from '../../shared/stack-graphics.js';
+import { tooltips } from '../../managers/tooltip-manager.js';
 
 // Slot grid sizing. Cell is 1 px larger than the item box to leave a
 // visible gutter between adjacent slots. CONTENT_W/H derived so the
@@ -127,24 +129,14 @@ class ItemEntry extends Control {
     if (!it) return;
     this.width = ITEM_BOX;
     this.height = ITEM_BOX;
-    const tile = new ItemPic(it.itemId, { hue: it.hue, amount: it.amount });
+    const tile = new ItemPic(it.itemId, {
+      hue: it.hue,
+      amount: it.amount,
+      maxWidth: ITEM_BOX,
+      maxHeight: ITEM_BOX,
+    });
     tile.setPosition(0, 0);
     tile.acceptMouseInput = false;
-    let tries = 0;
-    const fitTick = () => {
-      if (!tile?.node || tile.node.destroyed) return;
-      const w = tile.width, h = tile.height;
-      if (w > 0 && h > 0) {
-        const fit = Math.min(ITEM_BOX / w, ITEM_BOX / h, 1);
-        if (fit < 1) tile.node.scale.set(fit, fit);
-        const dw = w * Math.min(fit, 1);
-        const dh = h * Math.min(fit, 1);
-        tile.setPosition(((ITEM_BOX - dw) / 2) | 0, ((ITEM_BOX - dh) / 2) | 0);
-        return;
-      }
-      if (tries++ < 20) requestAnimationFrame(fitTick);
-    };
-    requestAnimationFrame(fitTick);
     this.add(tile);
     this.tile = tile;
     this._syncAmount();
@@ -183,6 +175,24 @@ class ItemEntry extends Control {
     }
     this._render();
   }
+
+  onMouseEnter(e) {
+    const it = this.item;
+    if (!it?.serial) return;
+    // Container packets do not carry a display name. Ask for the full OPL,
+    // but give immediate useful feedback from the local item/tiledata name
+    // instead of showing nothing until the network round-trip completes.
+    const tileName = (assets.tiledata?.statics?.[it.itemId | 0]?.name ?? '').trim();
+    const name = (it.name ?? '').trim() || tileName || `item 0x${(it.itemId | 0).toString(16)}`;
+    tooltips.showImmediate?.(
+      it.serial >>> 0,
+      e?.global?.x ?? e?.clientX ?? 0,
+      e?.global?.y ?? e?.clientY ?? 0,
+      name,
+    );
+  }
+
+  onMouseLeave() { tooltips.scheduleHide?.(280); }
 }
 
 export class ContainerGump extends WindowGump {
@@ -199,7 +209,8 @@ export class ContainerGump extends WindowGump {
     const natural = assets.gumpSize?.(gumpId);
     const gridW = PAD * 2 + CONTENT_W;
     const gridH = HEADER_H + PAD * 2 + CONTENT_H;
-    const useNative = !!natural;
+    const gridMode = profile.get?.('containers.layoutMode') === 'grid';
+    const useNative = !!natural && !gridMode;
     // When we have native art, render at the sprite's NATURAL size —
     // never stretched. Stretching invalidates the per-gump interior
     // bounds (which are in native pixel space), so a 174-px backpack
@@ -220,6 +231,7 @@ export class ContainerGump extends WindowGump {
     });
     this.containerSerial = containerSerial >>> 0;
     this._gumpId = gumpId;
+    this._gridMode = gridMode;
     /** Interior rect inside which items live. Resolved against the
      *  per-gump table; falls back to a centred rect with ~16 px
      *  chrome inset for unknown ids (custom-shard containers etc).
@@ -235,6 +247,21 @@ export class ContainerGump extends WindowGump {
      *  coords" item arrival. Reset on full container refresh. */
     this._autoX = null;
     this._autoY = null;
+    // Grid layout is coordinate-backed, never list-order-backed.  Each item
+    // keeps an absolute slot derived from its server gridX/gridY so removing
+    // gold or equipping a robe cannot compact every item after it.  This is
+    // the Tibia-style behaviour requested by the profile option: where the
+    // user drops an item is where it remains.
+    this._gridSlotBySerial = new Map();
+    this._gridScrollRow = 0;
+    if (this._gridMode) {
+      // A clean Tibia-style slot matrix. It is presentation-only: the UO
+      // packet format and server-side gridX/gridY remain unchanged, keeping
+      // compatibility with every emulator.
+      this._gridDecor = new Graphics();
+      this._drawGridDecor();
+      this.node.addChildAt(this._gridDecor, Math.min(1, this.node.children.length));
+    }
     this.restorePosition();
     // Audit #39 client P2 #9 — `ui.containerScale` profile flag is the
     // CUO `ContainerScale` slider (Options → Gumps & Cursor). Was set
@@ -309,6 +336,12 @@ export class ContainerGump extends WindowGump {
   _gridForPixel(lx, ly) {
     const ix = (lx | 0) - this._interior.x;
     const iy = (ly | 0) - this._interior.y;
+    if (this._gridMode) {
+      const col = Math.max(0, Math.min(GRID_COLS - 1, Math.floor(ix / SLOT_W)));
+      const visibleRow = Math.max(0, Math.min(GRID_ROWS - 1, Math.floor(iy / SLOT_H)));
+      const row = visibleRow + (this._gridScrollRow | 0);
+      return { gx: col * SLOT_W, gy: row * SLOT_H };
+    }
     const gx = Math.max(0, Math.min(Math.max(0, this._interior.w - ITEM_BOX), ix));
     const gy = Math.max(0, Math.min(Math.max(0, this._interior.h - ITEM_BOX), iy));
     return { gx, gy };
@@ -320,7 +353,39 @@ export class ContainerGump extends WindowGump {
     entry.setPosition(this._interior.x + gx, this._interior.y + gy);
   }
 
+  _positionEntryAtPixel(entry, gx, gy) {
+    entry.setPosition(this._interior.x + gx, this._interior.y + gy);
+  }
+
+  _preferredGridSlot(it) {
+    const col = Math.max(0, Math.min(GRID_COLS - 1, Math.floor(Math.max(0, it.gridX | 0) / SLOT_W)));
+    const row = Math.max(0, Math.floor(Math.max(0, it.gridY | 0) / SLOT_H));
+    return row * GRID_COLS + col;
+  }
+
+  _assignGridSlot(it) {
+    const serial = it.serial >>> 0;
+    const occupied = new Set();
+    for (const [otherSerial, slot] of this._gridSlotBySerial) {
+      if ((otherSerial >>> 0) !== serial) occupied.add(slot | 0);
+    }
+    let slot = this._preferredGridSlot(it);
+    while (occupied.has(slot)) slot++;
+    this._gridSlotBySerial.set(serial, slot);
+    return slot;
+  }
+
+  _gridTotalRows() {
+    let maxSlot = -1;
+    for (const slot of this._gridSlotBySerial.values()) maxSlot = Math.max(maxSlot, slot | 0);
+    return Math.max(GRID_ROWS, Math.floor(maxSlot / GRID_COLS) + 1);
+  }
+
   _wireEntry(entry) {
+    // Item RMB is an intentional context-menu gesture, not the generic
+    // "close this gump" gesture. UIManager checks this marker before closing
+    // the parent window.
+    entry.contextMenuOnRightClick = true;
     entry.onDragStart = (btn) => {
       if (btn !== 0 || !entry.item || dragDrop.isHolding()) return;
       const layer = assets.tiledata?.statics?.[entry.item.itemId]?.layer | 0;
@@ -356,6 +421,10 @@ export class ContainerGump extends WindowGump {
     // Server will auto-merge if the held item is a stackable of the
     // same id+hue.
     entry.onClick = (btn) => {
+      if (btn === 2 && entry.item?.serial) {
+        net.send(buildPopupMenuRequest(entry.item.serial >>> 0));
+        return;
+      }
       if (btn !== 0) return;
       // While a target cursor is active, route a single click on this
       // item to `pickEntity` so commands like `[itemgump` can target
@@ -415,6 +484,11 @@ export class ContainerGump extends WindowGump {
       this.add(entry);
       this._byItem.set(it.serial >>> 0, entry);
     }
+    if (this._gridMode) {
+      this._assignGridSlot(it);
+      this._reflowGrid();
+      return;
+    }
     let { gx, gy } = posPref ?? { gx: it.gridX | 0, gy: it.gridY | 0 };
     // Items with no stored coords (gridX = gridY = 0) get the
     // auto-place cascade so loot doesn't pile up at the corner.
@@ -436,6 +510,16 @@ export class ContainerGump extends WindowGump {
     const seen = this._contentsSeen;
     seen.clear();
     this._autoX = null; this._autoY = null;     // reset auto-place cascade
+    if (this._gridMode) {
+      // Rebuild from persisted packet coordinates, not packet ordering.
+      this._gridSlotBySerial.clear();
+      // A deterministic serial tiebreak only matters for legacy items that
+      // occupy the exact same coordinate; non-colliding user placement is
+      // never reordered.
+      for (const it of [...items].sort((a, b) => (a.serial >>> 0) - (b.serial >>> 0))) {
+        this._assignGridSlot(it);
+      }
+    }
     for (const it of items) {
       const serial = it.serial >>> 0;
       seen.add(serial);
@@ -452,12 +536,14 @@ export class ContainerGump extends WindowGump {
       this._byItem.delete(serial);
     }
     seen.clear();
+    if (this._gridMode) this._reflowGrid();
     this._refreshWeight();
   }
 
   _onUpdate(it) {
     if ((it.parent >>> 0) !== this.containerSerial) return;
     this._addOrUpdate(it);
+    if (this._gridMode) this._reflowGrid();
     this._refreshWeight();
   }
 
@@ -466,7 +552,74 @@ export class ContainerGump extends WindowGump {
     if (!entry) return;
     entry.dispose();
     this._byItem.delete(serial >>> 0);
+    if (this._gridMode) {
+      this._gridSlotBySerial.delete(serial >>> 0);
+      this._reflowGrid();
+    }
     this._refreshWeight();
+  }
+
+  _reflowGrid() {
+    if (!this._gridMode) return;
+    const totalRows = this._gridTotalRows();
+    const maxScroll = Math.max(0, totalRows - GRID_ROWS);
+    this._gridScrollRow = Math.max(0, Math.min(maxScroll, this._gridScrollRow | 0));
+    const firstVisible = this._gridScrollRow * GRID_COLS;
+    const lastVisible = firstVisible + GRID_COLS * GRID_ROWS;
+    const placed = [...this._gridSlotBySerial.entries()].sort((a, b) => a[1] - b[1]);
+    for (const [serial, absolute] of placed) {
+      const entry = this._byItem.get(serial >>> 0);
+      if (!entry) continue;
+      const visible = absolute >= firstVisible && absolute < lastVisible;
+      entry.visible = visible;
+      entry.node.visible = visible;
+      if (!visible) continue;
+      const local = absolute - firstVisible;
+      const col = local % GRID_COLS;
+      const row = Math.floor(local / GRID_COLS);
+      const absoluteRow = Math.floor(absolute / GRID_COLS);
+      entry.gridX = col * SLOT_W;
+      entry.gridY = absoluteRow * SLOT_H;
+      this._positionEntryAtPixel(entry, col * SLOT_W, row * SLOT_H);
+    }
+    this._drawGridDecor();
+  }
+
+  _drawGridDecor() {
+    if (!this._gridDecor) return;
+    const g = this._gridDecor;
+    g.clear();
+    for (let row = 0; row < GRID_ROWS; row++) {
+      for (let col = 0; col < GRID_COLS; col++) {
+        g.roundRect(
+          this._interior.x + col * SLOT_W,
+          this._interior.y + row * SLOT_H,
+          ITEM_BOX, ITEM_BOX, 3,
+        ).fill({ color: 0x0b1017, alpha: 0.72 })
+          .stroke({ width: 1, color: 0x5b4b31, alpha: 0.76 });
+      }
+    }
+    const totalRows = this._gridTotalRows();
+    if (totalRows <= GRID_ROWS) return;
+    const trackX = this._interior.x + this._interior.w - 5;
+    const trackY = this._interior.y + 2;
+    const trackH = this._interior.h - 4;
+    const thumbH = Math.max(18, Math.round(trackH * GRID_ROWS / totalRows));
+    const maxScroll = totalRows - GRID_ROWS;
+    const thumbY = trackY + Math.round((trackH - thumbH) * (this._gridScrollRow / maxScroll));
+    g.roundRect(trackX, trackY, 4, trackH, 2).fill({ color: 0x05070a, alpha: 0.8 });
+    g.roundRect(trackX, thumbY, 4, thumbH, 2).fill({ color: 0xc59b47, alpha: 0.95 });
+  }
+
+  onWheel(deltaY) {
+    if (!this._gridMode) return;
+    const direction = deltaY > 0 ? 1 : -1;
+    const totalRows = this._gridTotalRows();
+    const next = Math.max(0, Math.min(totalRows - GRID_ROWS, this._gridScrollRow + direction));
+    if (next === this._gridScrollRow) return;
+    tooltips.hide();
+    this._gridScrollRow = next;
+    this._reflowGrid();
   }
 
   /** Sum tiledata.weight × amount of every item parented to this

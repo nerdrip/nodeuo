@@ -1,5 +1,8 @@
 import { UPDATE_RANGE } from './world/visibility.js';
-import { resolveStandingZ as resolveWorldStandingZ } from './world/movement.js';
+import {
+  findStandingZ as findWorldStandingZ,
+  resolveStandingZ as resolveWorldStandingZ,
+} from './world/movement.js';
 import { createItem as createWorldItem } from './world/items.js';
 
 function serialOf(v) {
@@ -349,6 +352,11 @@ export function createScriptGameApi({
   function resolveStandingZ(facet, x, y, requestedZ = 0) {
     return query?.resolveStandingZ?.(facet, x, y, requestedZ)
         ?? resolveWorldStandingZ(facet, x, y, requestedZ);
+  }
+
+  function findStandingZ(facet, x, y, requestedZ = 0) {
+    if (query?.findStandingZ) return query.findStandingZ(facet, x, y, requestedZ);
+    return findWorldStandingZ(facet, x, y, requestedZ);
   }
 
   function* childrenOf(parentOrSerial) {
@@ -842,6 +850,7 @@ export function createScriptGameApi({
 
   const movement = Object.freeze({
     resolveStandingZ,
+    findStandingZ,
   });
 
   return Object.freeze({

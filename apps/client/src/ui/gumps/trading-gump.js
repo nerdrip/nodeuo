@@ -26,6 +26,7 @@ import { buildSecureTrade } from '../../net/outgoing.js';
 import { bus } from '../../core/event-bus.js';
 import { world } from '../../world/world.js';
 import { Control } from '../control.js';
+import { tooltips } from '../../managers/tooltip-manager.js';
 
 const PANE_W = 200;
 const PANE_H = 240;
@@ -36,7 +37,7 @@ class TradeRow extends Control {
     super();
     this.width = PANE_W - 16;
     this.height = ROW_H;
-    this.acceptMouseInput = false;
+    this.acceptMouseInput = true;
     this._frame = new Graphics();
     this._frame.rect(0, 0, this.width, this.height)
       .fill({ color: 0x161c2a, alpha: 0.85 })
@@ -53,10 +54,15 @@ class TradeRow extends Control {
     this._amount = new Label('', { fontSize: 10, hue: 0xc0b890 });
     this._amount.setPosition(40, 20);
     this.add(this._amount);
+    this._changed = new Graphics();
+    this.node.addChildAt(this._changed, 1);
     this.update(item);
   }
 
   update(item) {
+    const changed = this.item && (
+      this.item.itemId !== item.itemId || this.item.hue !== item.hue || this.item.amount !== item.amount
+    );
     this.item = item;
     if (item.itemId) {
       this._pic.node.visible = true;
@@ -68,13 +74,35 @@ class TradeRow extends Control {
     this._lbl.setText(item.name || `Item #${item.itemId?.toString(16) ?? '?'}`);
     if (item.amount > 1) {
       this._amount.node.visible = true;
-      this._amount.setText(`×${item.amount}`);
+      const weight = Number.isFinite(item.weight) ? ` · ${item.weight} stones` : '';
+      this._amount.setText(`×${item.amount}${weight}`);
     } else {
-      this._amount.node.visible = false;
+      this._amount.node.visible = Number.isFinite(item.weight);
+      if (Number.isFinite(item.weight)) this._amount.setText(`${item.weight} stones`);
     }
+    if (changed || !this._seenOnce) {
+      this._changed.clear().rect(0, 0, this.width, this.height).fill({ color: 0xf0b84b, alpha: 0.17 });
+      this._changedUntil = performance.now() + 1800;
+    }
+    this._seenOnce = true;
     this.visible = true;
     this.node.visible = true;
   }
+
+  setCompact(compact) {
+    this.height = compact ? 54 : ROW_H;
+    this.width = compact ? 58 : PANE_W - 16;
+    this._frame.clear().rect(0, 0, this.width, this.height)
+      .fill({ color: 0x161c2a, alpha: 0.85 }).stroke({ width: 1, color: 0x6a4a18 });
+    this._lbl.node.visible = !compact;
+    this._amount.setPosition(compact ? 2 : 40, compact ? 40 : 20);
+  }
+
+  onMouseEnter(e) {
+    if (!this.item?.serial) return;
+    tooltips.showImmediate?.(this.item.serial, e?.global?.x ?? 0, e?.global?.y ?? 0, this._lbl._cachedText);
+  }
+  onMouseLeave() { tooltips.scheduleHide?.(280); }
 }
 
 export class TradingGump extends WindowGump {
@@ -96,6 +124,11 @@ export class TradingGump extends WindowGump {
     this._ourRowPool = [];
     this._theirRowPool = [];
     this._renderSeen = new Set();
+    this._viewMode = globalThis.localStorage?.getItem?.('uo.trade.view') === 'grid' ? 'grid' : 'list';
+    this._lastMutationAt = 0;
+    this._confirmEmptyUntil = 0;
+    this.transactionId = String(info.transactionId ?? '');
+    this.valuation = info.valuation ?? null;
     this._buildPanes();
     this._buildFooter();
     this._unsubs = [
@@ -130,17 +163,48 @@ export class TradingGump extends WindowGump {
 
     this._theirPane = new ScrollArea({ width: PANE_W, height: PANE_H });
     this.addContent(this._theirPane, PANE_W + 16, 44);
+    this._viewButton = new Button({
+      normalGumpId: 0, pressedGumpId: 0, width: 64, height: 20,
+      label: this._viewMode === 'grid' ? 'Grid' : 'List', flat: true,
+      action: ButtonAction.Activate,
+    });
+    this._viewButton.setPosition(PANE_W - 60, 25);
+    this._viewButton.onClick = () => {
+      this._viewMode = this._viewMode === 'grid' ? 'list' : 'grid';
+      globalThis.localStorage?.setItem?.('uo.trade.view', this._viewMode);
+      this._viewButton.setLabel(this._viewMode === 'grid' ? 'Grid' : 'List');
+      this._refreshFromWorld(this._ourPane, this.ourSerial, this._ourRows, this._ourRowPool);
+      this._refreshFromWorld(this._theirPane, this.otherSerial, this._theirRows, this._theirRowPool);
+    };
+    this.add(this._viewButton);
   }
 
   _buildFooter() {
-    this._ourCheck = new Checkbox({ label: 'I accept', checked: false });
+    this._ourCheck = new Checkbox({ checked: false });
     this._ourCheck.setPosition(8, PANE_H + 50);
     this._ourCheck.onToggle = (v) => this._sendAccept(v);
     this.add(this._ourCheck);
+    this._ourCheckLabel = new Label('I accept', { fontSize: 12, hue: 0xfff0c0 });
+    this._ourCheckLabel.setPosition(32, PANE_H + 51);
+    this._ourCheckLabel.acceptMouseInput = false;
+    this.add(this._ourCheckLabel);
 
     this._theirState = new Label('Partner: WAITING', { fontSize: 11, hue: 0xc0a070 });
     this._theirState.setPosition(PANE_W + 16, PANE_H + 52);
     this.add(this._theirState);
+
+    this._warning = new Label('Offers change acceptance automatically.', { fontSize: 9, hue: 0xe3b95c });
+    this._warning.setPosition(8, PANE_H + 72);
+    this.add(this._warning);
+    if (this.transactionId) {
+      const audit = new Label(`Trade ${this.transactionId.slice(0, 20)}`, { fontSize: 9, hue: 0x8fa7c8 });
+      audit.setPosition(PANE_W + 16, PANE_H + 72);
+      this.add(audit);
+    } else if (this.valuation != null) {
+      const estimate = new Label(`Server estimate: ${this.valuation}`, { fontSize: 9, hue: 0x8fa7c8 });
+      estimate.setPosition(PANE_W + 16, PANE_H + 72);
+      this.add(estimate);
+    }
 
     const cancel = new Button({
       normalGumpId: 0x0FA8, pressedGumpId: 0x0FAA,
@@ -153,6 +217,12 @@ export class TradingGump extends WindowGump {
   }
 
   _sendAccept(accept) {
+    if (accept && this._ourRows.size === 0 && Date.now() > this._confirmEmptyUntil) {
+      this._confirmEmptyUntil = Date.now() + 2500;
+      this._warning.setText('Empty offer — click accept again to confirm.');
+      this._ourCheck.setChecked(false, { silent: true });
+      return;
+    }
     this.ourAccept = !!accept;
     try { net.send(buildSecureTrade({ action: 0x02, serial: this.containerSerial, accept })); }
     catch { /* socket transient */ }
@@ -170,7 +240,9 @@ export class TradingGump extends WindowGump {
     if (e.action === 0x02) {
       this.otherAccept = !!e.otherAccept;
       this.ourAccept   = !!e.ourAccept;
+      this._ourCheck.setChecked(this.ourAccept, { silent: true });
       this._theirState.setText(`Partner: ${this.otherAccept ? 'ACCEPTED' : 'WAITING'}`);
+      this._theirState.setHue?.(this.otherAccept ? 0x8ee89b : 0xc0a070);
     }
     if (e.action === 0x03) {
       this.ourGold = e.ourGold | 0;
@@ -181,19 +253,33 @@ export class TradingGump extends WindowGump {
 
   _onContents({ containerSerial, items }) {
     if ((containerSerial >>> 0) === this.ourSerial) {
+      this._resetLocalAcceptance();
       this._renderPane(this._ourPane, items, this._ourRows, this._ourRowPool);
     } else if ((containerSerial >>> 0) === this.otherSerial) {
+      this._resetLocalAcceptance();
       this._renderPane(this._theirPane, items, this._theirRows, this._theirRowPool);
     }
   }
   _onItem(it) {
     // Drop-add into our pane: re-fetch contents from world.items snapshot.
     if (it.parent === this.ourSerial) {
+      this._resetLocalAcceptance();
       this._refreshFromWorld(this._ourPane, this.ourSerial, this._ourRows, this._ourRowPool);
     }
     if (it.parent === this.otherSerial) {
+      this._resetLocalAcceptance();
       this._refreshFromWorld(this._theirPane, this.otherSerial, this._theirRows, this._theirRowPool);
     }
+  }
+
+  _resetLocalAcceptance() {
+    this._lastMutationAt = Date.now();
+    this.ourAccept = false;
+    this.otherAccept = false;
+    this._ourCheck?.setChecked?.(false, { silent: true });
+    this._theirState?.setText?.('Partner: WAITING');
+    this._theirState?.setHue?.(0xc0a070);
+    this._warning?.setText?.('Offer changed — both sides must review it again.');
   }
 
   _refreshFromWorld(pane, parentSerial, rows, pool) {
@@ -210,6 +296,8 @@ export class TradingGump extends WindowGump {
     const seen = this._renderSeen;
     seen.clear();
     let y = 0;
+    let index = 0;
+    const grid = this._viewMode === 'grid';
     for (const it of items) {
       const serial = it.serial >>> 0;
       seen.add(serial);
@@ -220,8 +308,17 @@ export class TradingGump extends WindowGump {
         if (!row.parent) pane.add(row);
       }
       row.update(it);
-      row.setPosition(2, y);
-      y += ROW_H + 2;
+      row.setCompact(grid);
+      if (grid) {
+        const col = index % 3;
+        const line = Math.floor(index / 3);
+        row.setPosition(2 + col * 64, line * 60);
+        y = (line + 1) * 60;
+      } else {
+        row.setPosition(2, y);
+        y += ROW_H + 2;
+      }
+      index++;
     }
     for (const [serial, row] of rows) {
       if (seen.has(serial)) continue;

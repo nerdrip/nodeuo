@@ -19,6 +19,8 @@ const paths = {
   statics: `${root}statics${FACET}.bin`,
   landAtlas: `${root}land-atlas.json`,
   staticAtlas: `${root}static-atlas.json`,
+  texmapAtlas: `${root}texmap-atlas.json`,
+  renderer: fileURLToPath(new URL('../src/renderer/tile-renderer.js', import.meta.url)),
 };
 
 for (const path of Object.values(paths)) assert.ok(existsSync(path), `missing map QA asset: ${path}`);
@@ -27,6 +29,7 @@ const mapMeta = JSON.parse(readFileSync(paths.mapMeta));
 const staticsMeta = JSON.parse(readFileSync(paths.staticsMeta));
 const landAtlas = JSON.parse(readFileSync(paths.landAtlas));
 const staticAtlas = JSON.parse(readFileSync(paths.staticAtlas));
+const texmapAtlas = JSON.parse(readFileSync(paths.texmapAtlas));
 const map = readFileSync(paths.map);
 const staidx = readFileSync(paths.staidx);
 const statics = readFileSync(paths.statics);
@@ -89,4 +92,23 @@ for (let cy = cy0; cy <= cy1; cy++) {
 assert.ok([0x03e9, 0x03ea, 0x03eb, 0x03ec].includes(landAt(CENTER_X, CENTER_Y).id));
 assert.ok(seenStaticIds.has(0x05ce) && seenStaticIds.has(0x05cf) && seenStaticIds.has(0x05d0));
 
-console.log(`[smoke:map-coordinate] ok facet=${FACET} center=${CENTER_X},${CENTER_Y} land=${landCount} statics=${staticCount} pages=${landPages.size}+${staticPages.size}`);
+// Trinsic cliff regression from the 2026-07-12/13 screenshots. This area has
+// legitimate 35-Z corner jumps. They must remain stretched when a texmap is
+// available; flattening them exposes the blue scene background between the
+// z=-15 water and z=20 bank.
+let trinsicMaxCornerDelta = 0;
+for (let y = 2861 - 20; y <= 2861 + 20; y++) {
+  for (let x = 1914 - 20; x <= 1914 + 20; x++) {
+    const corners = [landAt(x, y), landAt(x + 1, y), landAt(x, y + 1), landAt(x + 1, y + 1)];
+    const delta = Math.max(...corners.map((t) => t.z)) - Math.min(...corners.map((t) => t.z));
+    trinsicMaxCornerDelta = Math.max(trinsicMaxCornerDelta, delta);
+  }
+}
+assert.ok(trinsicMaxCornerDelta >= 30, 'Trinsic cliff fixture lost its characteristic Z jump');
+const rendererSource = readFileSync(paths.renderer, 'utf8');
+assert.ok(rendererSource.includes('const stretched = cornersDiffer && hasTexmap;'));
+assert.ok(!rendererSource.includes('MAX_LAND_STRETCH_DELTA'), 'large authored cliffs must not be flattened');
+assert.ok(rendererSource.includes('return makeStretchedTexmap(tmTex'));
+assert.ok(texmapAtlas?.tiles && Object.keys(texmapAtlas.tiles).length > 0, 'texmap atlas must be available');
+
+console.log(`[smoke:map-coordinate] ok facet=${FACET} center=${CENTER_X},${CENTER_Y} land=${landCount} statics=${staticCount} pages=${landPages.size}+${staticPages.size} trinsicDelta=${trinsicMaxCornerDelta}`);

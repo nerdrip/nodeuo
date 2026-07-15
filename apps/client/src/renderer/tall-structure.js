@@ -100,7 +100,15 @@ export function tallStructureBoundsForPlayer(entries, playerX, playerY, playerZ,
       let hasCoverAbovePlayer = false;
       for (const entry of component) {
         bounds = mergeBounds(bounds, entry.bounds ?? tallStaticBounds(entry.x, entry.y));
-        if (!entry.isTransparent
+        // Match ClassicUO UpdateMaxDrawZ: actual cover must be on the
+        // player's cell (or the south-east roof probe), not merely somewhere
+        // inside the same component's rectangular bounds.
+        const onPlayerTile = (entry.x | 0) === px && (entry.y | 0) === py;
+        const onRoofProbe = !!entry.isRoof
+          && (entry.x | 0) === px + 1
+          && (entry.y | 0) === py + 1;
+        if ((onPlayerTile || onRoofProbe)
+            && !entry.isTransparent
             && (entry.isRoof || entry.isCeilingSurface || (entry.isWall && (entry.height | 0) >= 20))
             && (entry.z | 0) >= roofCut) hasCoverAbovePlayer = true;
       }

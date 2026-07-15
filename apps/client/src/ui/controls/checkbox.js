@@ -4,6 +4,7 @@
 
 import { Graphics } from 'pixi.js';
 import { Control } from '../control.js';
+import { GumpPic } from './gump-pic.js';
 
 export class Checkbox extends Control {
   /** @param {object} p
@@ -20,6 +21,7 @@ export class Checkbox extends Control {
     size = 18,
   } = {}) {
     super();
+    this.keyboardFocusable = true;
     this.uncheckedGump = uncheckedGump | 0;
     this.checkedGump   = checkedGump   | 0;
     this.switchId = switchId | 0;
@@ -29,6 +31,15 @@ export class Checkbox extends Control {
     this._checked = !!checked;
     this._gfx = new Graphics();
     this.node.addChild(this._gfx);
+    // Server gump layouts supply the canonical unchecked/checked art ids.
+    // Keep the vector face underneath as a robust fallback, then mount the
+    // native UO faces above it when available.
+    this._uncheckedPic = new GumpPic(this.uncheckedGump, { width: size, height: size });
+    this._checkedPic = new GumpPic(this.checkedGump, { width: size, height: size });
+    this._uncheckedPic.acceptMouseInput = false;
+    this._checkedPic.acceptMouseInput = false;
+    this.add(this._uncheckedPic);
+    this.add(this._checkedPic);
     this._draw();
   }
 
@@ -49,6 +60,9 @@ export class Checkbox extends Control {
       this._checked = !this._checked;
       this._draw();
     }
+    try { this.onToggle?.(this._checked); } catch (e) {
+      console.error('[checkbox] onToggle failed', e);
+    }
   }
 
   _exclusiveGroup() {
@@ -68,6 +82,8 @@ export class Checkbox extends Control {
   }
 
   _draw() {
+    if (this._uncheckedPic?.node) this._uncheckedPic.node.visible = !this._checked;
+    if (this._checkedPic?.node) this._checkedPic.node.visible = this._checked;
     const g = this._gfx;
     g.clear();
     if (this.kind === 'radio') {

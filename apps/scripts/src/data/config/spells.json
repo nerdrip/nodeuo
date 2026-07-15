@@ -600,7 +600,8 @@
     "mana": 40,
     "delayMs": 2500,
     "soundId": 488,
-    "requiresTarget": false,
+    "requiresTarget": true,
+    "targetKind": "location",
     "reagents": [
       "reagent-black-pearl",
       "reagent-mandrake",
@@ -735,7 +736,8 @@
     "mana": 40,
     "delayMs": 2500,
     "soundId": 488,
-    "requiresTarget": false,
+    "requiresTarget": true,
+    "targetKind": "location",
     "reagents": [
       "reagent-blood-moss",
       "reagent-mandrake",
@@ -1118,7 +1120,8 @@
     "mana": 50,
     "delayMs": 2500,
     "soundId": 488,
-    "requiresTarget": false,
+    "requiresTarget": true,
+    "targetKind": "location",
     "reagents": [
       "reagent-blood-moss",
       "reagent-mandrake",
@@ -1137,7 +1140,8 @@
     "mana": 50,
     "delayMs": 2500,
     "soundId": 488,
-    "requiresTarget": false,
+    "requiresTarget": true,
+    "targetKind": "location",
     "reagents": [
       "reagent-bat-wing",
       "reagent-mandrake",
@@ -1156,7 +1160,8 @@
     "mana": 50,
     "delayMs": 2500,
     "soundId": 488,
-    "requiresTarget": false,
+    "requiresTarget": true,
+    "targetKind": "location",
     "reagents": [
       "reagent-blood-moss",
       "reagent-mandrake",
@@ -1175,7 +1180,8 @@
     "mana": 50,
     "delayMs": 2500,
     "soundId": 488,
-    "requiresTarget": false,
+    "requiresTarget": true,
+    "targetKind": "location",
     "reagents": [
       "reagent-blood-moss",
       "reagent-mandrake",
@@ -1195,7 +1201,8 @@
     "mana": 50,
     "delayMs": 2500,
     "soundId": 488,
-    "requiresTarget": false,
+    "requiresTarget": true,
+    "targetKind": "location",
     "reagents": [
       "reagent-blood-moss",
       "reagent-mandrake",

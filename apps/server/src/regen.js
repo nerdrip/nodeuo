@@ -256,6 +256,40 @@ export function regenTick(world, elapsedMs) {
   }
 }
 
+/** Round-robin production wrapper. It caps work per event-loop turn while
+ * preserving the elapsed time for a complete pass, so a 12k-NPC world no
+ * longer creates a single 1 Hz spike and does not regenerate more slowly. */
+export function regenTickBudgeted(world, elapsedMs, maxMobiles = 1024) {
+  const budget = Math.max(1, maxMobiles | 0);
+  let state = world._regenBudgetState;
+  if (!state?.iterator) {
+    state = world._regenBudgetState = {
+      iterator: world.mobiles.values(), cycleElapsedMs: Math.max(0, elapsedMs),
+      nextCycleElapsedMs: 0, completedCycles: 0,
+    };
+  }
+  state.nextCycleElapsedMs += Math.max(0, elapsedMs);
+  const selected = [];
+  let completed = false;
+  while (selected.length < budget) {
+    const next = state.iterator.next();
+    if (next.done) { completed = true; break; }
+    selected.push(next.value);
+  }
+  if (selected.length) {
+    const view = Object.create(world);
+    view.mobiles = { values: () => selected.values() };
+    regenTick(view, Math.max(1, state.cycleElapsedMs));
+  }
+  if (completed) {
+    state.iterator = world.mobiles.values();
+    state.cycleElapsedMs = Math.max(1, state.nextCycleElapsedMs);
+    state.nextCycleElapsedMs = 0;
+    state.completedCycles++;
+  }
+  return { processed: selected.length, remaining: !completed, completedCycles: state.completedCycles };
+}
+
 /** Late-bound damage broadcaster — main.js wires this to the
  *  `combat.damage` floating-number broadcast so DoT pulses paint
  *  the same red number above the victim's head. Optional. */

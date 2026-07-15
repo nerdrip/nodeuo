@@ -221,6 +221,7 @@ class LightPoints {
       && profile.get('graphics.shadowsEnabled') !== false;
     this._useColoredLights = profile.get('graphics.useColoredLights') !== false;
     this._useDarkNights = profile.get('light.useDarkNights') !== false;
+    this._noFlicker = profile.get('graphics.noFlicker') === true;
     this._maxVisible = Number.isFinite(maxVisible)
       ? Math.max(16, Math.min(512, maxVisible | 0))
       : LIGHT_MAX_VISIBLE;
@@ -776,7 +777,7 @@ class LightPoints {
       )) continue;
       let scale = targetDiameter / Math.max(8, tex.width);
       let alpha = occlusionScalar;
-      if (flicker > 0) {
+      if (flicker > 0 && !this._noFlicker) {
         const f = Math.sin(now * 0.011 + phase)
                 + 0.45 * Math.sin(now * 0.027 + phase * 1.7);
         const wobble = f * flicker;

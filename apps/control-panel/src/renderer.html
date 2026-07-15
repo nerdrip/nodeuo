@@ -35,6 +35,7 @@
     border-bottom: 1px solid #4a3818;
     padding: 10px 12px;
     display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+    position: relative; z-index: 20;
   }
   .toolbar .grp {
     display: flex; align-items: center; gap: 6px;
@@ -78,6 +79,50 @@
   }
   .tcp-toggle:hover { color: #ffd070; border-color: #7a5a20; }
   .tcp-toggle input { margin: 0; cursor: pointer; }
+  .extract-scope { position: relative; }
+  .extract-scope > summary {
+    list-style: none; min-width: 112px; padding: 5px 9px;
+    background: #21190d; border: 1px solid #5a421b; border-radius: 3px;
+    color: #d8c89a; cursor: pointer; user-select: none; font-size: 11px;
+  }
+  .extract-scope > summary::-webkit-details-marker { display: none; }
+  .extract-scope > summary::after { content: ' ▾'; color: #9a7a35; }
+  .extract-scope[open] > summary { color: #ffd070; border-color: #8a6828; }
+  .extract-scope[open] > summary::after { content: ' ▴'; }
+  .extract-scope-panel {
+    position: absolute; top: calc(100% + 7px); right: 0; z-index: 80;
+    width: min(720px, calc(100vw - 32px)); max-height: min(620px, calc(100vh - 145px));
+    overflow: auto; padding: 12px; color: #d8c89a;
+    background: #171108; border: 1px solid #8a6828; border-radius: 5px;
+    box-shadow: 0 14px 42px #000c;
+  }
+  .extract-scope-head { display: flex; gap: 6px; align-items: center; margin-bottom: 10px; }
+  .extract-scope-head strong { color: #ffd070; margin-right: auto; }
+  .extract-scope-head button { padding: 3px 8px; font-size: 10px; }
+  .extract-groups {
+    display: grid; grid-template-columns: repeat(3, minmax(175px, 1fr)); gap: 10px;
+  }
+  .extract-group {
+    padding: 8px; background: #100c07; border: 1px solid #3a2c14; border-radius: 4px;
+  }
+  .extract-group h4 {
+    margin: 0 0 6px; color: #b89860; font-size: 10px; letter-spacing: .8px;
+    text-transform: uppercase;
+  }
+  .extract-option {
+    display: flex; align-items: center; gap: 6px; padding: 3px 2px;
+    cursor: pointer; color: #caba8c; font-size: 11px; user-select: none;
+  }
+  .extract-option:hover { color: #ffd070; background: #2a1f10; }
+  .extract-option input { margin: 0; accent-color: #b4832e; }
+  .extract-post {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    margin-top: 10px; padding-top: 10px; border-top: 1px solid #3a2c14;
+  }
+  .extract-post .hint { margin-left: auto; color: #8e805d; font-size: 10px; }
+  @media (max-width: 900px) {
+    .extract-groups { grid-template-columns: repeat(2, minmax(170px, 1fr)); }
+  }
 
   /* ---- MIDDLE — tabs + log pane ---- */
   .middle {
@@ -167,6 +212,8 @@
     background: #14100a; color: #d8c89a; border: 1px solid #4a3818;
     padding: 4px 8px; font: inherit; min-width: 0;
   }
+  .path-picker { display: flex; gap: 6px; min-width: 0; }
+  .path-picker input { flex: 1 1 auto; min-width: 0; }
   .settings-buttons {
     grid-column: 1 / -1;
     display: flex; gap: 8px; padding-top: 8px;
@@ -249,22 +296,66 @@
   </div>
   <div class="grp"><span class="grp-name">ASSETS</span>
     <span id="grp-assets" class="grp-btns"></span>
-    <!-- Audit rev.4 — opt-in ServUO content refresh. Default extract
-         pass covers only the UO_SRC → assets pipeline (~21 steps);
-         tick this checkbox to also rebuild the committed data files
-         in apps/scripts/src/data/*.json from templates/ServUO/ —
-         decoration / xmlspawner / servuo-bosses / -functional /
-         -items / -monsters / -recipes / -vendors / -quests /
-         -artifacts / -magic-gen / -item-types. Only needed after
-         pulling a fresh ServUO checkout. -->
-    <label class="tcp-toggle" title="Also refresh ServUO-derived JSON data files (decoration, xmlspawner, bosses, items, monsters, etc.) — slower, only useful after a templates/ServUO checkout bump.">
-      <input type="checkbox" id="extract-servuo" />
-      <span>ServUO data</span>
-    </label>
-    <label class="tcp-toggle" title="After Extract finishes, generate .ktx2 Basis atlases next to the PNG fallback files. Requires Khronos toktx in PATH or KTX2_TOKTX in Settings.">
-      <input type="checkbox" id="extract-ktx2" />
-      <span>KTX2 after extract</span>
-    </label>
+    <details class="extract-scope" id="extract-scope">
+      <summary id="extract-scope-summary">Scope · 23/23</summary>
+      <div class="extract-scope-panel">
+        <div class="extract-scope-head">
+          <strong>Extract Assets — select output</strong>
+          <button type="button" data-extract-preset="all">All assets</button>
+          <button type="button" data-extract-preset="none">None</button>
+          <button type="button" data-extract-preset="animations">Animations only</button>
+        </div>
+        <div class="extract-groups">
+          <section class="extract-group">
+            <h4>Graphics &amp; UI</h4>
+            <label class="extract-option"><input type="checkbox" data-extract-step="hues" checked /> Hues</label>
+            <label class="extract-option"><input type="checkbox" data-extract-step="tiledata" checked /> Tiledata</label>
+            <label class="extract-option"><input type="checkbox" data-extract-step="art" checked /> Land + static art</label>
+            <label class="extract-option"><input type="checkbox" data-extract-step="texmaps" checked /> Terrain textures</label>
+            <label class="extract-option"><input type="checkbox" data-extract-step="gumps" checked /> Gumps</label>
+            <label class="extract-option"><input type="checkbox" data-extract-step="cursors" checked /> Cursors</label>
+            <label class="extract-option"><input type="checkbox" data-extract-step="fonts" checked /> ASCII fonts</label>
+            <label class="extract-option"><input type="checkbox" data-extract-step="radarcol" checked /> Radar colours</label>
+          </section>
+          <section class="extract-group">
+            <h4>World</h4>
+            <label class="extract-option"><input type="checkbox" data-extract-step="map" checked /> Terrain maps</label>
+            <label class="extract-option"><input type="checkbox" data-extract-step="statics" checked /> World statics</label>
+            <label class="extract-option"><input type="checkbox" data-extract-step="multimap" checked /> World-map overview</label>
+            <label class="extract-option"><input type="checkbox" data-extract-step="multi" checked /> Houses / multis</label>
+            <label class="extract-option"><input type="checkbox" data-extract-step="housedata" checked /> House customization</label>
+          </section>
+          <section class="extract-group">
+            <h4>Mobiles &amp; effects</h4>
+            <label class="extract-option"><input type="checkbox" data-extract-step="anim" checked /> Mobile + equipment animations</label>
+            <label class="extract-option"><input type="checkbox" data-extract-step="animdata" checked /> Animated statics data</label>
+            <label class="extract-option"><input type="checkbox" data-extract-step="lights" checked /> Light masks</label>
+          </section>
+          <section class="extract-group">
+            <h4>Audio &amp; language</h4>
+            <label class="extract-option"><input type="checkbox" data-extract-step="music" checked /> Music</label>
+            <label class="extract-option"><input type="checkbox" data-extract-step="sounds" checked /> Sound effects</label>
+            <label class="extract-option"><input type="checkbox" data-extract-step="cliloc" checked /> Cliloc strings</label>
+            <label class="extract-option"><input type="checkbox" data-extract-step="unifont" checked /> Unicode fonts</label>
+            <label class="extract-option"><input type="checkbox" data-extract-step="speeches" checked /> NPC speech table</label>
+          </section>
+          <section class="extract-group">
+            <h4>Client definitions</h4>
+            <label class="extract-option"><input type="checkbox" data-extract-step="verdata" checked /> Verdata patches</label>
+            <label class="extract-option"><input type="checkbox" data-extract-step="professions" checked /> Professions</label>
+          </section>
+        </div>
+        <div class="extract-post">
+          <label class="extract-option" title="Refresh ServUO-derived JSON files under apps/scripts/src/data. Off by default.">
+            <input type="checkbox" id="extract-servuo" /> <strong>ServUO data</strong>
+          </label>
+          <label class="extract-option" title="Generate KTX2/Basis atlases after extraction. Requires Khronos toktx.">
+            <input type="checkbox" id="extract-ktx2" /> KTX2 after extract
+          </label>
+          <span class="hint">Everything defaults ON · ServUO data defaults OFF</span>
+        </div>
+      </div>
+    </details>
     <!-- Live progress for the extractor — updates from per-step log lines. -->
     <span id="extract-progress" class="ext-prog"></span>
   </div>
@@ -311,19 +402,24 @@ welcome — pick a service from the top toolbar to start it.
                                   tab see a top-right "⚙ Admin Panel"
                                   pill that opens :2596 in a new tab.
                                   Untick "+ Admin" for thin Vite-only.
-  • Extract assets (one-shot)   — UO mul/uop → apps/client/public/assets
+  • Extract Assets (one-shot)   — UO mul/uop → apps/client/public/assets
                                   (hues/tiledata/art/gumps/cursors/fonts/
                                   music/sounds/radarcol/texmaps/map/
                                   statics/anim/animdata/multi/cliloc/
-                                  housedata/lights/verdata/professions/
-                                  speeches). 21 stałych kroków. Tick
-                                  "+ ServUO" checkbox aby dodatkowo
-                                  odświeżyć apps/scripts/src/data/*.json
+                                   housedata/lights/verdata/professions/
+                                   speeches). Otwórz "Scope", aby zaznaczyć
+                                   dowolny zestaw kroków; wszystkie 23 assety
+                                   są domyślnie zaznaczone. "ServUO data"
+                                   pozostaje domyślnie wyłączone i odświeża
+                                   apps/scripts/src/data/*.json
                                   z templates/ServUO/ (decoration,
                                   xmlspawner, bosses, items, monsters,
                                   recipes, vendors, quests, artifacts,
                                   magic-gen, item-types). "KTX2 after extract"
                                   generuje Basis/KTX2 atlasy obok PNG fallback.
+                                   Preset "Animations only" wykonuje bezpieczną
+                                   reekstrakcję mobiles-atlas z walidacją
+                                   Bodyconv/Body/MobTypes i wszystkich ramek.
   • Tools                       — Install KTX2 Tool pobiera Khronos
                                   KTX-Software (`toktx`) dla kompresji atlasow.
   • Project                     — Install Project Deps = pnpm install.
@@ -349,7 +445,7 @@ welcome — pick a service from the top toolbar to start it.
     <span style="margin-left:auto;font-size:10px;opacity:.5" id="settings-status"></span>
   </button>
   <div class="settings-grid">
-    <div class="settings-row"><label>UO_SRC</label><input id="env-UO_SRC" /></div>
+    <div class="settings-row"><label>UO_SRC</label><div class="path-picker"><input id="env-UO_SRC" /><button type="button" onclick="chooseUoSource()">browse…</button></div></div>
     <div class="settings-row"><label>Server host</label><input id="env-UO_HOST" /></div>
     <div class="settings-row"><label>Server port</label><input id="env-UO_PORT" /></div>
     <!-- TCP port intentionally NOT in this drawer — it's controlled by
@@ -381,6 +477,19 @@ const tabs = {};            // id → { btn, pane, lines, hot }
 let activeTab = null;
 let DEFAULTS = {};
 let SERVICES_INFO = {};
+const EXTRACT_ASSET_STEPS = [
+  'hues', 'tiledata', 'art', 'texmaps', 'gumps', 'cursors', 'fonts', 'radarcol',
+  'map', 'statics', 'multimap', 'multi', 'housedata',
+  'anim', 'animdata', 'lights',
+  'music', 'sounds', 'cliloc', 'unifont', 'speeches',
+  'verdata', 'professions',
+];
+const EXTRACT_SERVUO_STEPS = [
+  'decoration', 'xmlspawner',
+  'servuo-bosses', 'servuo-functional', 'servuo-items', 'servuo-monsters',
+  'servuo-recipes', 'servuo-vendors', 'servuo-quests', 'servuo-artifacts',
+  'servuo-magic-gen', 'servuo-item-types',
+];
 
 function el(html) {
   const t = document.createElement('template');
@@ -415,6 +524,7 @@ async function init() {
   }
   loadSettings();
   initTcpToggle();
+  initExtractScope();
 }
 
 // TCP toggle persistence — three independent checkboxes (server / admin /
@@ -453,23 +563,6 @@ function initTcpToggle() {
       localStorage.setItem(key, cb.checked ? '1' : '0');
     });
   }
-  // Audit rev.4 — "+ ServUO" checkbox on the ASSETS Extract row.
-  // Persists in localStorage; default off (extractor's hot path is
-  // UO_SRC → assets, ServUO content is opt-in).
-  const servuoCb = document.getElementById('extract-servuo');
-  if (servuoCb) {
-    servuoCb.checked = localStorage.getItem('uo-extract-servuo') === '1';
-    servuoCb.addEventListener('change', () => {
-      localStorage.setItem('uo-extract-servuo', servuoCb.checked ? '1' : '0');
-    });
-  }
-  const ktx2Cb = document.getElementById('extract-ktx2');
-  if (ktx2Cb) {
-    ktx2Cb.checked = localStorage.getItem('uo-extract-ktx2') === '1';
-    ktx2Cb.addEventListener('change', () => {
-      localStorage.setItem('uo-extract-ktx2', ktx2Cb.checked ? '1' : '0');
-    });
-  }
   // Admin co-start toggle — same persistence shape, but DEFAULTS TO ON
   // when no value is stored yet (vs the TCP toggles which default to
   // off). Lives in the SERVER group: when checked, clicking Server (WS)
@@ -506,12 +599,100 @@ function refreshButtonStates() {
   });
 }
 
+function initExtractScope() {
+  const boxes = [...document.querySelectorAll('[data-extract-step]')];
+  for (const cb of boxes) {
+    const step = cb.dataset.extractStep;
+    const stored = localStorage.getItem(`uo-extract-step-${step}`);
+    // A new installation performs the complete retail-client extraction.
+    // Individual opt-outs persist, but absent keys always default ON.
+    cb.checked = stored == null ? true : stored === '1';
+    cb.addEventListener('change', () => {
+      localStorage.setItem(`uo-extract-step-${step}`, cb.checked ? '1' : '0');
+      updateExtractScopeSummary();
+    });
+  }
+
+  const servuoCb = document.getElementById('extract-servuo');
+  if (servuoCb) {
+    servuoCb.checked = localStorage.getItem('uo-extract-servuo') === '1';
+    servuoCb.addEventListener('change', () => {
+      localStorage.setItem('uo-extract-servuo', servuoCb.checked ? '1' : '0');
+      updateExtractScopeSummary();
+    });
+  }
+  const ktx2Cb = document.getElementById('extract-ktx2');
+  if (ktx2Cb) {
+    const stored = localStorage.getItem('uo-extract-ktx2');
+    // The requested default is a complete web-ready asset build: all retail
+    // steps plus KTX2, with only ServUO data excluded. Users without toktx can
+    // untick once; that preference then persists.
+    ktx2Cb.checked = stored == null ? true : stored === '1';
+    ktx2Cb.addEventListener('change', () => {
+      localStorage.setItem('uo-extract-ktx2', ktx2Cb.checked ? '1' : '0');
+      updateExtractScopeSummary();
+    });
+  }
+
+  for (const button of document.querySelectorAll('[data-extract-preset]')) {
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setExtractPreset(button.dataset.extractPreset);
+    });
+  }
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') document.getElementById('extract-scope')?.removeAttribute('open');
+  });
+  updateExtractScopeSummary();
+}
+
+function setExtractPreset(preset) {
+  const enabled = preset === 'animations' ? new Set(['anim', 'animdata']) : null;
+  for (const cb of document.querySelectorAll('[data-extract-step]')) {
+    cb.checked = preset === 'all' || (enabled?.has(cb.dataset.extractStep) ?? false);
+    localStorage.setItem(`uo-extract-step-${cb.dataset.extractStep}`, cb.checked ? '1' : '0');
+  }
+  updateExtractScopeSummary();
+}
+
+function updateExtractScopeSummary() {
+  const selected = document.querySelectorAll('[data-extract-step]:checked').length;
+  const total = document.querySelectorAll('[data-extract-step]').length;
+  const servuo = document.getElementById('extract-servuo')?.checked ? ' + ServUO' : '';
+  const ktx2 = document.getElementById('extract-ktx2')?.checked ? ' + KTX2' : '';
+  const summary = document.getElementById('extract-scope-summary');
+  if (summary) summary.textContent = `Scope · ${selected}/${total}${servuo}${ktx2}`;
+}
+
 function buildServiceOptions(id) {
   const opts = {};
   if (id !== 'extract') return opts;
-  const extraArgs = [];
-  if (document.getElementById('extract-servuo')?.checked) extraArgs.push('--include-servuo');
-  if (document.getElementById('extract-ktx2')?.checked) extraArgs.push('--ktx2');
+  const selectedAssets = EXTRACT_ASSET_STEPS.filter((step) =>
+    document.querySelector(`[data-extract-step="${step}"]`)?.checked);
+  const steps = [...selectedAssets];
+  if (document.getElementById('extract-servuo')?.checked) steps.push(...EXTRACT_SERVUO_STEPS);
+  const wantsKtx2 = !!document.getElementById('extract-ktx2')?.checked;
+  if (!steps.length && !wantsKtx2) {
+    opts.selectionError = 'Select at least one asset group, ServUO data, or KTX2 post-processing.';
+    return opts;
+  }
+
+  // Always send an explicit list: the UI is now the source of truth for the
+  // extraction scope, including a ServUO-only refresh or an animation-only
+  // rebuild. `ktx2` is a valid standalone step when no source assets were
+  // selected and operates on the already-extracted atlases.
+  const cliSteps = steps.length ? steps : ['ktx2'];
+  const extraArgs = ['--only', cliSteps.join(',')];
+  if (wantsKtx2 && steps.length) {
+    extraArgs.push('--ktx2');
+    const kinds = new Set();
+    if (selectedAssets.includes('art')) { kinds.add('land'); kinds.add('static'); }
+    if (selectedAssets.includes('texmaps')) kinds.add('texmap');
+    if (selectedAssets.includes('gumps')) kinds.add('gump');
+    if (selectedAssets.includes('anim')) kinds.add('mobiles');
+    if (kinds.size) extraArgs.push('--ktx2-only', [...kinds].join(','));
+  }
   if (extraArgs.length) opts.extraArgs = extraArgs;
   return opts;
 }
@@ -524,6 +705,13 @@ async function onServiceClick(id) {
   const svc = SERVICES_INFO[id];
   if (svc?.running) {
     selectTab(id); return;
+  }
+  const earlyServiceOptions = buildServiceOptions(id);
+  if (earlyServiceOptions.selectionError) {
+    showModal('Nothing selected', esc(earlyServiceOptions.selectionError), [
+      { label: 'OK', action: closeModal },
+    ]);
+    return;
   }
   ensureTab(id);
   selectTab(id);
@@ -569,8 +757,44 @@ async function onServiceClick(id) {
       selectTab('admin');
     }
   }
-  Object.assign(opts, buildServiceOptions(id));
-  await uo.startService(effectiveId, readEnvOverride(id), opts);
+  const serviceOptions = earlyServiceOptions;
+  if (serviceOptions.selectionError) {
+    showModal('Nothing selected', esc(serviceOptions.selectionError), [
+      { label: 'OK', action: closeModal },
+    ]);
+    return;
+  }
+  Object.assign(opts, serviceOptions);
+  const startResult = await uo.startService(effectiveId, readEnvOverride(id), opts);
+  if (startResult?.ok === false) {
+    if (id === 'extract' && /KTX2 is selected/i.test(startResult.error || '')) {
+      showModal('KTX2 encoder required', esc(startResult.error), [
+        { label: 'Install KTX2 Tool', action: async () => {
+          const installId = 'ktx2-tool-install';
+          ensureTab(installId);
+          selectTab(installId);
+          clearTabLog(installId);
+          await uo.startService(installId, readEnvOverride(installId), {});
+        } },
+        { label: 'Extract without KTX2', action: async () => {
+          const checkbox = document.getElementById('extract-ktx2');
+          if (checkbox) checkbox.checked = false;
+          localStorage.setItem('uo-extract-ktx2', '0');
+          updateExtractScopeSummary();
+          closeModal();
+          await onServiceClick('extract');
+        } },
+        { label: 'Cancel', action: closeModal },
+      ]);
+      setTimeout(refreshButtonStates, 50);
+      return;
+    }
+    showModal('Cannot start service', esc(startResult.error || 'Unknown launcher error.'), [
+      { label: 'OK', action: closeModal },
+    ]);
+    setTimeout(refreshButtonStates, 50);
+    return;
+  }
   // CLIENT TCP toggle → start the browser-bridge (ws→external tcp
   // proxy). Tab labeled "Client TCP Bridge" to distinguish from the
   // virtual server-side "Bridge" tab below.
@@ -685,6 +909,13 @@ async function restartActiveTab() {
   if (id === SERVER_TCP_TAB_ID) return;             // virtual tab — no process
   const svc = SERVICES_INFO[id];
   if (!svc) return;
+  const earlyServiceOptions = buildServiceOptions(id);
+  if (earlyServiceOptions.selectionError) {
+    showModal('Nothing selected', esc(earlyServiceOptions.selectionError), [
+      { label: 'OK', action: closeModal },
+    ]);
+    return;
+  }
   try { await uo.stopService(id); } catch { /* ignore */ }
   // Brief pause so taskkill has time to release ports before respawn.
   await new Promise((r) => setTimeout(r, 400));
@@ -702,8 +933,22 @@ async function restartActiveTab() {
     const costartCb = document.getElementById('costart-admin-with-server');
     if (costartCb?.checked) effectiveId = 'admin';
   }
-  Object.assign(opts, buildServiceOptions(id));
-  try { await uo.startService(effectiveId, readEnvOverride(id), opts); } catch (e) {
+  const serviceOptions = earlyServiceOptions;
+  if (serviceOptions.selectionError) {
+    showModal('Nothing selected', esc(serviceOptions.selectionError), [
+      { label: 'OK', action: closeModal },
+    ]);
+    return;
+  }
+  Object.assign(opts, serviceOptions);
+  try {
+    const result = await uo.startService(effectiveId, readEnvOverride(id), opts);
+    if (result?.ok === false) {
+      showModal('Cannot restart service', esc(result.error || 'Unknown launcher error.'), [
+        { label: 'OK', action: closeModal },
+      ]);
+    }
+  } catch (e) {
     console.error('[restart] failed', e);
   }
   setTimeout(refreshButtonStates, 300);
@@ -816,7 +1061,7 @@ uo.onLog(({ id, text, err }) => {
   // step tag (`[hues]`, `[anim]`, etc.) updates the green progress
   // chip so the user sees movement during a long extract instead of
   // staring at an idle button. Cleared when the process exits.
-  if (id === 'extract' || id === 'ktx2') {
+  if (id === 'extract') {
     const lines = String(text).split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
     if (lines.length) {
       const last = lines[lines.length - 1];
@@ -927,7 +1172,6 @@ const SERVICE_FIELD_WHITELIST = {
             'UO_ADMIN_HOST', 'UO_ADMIN_PORT', 'UO_ADMIN_USER', 'UO_ADMIN_PASS'],
   client:  [],
   extract: ['UO_SRC', 'KTX2_TOKTX'],
-  ktx2:    ['KTX2_TOKTX'],
   assets:  ['UO_SRC', 'KTX2_TOKTX'],
   tools:   ['KTX2_TOKTX'],
   deps:    [],
@@ -988,6 +1232,14 @@ function resetSettings() {
   applySettings(DEFAULTS);
   flashSettings('reset to defaults');
 }
+async function chooseUoSource() {
+  const input = document.getElementById('env-UO_SRC');
+  const result = await uo.chooseDirectory(input?.value || DEFAULTS.UO_SRC);
+  if (!result?.ok || !result.path || !input) return;
+  input.value = result.path;
+  localStorage.setItem('uo-UO_SRC', result.path);
+  flashSettings('UO source selected');
+}
 function flashSettings(t) {
   const s = document.getElementById('settings-status');
   s.textContent = t;
@@ -999,6 +1251,7 @@ function toggleSettings() {
 window.saveSettings = saveSettings;
 window.resetSettings = resetSettings;
 window.toggleSettings = toggleSettings;
+window.chooseUoSource = chooseUoSource;
 
 // Start collapsed by default — keeps the launcher clean unless the user
 // asks for the settings drawer.

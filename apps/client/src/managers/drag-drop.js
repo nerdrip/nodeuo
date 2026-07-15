@@ -54,12 +54,14 @@ class DragDrop {
     });
     // Client audit #6 #4 — clear on disconnect so a stale `held` from
     // the previous session doesn't emit a phantom 0x08 to the new server.
-    bus.on('net:close', () => {
+    const resetHeld = () => {
       if (this.held) {
         this.held = null;
         bus.emit('drag:rejected', null);
       }
-    });
+    };
+    bus.on('net:close', resetHeld);
+    bus.on('net:session-reset', resetHeld);
   }
 
   /** Send 0x07 + set local held state optimistically. `layer` is

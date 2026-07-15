@@ -341,17 +341,10 @@ export function resolveGroup(body, label, ctx = null) {
   return g;
 }
 
-// Per-label animation FPS. Ports CUO `MobileAnimation.cs` /
-// `MovementSpeed.cs`. The .mul format itself doesn't ship a per-frame
-// interval — speed is hard-coded by action.
-//
-// BUMPED 2026-05-11: walk/run cycles were running too SLOW vs the
-// step pacing — server WALK_DELAY=400 ms/tile, RUN_DELAY=200 ms/tile.
-// Old walk fps=8 with 6-frame cycles = 750 ms cycle while the avatar
-// crossed two tiles in 800 ms — anim looked frozen mid-step then
-// snapped on tile boundary. Tightening to 12 (walk) / 18 (run) makes
-// each tile crossing roughly = one anim cycle, which is what CUO
-// produces visually with the same source frames.
+// Per-label fallback FPS. ClassicUO advances ordinary character animations
+// at Constants.CHARACTER_ANIMATION_DELAY = 80 ms per frame; locomotion is not
+// squeezed into one complete cycle per map tile. Keeping the fallback table
+// lets non-standard actions retain an explicit cadence where useful.
 const ACTION_FPS = {
   walk:     12,
   run:      18,
@@ -365,6 +358,7 @@ const ACTION_FPS = {
   die2:      6,
 };
 const DEFAULT_FPS = 8;
+const CLASSIC_CHARACTER_FRAME_SECONDS = 0.080;
 
 export class MobileAnimation {
   constructor() {
@@ -593,13 +587,14 @@ export class MobileAnimation {
     // Custom-anim delay override (0x6E / 0xE2 per-frame ms). Falls back
     // to the per-action FPS table when none was supplied.
     const isLocomotion = this.action === Action.Walk || this.action === Action.Run;
-    const locomotionFrames = this._frameCountOverride || this._frameCount || 6;
     const interval = this._customDelayMs > 0
       ? (this._customDelayMs / 1000)
       : (isLocomotion && this.moveDurationMs > 0
-        // One complete gait cycle per tile prevents feet sliding backwards
-        // while interpolation continues (the visible "moonwalk").
-        ? (this.moveDurationMs / 1000 / Math.max(1, locomotionFrames))
+        // CUO Mobile.ProcessAnimation uses a fixed 80 ms frame timer while
+        // MovementSpeed independently controls 100/200/400 ms tile travel.
+        // Dividing one tile by all frames produced 16-33 ms frames on mounts
+        // and runs — visibly frantic legs with unchanged world throughput.
+        ? CLASSIC_CHARACTER_FRAME_SECONDS
         : (1 / (ACTION_FPS[this.action] ?? DEFAULT_FPS)));
     let advances = 0;
     while (this._frameAt >= interval && advances++ < MAX_FRAME_ADVANCES_PER_TICK) {

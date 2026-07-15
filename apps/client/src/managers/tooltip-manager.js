@@ -186,6 +186,8 @@ class TooltipManager {
     this._panel = null;
     /** @type {Set<number>} pending property requests (deduped) */
     this._pending = new Set();
+    /** @type {Map<number, number>} larger value is flushed first. */
+    this._pendingPriority = new Map();
     /** Flush window for batched 0xD6 requests. */
     this._flushTimer = null;
     this._altDown = false;
@@ -194,6 +196,9 @@ class TooltipManager {
     this._appliedStyleKey = '';
     this._requestCooldown = new Map();
     this._lastRequestCooldownGcAt = 0;
+    this._hideTimer = null;
+    this._immediateHover = null;
+    this._pinned = new Map();
 
     /** @type {Map<number, number>} per-serial revision hash from 0xDC. */
     this._revisions = new Map();
@@ -203,6 +208,14 @@ class TooltipManager {
       this._cache.set(s, lines);
       if (this._renderedSerial === s) this._renderedKey = '';
       if (revision != null) this._revisions.set(s, revision >>> 0);
+      if (this._immediateHover?.serial === s) {
+        const hover = this._immediateHover;
+        // Upgrade the local tiledata fallback to the complete OPL without
+        // requiring another pointermove. The cursor may remain perfectly
+        // still over a backpack slot after the network response arrives.
+        this._pendingHover = { serial: s, sx: hover.sx, sy: hover.sy, at: 0 };
+        this.show(s, hover.sx, hover.sy);
+      }
     });
 
     // 0xDC OPLInfo — server's "the properties of <serial> are now revision X".
@@ -255,6 +268,8 @@ class TooltipManager {
         if (have !== undefined) this.request(s, null, { force: true });
       }
     });
+    bus.on('tooltip:pin', ({ serial, x, y } = {}) => this.pin(serial, x, y));
+    bus.on('tooltip:unpin', ({ serial } = {}) => this.unpin(serial));
 
     if (typeof window !== 'undefined') {
       window.addEventListener('keydown', (e) => {
@@ -372,13 +387,18 @@ class TooltipManager {
     const s = serial >>> 0;
     if (!this._canUseSerial(s, entity)) return;
     if (this._cache.has(s)) return;
-    if (this._pending.has(s)) return;
+    const priority = clampNumber(opts.priority, 0, -10, 100, true);
+    if (this._pending.has(s)) {
+      if (priority > (this._pendingPriority.get(s) ?? 0)) this._pendingPriority.set(s, priority);
+      return;
+    }
     const now = performance.now();
     if (!opts.force) {
       const last = this._requestCooldown.get(s) || 0;
       if (last && now - last < TOOLTIP_REQUEST_COOLDOWN_MS) return;
     }
     this._pending.add(s);
+    this._pendingPriority.set(s, priority);
     this._scheduleFlush();
   }
 
@@ -403,14 +423,18 @@ class TooltipManager {
     const serials = [];
     const now = performance.now();
     this._gcRequestCooldown(now);
-    for (const pendingSerial of this._pending) {
+    const pending = [...this._pending].sort((a, b) =>
+      (this._pendingPriority.get(b) ?? 0) - (this._pendingPriority.get(a) ?? 0));
+    for (const pendingSerial of pending) {
       if (!this._canUseSerial(pendingSerial, null, settings)) {
         this._pending.delete(pendingSerial);
+        this._pendingPriority.delete(pendingSerial);
         continue;
       }
       serials.push(pendingSerial);
       this._requestCooldown.set(pendingSerial, now);
       this._pending.delete(pendingSerial);
+      this._pendingPriority.delete(pendingSerial);
       if (serials.length >= 64) break;
     }
     if (this._pending.size > 0) this._scheduleFlush();
@@ -448,17 +472,17 @@ class TooltipManager {
     if (now - this._pendingHover.at < delay) {
       // Still pre-delay — request the data so it's ready when the
       // timer elapses, but DON'T paint yet.
-      this.request(serial);
+      this.request(serial, null, { priority: 100 });
       return;
     }
     const lines = this._cache.get(s);
     if (!lines || lines.length === 0) {
-      this.request(serial);
+      this.request(serial, null, { priority: 100 });
       return;
     }
     const comparisonSerial = this._equippedComparisonSerial(s, settings);
     const comparisonLines = comparisonSerial ? this._cache.get(comparisonSerial) : null;
-    if (comparisonSerial && !comparisonLines) this.request(comparisonSerial);
+    if (comparisonSerial && !comparisonLines) this.request(comparisonSerial, null, { priority: 60 });
     const panel = this._ensurePanel(settings);
     this._panel.style.left = `${sx + 16}px`;
     this._panel.style.top  = `${sy + 16}px`;
@@ -529,7 +553,92 @@ class TooltipManager {
     panel.style.display = '';
   }
 
+  /** Immediate container tooltip: paint a local name now, request OPL, and
+   *  atomically upgrade when it arrives. Container grids reflow while items
+   *  stream in, so a small delayed hide avoids a one-frame pointer-leave
+   *  flicker without leaving stale panels behind. */
+  showImmediate(serial, sx, sy, fallbackText = '') {
+    const s = serial >>> 0;
+    this.cancelScheduledHide();
+    this._immediateHover = { serial: s, sx, sy };
+    this.request(s, null, { priority: 100 });
+    if (this._cache.has(s)) {
+      this._pendingHover = { serial: s, sx, sy, at: 0 };
+      this.show(s, sx, sy);
+      return;
+    }
+    this.showText(sx, sy, fallbackText);
+    // Keep identity after showText (which intentionally resets the generic
+    // serial field) so tooltip:lines can upgrade this exact hover.
+    this._renderedSerial = s;
+  }
+
+  cancelScheduledHide() {
+    if (!this._hideTimer) return;
+    clearTimeout(this._hideTimer);
+    this._hideTimer = null;
+  }
+
+  scheduleHide(delayMs = 220) {
+    this.cancelScheduledHide();
+    this._hideTimer = setTimeout(() => {
+      this._hideTimer = null;
+      this.hide();
+    }, Math.max(0, delayMs | 0));
+  }
+
+  /** Freeze the current OPL into a non-interactive panel. Pinned panels use
+   * pointer-events:none, so world targeting and dragging pass through them. */
+  pin(serial = this._renderedSerial, sx = null, sy = null) {
+    const s = serial >>> 0;
+    const lines = this._cache.get(s);
+    if (!s || !lines?.length || typeof document === 'undefined') {
+      if (s) this.request(s, null, { priority: 100 });
+      return false;
+    }
+    this.unpin(s);
+    const settings = tooltipProfileSettings();
+    const panel = document.createElement('div');
+    panel.className = 'uo-panel uo-tooltip-pinned';
+    panel.dataset.serial = String(s);
+    panel.style.cssText = [
+      'position:fixed', 'pointer-events:none', 'z-index:9998', 'padding:6px 10px',
+      'box-sizing:border-box', 'white-space:pre-wrap', `max-width:${settings.width}px`,
+      `font:500 ${settings.fontSize}px/1.4 "Segoe UI Variable Text","Segoe UI",Inter,system-ui,sans-serif`,
+      `background:rgba(12,16,24,${settings.backgroundOpacity})`, `color:${settings.textColor}`,
+      `left:${Math.max(4, Number(sx) || 24)}px`, `top:${Math.max(4, Number(sy) || 80)}px`,
+    ].join(';');
+    panel.innerHTML = lines.map((line, index) => {
+      const raw = assets.cl(line.cliloc, line.args) ?? '';
+      const color = tooltipLineColor(line, raw, index === 0, settings);
+      const body = color === 'multi-resist' ? renderTooltipResistLine(raw, settings) : parseSpeechHtml(raw);
+      return color && color !== 'multi-resist' ? `<div style="color:${color}">${body}</div>` : `<div>${body}</div>`;
+    }).join('');
+    document.body.appendChild(panel);
+    this._pinned.set(s, panel);
+    const max = Math.max(1, Math.min(12, Number(profile.get('tooltips.maxPinned')) || 6));
+    while (this._pinned.size > max) this.unpin(this._pinned.keys().next().value);
+    return true;
+  }
+
+  unpin(serial) {
+    const s = serial >>> 0;
+    const panel = this._pinned.get(s);
+    if (!panel) return false;
+    panel.remove?.();
+    this._pinned.delete(s);
+    return true;
+  }
+
+  clearPinned() {
+    for (const serial of [...this._pinned.keys()]) this.unpin(serial);
+  }
+
+  pinnedSerials() { return [...this._pinned.keys()]; }
+
   hide() {
+    this.cancelScheduledHide();
+    this._immediateHover = null;
     this._pendingHover = null;
     this._renderedKey = '';
     this._renderedSerial = 0;

@@ -17,6 +17,8 @@ import { bus } from '../core/event-bus.js';
 import { dragDrop } from '../managers/drag-drop.js';
 import { profile } from '../managers/profile-manager.js';
 import { uiManagerInstance } from './ui-manager-singleton.js';
+import { Graphics } from 'pixi.js';
+import { auditGumpQuality } from './ui-quality.js';
 
 // Audit #46 P2 — convenience accessor used by show-modal helpers
 // (showMessageBox, showRaceChange, showChatChooseName). Acts as a
@@ -27,7 +29,8 @@ import { uiManagerInstance } from './ui-manager-singleton.js';
 const UI_PROXY_METHODS = [
   'addGump', 'removeGump', 'findGump', 'bringToFront',
   'setModal', 'clearModal', 'isModalOpen', 'canReceiveInput',
-  'show', 'topClosableGump',
+  'show', 'topClosableGump', 'searchOpenGumps', 'closeUnpinnedGumps',
+  'recoverGumps', 'recentlyClosedGumps', 'reopenLastGump', 'resetGump',
 ];
 const _proxy = {};
 for (const m of UI_PROXY_METHODS) {
@@ -79,13 +82,47 @@ export class UIManager {
     this._pickControlHit = { control: null, lx: 0, ly: 0 };
     this._pickScreenHit = { gump: null, control: null, lx: 0, ly: 0 };
     this.scale = 1;
+    this._focusRing = new Graphics();
+    this._focusRing.eventMode = 'none';
+    this._focusRing.visible = false;
+    // Pointer clicks must not paint a yellow rectangle over native UO
+    // button art. The ring remains available for Tab/gamepad navigation.
+    this._focusVisible = false;
+    this.parent.addChild(this._focusRing);
+    this._debugOverlay = new Graphics();
+    this._debugOverlay.eventMode = 'none';
+    this._debugOverlay.visible = false;
+    this.parent.addChild(this._debugOverlay);
+    this._gamepad = { buttons: new Set(), axisAt: 0 };
+    this._closedGumps = [];
+    this._destroying = false;
     this.setScale(profile.get('ui.scale'));
+    try {
+      globalThis.localStorage?.setItem?.('uo.reduced-motion', profile.get('ui.reducedMotion') ? '1' : '0');
+    } catch { /* storage unavailable */ }
     this._profileUnsubs = [
       bus.on('profile:changed', ({ path, value } = {}) => {
         if (path === 'ui.scale') this.setScale(value);
+        if (path === 'ui.reducedMotion') {
+          try { globalThis.localStorage?.setItem?.('uo.reduced-motion', value ? '1' : '0'); }
+          catch { /* storage unavailable */ }
+        }
       }),
       bus.on('profile:bound', () => this.setScale(profile.get('ui.scale'))),
       bus.on('profile:reset', () => this.setScale(profile.get('ui.scale'))),
+      bus.on('ui:viewport-resized', ({ width, height } = {}) => {
+        const viewport = { width: Number(width) || innerWidth, height: Number(height) || innerHeight };
+        profile.saveResolutionLayout?.(this._layoutViewport ?? viewport);
+        const result = profile.activateResolutionLayout?.(viewport);
+        this._layoutViewport = viewport;
+        if (result?.found) {
+          for (const gump of this.gumps) {
+            const state = profile.loadGumpState?.(gump.positionKey);
+            if (state) gump.setPosition?.(state.x, state.y);
+          }
+        }
+        this.recoverGumps(viewport);
+      }),
     ];
 
     // Wire DOM events. We listen on `window` so the UI keeps responding
@@ -103,6 +140,7 @@ export class UIManager {
   }
 
   destroy() {
+    this._destroying = true;
     window.removeEventListener('mousedown', this._onMouseDown);
     window.removeEventListener('mousemove', this._onMouseMove);
     window.removeEventListener('mouseup',   this._onMouseUp);
@@ -111,6 +149,8 @@ export class UIManager {
     for (const off of this._profileUnsubs ?? []) off?.();
     this._profileUnsubs = [];
     while (this.gumps.length) this.removeGump(this.gumps[this.gumps.length - 1]);
+    this._focusRing?.destroy?.();
+    this._debugOverlay?.destroy?.();
     // The Pixi UI container is reused by the next scene. Do not leak an
     // in-game accessibility zoom into the login scene or loading overlays.
     this.parent?.scale?.set?.(1);
@@ -131,6 +171,8 @@ export class UIManager {
     const s = this.scale || 1;
     return { x: sx / s, y: sy / s };
   }
+
+  screenToLogical(sx, sy) { return this._logicalPoint(sx, sy); }
 
   _onWheel = (e) => {
     const hit = this.pickAtScreen(e.clientX, e.clientY);
@@ -196,10 +238,18 @@ export class UIManager {
     // and buttons remain inside their chrome on every DPI/font setup.
     try { gump.fitContentBounds?.(); } catch { /* best-effort */ }
     try { gump.restorePosition?.(); } catch { /* best-effort */ }
+    try {
+      gump._qualityAudit = auditGumpQuality(gump);
+      if (!gump._qualityAudit.ok) bus.emit('diagnostics:gump-quality', {
+        type: gump.type, issues: gump._qualityAudit.issues.slice(0, 20),
+      });
+    } catch { /* diagnostics must never block opening */ }
     // Explicit bringToFront — addChild already appends but on Pixi
     // containers with sortableChildren the add order doesn't always
     // win z-fighting. The bringToFront call also sets `gump.node.zIndex`.
     this.bringToFront(gump);
+    if (gump.isModal) this.setModal(gump);
+    try { bus.emit('gump:opened', { gump }); } catch { /* ignore */ }
     return gump;
   }
 
@@ -212,8 +262,18 @@ export class UIManager {
     if (tickIdx >= 0) this.tickGumps.splice(tickIdx, 1);
     gump._uiManager = null;
     if (this._modalGump === gump) this._modalGump = null;
-    if (this.focused && this._isAncestor(gump, this.focused)) this.focused = null;
+    if (this.focused && this._isAncestor(gump, this.focused)) this._setFocused(null);
     if (this.hovered && this._isAncestor(gump, this.hovered)) this.hovered = null;
+    if (!this._destroying && !gump?._skipCloseHistory) {
+      const factory = typeof gump?._reopenFactory === 'function'
+        ? gump._reopenFactory
+        : (gump?.serverSerial ? null : (gump?.constructor?.length === 0 ? () => new gump.constructor() : null));
+      this._closedGumps.push({
+        type: String(gump?.type ?? 'generic'), title: String(gump?.title ?? gump?._toggleKey ?? gump?.type ?? 'gump'),
+        x: gump?.x | 0, y: gump?.y | 0, closedAt: Date.now(), factory,
+      });
+      if (this._closedGumps.length > 30) this._closedGumps.shift();
+    }
     // Audit #46 P2 — emit gump:disposed so AnchorManager / other
     // listeners can deregister.
     try { bus.emit('gump:disposed', { gump }); } catch { /* ignore */ }
@@ -236,6 +296,94 @@ export class UIManager {
    */
   findGump(pred) {
     return this.gumps.find(pred);
+  }
+
+  /** Search all open windows without walking the Pixi tree. Used by the
+   * command palette and accessibility shortcuts. */
+  searchOpenGumps(query = '') {
+    const needle = String(query).trim().toLowerCase();
+    return this.gumps.filter((gump) => {
+      if (!needle) return true;
+      return [gump.type, gump.title, gump._toggleKey, gump.positionKey]
+        .some((value) => String(value ?? '').toLowerCase().includes(needle));
+    });
+  }
+
+  recentlyClosedGumps() { return this._closedGumps.map((row) => ({ ...row, factory: undefined })); }
+
+  closeUnpinnedGumps() {
+    let closed = 0;
+    for (const gump of [...this.gumps].reverse()) {
+      if (gump?.pinned || gump?.canClose === false || gump?.canCloseWithRMB === false) continue;
+      this.removeGump(gump); closed++;
+    }
+    return closed;
+  }
+
+  recoverGumps(viewport = {}) {
+    const width = Number(viewport.width) || (globalThis.innerWidth || 1024) / (this.scale || 1);
+    const height = Number(viewport.height) || (globalThis.innerHeight || 768) / (this.scale || 1);
+    for (const gump of this.gumps) {
+      const x = Math.max(0, Math.min(Math.max(0, width - Math.min(width, gump.width || 1)), Number(gump.x) || 0));
+      const y = Math.max(0, Math.min(Math.max(0, height - Math.min(height, gump.height || 1)), Number(gump.y) || 0));
+      gump.setPosition(x, y); gump.persistPosition?.();
+    }
+    this._invalidatePickCache();
+    return this.gumps.length;
+  }
+
+  reopenLastGump() {
+    while (this._closedGumps.length) {
+      const closed = this._closedGumps.pop();
+      if (typeof closed.factory !== 'function') continue;
+      try {
+        const gump = closed.factory();
+        if (!gump) continue;
+        gump.setPosition?.(closed.x, closed.y);
+        gump._skipCloseHistory = false;
+        return this.addGump(gump);
+      } catch (error) { console.warn('[ui] reopen gump failed', error); }
+    }
+    return null;
+  }
+
+  resetGump(gump) {
+    if (!gump) return false;
+    profile.resetGumpState?.(gump.positionKey);
+    if (Number.isFinite(gump.defaultX) && Number.isFinite(gump.defaultY)) gump.setPosition(gump.defaultX, gump.defaultY);
+    else gump.setPosition(16, 16);
+    gump.persistPosition?.();
+    return true;
+  }
+
+  _isGumpLocked(gump) {
+    if (!gump) return true;
+    if (gump.locked === true) return true;
+    if (!profile.get('ui.lockKeyGumps')) return false;
+    return ['topbar', 'actionbar', 'paperdoll'].includes(String(gump._toggleKey ?? gump.type));
+  }
+
+  _snapGump(gump) {
+    const threshold = Math.max(0, Math.min(64, Number(profile.get('ui.gumpSnapThreshold')) || 0));
+    if (!threshold || !gump) return;
+    const width = (globalThis.innerWidth || 1024) / (this.scale || 1);
+    const height = (globalThis.innerHeight || 768) / (this.scale || 1);
+    let x = Number(gump.x) || 0; let y = Number(gump.y) || 0;
+    const gw = Number(gump.width) || 1; const gh = Number(gump.height) || 1;
+    if (Math.abs(x) <= threshold) x = 0;
+    if (Math.abs(y) <= threshold) y = 0;
+    if (Math.abs((x + gw) - width) <= threshold) x = width - gw;
+    if (Math.abs((y + gh) - height) <= threshold) y = height - gh;
+    for (const other of this.gumps) {
+      if (other === gump) continue;
+      const ox = Number(other.x) || 0; const oy = Number(other.y) || 0;
+      const ow = Number(other.width) || 1; const oh = Number(other.height) || 1;
+      if (Math.abs(x - (ox + ow)) <= threshold) x = ox + ow;
+      else if (Math.abs((x + gw) - ox) <= threshold) x = ox - gw;
+      if (Math.abs(y - (oy + oh)) <= threshold) y = oy + oh;
+      else if (Math.abs((y + gh) - oy) <= threshold) y = oy - gh;
+    }
+    gump.setPosition(Math.round(x), Math.round(y));
   }
 
   bringToFront(gump) {
@@ -272,7 +420,10 @@ export class UIManager {
    *  `clearModal(g)` when the dialog closes. */
   setModal(gump) {
     this._modalGump = gump || null;
-    if (gump) this.bringToFront(gump);
+    if (gump) {
+      this.bringToFront(gump);
+      this._focusFirst(gump);
+    }
   }
 
   clearModal(gump) {
@@ -423,7 +574,7 @@ export class UIManager {
         // declares an `onDragStart` of its own — that path is for
         // item-lift drags from slot grids and shouldn't move the gump.
         let dragViaAncestor = false;
-        if (g && g.canMove) {
+        if (g && g.canMove && !this._isGumpLocked(g)) {
           if (typeof ctrl.onDragStart !== 'function') {
             let n = ctrl;
             while (n && n !== g) {
@@ -501,7 +652,8 @@ export class UIManager {
     // pinned-by-default). Marcin: "kliknięcie prawym na gumpie
     // zamyka go" — replaces the per-gump close-X chrome we used to
     // mount in the title bar.
-    if (e.button === 2 && hit.gump && hit.gump.canCloseWithRMB !== false) {
+    if (e.button === 2 && hit.gump && hit.gump.canCloseWithRMB !== false
+        && hit.control?.contextMenuOnRightClick !== true) {
       e.preventDefault();
       e.stopPropagation();
       try { hit.gump.close?.(); } catch (err) { console.error('[ui] gump.close threw', err); }
@@ -511,7 +663,13 @@ export class UIManager {
     e.preventDefault();
     e.stopPropagation();
     this.bringToFront(hit.gump);
-    this.focused = hit.control.acceptKeyboardInput ? hit.control : null;
+    if (e.button === 2 && hit.control?.contextMenuOnRightClick === true) {
+      // The server reply is asynchronous; preserve the originating pointer
+      // before this control sends its 0xBF context-menu request.
+      bus.emit('popup:anchor', { x: e.clientX, y: e.clientY });
+    }
+    this._setFocused(hit.control.acceptKeyboardInput || hit.control.keyboardFocusable
+      ? hit.control : null, false);
     this._pressed = {
       ctrl: hit.control, btn: e.button,
       sx: e.clientX, sy: e.clientY,
@@ -521,11 +679,12 @@ export class UIManager {
       // modifier here so per-slot onDragStart can branch on it.
       shift: !!e.shiftKey, ctrlKey: !!e.ctrlKey, alt: !!e.altKey,
     };
-    hit.control.onMouseDown(e.button, hit.lx, hit.ly);
+    hit.control.onMouseDown(e.button, hit.lx, hit.ly, e);
   };
 
   _onMouseUp = (e) => {
     if (this._dragging) {
+      this._snapGump(this._dragging.gump);
       // Persist the gump's new (x, y) so it reopens at the user's last
       // chosen position. `persistPosition` is overridable per-gump for
       // shadow saves (e.g. paperdoll → also save status-bar coords).
@@ -538,7 +697,7 @@ export class UIManager {
     if (!this._pressed) return;
     const press = this._pressed;
     this._pressed = null;
-    press.ctrl.onMouseUp(press.btn, press.lx, press.ly);
+    press.ctrl.onMouseUp(press.btn, press.lx, press.ly, e);
     // Physical-drag drop dispatch. When the user pressed on one control
     // and released over a DIFFERENT one (mouse moved past the drag
     // threshold), invoke `onDrop` on whatever control sits under the
@@ -630,7 +789,7 @@ export class UIManager {
           n = n.parent;
         }
       }
-      if (!claimedDrop) press.ctrl.onClick(press.btn, press.lx, press.ly);
+      if (!claimedDrop) press.ctrl.onClick(press.btn, press.lx, press.ly, e);
       const now = performance.now();
       if (this._lastClick && this._lastClick.ctrl === press.ctrl
           && now - this._lastClick.t < DOUBLE_CLICK_MS) {
@@ -643,10 +802,137 @@ export class UIManager {
   };
 
   _onKeyDown = (e) => {
-    if (this.focused) {
-      this.focused.onKeyDown(e);
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey) {
+      const key = String(e.key).toLowerCase();
+      if (key === 'w') { e.preventDefault(); this.closeUnpinnedGumps(); return; }
+      if (key === 't') { e.preventDefault(); this.reopenLastGump(); return; }
+      if (key === 'home') { e.preventDefault(); this.recoverGumps(); return; }
+      if (key === 'f') {
+        e.preventDefault();
+        bus.emit('gump:search-results', { gumps: this.searchOpenGumps() });
+        return;
+      }
+    }
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      e.__uoUiHandled = true;
+      this._cycleFocus(e.shiftKey ? -1 : 1);
+      return;
+    }
+    if (e.key === 'Escape' && this._modalGump) {
+      e.preventDefault();
+      e.__uoUiHandled = true;
+      if (this._modalGump.canCloseWithEsc !== false) this._modalGump.close?.();
+      return;
+    }
+    if (!this.focused) return;
+    this.focused.onKeyDown(e);
+    if (e.defaultPrevented) { e.__uoUiHandled = true; return; }
+    if ((e.key === 'Enter' || e.key === ' ') && this.focused.keyboardFocusable) {
+      e.preventDefault();
+      e.__uoUiHandled = true;
+      this.focused.onClick?.(0, 0, 0, e);
     }
   };
+
+  _focusableControls(root = this._modalGump ?? this.gumps[this.gumps.length - 1]) {
+    if (!root) return [];
+    const out = [];
+    const visit = (control) => {
+      if (!control?.node?.visible || control.enabled === false) return;
+      if (control.acceptKeyboardInput || control.keyboardFocusable) out.push(control);
+      for (const child of control.children ?? []) visit(child);
+    };
+    visit(root);
+    return out;
+  }
+
+  _focusFirst(root) {
+    this._setFocused(this._focusableControls(root)[0] ?? null, true);
+  }
+
+  _cycleFocus(direction = 1) {
+    const controls = this._focusableControls();
+    if (!controls.length) { this._setFocused(null, false); return; }
+    const current = controls.indexOf(this.focused);
+    const next = current < 0
+      ? (direction < 0 ? controls.length - 1 : 0)
+      : (current + direction + controls.length) % controls.length;
+    this._setFocused(controls[next], true);
+  }
+
+  _setFocused(control, focusVisible = this._focusVisible) {
+    this._focusVisible = !!focusVisible && !!control;
+    if (this.focused === control) { this._drawFocusRing(); return; }
+    try { this.focused?.onBlur?.(); } catch { /* ignore */ }
+    this.focused = control;
+    try { control?.onFocus?.(); } catch { /* ignore */ }
+    this._drawFocusRing();
+  }
+
+  _drawFocusRing() {
+    const ring = this._focusRing;
+    if (!ring || ring.destroyed) return;
+    ring.clear();
+    const control = this.focused;
+    if (!this._focusVisible || !control?.node?.visible) { ring.visible = false; return; }
+    try {
+      const bounds = control.node.getBounds();
+      const scale = this.scale || 1;
+      ring.rect(bounds.x / scale - 2, bounds.y / scale - 2,
+        Math.max(4, bounds.width / scale + 4), Math.max(4, bounds.height / scale + 4))
+        .stroke({
+          width: 2,
+          color: profile.get('ui.highContrast') ? 0xffffff : 0xf5c451,
+          alpha: 0.98,
+        });
+      ring.visible = true;
+      this.parent.addChild(ring);
+    } catch { ring.visible = false; }
+  }
+
+  tick(_dt, now = performance.now()) {
+    this._drawFocusRing();
+    this._drawDebugOverlay();
+    if (profile.get('ui.gamepadNavigation')) this._pollGamepad(now);
+  }
+
+  _drawDebugOverlay() {
+    const overlay = this._debugOverlay;
+    if (!overlay || overlay.destroyed) return;
+    const enabled = !!profile.get('debug.gumpBounds');
+    overlay.visible = enabled;
+    overlay.clear();
+    if (!enabled) return;
+    for (let i = 0; i < this.gumps.length; i++) {
+      const g = this.gumps[i];
+      overlay.rect(g.x, g.y, g.width, g.height)
+        .stroke({
+          width: 1,
+          color: i === this.gumps.length - 1 ? 0xffd54f : 0x4fc3f7,
+          alpha: 0.9,
+        });
+    }
+    this.parent.addChild(overlay);
+  }
+
+  _pollGamepad(now) {
+    const pad = globalThis.navigator?.getGamepads?.()?.[0];
+    if (!pad) return;
+    const pressed = new Set();
+    for (let i = 0; i < pad.buttons.length; i++) if (pad.buttons[i]?.pressed) pressed.add(i);
+    const edge = (id) => pressed.has(id) && !this._gamepad.buttons.has(id);
+    if (edge(0)) this.focused?.onClick?.(0, 0, 0);
+    if (edge(1)) this.topClosableGump()?.close?.();
+    if (edge(12) || edge(14)) this._cycleFocus(-1);
+    if (edge(13) || edge(15)) this._cycleFocus(1);
+    const axis = Math.abs(pad.axes?.[1] ?? 0) > 0.65 ? Math.sign(pad.axes[1]) : 0;
+    if (axis && now >= this._gamepad.axisAt) {
+      this._cycleFocus(axis);
+      this._gamepad.axisAt = now + 180;
+    }
+    this._gamepad.buttons = pressed;
+  }
 
   /** Walk up from a control to find the gump it belongs to. */
   _gumpOf(ctrl) {

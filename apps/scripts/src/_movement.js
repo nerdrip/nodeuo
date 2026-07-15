@@ -9,6 +9,14 @@ export function resolveStandingZ(api, facet, x, y, requestedZ = 0) {
   return resolver(facet, x, y, requestedZ);
 }
 
+export function findStandingZ(api, facet, x, y, requestedZ = 0) {
+  const resolver = api?.game?.movement?.findStandingZ
+    ?? api?.query?.findStandingZ
+    ?? api?.ops?.findStandingZ;
+  if (resolver) return resolver(facet, x, y, requestedZ);
+  return resolveStandingZ(api, facet, x, y, requestedZ);
+}
+
 export function moveMobile(api, mob, dest = {}) {
   if (!mob || !dest) return null;
   if (api?.game?.mobile?.move) return api.game.mobile.move(mob, dest);

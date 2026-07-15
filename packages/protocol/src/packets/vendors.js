@@ -91,20 +91,27 @@ export function vendorSellList({ vendorSerial, entries }) {
  */
 export function readBuyRequest(pkt) {
   if (pkt[0] !== 0x3B) throw new Error('not a 0x3B buy request');
+  if (pkt.byteLength < 8) throw new Error('truncated 0x3B buy request');
   const dv = new DataView(pkt.buffer, pkt.byteOffset, pkt.byteLength);
   const len = dv.getUint16(1);
+  if (len !== pkt.byteLength) throw new Error('invalid 0x3B length');
   const vendorSerial = dv.getUint32(3);
   const flag = dv.getUint8(7);
   /** @type {{serial:number, amount:number}[]} */
   const items = [];
   if (flag === 0x02) {
+    if ((len - 8) % 7 !== 0) throw new Error('misaligned 0x3B item list');
     let o = 8;
     while (o + 7 <= len) {
       o += 1; // layer (0x1A)
       const serial = dv.getUint32(o); o += 4;
       const amount = dv.getUint16(o); o += 2;
+      if (amount === 0) throw new Error('zero 0x3B item amount');
       items.push({ serial, amount });
+      if (items.length > 100) throw new Error('too many 0x3B items');
     }
+  } else if (flag !== 0x00 || len !== 8) {
+    throw new Error('invalid 0x3B flag or payload');
   }
   return { vendorSerial, flag, items };
 }
@@ -125,14 +132,20 @@ export function readBuyRequest(pkt) {
  */
 export function readSellReply(pkt) {
   if (pkt[0] !== 0x9F) throw new Error('not a 0x9F sell reply');
+  if (pkt.byteLength < 9) throw new Error('truncated 0x9F sell reply');
   const dv = new DataView(pkt.buffer, pkt.byteOffset, pkt.byteLength);
+  const len = dv.getUint16(1);
+  if (len !== pkt.byteLength) throw new Error('invalid 0x9F length');
   const vendorSerial = dv.getUint32(3);
   const count = dv.getUint16(7);
+  if (count > 100 || len !== 9 + count * 6) throw new Error('invalid 0x9F item count');
   /** @type {{serial:number, amount:number}[]} */
   const items = [];
   let o = 9;
   for (let i = 0; i < count; i++) {
-    items.push({ serial: dv.getUint32(o), amount: dv.getUint16(o + 4) });
+    const amount = dv.getUint16(o + 4);
+    if (amount === 0) throw new Error('zero 0x9F item amount');
+    items.push({ serial: dv.getUint32(o), amount });
     o += 6;
   }
   return { vendorSerial, items };

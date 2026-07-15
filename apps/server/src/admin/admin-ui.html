@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8" />
 <title>UO-Node Admin</title>
+<link rel="stylesheet" href="/admin-assets/admin.css" />
+<script src="/admin-assets/admin-core.js"></script>
 <style>
   * { box-sizing: border-box; }
   body {
@@ -134,21 +136,22 @@
 
 <nav id="tabs">
   <button data-tab="dashboard" class="active">Dashboard</button>
-  <button data-tab="accounts">Accounts</button>
+  <button data-tab="accounts" data-min-rank="4">Accounts</button>
   <button data-tab="characters">Characters</button>
   <button data-tab="items">Items</button>
-  <button data-tab="scripts">Scripts</button>
-  <button data-tab="data">Data (raw)</button>
-  <button data-tab="data-editor" style="color:#80ff80">🌳 Data Editor</button>
-  <button data-tab="spawners">Spawners</button>
-  <button data-tab="world-design" style="color:#8fe3b0">World Design</button>
-  <button data-tab="ai-graphs" style="color:#80d8ff">AI Graphs</button>
+  <button data-tab="studio" data-min-rank="3" style="color:#f0c878">Content Studio</button>
+  <button data-tab="scripts" data-min-rank="3">Scripts</button>
+  <button data-tab="data" data-min-rank="3">Data (raw)</button>
+  <button data-tab="data-editor" data-min-rank="3" style="color:#80ff80">🌳 Data Editor</button>
+  <button data-tab="spawners" data-min-rank="3">Spawners</button>
+  <button data-tab="world-design" data-min-rank="3" style="color:#8fe3b0">World Design</button>
+  <button data-tab="ai-graphs" data-min-rank="3" style="color:#80d8ff">AI Graphs</button>
   <button data-tab="simulators" style="color:#ffd080">Simulators</button>
   <button data-tab="animations" style="color:#c69cff">Animations</button>
   <button data-tab="operations" style="color:#6fe7ff">Operations</button>
   <button data-tab="logs">Logs</button>
   <button data-tab="world">World</button>
-  <button data-tab="isoeditor" style="color:#80ff80">🗺 Iso Editor</button>
+  <button data-tab="isoeditor" data-min-rank="3" style="color:#80ff80">🗺 Iso Editor</button>
 </nav>
 
 <main id="main"></main>
@@ -162,20 +165,23 @@
 // Cookie-based session — `uo_admin` set by POST /api/auth/login. We don't
 // touch headers manually; the browser ships the cookie via `credentials:
 // 'same-origin'`. A 401 means the session expired → bounce to /login.
-async function api(method, url, body) {
-  const init = { method, headers: {}, credentials: 'same-origin' };
-  if (body) {
-    init.headers['content-type'] = 'application/json';
-    init.body = JSON.stringify(body);
+async function api(method, url, body, retriedAfterReauth = false) {
+  try {
+    return await AdminCore.requestBroker.request(method, url, body, {
+      signal: AdminCore.viewSignal(), dedupe: method === 'GET',
+      cacheTtlMs: method === 'GET' ? 1_000 : 0,
+      priority: method === 'GET' ? 1 : 0,
+      invalidate: method === 'GET' ? null : '/api/',
+    });
+  } catch (error) {
+    if (error.status === 428 && !retriedAfterReauth) {
+      const password = prompt('This critical operation requires your password again.');
+      if (password == null) throw new Error('fresh authentication cancelled');
+      await AdminCore.requestBroker.request('POST', '/api/auth/reauth', { password }, { dedupe: false, timeoutMs: 8_000 });
+      return api(method, url, body, true);
+    }
+    throw error;
   }
-  const r = await fetch(url, init);
-  if (r.status === 401) { location.href = '/login'; throw new Error('unauthorized'); }
-  if (!r.ok) {
-    let msg = `HTTP ${r.status}`;
-    try { const j = await r.json(); msg = j.error || j.reason || msg; } catch { /* ignore */ }
-    throw new Error(msg);
-  }
-  return r.json();
 }
 async function logout() {
   try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }); }
@@ -192,10 +198,19 @@ function activate(name) {
       && !confirm('Discard unsaved script changes?')) return;
   if (name !== 'logs' && logTimer) { clearInterval(logTimer); logTimer = null; }
   if (name !== 'animations' && animTimer) { clearInterval(animTimer); animTimer = null; }
+  if (name !== 'characters' && liveFollowTimer) { clearInterval(liveFollowTimer); liveFollowTimer = null; }
+  if (name !== 'operations' && opsTestPoll) { clearInterval(opsTestPoll); opsTestPoll = null; }
+  AdminCore.beginView();
   for (const b of document.querySelectorAll('nav button'))
     b.classList.toggle('active', b.dataset.tab === name);
   document.getElementById('main').innerHTML = '';
-  tabs[name]?.();
+  Promise.resolve(tabs[name]?.()).catch((error) => {
+    if (error?.name === 'AbortError') return;
+    console.error(`[admin-ui] tab ${name} failed`, error);
+    AdminCore.renderState(document.getElementById('main'), 'error', {
+      message: error?.message || `Could not load ${name}.`, retry: () => activate(name),
+    });
+  });
   location.hash = name;
 }
 document.querySelectorAll('nav button').forEach((b) =>
@@ -203,11 +218,18 @@ document.querySelectorAll('nav button').forEach((b) =>
 
 // ---------------------------- Dashboard -----------------------------------
 async function refreshDashboard() {
+  if (document.hidden || refreshDashboard.inFlight) return;
+  refreshDashboard.inFlight = true;
   try {
+    const refreshIdentity = !refreshDashboard.me || Date.now() - (refreshDashboard.meAt || 0) >= 60_000;
     const [s, me] = await Promise.all([
       api('GET', '/api/world/stats'),
-      api('GET', '/api/auth/me').catch(() => null),
+      refreshIdentity ? api('GET', '/api/auth/me').catch(() => null) : Promise.resolve(refreshDashboard.me),
     ]);
+    if (refreshIdentity && me) {
+      refreshDashboard.me = me;
+      refreshDashboard.meAt = Date.now();
+    }
     document.getElementById('hd-shard').textContent  = s.shard;
     document.getElementById('hd-up').textContent     = formatUptime(s.uptime);
     document.getElementById('hd-mobs').textContent   = s.mobiles;
@@ -215,11 +237,17 @@ async function refreshDashboard() {
     document.getElementById('hd-online').textContent = s.onlinePlayers;
     document.getElementById('hd-mem').textContent    = s.memoryMB;
     if (me) {
+      const ranks = { Player:0, Counselor:1, Counsellor:1, Seer:2, GameMaster:3, GM:3, Admin:4 };
+      const rank = ranks[me.accessLevel] ?? 0;
+      document.querySelectorAll('[data-min-rank]').forEach((element) => {
+        element.hidden = rank < Number(element.dataset.minRank);
+      });
       const cnt = (me.characters || []).length;
       document.getElementById('hd-who').textContent =
         `▣ ${me.account} (${me.accessLevel}, ${cnt} char${cnt === 1 ? '' : 's'})`;
     }
   } catch { /* ignore */ }
+  finally { refreshDashboard.inFlight = false; }
 }
 function formatUptime(s) {
   s = s | 0;
@@ -280,30 +308,22 @@ async function doBroadcast() {
 // ---------------------------- Accounts ------------------------------------
 registerTab('accounts', async () => {
   const data = await api('GET', '/api/accounts');
-  const rows = data.accounts.map((a) => `
-    <tr>
-      <td>${esc(a.username)}</td>
-      <td><span class="pill ${a.accessLevel?.toLowerCase()}">${esc(a.accessLevel)}</span></td>
-      <td>${a.banned ? '<span class="pill banned">BANNED</span>' : '✓'}</td>
-      <td>${a.characters}</td>
-      <td>${a.created?.slice(0, 10) ?? ''}</td>
-      <td>${a.lastLogin?.slice(0, 16)?.replace('T', ' ') ?? '—'}</td>
-      <td>
-        <button onclick="openAccount('${escJS(a.username)}')">view</button>
-        <button onclick="editAccount('${escJS(a.username)}', '${escJS(a.accessLevel)}', ${a.banned ? 'true' : 'false'})">edit</button>
-        <button class="danger" onclick="deleteAccount('${escJS(a.username)}')">del</button>
-      </td>
-    </tr>
-  `).join('');
   document.getElementById('main').innerHTML = `
     <div class="card">
       <h2>Accounts (${data.count})</h2>
-      <table>
-        <thead><tr><th>Username</th><th>Level</th><th>Status</th><th>Chars</th><th>Created</th><th>Last login</th><th></th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
+      <div id="accounts-table"></div>
     </div>
   `;
+  const table=new AdminCore.VirtualTable(document.getElementById('accounts-table'),{
+    key:a=>a.username,
+    columns:[{label:'Username',width:'minmax(130px,1.2fr)'},{label:'Level'},{label:'Status'},{label:'Chars',width:'70px'},{label:'Created'},{label:'Last login',width:'150px'},{label:'Actions',width:'220px'}],
+    renderCells:a=>[
+      esc(a.username),`<span class="pill ${a.accessLevel?.toLowerCase()}">${esc(a.accessLevel)}</span>`,
+      a.banned?'<span class="pill banned">BANNED</span>':'✓',a.characters,a.created?.slice(0,10)??'',a.lastLogin?.slice(0,16)?.replace('T',' ')??'—',
+      `<button onclick="openAccount('${escJS(a.username)}')">view</button><button onclick="editAccount('${escJS(a.username)}','${escJS(a.accessLevel)}',${a.banned?'true':'false'})">edit</button><button class="danger" onclick="deleteAccount('${escJS(a.username)}')">del</button>`,
+    ],
+  });
+  table.setItems(data.accounts); AdminCore.reportClientMetrics({accountsTable:table.snapshot()});
 });
 
 async function openAccount(username) {
@@ -357,6 +377,7 @@ async function deleteAccount(username) {
 // ---------------------------- Characters / mobiles ------------------------
 let mobsKind = 'players';     // 'players' | 'npcs' | 'all'
 let mobOffset = 0;
+let liveFollowTimer = null;
 const MOB_PAGE = 200;
 registerTab('characters', async () => {
   document.getElementById('main').innerHTML = `
@@ -388,32 +409,20 @@ registerTab('characters', async () => {
 async function loadMobiles() {
   const f = document.getElementById('m-filter').value;
   const r = await api('GET', `/api/mobiles?filter=${encodeURIComponent(f)}&kind=${mobsKind}&limit=${MOB_PAGE}&offset=${mobOffset}`);
-  const rows = r.mobiles.map((m) => `
-    <tr>
-      <td>${m.serial}</td>
-      <td>${esc(m.name ?? '?')}</td>
-      <td>${m.body}</td>
-      <td>${m.x},${m.y},${m.z}</td>
-      <td>${m.hp}/${m.hpMax}</td>
-      <td>${m.online ? '<span class="pill online">ONLINE</span>' : ''}</td>
-      <td>
-        <button onclick="viewMob('${m.serial}')">view</button>
-        <button onclick="tpMyselfHere('${m.serial}')" title="Teleport YOUR character to this mob">tp here</button>
-        ${m.online ? `<button class="danger" onclick="kickMob('${m.serial}')">kick</button>` : ''}
-      </td>
-    </tr>
-  `).join('');
   document.getElementById('mobs-result').innerHTML = `
-    <table>
-      <thead><tr><th>Serial</th><th>Name</th><th>Body</th><th>Pos</th><th>HP</th><th></th><th></th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
+    <div id="mobiles-table"></div>
     <div class="row" style="justify-content:flex-end;margin-top:8px">
       <button ${mobOffset <= 0 ? 'disabled' : ''} onclick="mobOffset=Math.max(0,mobOffset-MOB_PAGE);loadMobiles()">← Previous</button>
       <span style="opacity:.7">${r.count ? mobOffset + 1 : 0}–${Math.min(r.count, mobOffset + r.mobiles.length)} of ${r.count}</span>
       <button ${mobOffset + r.mobiles.length >= r.count ? 'disabled' : ''} onclick="mobOffset+=MOB_PAGE;loadMobiles()">Next →</button>
     </div>
   `;
+  const table=new AdminCore.VirtualTable(document.getElementById('mobiles-table'),{
+    key:m=>m.serial,
+    columns:[{label:'Serial',width:'120px'},{label:'Name',width:'minmax(130px,1fr)'},{label:'Body',width:'70px'},{label:'Position',width:'130px'},{label:'HP',width:'90px'},{label:'Status',width:'90px'},{label:'Actions',width:'280px'}],
+    renderCells:m=>[m.serial,esc(m.name??'?'),m.body,`${m.x},${m.y},${m.z}`,`${m.hp}/${m.hpMax}`,m.online?'<span class="pill online">ONLINE</span>':'',`<button onclick="viewMob('${m.serial}')">view</button><button onclick="tpMyselfHere('${m.serial}')" title="Teleport your character here">tp here</button><button onclick="followLive('${m.serial}')">follow</button>${m.online?`<button class="danger" onclick="kickMob('${m.serial}')">kick</button>`:''}`],
+  });
+  table.setItems(r.mobiles); AdminCore.reportClientMetrics({mobilesTable:table.snapshot()});
   const cnt = document.getElementById('m-count');
   if (cnt) cnt.textContent = `${r.count} ${mobsKind}`;
   // Remember "last selected mobile" — used by the items tab as the default
@@ -451,6 +460,11 @@ async function viewMob(serial) {
         <div style="margin-top:6px">
           <button class="small" onclick="setTpTarget('${m.serial}')">use as tp target</button>
           <button class="small" onclick="loadAiDebug('${m.serial}')">AI debug</button>
+          <button class="small" onclick="followLive('${m.serial}')">follow</button>
+          <button class="small" onclick="loadEntityEvents('${m.serial}')">events</button>
+          <button class="small" onclick="liveHue('${m.serial}',${m.hue??0})">hue</button>
+          <button class="small" onclick="liveMove('${m.serial}',${m.x},${m.y},${m.z},${m.map})">move</button>
+          ${!m.isPlayer?`<button class="small danger" onclick="liveKill('${m.serial}')">kill</button><button class="small danger" onclick="liveDelete('${m.serial}')">delete</button>`:''}
           ${m.online ? `<button class="small danger" onclick="kickMob('${m.serial}')">kick</button>` : ''}
         </div>
       </div>
@@ -461,10 +475,22 @@ async function viewMob(serial) {
         <h3>Backpack (${m.backpackContents.length})</h3>
         <ul class="scroll-h">${pack || '<i>empty</i>'}</ul>
         <div id="ai-debug-${m.serial}"></div>
+        <div id="live-follow"></div><div id="live-events"></div>
       </div>
     </div>
   `;
 }
+async function followLive(serial){
+  clearInterval(liveFollowTimer);
+  const refresh=async()=>{const host=document.getElementById('live-follow');if(!host){clearInterval(liveFollowTimer);return}try{const r=await api('GET',`/api/live/follow/${serial}`);host.innerHTML=`<h3>Live follow · ${esc(serial)}</h3><div class="kv"><b>Position</b><div>${r.entity.x},${r.entity.y},${r.entity.z} map ${r.entity.map}</div><b>HP</b><div>${r.entity.hp??'—'}/${r.entity.hpMax??'—'}</div><b>Client</b><div>${esc(r.client?.clientVersion??r.entity.client?.version??'offline')} · ${esc(r.client?.transport??r.entity.client?.transport??'—')}</div><b>Ping</b><div>${Number.isFinite(r.client?.pingMs)?r.client.pingMs.toFixed(1)+' ms':r.client?'unavailable on this transport':'offline'}</div><b>Packets</b><div>${r.client?.rxPackets??0} RX / ${r.client?.txPackets??0} TX · last ${r.client?.lastPacketAt?new Date(r.client.lastPacketAt).toLocaleTimeString():'—'}</div><b>Pending</b><div>${r.client?.pendingBytes??r.entity.client?.pendingBytes??0} B</div><b>Regions</b><div>${esc(r.regions.map(x=>x.name).join(', ')||'none')}</div><b>Spawners</b><div>${esc(r.spawners.join(', ')||'none')}</div></div>`}catch(e){if(e.name!=='AbortError')host.textContent=e.message}};
+  await refresh();liveFollowTimer=setInterval(refresh,1000);
+}
+async function loadEntityEvents(serial){const host=document.getElementById('live-events');host.innerHTML='<p class="muted">Loading entity events…</p>';const r=await api('GET',`/api/live/entity/${serial}/events?limit=100`);host.innerHTML=`<h3>Packets / events for ${esc(serial)}</h3><pre>${esc(JSON.stringify({packets:r.packets,events:r.structured,audit:r.audit},null,2))}</pre>`}
+async function liveHue(serial,current){const hue=prompt('Hue (0..65535)',String(current));if(hue==null)return;await api('POST','/api/live/mutate',{serial,action:'hue',hue:+hue});await viewMob(serial)}
+async function liveMove(serial,x,y,z,map){const value=prompt('x,y,z,map',`${x},${y},${z},${map}`);if(!value)return;const parts=value.split(',').map(Number);if(parts.length<2||parts.some(n=>!Number.isFinite(n))){alert('Invalid coordinates');return}await api('POST','/api/live/mutate',{serial,action:'move',x:parts[0],y:parts[1],z:parts[2]??z,map:parts[3]??map});await viewMob(serial)}
+async function liveKill(serial){if(!await AdminCore.confirmDanger({title:'Kill mobile',message:`Kill ${serial} through the canonical corpse/death path?`,phrase:'KILL',actionLabel:'Kill'}))return;await api('POST','/api/live/mutate',{serial,action:'kill'});await loadMobiles()}
+async function liveDelete(serial){if(!await AdminCore.confirmDanger({title:'Delete mobile',message:`Permanently remove ${serial} from the live world?`,phrase:'DELETE',actionLabel:'Delete'}))return;await api('POST','/api/live/mutate',{serial,action:'delete'});await loadMobiles()}
+Object.assign(window,{followLive,loadEntityEvents,liveHue,liveMove,liveKill,liveDelete});
 async function loadAiDebug(serial) {
   const host = document.getElementById(`ai-debug-${serial}`);
   if (!host) return;
@@ -557,33 +583,23 @@ async function loadItems() {
   const f = document.getElementById('i-filter').value;
   const g = document.getElementById('i-ground').checked ? '1' : '';
   const r = await api('GET', `/api/items?filter=${encodeURIComponent(f)}&ground=${g}&limit=${ITEM_PAGE}&offset=${itemOffset}`);
-  const rows = r.items.map((it) => `
-    <tr>
-      <td>${it.serial}</td>
-      <td>0x${it.itemId.toString(16)}</td>
-      <td>${esc(it.name ?? '?')}</td>
-      <td>${it.amount ?? 1}</td>
-      <td>${it.parent ?? `${it.x},${it.y},${it.z}`}</td>
-      <td>
-        <button onclick="tpToItem('${it.serial}')">tp here</button>
-        <button class="danger" onclick="deleteItem('${it.serial}')">del</button>
-      </td>
-    </tr>
-  `).join('');
   document.getElementById('items-result').innerHTML = `
     <div style="margin:6px 0;opacity:.7">Showing ${r.items.length} of ${r.count} —
       "tp here" defaults to last-clicked online player (set via Characters tab),
       override per-click in the prompt.</div>
-    <table>
-      <thead><tr><th>Serial</th><th>ItemId</th><th>Name</th><th>Amount</th><th>Where</th><th></th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
+    <div id="items-table"></div>
     <div class="row" style="justify-content:flex-end;margin-top:8px">
       <button ${itemOffset <= 0 ? 'disabled' : ''} onclick="itemOffset=Math.max(0,itemOffset-ITEM_PAGE);loadItems()">← Previous</button>
       <span style="opacity:.7">${r.count ? itemOffset + 1 : 0}–${Math.min(r.count, itemOffset + r.items.length)} of ${r.count}</span>
       <button ${itemOffset + r.items.length >= r.count ? 'disabled' : ''} onclick="itemOffset+=ITEM_PAGE;loadItems()">Next →</button>
     </div>
   `;
+  const table=new AdminCore.VirtualTable(document.getElementById('items-table'),{
+    key:it=>it.serial,
+    columns:[{label:'Serial',width:'120px'},{label:'ItemId',width:'90px'},{label:'Name',width:'minmax(140px,1fr)'},{label:'Amount',width:'80px'},{label:'Where',width:'150px'},{label:'Actions',width:'230px'}],
+    renderCells:it=>[it.serial,`0x${it.itemId.toString(16)}`,esc(it.name??'?'),it.amount??1,it.parent??`${it.x},${it.y},${it.z}`,`<button onclick="inspectItem('${it.serial}')">inspect</button><button onclick="tpToItem('${it.serial}')">tp here</button><button class="danger" onclick="deleteItem('${it.serial}')">del</button>`],
+  });
+  table.setItems(r.items); AdminCore.reportClientMetrics({itemsTable:table.snapshot()});
 }
 function searchItems() { itemOffset = 0; loadItems(); }
 async function deleteItem(serial) {
@@ -627,21 +643,11 @@ function showCharacterPicker(chars, originalPayload) {
 
 /** Tiny ephemeral toast — no modal, no prompt. */
 function flashToast(text) {
-  let el = document.getElementById('uo-toast');
-  if (!el) {
-    el = document.createElement('div');
-    el.id = 'uo-toast';
-    el.style.cssText =
-      'position:fixed;bottom:16px;right:16px;background:#3a2c14;color:#ffd070;'
-      + 'border:1px solid #7a5a20;padding:8px 14px;border-radius:4px;z-index:200;'
-      + 'font:12px Consolas,monospace;';
-    document.body.appendChild(el);
-  }
-  el.textContent = text;
-  el.style.display = '';
-  clearTimeout(el._t);
-  el._t = setTimeout(() => { el.style.display = 'none'; }, 2500);
+  AdminCore.toast(text, 'success');
 }
+async function inspectItem(serial){const [ctx,events]=await Promise.all([api('GET',`/api/live/entity/${serial}`),api('GET',`/api/live/entity/${serial}/events?limit=50`)]);const it=ctx.entity,links=ctx.quickLinks??{};showModal(`Item ${serial}`,`<div style="display:grid;grid-template-columns:130px 1fr;gap:12px"><div class="preview-art"><img src="/api/studio/art/${it.itemId}" alt="item art" style="max-width:100%;max-height:100%;image-rendering:pixelated"></div><div class="kv"><b>Name</b><div>${esc(it.name??'—')}</div><b>Art/hue</b><div>0x${(+it.itemId).toString(16)} / ${it.hue??0}</div><b>Position</b><div>${it.x},${it.y},${it.z} map ${it.map}</div><b>Parent/layer</b><div>${esc(it.parent??'ground')} / ${it.layer??0}</div><b>Regions</b><div>${esc(ctx.regions.map(x=>x.name).join(', ')||'none')}</div><b>Spawners</b><div>${esc(ctx.spawners.join(', ')||'none')}</div></div></div><div class="toolbar"><button onclick="closeModal();liveHue('${serial}',${it.hue??0})">Hue</button><button onclick="closeModal();liveMove('${serial}',${it.x},${it.y},${it.z},${it.map})">Move</button>${links.owner?`<button onclick="closeModal();adminQuickLink('entity','${links.owner.serial}')">Owner</button>`:''}${(links.regions??[]).slice(0,1).map(link=>`<button onclick="closeModal();adminQuickLink('region','${escJS(link.name)}')">Region</button>`).join('')}${links.template?`<button onclick="closeModal();adminQuickLink('template','${escJS(links.template.name)}')">Template</button>`:''}</div><details><summary>Events</summary><pre>${esc(JSON.stringify({packets:events.packets,events:events.structured,audit:events.audit},null,2))}</pre></details>`)}
+async function adminQuickLink(type,value){if(type==='entity'){const ctx=await api('GET',`/api/live/entity/${encodeURIComponent(value)}`);return ctx.type==='mobile'?viewMob(value):inspectItem(value)}if(type==='region'){await showTab('world-design');const index=wdRegions.findIndex(region=>region.name===value);if(index>=0){document.getElementById('wd-region-select').value=String(index);wdPickRegion(index)}return}if(type==='template'){AdminCore.openPalette();setTimeout(()=>{const input=document.querySelector('.admin-command-palette input');if(input){input.value=value;input.dispatchEvent(new Event('input',{bubbles:true}))}},0)}}
+window.inspectItem=inspectItem;
 window.flashToast = flashToast;
 
 // ---------------------------- Scripts (file editor) -----------------------
@@ -847,11 +853,11 @@ let wdRegions = [], wdLoot = [], wdQuests = [], wdRegionIndex = -1;
 registerTab('world-design', async () => {
   document.getElementById('main').innerHTML = `
     <div class="card"><h2>World Design</h2><p class="muted">Validated live editors. Changes affect the running shard; script reload can still replace script-owned definitions.</p></div>
-    <div class="card"><h2>Regions</h2><div class="toolbar"><select id="wd-region-select" onchange="wdPickRegion(this.value)"><option value="-1">New region…</option></select><button onclick="wdNewRegion()">New</button><button class="primary" onclick="wdSaveRegion()">Validate & save</button><button class="danger" onclick="wdDeleteRegion()">Delete</button></div>
+    <div class="card"><h2>Regions</h2><div class="toolbar"><select id="wd-region-select" aria-label="Region" onchange="wdPickRegion(this.value)"><option value="-1">New region…</option></select><button onclick="wdNewRegion()">New</button><button class="primary" onclick="wdSaveRegion()">Validate & save</button><button class="danger" onclick="wdDeleteRegion()">Delete</button></div>
       <div id="wd-region-form" style="display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:7px"></div><div id="wd-region-diagnostics"></div></div>
     <div class="card"><h2>Spawner coverage heatmap</h2><div class="toolbar"><label>Map <input id="wd-heat-map" type="number" value="1" min="0" max="5"></label><label>Cell <input id="wd-heat-cell" type="number" value="64" min="8" max="512"></label><button onclick="wdLoadHeatmap()">Refresh</button></div><div id="wd-heatmap"></div></div>
-    <div class="card"><h2>Loot table editor</h2><div class="toolbar"><select id="wd-loot-select" onchange="wdPickLoot(this.value)"></select><button class="primary" onclick="wdSaveLoot()">Validate & apply</button></div><textarea id="wd-loot-json" style="width:100%;height:220px;font-family:monospace"></textarea><div id="wd-loot-status"></div></div>
-    <div class="card"><h2>Quest + dialogue editor</h2><div class="toolbar"><select id="wd-quest-select" onchange="wdPickQuest(this.value)"></select><button class="primary" onclick="wdSaveQuest()">Validate & apply</button></div><textarea id="wd-quest-json" style="width:100%;height:260px;font-family:monospace"></textarea><div id="wd-quest-status"></div></div>`;
+    <div class="card"><h2>Loot table editor</h2><div class="toolbar"><select id="wd-loot-select" aria-label="Loot table" onchange="wdPickLoot(this.value)"></select><button class="primary" onclick="wdSaveLoot()">Validate & apply</button></div><textarea id="wd-loot-json" aria-label="Loot table JSON" style="width:100%;height:220px;font-family:monospace"></textarea><div id="wd-loot-status"></div></div>
+    <div class="card"><h2>Quest + dialogue editor</h2><div class="toolbar"><select id="wd-quest-select" aria-label="Quest" onchange="wdPickQuest(this.value)"></select><button class="primary" onclick="wdSaveQuest()">Validate & apply</button></div><textarea id="wd-quest-json" aria-label="Quest JSON" style="width:100%;height:260px;font-family:monospace"></textarea><div id="wd-quest-status"></div></div>`;
   await wdReload();
 });
 function wdRegionForm(region={}) {
@@ -912,6 +918,19 @@ async function saveSpawner(formId, existingId) {
     ],
     proximityRange: parseInt(data.proximityRange, 10) || 0,
     homeRange: parseInt(data.homeRange, 10) || 0,
+    team: parseInt(data.team, 10) || 0,
+    roaming: data.roaming || 'home',
+    enabled: data.enabled === 'on',
+    schedule: data.scheduleDays || data.scheduleStart || data.scheduleEnd ? {
+      days: String(data.scheduleDays || '').split(',').map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6),
+      startHour: parseInt(data.scheduleStart, 10) || 0,
+      endHour: parseInt(data.scheduleEnd, 10) || 24,
+    } : null,
+    regionConditions: data.region || data.minPlayers || data.maxPlayers ? {
+      region: String(data.region || ''),
+      minPlayers: parseInt(data.minPlayers, 10) || 0,
+      maxPlayers: parseInt(data.maxPlayers, 10) || 1000,
+    } : null,
   };
   const res = await api('POST', '/api/spawners', payload);
   if (res?.error) { alert('save failed: ' + res.error); return; }
@@ -941,46 +960,54 @@ function spawnerForm(formId, existing) {
       <label>Respawn hi (ms)<input name="respawnHi" type="number" value="${e.respawnMs?.[1] ?? 120000}"></label>
       <label>Proximity range<input name="proximityRange" type="number" value="${e.proximityRange ?? 0}"></label>
       <label>Home range<input name="homeRange" type="number" value="${e.homeRange ?? 5}"></label>
+      <label>Team<input name="team" type="number" value="${e.team ?? 0}" min="-1" max="255"></label>
+      <label>Roaming<select name="roaming"><option value="stationary" ${e.roaming==='stationary'?'selected':''}>Stationary</option><option value="home" ${!e.roaming||e.roaming==='home'?'selected':''}>Home range</option><option value="free" ${e.roaming==='free'?'selected':''}>Free</option></select></label>
+      <label><input name="enabled" type="checkbox" ${e.enabled!==false?'checked':''}> Enabled</label><div></div>
+      <label>Schedule days (0–6)<input name="scheduleDays" value="${esc((e.schedule?.days??[]).join(','))}" placeholder="e.g. 1,2,3,4,5"></label>
+      <label>UTC hours<div><input name="scheduleStart" type="number" min="0" max="23" value="${e.schedule?.startHour ?? ''}" placeholder="start"> – <input name="scheduleEnd" type="number" min="0" max="24" value="${e.schedule?.endHour ?? ''}" placeholder="end"></div></label>
+      <label>Region condition<input name="region" value="${esc(e.regionConditions?.region??'')}" placeholder="optional region"></label>
+      <label>Players in rect<div><input name="minPlayers" type="number" min="0" value="${e.regionConditions?.minPlayers??''}" placeholder="min"> – <input name="maxPlayers" type="number" min="0" value="${e.regionConditions?.maxPlayers??''}" placeholder="max"></div></label>
       <div style="grid-column:span 2;display:flex;gap:6px">
         <button class="primary" onclick="saveSpawner('${escJS(formId)}', ${existing ? `'${escJS(existing.id)}'` : 'null'})">${existing ? 'Save' : 'Create'}</button>
+        <button onclick="simulateSpawner('${escJS(formId)}', ${existing ? `'${escJS(existing.id)}'` : 'null'})">Simulate 5k</button>
       </div>
+      <div id="${formId}-simulation" style="grid-column:span 2"></div>
     </form>`;
 }
 
 function toggleEditor(id) {
-  const el = document.getElementById('edit-' + id);
-  if (!el) return;
-  el.style.display = (el.style.display === 'none' || !el.style.display) ? 'block' : 'none';
+  const spawner=(window.__spawnerRows??[]).find(row=>row.id===id); if(!spawner)return;
+  showModal(`Edit spawner: ${esc(id)}`,spawnerForm('spform-'+id,spawner));
 }
 
 registerTab('spawners', async () => {
-  const r = await api('GET', '/api/spawners').catch(() => ({ spawners: [], count: 0 }));
-  const rows = (r.spawners ?? []).map((s) => `
-    <tr><td>${esc(s.id)}</td><td>${s.map}</td>
-        <td>${s.rect ? `${s.rect.x1},${s.rect.y1}–${s.rect.x2},${s.rect.y2}` : '?'}</td>
-        <td>${s.center ? `${s.center.x},${s.center.y}` : '—'}</td>
-        <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis">${esc(s.kinds?.map?.((k)=>Array.isArray(k)?k.join(':'):k).join(', ') ?? '')}</td>
-        <td>${s.active ?? 0}/${s.maxCount ?? '?'}</td>
-        <td style="white-space:nowrap">
-          <button onclick="tpToSpawner('${escJS(s.id)}')">tp</button>
-          <button onclick="toggleEditor('${escJS(s.id)}')">edit</button>
-          <button class="danger" onclick="deleteSpawner('${escJS(s.id)}')">×</button>
-        </td>
-    </tr>
-    <tr id="edit-${esc(s.id)}" style="display:none"><td colspan="7" style="background:#1a1208">${spawnerForm('spform-' + esc(s.id), s)}</td></tr>
-  `).join('');
+  const [r, diagnostics, templateResult] = await Promise.all([
+    api('GET', '/api/spawners').catch(() => ({ spawners: [], count: 0 })),
+    api('GET', '/api/spawners/diagnostics').catch(() => ({ issueCount: 0 })),
+    api('GET', '/api/spawners/templates').catch(() => ({ templates: [] })),
+  ]);
+  window.__spawnerTemplates = templateResult.templates ?? [];
+  window.__spawnerRows=r.spawners??[];
   document.getElementById('main').innerHTML = `
     <div class="card">
       <h2>Spawners (${r.count ?? 0})</h2>
       <div style="opacity:.6;font-size:11px;margin-bottom:6px">
         "tp" centres the last-selected character. "edit" opens an inline editor; "×" removes the spawn-group (active mobs survive). Use the iso editor's spawner overlay to drag-create a new rect; the map's <code>/api/locations</code> + this listing share the same coordinate space.
       </div>
-      <table><thead><tr><th>ID</th><th>Map</th><th>Rect</th><th>Center</th><th>Kinds</th><th>Active/Max</th><th></th></tr></thead>
-      <tbody>${rows || '<tr><td colspan="7"><i>no spawners</i></td></tr>'}</tbody></table>
+      <div class="toolbar"><button onclick="bulkSpawners('enable')">Enable</button><button onclick="bulkSpawners('disable')">Disable</button><input id="sp-bulk-dx" type="number" value="0" title="Move X"><input id="sp-bulk-dy" type="number" value="0" title="Move Y"><select id="sp-bulk-map" aria-label="Destination facet"><option value="">same facet</option>${[0,1,2,3,4,5].map(n=>`<option>${n}</option>`).join('')}</select><button onclick="bulkSpawners('move')">Move</button><button class="danger" onclick="bulkSpawners('delete')">Delete</button></div>
+      <p class="${diagnostics.issueCount?'error':'muted'}">Diagnostics: ${diagnostics.issueCount??0} issue(s) · duplicate ${diagnostics.duplicatePairs?.length??0} · empty ${diagnostics.emptyKinds?.length??0} · stalled ${diagnostics.stalled?.length??0} · orphan ${diagnostics.orphanSerials?.length??0}</p>
+      <div id="spawners-table"></div>
       <h3 style="margin-top:14px">Create new spawner</h3>
+      <div class="toolbar">Templates: ${(templateResult.templates??[]).map((t,i)=>`<button onclick="applySpawnerTemplate('spform-new',${i})">${esc(t.label)}</button>`).join('')}</div>
       ${spawnerForm('spform-new', null)}
     </div>
   `;
+  const table=new AdminCore.VirtualTable(document.getElementById('spawners-table'),{
+    key:s=>s.id,
+    columns:[{label:'Select',width:'60px'},{label:'ID',width:'minmax(130px,1fr)'},{label:'Map',width:'55px'},{label:'Rect',width:'170px'},{label:'Center',width:'100px'},{label:'Kinds',width:'minmax(160px,1.5fr)'},{label:'Active/Max',width:'95px'},{label:'Actions',width:'260px'}],
+    renderCells:s=>[`<input type="checkbox" data-spawner-select value="${esc(s.id)}" aria-label="Select ${esc(s.id)}">`,`${esc(s.id)} ${s.enabled===false?'<span class="pill">paused</span>':''}`,s.map,s.rect?`${s.rect.x1},${s.rect.y1}–${s.rect.x2},${s.rect.y2}`:'?',s.center?`${s.center.x},${s.center.y}`:'—',esc(s.kinds?.map?.(k=>Array.isArray(k)?k.join(':'):k).join(', ')??''),`${s.active??0}/${s.maxCount??'?'}`,`<button onclick="tpToSpawner('${escJS(s.id)}')">tp</button><button onclick="respawnSpawner('${escJS(s.id)}')">respawn</button><button onclick="toggleEditor('${escJS(s.id)}')">edit</button><button class="danger" onclick="deleteSpawner('${escJS(s.id)}')">×</button>`],
+  });
+  table.setItems(window.__spawnerRows); AdminCore.reportClientMetrics({spawnersTable:table.snapshot()});
 });
 // `tpToSpawner` is defined earlier (next to tpToItem) — both go through
 // `tpMe()` which uses the logged-in admin's character. This stub just
@@ -1004,7 +1031,7 @@ function renderAiGraphEditor() {
   const graph = activeAiGraph ?? newAiGraph();
   const picks = aiGraphCatalog.graphs.map((g)=>`<option value="${esc(g.id)}" ${g.id===graph.id?'selected':''}>${esc(g.name)} (${esc(g.id)})</option>`).join('');
   document.getElementById('main').innerHTML = `
-    <div class="toolbar"><select onchange="selectAiGraph(this.value)">${picks}</select>
+    <div class="toolbar"><select aria-label="AI behavior graph" onchange="selectAiGraph(this.value)">${picks}</select>
       <button onclick="activeAiGraph=newAiGraph();renderAiGraphEditor()">New</button>
       <button class="primary" onclick="saveAiGraph()">Save graph</button>
       <button onclick="addAiNode()">+ Node</button><button onclick="attachAiGraph()">Attach to mobile</button>
@@ -1016,9 +1043,42 @@ function renderAiGraphEditor() {
     <div style="display:flex;flex-wrap:wrap;gap:12px;padding:12px;background:#090d14;border:1px solid #35435a;min-height:420px">
       ${graph.nodes.map((node,index)=>renderAiNode(node,index,graph)).join('')}</div>`;
 }
+
+function readSpawnerForm(formId, existingId) {
+  const form = document.getElementById(formId); if (!form) return null;
+  const data = Object.fromEntries(new FormData(form));
+  return {
+    id: existingId || data.id || 'preview', map:+data.map|0,
+    rect:{x1:+data.x1|0,y1:+data.y1|0,x2:+data.x2|0,y2:+data.y2|0},
+    kinds:String(data.kinds||'').split(',').map(s=>s.trim()).filter(Boolean).map(entry=>{const m=/^(.*?):(\d+)$/.exec(entry);return m?[m[1].trim(),Math.max(1,+m[2]|0)]:entry;}),
+    maxCount:+data.maxCount||5, respawnMs:[+data.respawnLo||30000,+data.respawnHi||120000],
+    proximityRange:+data.proximityRange||0, homeRange:+data.homeRange||0, team:+data.team||0,
+    roaming:data.roaming||'home', enabled:data.enabled==='on',
+  };
+}
+async function simulateSpawner(formId, existingId) {
+  const payload=readSpawnerForm(formId,existingId); if(!payload)return;
+  const r=await api('POST','/api/spawners/simulate',{...payload,rolls:5000,seed:0x4e6f6465});
+  const host=document.getElementById(`${formId}-simulation`); if(!host)return;
+  host.innerHTML=`${[...(r.errors??[]),...(r.warnings??[])].map(x=>`<div class="${r.errors?.includes(x)?'error':'muted'}">${esc(x)}</div>`).join('')}<table><thead><tr><th>Kind</th><th>Weight</th><th>Expected</th><th>Observed</th></tr></thead><tbody>${(r.simulation?.outcomes??[]).map(o=>`<tr><td>${esc(o.kind)}</td><td>${o.weight}</td><td>${o.expectedPct}%</td><td>${o.actualPct}%</td></tr>`).join('')}</tbody></table>`;
+}
+async function respawnSpawner(id){await api('POST',`/api/spawners/${encodeURIComponent(id)}/respawn`,{});document.querySelector('[data-tab="spawners"]')?.click();}
+async function bulkSpawners(action){
+  const ids=[...document.querySelectorAll('[data-spawner-select]:checked')].map(el=>el.value);
+  if(!ids.length){window.AdminCore?.toast?.('Select at least one spawner.','warn');return;}
+  const body={ids,action};
+  if(action==='move'){body.dx=+document.getElementById('sp-bulk-dx').value||0;body.dy=+document.getElementById('sp-bulk-dy').value||0;const map=document.getElementById('sp-bulk-map').value;if(map!=='')body.map=+map;}
+  if(action==='delete'&&!confirm(`Delete ${ids.length} selected spawner groups?`))return;
+  const r=await api('POST','/api/spawners/bulk',body);window.AdminCore?.toast?.(`${r.changed??0} spawners: ${action}`,r.ok?'ok':'warn');document.querySelector('[data-tab="spawners"]')?.click();
+}
+function applySpawnerTemplate(formId,index){
+  const t=window.__spawnerTemplates?.[index]?.value;if(!t)return;const f=document.getElementById(formId);if(!f)return;
+  for(const [name,value] of Object.entries({maxCount:t.maxCount,respawnLo:t.respawnMs?.[0],respawnHi:t.respawnMs?.[1],proximityRange:t.proximityRange,homeRange:t.homeRange,team:t.team,roaming:t.roaming,kinds:(t.kinds??[]).map(k=>Array.isArray(k)?k.join(':'):k).join(', ')})){if(f.elements[name]&&value!=null)f.elements[name].value=value;}
+  if(f.elements.enabled)f.elements.enabled.checked=t.enabled!==false;
+}
 function renderAiNode(node,index,graph) {
   const ids=[''].concat(graph.nodes.map((n)=>n.id));
-  const edge=(field)=>`<select data-field="${field}">${ids.map((v)=>`<option value="${esc(v)}" ${node[field]===v?'selected':''}>${esc(v||'—')}</option>`).join('')}</select>`;
+  const edge=(field)=>`<select data-field="${field}" aria-label="${esc(node.id)} ${field} edge">${ids.map((v)=>`<option value="${esc(v)}" ${node[field]===v?'selected':''}>${esc(v||'—')}</option>`).join('')}</select>`;
   return `<div class="card aig-node" data-index="${index}" style="width:250px;border-color:${node.id===graph.start?'#d7a941':'#35435a'}">
     <div style="display:flex;justify-content:space-between"><b>#${index+1}</b><button class="small danger" onclick="removeAiNode(${index})">×</button></div>
     <label>Node id <input data-field="id" value="${esc(node.id)}"></label>
@@ -1072,56 +1132,84 @@ let animTimer = null, animBodyData = null, animFrame = 0;
 registerTab('animations', async () => {
   document.getElementById('main').innerHTML = `<div class="card"><h2>Body / action / direction preview</h2>
     <div class="toolbar"><label>Body <input id="anim-body" value="0xD7"></label><button onclick="loadAnimationBody()">Load</button><button onclick="validateAnimations()">Validate all monster definitions</button></div>
-    <div style="display:grid;grid-template-columns:280px 1fr;gap:16px"><div style="height:300px;background:#090d14;display:grid;place-items:center;border:1px solid #35435a"><img id="anim-img" style="max-width:260px;max-height:280px;image-rendering:pixelated"></div>
+    <div style="display:grid;grid-template-columns:280px 1fr;gap:16px"><div style="height:300px;background:#090d14;display:grid;place-items:center;border:1px solid #35435a"><img id="anim-img" alt="Selected body animation frame" style="max-width:260px;max-height:280px;image-rendering:pixelated"></div>
     <div><label>Action<select id="anim-action" onchange="restartAnimation()"></select></label><label>Direction<select id="anim-dir" onchange="restartAnimation()"></select></label><div id="anim-meta"></div></div></div>
-    <div id="anim-validation"></div></div>`;
+    <div id="anim-validation"></div><div id="anim-catalog" style="height:360px;min-height:220px"></div></div>`;
   await loadAnimationBody();
 });
 async function loadAnimationBody(){const body=document.getElementById('anim-body').value;animBodyData=await api('GET',`/api/animations/body/${encodeURIComponent(body)}`);const action=document.getElementById('anim-action');action.innerHTML=(animBodyData.actions??[]).map((a)=>`<option value="${a.action}">${a.action}</option>`).join('');document.getElementById('anim-meta').innerHTML=`<div class="kv"><b>Requested</b><div>${animBodyData.requested}</div><b>Resolved body</b><div>${animBodyData.resolved}${animBodyData.alias?' (body.def alias)':''}</div><b>Type</b><div>${esc(animBodyData.info?.type??'unknown')}</div><b>Status</b><div>${animBodyData.ok?'OK':animBodyData.errors.length+' error(s)'}</div></div>${animBodyData.errors?.length?`<pre style="color:#ff7777">${esc(animBodyData.errors.join('\n'))}</pre>`:''}`;restartAnimation();}
 function restartAnimation(){if(animTimer)clearInterval(animTimer);animFrame=0;const actionId=+document.getElementById('anim-action').value;const action=animBodyData?.actions?.find((a)=>a.action===actionId);const dir=document.getElementById('anim-dir');const previous=dir.value;dir.innerHTML=(action?.directions??[]).map((d)=>`<option value="${d.direction}">${d.direction} (${d.frames} frames)</option>`).join('');if([...dir.options].some((o)=>o.value===previous))dir.value=previous;drawAnimationFrame();animTimer=setInterval(drawAnimationFrame,120);}
 function drawAnimationFrame(){const body=document.getElementById('anim-body')?.value,action=+document.getElementById('anim-action')?.value,dir=+document.getElementById('anim-dir')?.value;if(body==null)return;const entry=animBodyData?.actions?.find((a)=>a.action===action)?.directions?.find((d)=>d.direction===dir);if(!entry?.frames)return;document.getElementById('anim-img').src=`/api/animations/frame/${encodeURIComponent(body)}/${action}/${dir}/${animFrame++%entry.frames}`;}
-async function validateAnimations(){const host=document.getElementById('anim-validation');host.textContent='Validating…';const r=await api('GET','/api/animations/validate');const bad=r.results.filter((x)=>!x.ok);host.innerHTML=`<h3>Definitions: ${r.total} · invalid ${r.invalid} · warnings ${r.warnings}</h3><table><thead><tr><th>Kind</th><th>Body</th><th>Problems</th></tr></thead><tbody>${bad.map((x)=>`<tr><td>${esc(x.kind)}</td><td>${x.body} → ${x.resolved}</td><td>${esc(x.errors.join('; '))}</td></tr>`).join('')||'<tr><td colspan="3">All registered monster bodies have required actions and directions.</td></tr>'}</tbody></table>`;}
+async function validateAnimations(){const host=document.getElementById('anim-validation');host.textContent='Validating…';const r=await api('GET','/api/animations/validate');host.innerHTML=`<h3>Definitions: ${r.total} · invalid ${r.invalid} · warnings ${r.warnings}</h3>`;const catalog=document.getElementById('anim-catalog');const table=new AdminCore.VirtualTable(catalog,{columns:[{label:'Kind',width:'minmax(160px,1fr)'},{label:'Body',width:'150px'},{label:'Status',width:'minmax(220px,2fr)'}],rowHeight:38,overscan:8,maxDomNodes:120,key:(row,index)=>`${row.kind??'body'}:${row.body??index}`,renderCells:(row)=>[esc(row.kind??'body'),`${row.body} → ${row.resolved}`,row.ok?'OK':esc((row.errors??[]).join('; '))]});table.setItems(r.results??[]);AdminCore.reportClientMetrics({animationCatalogRows:r.results?.length??0,animationCatalogDom:table.snapshot().domNodes});}
 Object.assign(window,{loadAnimationBody,restartAnimation,validateAnimations});
 
 // ---------------------------- Logs ----------------------------------------
 let logTimer = null;
 registerTab('operations', async () => {
-  document.getElementById('main').innerHTML=`<div class="card"><h2>Operational readiness</h2><div class="toolbar"><button class="primary" onclick="opsReadiness()">Run readiness check</button><button onclick="opsIntegrity()">Deep world integrity</button><button onclick="opsSaveCheck(false)">Verify saves</button><button onclick="opsSaveCheck(true)">Save + verify</button><button onclick="opsRefresh()">Refresh metrics</button></div><div id="ops-ready"></div></div><div class="card"><h2>Protocol + client compatibility</h2><div id="ops-network"></div></div><div class="card"><h2>Command health</h2><div id="ops-commands"></div></div><div class="card"><h2>Feature boundary</h2><div id="ops-features"></div></div><div class="card"><h2>Recent audit events</h2><div id="ops-audit"></div></div>`;
+  document.getElementById('main').innerHTML=`<div class="card"><h2>Operational readiness</h2><div class="toolbar"><button class="primary" onclick="opsReadiness()">Run readiness check</button><button onclick="opsIntegrity()">Deep world integrity</button><button onclick="opsSaveCheck(false)">Verify saves</button><button onclick="opsSaveCheck(true)">Save + verify</button><button onclick="opsRefresh()">Refresh metrics</button></div><div id="ops-ready"></div></div>
+  <div class="card"><h2>Runtime · tick / event-loop / memory / queues</h2><div id="ops-runtime"></div></div>
+  <div class="card"><h2>Protocol + client compatibility</h2><div id="ops-network"></div></div>
+  <div class="card"><h2>Scripts · AI / pathfinding</h2><div id="ops-scripts"></div><div id="ops-ai"></div></div>
+  <div class="card"><h2>Command health</h2><div id="ops-commands"></div></div>
+  <div class="card"><h2>Feature boundary</h2><div id="ops-features"></div></div>
+  <div class="card"><h2>Alerts & performance budgets</h2><div id="ops-alerts"></div><div id="ops-budgets"></div></div>
+  <div class="card"><h2>Dependency & asset health</h2><div id="ops-health"></div></div>
+  <div class="card"><h2>Storage & controlled backups</h2><div id="ops-storage"></div><div id="ops-backups"></div></div>
+  <div class="card"><h2>Snapshot migrations</h2><div id="ops-migrations"></div></div>
+  <div class="card"><h2>NodeUO feature rollout</h2><div id="ops-flags"></div></div>
+  <div class="card"><h2>Approved test runner</h2><div id="ops-tests"></div><pre id="ops-test-output"></pre></div>
+  <div class="card"><h2>Recent audit events</h2><div class="toolbar"><input id="ops-audit-filter" aria-label="Filter audit trail" placeholder="kind, actor, target or correlation ID"><button onclick="opsRefresh()">Filter</button></div><div id="ops-audit"></div></div>`;
   await opsRefresh();await opsReadiness();
 });
 function opsBytes(n){if(n<1024)return n+' B';if(n<1048576)return(n/1024).toFixed(1)+' KiB';return(n/1048576).toFixed(1)+' MiB';}
-async function opsRefresh(){const [net,compat,cmd,features,audit]=await Promise.all([api('GET','/api/operations/protocol'),api('GET','/api/operations/compatibility'),api('GET','/api/operations/commands'),api('GET','/api/operations/features'),api('GET','/api/operations/audit?limit=100')]);
+async function opsRefresh(){const auditFilter=document.getElementById('ops-audit-filter')?.value??'';const [net,compat,cmd,features,audit,overview,alerts,health,backups,migrations,flags,tests,budgets]=await Promise.all([api('GET','/api/operations/protocol'),api('GET','/api/operations/compatibility'),api('GET','/api/operations/commands'),api('GET','/api/operations/features'),api('GET',`/api/operations/audit?limit=100&q=${encodeURIComponent(auditFilter)}`),api('GET','/api/operations/overview'),api('GET','/api/operations/alerts'),api('GET','/api/operations/health'),api('GET','/api/backups'),api('GET','/api/migrations/plan').catch(e=>({error:e.message})),api('GET','/api/feature-flags'),api('GET','/api/test-jobs'),api('GET','/api/operations/budgets')]);
   document.getElementById('ops-network').innerHTML=`<div class="stats"><div><b>${net.rxPackets}</b><span>RX packets</span></div><div><b>${opsBytes(net.rxBytes)}</b><span>RX bytes</span></div><div><b>${net.txPackets}</b><span>TX packets</span></div><div><b>${opsBytes(net.txBytes)}</b><span>TX bytes</span></div><div><b>${net.protocolErrors}</b><span>framing errors</span></div><div><b>${net.handlerErrors}</b><span>handler errors</span></div></div><p class="muted">Clients: ${compat.connected} · ${Object.entries(compat.byTransport).map(([k,v])=>`${esc(k)} ${v}`).join(' · ')||'none'}</p><table><thead><tr><th>RX opcode</th><th>Packets</th><th>Bytes</th><th>Avg handler</th><th>Errors</th></tr></thead><tbody>${net.rxOpcodes.slice(0,20).map(o=>`<tr><td>0x${o.opcode.toString(16).padStart(2,'0')}</td><td>${o.packets}</td><td>${opsBytes(o.bytes)}</td><td>${o.averageHandlerMs} ms</td><td>${o.errors}</td></tr>`).join('')}</tbody></table>`;
   document.getElementById('ops-commands').innerHTML=`<p class="muted">Unknown: ${cmd.unknownCount??0} · registration collisions: ${(cmd.collisions??[]).length}</p><table><thead><tr><th>Command</th><th>Calls</th><th>Denied</th><th>Errors</th><th>Avg/max</th></tr></thead><tbody>${(cmd.commands??[]).slice(0,100).map(c=>`<tr><td>[${esc(c.name)}</td><td>${c.calls}</td><td>${c.denied}</td><td>${c.errors}</td><td>${c.averageMs}/${c.maxMs.toFixed?.(2)??c.maxMs} ms</td></tr>`).join('')}</tbody></table>`;
   document.getElementById('ops-features').innerHTML=`<p><b>${esc(features.protocol)}</b> · mask 0x${(+features.currentMask).toString(16)}</p><div class="row">${features.capabilities.map(f=>`<span class="pill ${f.enabled?'online':''}">${esc(f.name)}</span>`).join('')}</div><pre>${esc(JSON.stringify(features.server,null,2))}</pre>`;
-  document.getElementById('ops-audit').innerHTML=`<table><thead><tr><th>Time</th><th>Kind</th><th>Actor</th><th>Target</th><th>Detail</th></tr></thead><tbody>${audit.entries.map(e=>`<tr><td>${new Date(e.at).toLocaleTimeString()}</td><td>${esc(e.kind)}</td><td>${esc(e.actor??'—')}</td><td>${esc(e.target??'—')}</td><td>${esc(e.detail??'')}</td></tr>`).join('')}</tbody></table>`;
+  const rt=overview.runtime,mem=rt.memory??{};document.getElementById('ops-runtime').innerHTML=`<div class="stats"><div><b>${rt.eventLoop.currentLagMs} ms</b><span>event loop</span></div><div><b>${rt.eventLoop.p95LagMs} ms</b><span>p95 lag</span></div><div><b>${opsBytes(mem.rss??0)}</b><span>RSS</span></div><div><b>${opsBytes(mem.heapUsed??0)}</b><span>heap</span></div><div><b>${rt.ticks.length}</b><span>tick sources</span></div></div><table><thead><tr><th>Tick</th><th>Calls</th><th>Avg</th><th>Max</th><th>Slow</th></tr></thead><tbody>${rt.ticks.slice(0,30).map(t=>`<tr><td>${esc(t.name)}</td><td>${t.calls}</td><td>${t.averageMs} ms</td><td>${t.maxMs} ms</td><td>${t.slow}</td></tr>`).join('')}</tbody></table><details><summary>Active resources / queues</summary><pre>${esc(JSON.stringify(rt.activeResources,null,2))}</pre></details>`;
+  const scriptProfile=overview.scripts.profile??{};document.getElementById('ops-scripts').innerHTML=`<div class="stats"><div><b>${overview.scripts.loaded}</b><span>loaded</span></div><div><b>${scriptProfile.totalMs??0} ms</b><span>last load</span></div><div><b>${scriptProfile.failed??0}</b><span>failed</span></div><div><b>${overview.scripts.collisions}</b><span>collisions</span></div></div><details><summary>Load phases / slowest / errors</summary><pre>${esc(JSON.stringify({profile:scriptProfile,reloads:overview.scripts.reloadHistory},null,2))}</pre></details>`;
+  document.getElementById('ops-ai').innerHTML=`<h3>AI/pathfinding budget</h3><table><thead><tr><th>Tick</th><th>Avg</th><th>Max</th><th>Total</th></tr></thead><tbody>${overview.ai.expensive.map(t=>`<tr><td>${esc(t.name)}</td><td>${t.averageMs}</td><td>${t.maxMs}</td><td>${t.totalMs}</td></tr>`).join('')||'<tr><td colspan="4">No measured AI tick yet.</td></tr>'}</tbody></table><h3>Most expensive entities</h3><table><thead><tr><th>Serial</th><th>Name / behavior</th><th>Last tick</th><th>Status</th><th>Errors</th></tr></thead><tbody>${overview.ai.expensiveEntities.map(entity=>`<tr><td><button onclick="showTab('characters');setTimeout(()=>followLive('${esc(entity.serial)}'),50)">${esc(entity.serial)}</button></td><td>${esc(entity.name)} · ${esc(entity.behavior)}</td><td>${entity.lastTickMs??0} ms</td><td>${esc(entity.status??'—')}</td><td>${esc(entity.lastError??'')}</td></tr>`).join('')||'<tr><td colspan="5">No AI entity samples yet.</td></tr>'}</tbody></table><details><summary>Scheduler budget</summary><pre>${esc(JSON.stringify(overview.ai.scheduler,null,2))}</pre></details>`;
+  document.getElementById('ops-storage').innerHTML=`<div class="stats"><div><b>${opsBytes(overview.storage.totalBytes??0)}</b><span>save files</span></div><div><b>${overview.storage.saves?.lastMs??'—'} ms</b><span>last save</span></div><div><b>${overview.storage.saves?.coalesced??0}</b><span>coalesced</span></div><div><b>${esc(overview.storage.journal?.status??'unknown')}</b><span>journal</span></div></div><details><summary>Snapshots, journal and queue</summary><pre>${esc(JSON.stringify(overview.storage,null,2))}</pre></details>`;
+  document.getElementById('ops-alerts').innerHTML=`<p class="${alerts.ok?'muted':'error'}">${alerts.ok?'No active alerts.':alerts.active.length+' active alert(s)'}</p><div class="toolbar">${Object.entries(alerts.thresholds).map(([k,v])=>`<label>${esc(k)} <input data-alert-key="${esc(k)}" type="number" value="${v}"></label>`).join('')}<button onclick="opsSaveAlerts()">Save thresholds</button></div>${alerts.active.map(a=>`<a href="${a.href}">${esc(a.key)} ${a.value} > ${a.threshold}</a>`).join('<br>')}`;
+  document.getElementById('ops-budgets').innerHTML=`<h3>Budgets ${budgets.ok?'✓':'⚠'}</h3><pre>${esc(JSON.stringify({budgets:budgets.budgets,violations:budgets.violations,api:budgets.api,client:budgets.client},null,2))}</pre>`;
+  document.getElementById('ops-health').innerHTML=`<table><thead><tr><th>Check</th><th>Status</th><th>Detail</th></tr></thead><tbody>${health.checks.map(c=>`<tr><td>${esc(c.name)}</td><td>${c.ok?'✓':'✗'}</td><td>${esc(c.detail??c.error??(c.bytes?opsBytes(c.bytes):''))}</td></tr>`).join('')}</tbody></table>`;
+  document.getElementById('ops-backups').innerHTML=`<div class="toolbar"><select id="ops-backup-file" aria-label="Save or backup file">${backups.files.map(f=>`<option value="${esc(f.name)}">${esc(f.name)} · ${opsBytes(f.bytes)}</option>`).join('')}</select><button onclick="opsVerifyBackup()">Verify</button><button class="danger" onclick="opsRestoreBackup()">Restore</button></div><div id="ops-backup-result"></div>`;
+  document.getElementById('ops-migrations').innerHTML=migrations.error?`<p class="muted">${esc(migrations.error)}</p>`:`<p>${esc(migrations.file)} · v${migrations.from} → v${migrations.target} · ${migrations.steps.length} step(s)</p><pre>${esc(JSON.stringify(migrations,null,2))}</pre><button ${!migrations.steps.length?'disabled':''} onclick="opsApplyMigration('${esc(migrations.file)}')">Apply migration</button>`;
+  document.getElementById('ops-flags').innerHTML=`<p>Revision ${flags.revision}</p><table><thead><tr><th>Flag</th><th>Enabled</th><th>Rollout</th><th>NodeUO only</th></tr></thead><tbody>${Object.entries(flags.flags??{}).map(([name,f])=>`<tr><td>${esc(name)}</td><td>${f.enabled?'yes':'no'}</td><td>${f.percent}% · ${f.accounts?.length??0} accounts</td><td>${f.nodeUOOnly?'yes':'no'}</td></tr>`).join('')||'<tr><td colspan="4">No custom flags.</td></tr>'}</tbody></table><div class="toolbar"><input id="ops-flag-name" placeholder="feature.name"><input id="ops-flag-percent" aria-label="Feature rollout percentage" type="number" value="100" min="0" max="100"><label><input id="ops-flag-enabled" type="checkbox" checked> enabled</label><label><input id="ops-flag-nodeuo" type="checkbox" checked> NodeUO extension only</label><button onclick="opsSaveFlag()">Save rollout</button></div>`;
+  document.getElementById('ops-tests').innerHTML=`<div class="toolbar"><select id="ops-test-suite" aria-label="Approved test suite">${tests.suites.map(s=>`<option value="${esc(s.id)}">${esc(s.label)}</option>`).join('')}</select><button onclick="opsStartTest()">Run suite</button></div><table><thead><tr><th>Suite</th><th>Status</th><th>Duration</th><th></th></tr></thead><tbody>${tests.jobs.map(j=>`<tr><td>${esc(j.label)}</td><td>${esc(j.status)}</td><td>${j.durationMs??'—'} ms</td><td><button onclick="opsShowTest('${esc(j.id)}')">report</button></td></tr>`).join('')}</tbody></table>`;
+  document.getElementById('ops-audit').innerHTML=`<table><thead><tr><th>Time</th><th>Kind</th><th>Actor</th><th>Target</th><th>Detail</th><th></th></tr></thead><tbody>${audit.entries.map(e=>{const undoId=String(e.detail??'').match(/"undoId":"(undo-[^"]+)"/)?.[1];return `<tr><td>${new Date(e.at).toLocaleTimeString()}</td><td>${esc(e.kind)}</td><td>${esc(e.actor??'—')}</td><td>${esc(e.target??'—')}</td><td>${esc(e.detail??'')}</td><td>${undoId?`<button onclick="opsUndo('${esc(undoId)}')">Undo</button>`:''}</td></tr>`}).join('')}</tbody></table>`;
 }
+async function opsUndo(id){if(!await AdminCore.confirmDanger({title:'Undo audited mutation',message:`Apply the recorded inverse operation ${id}? Current world state will be checked first.`,phrase:'UNDO',actionLabel:'Undo'}))return;await api('POST',`/api/operations/audit/${encodeURIComponent(id)}/undo`,{});await opsRefresh()}
 async function opsReadiness(){const h=document.getElementById('ops-ready');h.textContent='Scanning…';const r=await api('GET','/api/operations/readiness');h.innerHTML=`<h3 style="color:${r.ok?'#80ff80':'#ffb070'}">${r.ok?'READY':'ATTENTION REQUIRED'}</h3><div class="kv"><b>World</b><div>${r.integrity.ok?'consistent':esc(JSON.stringify(r.integrity.counts))}</div><b>Saves</b><div>${r.saves.ok?'verified':'missing/corrupt'}</div><b>Commands</b><div>${r.commands.collisions} collisions · ${r.commands.errors} runtime errors</div><b>Clients</b><div>${r.compatibility.connected} connected</div></div>`;}
 async function opsIntegrity(){const r=await api('POST','/api/operations/integrity',{});document.getElementById('ops-ready').innerHTML=`<h3>${r.ok?'World is consistent':'Integrity issues found'}</h3><pre>${esc(JSON.stringify({scanned:r.scanned,counts:r.counts,issues:r.issues.slice(0,200)},null,2))}</pre>`;}
 async function opsSaveCheck(saveFirst){const r=await api('POST','/api/operations/save-check',{saveFirst});document.getElementById('ops-ready').innerHTML=`<h3>${r.verification.ok?'Save verified':'Save verification failed'}</h3><pre>${esc(JSON.stringify(r,null,2))}</pre>`;}
-Object.assign(window,{opsRefresh,opsReadiness,opsIntegrity,opsSaveCheck});
+async function opsSaveAlerts(){const body=Object.fromEntries([...document.querySelectorAll('[data-alert-key]')].map(input=>[input.dataset.alertKey,+input.value]));await api('PUT','/api/operations/alerts',body);await opsRefresh()}
+async function opsVerifyBackup(){const name=document.getElementById('ops-backup-file').value,r=await api('POST','/api/backups/verify',{name});document.getElementById('ops-backup-result').innerHTML=`<pre>${esc(JSON.stringify(r,null,2))}</pre>`}
+async function opsRestoreBackup(){const source=document.getElementById('ops-backup-file').value;if(!await AdminCore.confirmDanger({title:'Restore save backup',message:`Verify and restore ${source}. The current canonical file receives a rollback copy and the shard must restart.`,phrase:'RESTORE',actionLabel:'Restore'}))return;const r=await api('POST','/api/backups/restore',{source});document.getElementById('ops-backup-result').innerHTML=`<pre>${esc(JSON.stringify(r,null,2))}</pre>`;await opsRefresh()}
+async function opsApplyMigration(file){if(!await AdminCore.confirmDanger({title:'Apply snapshot migration',message:`Apply the reviewed migration plan to ${file}? A rollback backup is created first.`,phrase:'MIGRATE',actionLabel:'Migrate'}))return;const r=await api('POST','/api/migrations/apply',{file});document.getElementById('ops-migrations').innerHTML=`<pre>${esc(JSON.stringify(r,null,2))}</pre>`}
+async function opsSaveFlag(){const body={name:document.getElementById('ops-flag-name').value,enabled:document.getElementById('ops-flag-enabled').checked,nodeUOOnly:document.getElementById('ops-flag-nodeuo').checked,rollout:{percent:+document.getElementById('ops-flag-percent').value}};await api('PUT','/api/feature-flags',body);await opsRefresh()}
+let opsTestPoll=null;
+async function opsStartTest(){const suite=document.getElementById('ops-test-suite').value,r=await api('POST','/api/test-jobs',{suite});await opsWatchTest(r.job.id)}
+async function opsShowTest(id){const r=await api('GET',`/api/test-jobs/${id}`);document.getElementById('ops-test-output').textContent=r.output||`${r.status} (${r.durationMs??0} ms)`;return r}
+async function opsWatchTest(id){clearInterval(opsTestPoll);const poll=async()=>{const r=await opsShowTest(id);if(r.status!=='running'){clearInterval(opsTestPoll);opsTestPoll=null;await opsRefresh()}return r};const first=await poll();if(first.status==='running')opsTestPoll=setInterval(poll,1000)}
+Object.assign(window,{opsRefresh,opsUndo,opsReadiness,opsIntegrity,opsSaveCheck,opsSaveAlerts,opsVerifyBackup,opsRestoreBackup,opsApplyMigration,opsSaveFlag,opsStartTest,opsShowTest});
 
 registerTab('logs', async () => {
   document.getElementById('main').innerHTML = `
     <div class="card">
-      <h2>Server log (last 200 lines)</h2>
+      <h2>Structured server log</h2>
+      <div class="toolbar"><input id="log-filter" placeholder="message, serial or correlation ID"><select id="log-level" aria-label="Log level"><option value="">all levels</option><option>error</option><option>warn</option><option>info</option></select><button onclick="refreshLogs()">Filter</button><button onclick="exportLogs()">Export JSON</button><label><input id="log-follow" type="checkbox" checked> follow</label></div>
       <pre id="log-pre" style="background:#14100a;padding:8px;font-size:11px;max-height:600px;overflow:auto;color:#a89870"></pre>
     </div>
   `;
-  const pre = document.getElementById('log-pre');
-  const refresh = async () => {
-    try {
-      const r = await api('GET', '/api/logs');
-      pre.textContent = (r.lines ?? [])
-        .map((l) => `${new Date(l.ts).toISOString().slice(11, 19)}  ${l.line}`)
-        .join('\n');
-      pre.scrollTop = pre.scrollHeight;
-    } catch { /* ignore */ }
-  };
-  refresh();
+  await refreshLogs();
   if (logTimer) clearInterval(logTimer);
-  logTimer = setInterval(refresh, 2000);
+  logTimer = setInterval(()=>{if(document.getElementById('log-follow')?.checked)refreshLogs()}, 2000);
 });
+let lastLogExport=[];
+async function refreshLogs(){const pre=document.getElementById('log-pre');if(!pre)return;const filter=document.getElementById('log-filter')?.value??'',level=document.getElementById('log-level')?.value??'';try{const [raw,structured]=await Promise.all([api('GET',`/api/logs?filter=${encodeURIComponent(filter)}&level=${encodeURIComponent(level)}&limit=500`),api('GET',`/api/operations/events?filter=${encodeURIComponent(filter)}&level=${encodeURIComponent(level)}&limit=500`)]);lastLogExport=[...(raw.lines??[]).map(l=>({at:new Date(l.ts).toISOString(),level:/error/i.test(l.line)?'error':/warn/i.test(l.line)?'warn':'info',event:'console',message:l.line})),...(structured.entries??[])].sort((a,b)=>String(a.at).localeCompare(String(b.at)));pre.textContent=lastLogExport.map(e=>`${String(e.at).slice(11,19)} ${String(e.level??'info').padEnd(5)} ${e.event??''} ${e.message??e.line??JSON.stringify(e)}`).join('\n');if(document.getElementById('log-follow')?.checked)pre.scrollTop=pre.scrollHeight}catch(e){if(e.name!=='AbortError')pre.textContent=e.message}}
+function exportLogs(){const link=document.createElement('a');link.href=URL.createObjectURL(new Blob([JSON.stringify(lastLogExport,null,2)],{type:'application/json'}));link.download=`nodeuo-logs-${new Date().toISOString().replaceAll(':','-')}.json`;link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1000)}
+Object.assign(window,{refreshLogs,exportLogs});
 
 // ---------------------------- World tab -----------------------------------
 registerTab('world', async () => {
@@ -1224,6 +1312,18 @@ registerTab('data-editor', async () => {
   `;
 });
 
+registerTab('studio', async () => {
+  document.getElementById('main').innerHTML = `
+    <div class="card" style="padding:0!important;margin-bottom:0;height:calc(100vh - 132px);overflow:hidden">
+      <div style="padding:8px 12px;border-bottom:1px solid var(--admin-border);display:flex;align-items:center;gap:10px">
+        <b style="color:var(--admin-accent-strong)">Content Studio</b>
+        <span class="muted">visual editors, previews, drafts, diff, validation and safe publish</span>
+        <span style="flex:1"></span><a href="/studio" target="_blank" rel="noopener" style="color:var(--admin-info)">↗ pop out</a>
+      </div>
+      <iframe title="Content Studio" src="/studio" style="width:100%;height:calc(100% - 42px);border:0;background:#080b0f"></iframe>
+    </div>`;
+});
+
 
 // ---------------------------- Modal ---------------------------------------
 function showModal(title, html, actions = []) {
@@ -1274,8 +1374,13 @@ function escJS(s) {
 
 // ---------------------------- Boot ----------------------------------------
 const initialTab = (location.hash || '#dashboard').slice(1);
+AdminCore.boot();
 activate(tabs[initialTab] ? initialTab : 'dashboard');
-setInterval(refreshDashboard, 5000);
+// Header telemetry is useful on every tab, but polling a background browser
+// window and re-fetching the immutable identity on every tick only wastes
+// server work. Ten seconds is still responsive for operator telemetry.
+setInterval(refreshDashboard, 10_000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshDashboard(); });
 refreshDashboard();
 </script>
 </body>

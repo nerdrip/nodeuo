@@ -10,15 +10,14 @@
 // port). The previous version pulled from a tiny content/items registry
 // (~80 entries) so the user couldn't browse or spawn the long tail.
 
-// User-report — earlier 2-column-with-tilepic layout was unreadable.
-// They explicitly asked for "just names, no visualization or columns".
-// Plain vertical list: one entry per row, clickable name, that's it.
+// One visual row per item. The preview is bounded by the web client's
+// ItemPic containment box, so even tall weapons cannot escape the catalogue.
 import { findBackpack } from '../../_inventory.js';
 import { createItem } from '../../_items.js';
 
-const ROWS_PER_PAGE = 24;
+const ROWS_PER_PAGE = 12;
 const ITEMS_PER_PAGE = ROWS_PER_PAGE;
-const ROW_H = 22;
+const ROW_H = 46;
 
 // Slot/role tabs. 'all' is special — no filter. Each entry's `match()`
 // returns true for templates that should appear under that tab. Earlier
@@ -139,7 +138,7 @@ export default function register(api) {
     page = Math.max(0, Math.min(page, totalPages - 1));
     const slice = list.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE);
 
-    const W = 420;
+    const W = 520;
     const H = 144 + ROWS_PER_PAGE * ROW_H + 40;
     const parts = [`{ page 0 }`, `{ resizepic 0 0 5054 ${W} ${H} }`];
     const texts = [];
@@ -174,13 +173,16 @@ export default function register(api) {
       parts.push(`{ text ${x + 20} ${y} ${tab.id === kind ? 1153 : 70} ${texts.length - 1} }`);
     });
 
-    // Body — plain name list, one clickable text per row, no tilepic.
+    // Body — visual preview + friendly name + technical id/slot.
     const BODY_TOP = 130;
     slice.forEach((def, i) => {
       const y = BODY_TOP + i * ROW_H;
-      parts.push(`{ button 18 ${y + 2} 4005 4007 1 0 ${100 + i} }`);
-      texts.push(def.name);
-      parts.push(`{ text 44 ${y + 2} 1153 ${texts.length - 1} }`);
+      parts.push(`{ tilepicfit 16 ${y} ${def.id} 0 48 42 }`);
+      parts.push(`{ button 74 ${y + 10} 4005 4007 1 0 ${100 + i} }`);
+      texts.push(def.label || def.name);
+      parts.push(`{ text 104 ${y + 4} 1153 ${texts.length - 1} }`);
+      texts.push(`${def.name} · 0x${def.id.toString(16).padStart(4, '0')} · ${def.slot}`);
+      parts.push(`{ croppedtext 104 ${y + 24} 370 18 70 ${texts.length - 1} }`);
     });
 
     // Footer pagination.

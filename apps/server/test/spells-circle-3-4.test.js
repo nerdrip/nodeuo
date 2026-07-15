@@ -101,6 +101,19 @@ describe('Magery circles 3-4', () => {
     expect(kind).toBe(1);
   });
 
+  it('recall uses the rune selected by the object cursor', () => {
+    putReagents(world, caster, ['blackpearl', 'bloodmoss', 'mandrake']);
+    const rune = {
+      serial: 0x4000ff01, itemId: 0x1F14,
+      x: 100, y: 100, z: 0, map: 1,
+      runeDest: { x: 107, y: 104, z: 3, map: 1, label: 'audit rune' },
+    };
+    world.items.set(rune.serial, rune);
+    api.targeting.request = (_s, cb) => cb({ serial: rune.serial });
+    cast('recall');
+    expect(caster).toMatchObject({ x: 107, y: 104, z: 3, map: 1 });
+  });
+
   it('mana-drain reduces target mana', () => {
     // Audit #36 P2 #9 — ServUO Mana Drain drains `40 + (EvalInt-Resist)`.
     // With both at 0 the formula = 40. Victim seeded with 100 mana so

@@ -75,6 +75,13 @@ class Mobile {
     this.offsetStartZ = 0;
     this.offsetStartAt = 0;
     this.offsetEndAt = 0;
+    /** Exact iso rows for depth sorting while a step is interpolated.
+     *  They are kept separately from the pixel offset because offsetStartY
+     *  also contains `dz * 4`; recovering an old row from that value makes
+     *  a five-z stair look like a two-tile move and can draw the avatar in
+     *  front of an adjacent upper wall. */
+    this.moveSortStartRow = 0;
+    this.moveSortEndRow = 0;
     /** Whether the currently interpolated step uses the run cadence. */
     this.moveRunning = false;
     /** Deque of pending steps for NPC multi-step movement smoothing.
@@ -122,7 +129,8 @@ class Mobile {
    *  staccato during continuous walking. We start the new lerp from
    *  `currentOffset + newDelta` so the sprite stays geometrically
    *  on the path with no snapping. */
-  beginMoveStep(dx, dy, dz, durationMs, now, running = durationMs <= 250) {
+  beginMoveStep(dx, dy, dz, durationMs, now, running = durationMs <= 250,
+                sortStartRow = null, sortEndRow = null) {
     const sx = (dx - dy) * 22;
     const sy = (dx + dy) * 22 - dz * 4;
     const inFlight = this.offsetEndAt > now;
@@ -141,6 +149,13 @@ class Mobile {
     this.offsetStartAt = now;
     this.offsetEndAt = now + durationMs;
     this.moveRunning = !!running;
+    const logicalEndRow = Number.isFinite(sortEndRow)
+      ? Number(sortEndRow)
+      : ((this.x | 0) + (this.y | 0));
+    this.moveSortEndRow = logicalEndRow;
+    this.moveSortStartRow = Number.isFinite(sortStartRow)
+      ? Number(sortStartRow)
+      : logicalEndRow - (dx | 0) - (dy | 0);
   }
 
   /** Append a step to the deque. Called from the 0x77 handler when the
@@ -155,7 +170,15 @@ class Mobile {
       // snapping (the sprite is already past it visually anyway).
       this._stepsHead += 1;
     }
-    this.steps.push({ dx, dy, dz, run: !!run, dir: (dir | 0) & 7 });
+    // Incoming packets update logical x/y before queuing. Preserve the row
+    // belonging to this particular packet; by the time it is drained the
+    // mobile may already hold coordinates from a later queued packet.
+    const sortEndRow = (this.x | 0) + (this.y | 0);
+    this.steps.push({
+      dx, dy, dz, run: !!run, dir: (dir | 0) & 7,
+      sortStartRow: sortEndRow - (dx | 0) - (dy | 0),
+      sortEndRow,
+    });
     this._compactSteps();
   }
 
@@ -200,7 +223,10 @@ class Mobile {
     const durationMs = this.isMounted
       ? (next.run ? 100 : 200)
       : (next.run ? 200 : 400);
-    this.beginMoveStep(next.dx, next.dy, next.dz, durationMs, now, next.run);
+    this.beginMoveStep(
+      next.dx, next.dy, next.dz, durationMs, now, next.run,
+      next.sortStartRow, next.sortEndRow,
+    );
     return true;
   }
 
@@ -221,12 +247,14 @@ class Mobile {
   tickMoveStep(now) {
     if (this.offsetEndAt <= 0) {
       this.moveRunning = false;
+      this.moveSortStartRow = this.moveSortEndRow = (this.x | 0) + (this.y | 0);
       return false;
     }
     if (now >= this.offsetEndAt) {
       this.offsetX = this.offsetY = this.offsetZ = 0;
       this.offsetStartAt = this.offsetEndAt = 0;
       this.moveRunning = false;
+      this.moveSortStartRow = this.moveSortEndRow = (this.x | 0) + (this.y | 0);
       return false;
     }
     const dur = this.offsetEndAt - this.offsetStartAt;
@@ -378,21 +406,155 @@ export class World {
 
   /** Reset all world state. Called on disconnect / scene swap to login. */
   reset() {
-    this.player = null;
-    this.lightLevel = 0;
-    this.lastLightPacketAt = 0;
-    this.season = 1;
-    this.playerIndoors = false;
-    this.lastRegionKind = null;
-    this.mobiles.clear();
-    this.items.clear();
-    this._equipIndex.clear();
-    this._itemsByParent.clear();
-    this._mobsBySector.clear();
-    this._itemsBySector.clear();
+    this._resetting = true;
+    this._resetEpoch = ((this._resetEpoch | 0) + 1) >>> 0;
+    Object.assign(this, {
+      player: null,
+      lightLevel: 0,
+      lastLightPacketAt: 0,
+      season: 1,
+      playerIndoors: false,
+      lastRegionKind: null,
+      mobiles: new Map(),
+      items: new Map(),
+      _equipIndex: new Map(),
+      _itemsByParent: new Map(),
+      _mobsBySector: new Map(),
+      _itemsBySector: new Map(),
+    });
     this._spatialDirty = true;
     this._bumpSpatialRevision('all', { clear: true });
     this.moveSequence = 0;
+    this._resetting = false;
+    return this._resetEpoch;
+  }
+
+  /** Commit an authoritative container snapshot in one synchronous batch.
+   * All rows are validated before the live indexes are touched. */
+  replaceContainerContents(containerSerial, rows = []) {
+    const parent = containerSerial >>> 0;
+    if (!parent) return { ok: false, reason: 'invalid-parent', items: [] };
+    const staged = [];
+    const serials = new Set();
+    for (const row of rows) {
+      const serial = row?.serial >>> 0;
+      if (!serial || serials.has(serial)) return { ok: false, reason: 'duplicate-or-invalid-serial', items: [] };
+      serials.add(serial);
+      staged.push({
+        ...row, serial, parent, itemId: row.itemId | 0, amount: Math.max(1, row.amount | 0),
+        hue: row.hue | 0, gridX: row.gridX | 0, gridY: row.gridY | 0,
+      });
+    }
+    this.batchSpatialMutations(() => {
+      const previous = new Set(this._itemsByParent.get(parent) ?? []);
+      for (const data of staged) {
+        let item = this.items.get(data.serial);
+        if (!item) { item = new Item(data.serial); this.items.set(data.serial, item); }
+        const oldParent = item.parent >>> 0;
+        const oldX = item.x; const oldY = item.y; const oldMap = item.map ?? this.mapId;
+        Object.assign(item, data);
+        this.linkItemParent(item, oldParent);
+        this.reindexItem(item, oldX, oldY, oldMap, oldParent);
+        previous.delete(data.serial);
+      }
+      for (const serial of previous) {
+        const item = this.items.get(serial);
+        if (!item || (item.parent >>> 0) !== parent) continue;
+        this.unlinkItemParent(item);
+        this.items.delete(serial);
+      }
+      this._bumpSpatialRevision('item');
+    });
+    const integrity = this.validateGraph({ repair: true });
+    return { ok: integrity.ok, items: staged, integrity };
+  }
+
+  /** Swap every equipment layer at once. The renderer observes either the
+   * previous Map or the complete replacement, never a half-cleared paperdoll. */
+  replaceEquipment(mob, rows = []) {
+    if (!mob) return { ok: false, reason: 'missing-mobile' };
+    const next = new Map();
+    for (const row of rows) {
+      const serial = row?.serial >>> 0; const layer = row?.layer | 0;
+      if (!serial || layer <= 0 || next.has(layer)) return { ok: false, reason: 'invalid-or-duplicate-layer' };
+      next.set(layer, { ...row, serial, layer, itemId: row.itemId | 0, hue: row.hue | 0 });
+    }
+    this.batchSpatialMutations(() => {
+      const nextSerials = new Set([...next.values()].map((entry) => entry.serial >>> 0));
+      for (const old of mob.equipment?.values?.() ?? []) {
+        const oldSerial = old.serial >>> 0;
+        this._equipIndex.delete(oldSerial);
+        if (nextSerials.has(oldSerial)) continue;
+        const staleItem = this.items.get(oldSerial);
+        if (staleItem && (staleItem.parent >>> 0) === (mob.serial >>> 0)) {
+          this.unlinkItemParent(staleItem);
+          this.items.delete(oldSerial);
+        }
+      }
+      mob.equipment = next;
+      for (const [layer, eq] of next) {
+        this._equipIndex.set(eq.serial, { mob, layer });
+        let item = this.items.get(eq.serial);
+        if (!item) { item = new Item(eq.serial); this.items.set(eq.serial, item); }
+        const oldParent = item.parent >>> 0;
+        const oldX = item.x; const oldY = item.y; const oldMap = item.map ?? this.mapId;
+        Object.assign(item, { itemId: eq.itemId, hue: eq.hue, layer, parent: mob.serial });
+        this.linkItemParent(item, oldParent);
+        this.reindexItem(item, oldX, oldY, oldMap, oldParent);
+      }
+      mob._equipmentRevision = ((mob._equipmentRevision | 0) + 1) >>> 0;
+      mob._equipmentHashRevision = -1;
+    });
+    const integrity = this.validateGraph({ repair: true });
+    return { ok: integrity.ok, equipment: next, integrity };
+  }
+
+  /** Verify the three live relationships used by containers and paperdolls.
+   * Repair is intentionally deterministic and only rebuilds indexes. */
+  validateGraph({ repair = false } = {}) {
+    const issues = [];
+    const expectedParents = new Map();
+    for (const item of this.items.values()) {
+      if (!item || (item.serial >>> 0) === 0) { issues.push({ type: 'invalid-item' }); continue; }
+      const parent = item.parent >>> 0;
+      if (!parent) continue;
+      let set = expectedParents.get(parent);
+      if (!set) { set = new Set(); expectedParents.set(parent, set); }
+      set.add(item.serial >>> 0);
+    }
+    for (const [parent, expected] of expectedParents) {
+      const actual = this._itemsByParent.get(parent);
+      for (const serial of expected) if (!actual?.has(serial)) issues.push({ type: 'missing-parent-index', parent, serial });
+    }
+    for (const [parent, actual] of this._itemsByParent) {
+      for (const serial of actual ?? []) {
+        const item = this.items.get(serial >>> 0);
+        if (!item || (item.parent >>> 0) !== (parent >>> 0)) issues.push({ type: 'stale-parent-index', parent, serial });
+      }
+    }
+    for (const mob of this.mobiles.values()) {
+      for (const [layer, eq] of mob.equipment ?? []) {
+        const serial = eq?.serial >>> 0;
+        const slot = this._equipIndex.get(serial);
+        if (!serial || slot?.mob !== mob || (slot?.layer | 0) !== (layer | 0)) issues.push({ type: 'missing-equipment-index', serial, layer });
+        const item = this.items.get(serial);
+        if (!item || (item.parent >>> 0) !== (mob.serial >>> 0) || (item.layer | 0) !== (layer | 0)) issues.push({ type: 'equipment-item-mismatch', serial, layer });
+      }
+    }
+    for (const [serial, slot] of this._equipIndex) {
+      if ((slot?.mob?.equipment?.get?.(slot.layer)?.serial >>> 0) !== (serial >>> 0)) {
+        issues.push({ type: 'stale-equipment-index', serial, layer: slot?.layer });
+      }
+    }
+    if (repair && issues.length) {
+      this._itemsByParent = expectedParents;
+      this._equipIndex = new Map();
+      for (const mob of this.mobiles.values()) {
+        for (const [layer, eq] of mob.equipment ?? []) this._equipIndex.set(eq.serial >>> 0, { mob, layer });
+      }
+    }
+    const repaired = !!repair && issues.length > 0;
+    return { ok: issues.length === 0 || repaired, issues, repaired };
   }
 
   /** Update the parent-child reverse index when an item's parent is
@@ -868,6 +1030,12 @@ export class World {
     if (slot) {
       slot.mob.equipment?.delete?.(slot.layer);
       this._equipIndex.delete(s);
+      // Keep every equipment consumer on the same revision. Paperdoll
+      // redraws directly from mob.equipment on entity:removed, while the
+      // world MobileRenderer caches an equipHash keyed by this revision.
+      // Missing this bump left the removed robe rendered in-world even
+      // though the paperdoll correctly stopped showing it.
+      slot.mob._equipmentRevision = ((slot.mob._equipmentRevision | 0) + 1) >>> 0;
     }
   }
 }

@@ -11,7 +11,7 @@
 //   MaxWeight = (Str * 4) + 40
 // Past that, players walk slower / can't pick up — enforced by callers.
 
-import { containerChildrenRecursive } from './items.js';
+import { childrenOf, containerChildrenRecursive } from './items.js';
 import { staticWeightFor } from './movement.js';
 
 export const BODY_WEIGHT = 14;
@@ -43,8 +43,12 @@ export function totalContainerWeight(world, containerSerial) {
 export function mobileTotalWeight(world, mob) {
   if (!world?.items || !mob) return 0;
   let sum = 0;
-  for (const it of world.items.values()) {
-    if (it.parent !== mob.serial) continue;
+  // Runtime worlds maintain a parent -> children reverse index. Status,
+  // pickup and every movement step all call this function, so walking the
+  // complete item map here turned encumbrance into O(world items) work.
+  // `childrenOf` preserves compatibility with direct-map unit fixtures by
+  // falling back to the old scan only when no index exists.
+  for (const it of childrenOf(world, mob.serial)) {
     sum += pileWeight(it);
     if (it.gumpId) sum += totalContainerWeight(world, it.serial);
   }

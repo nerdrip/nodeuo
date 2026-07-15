@@ -126,8 +126,9 @@ describe('context menu (0xBF)', () => {
     expect(dv.getUint16(5)).toBe(0x0002);
     expect(dv.getUint32(7)).toBe(7);
     expect(dv.getUint8(11)).toBe(2);
-    expect(dv.getUint16(12)).toBe(1);
-    expect(dv.getUint16(14)).toBe(6123);
+    expect(dv.getUint32(12)).toBe(3006123);
+    expect(dv.getUint16(16)).toBe(1);
+    expect(dv.getUint16(18)).toBe(0);
   });
 
   it('parses request + response payloads', () => {

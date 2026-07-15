@@ -1,4 +1,5 @@
 import { itemBySerial, mobileBySerial } from '../../_entities.js';
+import { nearbyClients, onlineMobiles } from '../../_spatial.js';
 // Default context menu provider — supplies generic entries for mobiles and items.
 //
 // Gameplay-specific providers (e.g. the Town Crier has "Hear the news") can
@@ -21,7 +22,73 @@ const clilocs = {
   PetStay: 3006114,
   PetRelease: 3006118,
   Mount: 1157587,
+  Dismount: 1028843,
+  Use: 3006132,
+  Properties: 1062761,
+  SetHue: 1151720,
 };
+
+function refreshItem(api, state, item) {
+  const parent = item.parent == null ? null : (item.parent >>> 0);
+  const owner = parent == null ? null : mobileBySerial(api, parent);
+  if (owner && item.layer && api.protocol?.equipUpdate) {
+    const pkt = api.protocol.equipUpdate({
+      serial: item.serial, itemId: item.itemId, layer: item.layer,
+      parent: owner.serial, hue: item.hue ?? 0,
+    });
+    for (const viewer of nearbyClients(api, owner, null, 18)) viewer.client.send(pkt);
+    return;
+  }
+  if (parent != null && api.protocol?.containerContentUpdate) {
+    const pkt = api.protocol.containerContentUpdate({
+      serial: item.serial, itemId: item.itemId, amount: item.amount ?? 1,
+      gridX: item.gridX ?? 0, gridY: item.gridY ?? 0,
+      gridLocation: item.gridLocation ?? 0, hue: item.hue ?? 0,
+    }, parent);
+    for (const mob of onlineMobiles(api)) {
+      if (mob.client?.openContainers?.has?.(parent)) mob.client.send(pkt);
+    }
+    return;
+  }
+  for (const viewer of nearbyClients(api, state.mobile, null, 18)) {
+    viewer.client.sendItem?.(item);
+  }
+}
+
+function openHueEditor(api, state, item) {
+  if (!api.gumps?.send) return;
+  const texts = [
+    `Set Hue — ${item.name ?? `item 0x${(item.itemId | 0).toString(16)}`}`,
+    'Hue (decimal or 0x...):',
+    `0x${(item.hue ?? 0).toString(16)}`,
+    'Apply',
+  ];
+  api.gumps.send(state, {
+    gumpId: 0x48554500 ^ (item.serial & 0xffff), x: 120, y: 100,
+    layout: [
+      '{ resizepic 0 0 5054 340 128 }',
+      '{ text 18 14 1153 0 }',
+      '{ text 18 48 1152 1 }',
+      '{ textentry 180 46 130 20 1152 1 2 }',
+      '{ button 18 88 4005 4007 1 0 1 }',
+      '{ text 50 89 1153 3 }',
+      '{ button 300 8 4017 4018 1 0 0 }',
+    ].join(''),
+    texts,
+  }, (resp) => {
+    if ((resp?.buttonId | 0) !== 1) return;
+    const raw = resp.textEntries?.find?.((e) => (e.entryId | 0) === 1)?.text?.trim() ?? '';
+    const hue = /^0x/i.test(raw) ? parseInt(raw, 16) : parseInt(raw, 10);
+    if (!Number.isFinite(hue) || hue < 0 || hue > 0x0fff) {
+      state.sendSystemMessage?.('Hue must be between 0 and 0x0FFF.');
+      return;
+    }
+    item.hue = hue | 0;
+    refreshItem(api, state, item);
+    const result = state.ctx?.propertyProvider?.(item.serial, state);
+    if (result?.entries) api.properties?.send?.(state, item.serial, result.entries);
+  });
+}
 
 export default function (api) {
   const { contextMenus, world } = api;
@@ -60,6 +127,15 @@ export default function (api) {
           },
         },
       ];
+      if (mob === state.mobile && state.mobile?.mountedFrom) {
+        entries.push({
+          responseId: 4,
+          cliloc: clilocs.Dismount,
+          onPick: () => state.ctx?.commands?.dispatch?.('mount', {
+            sender: state.mobile, state, world, args: [],
+          }),
+        });
+      }
       if ((mob.controlMaster >>> 0) === (state.mobile?.serial >>> 0)) {
         const order = (command, targetSerial = 0) => {
           mob.petCommand = command;
@@ -200,8 +276,39 @@ export default function (api) {
     // but reachable via right-click instead of typing the command.
     // Detected via `item.display.itemSerial` set by the showcase pin
     // command (graphic 0x10A6).
-    if (item?.display?.itemSerial) {
-      const entries = [];
+    if (!item) return null;
+    const entries = [
+      {
+        responseId: 1,
+        cliloc: clilocs.Use,
+        onPick: () => api.contextMenus?.use?.(state, item.serial),
+      },
+      {
+        responseId: 2,
+        cliloc: clilocs.Properties,
+        onPick: () => {
+          const result = state.ctx?.propertyProvider?.(item.serial, state);
+          if (result?.entries) api.properties?.send?.(state, item.serial, result.entries);
+          else state.sendSystemMessage?.('No properties are available for this item.');
+          state.sendSystemMessage?.([
+            item.name ?? `item 0x${(item.itemId | 0).toString(16)}`,
+            `serial=0x${(item.serial >>> 0).toString(16)}`,
+            `graphic=0x${(item.itemId | 0).toString(16)}`,
+            `hue=0x${(item.hue ?? 0).toString(16)}`,
+            `amount=${item.amount ?? 1}`,
+          ].join(' • '));
+        },
+      },
+    ];
+    const access = state.account?.accessLevel ?? 'Player';
+    if (access === 'GM' || access === 'Admin') {
+      entries.push({
+        responseId: 3,
+        cliloc: clilocs.SetHue,
+        onPick: () => openHueEditor(api, state, item),
+      });
+    }
+    if (item.display?.itemSerial) {
       const pinned = itemBySerial({ world }, item.display.itemSerial);
       if (pinned) {
         entries.push({
@@ -234,15 +341,8 @@ export default function (api) {
           },
         });
       }
-      return entries.length ? entries : null;
+      return entries;
     }
-    if (item?.gumpId) {
-      return [{
-        responseId: 1,
-        cliloc: clilocs.OpenBackpack,
-        onPick: () => {/* default double-click handler covers this */},
-      }];
-    }
-    return null;
+    return entries;
   });
 }

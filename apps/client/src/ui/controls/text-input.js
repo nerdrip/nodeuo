@@ -39,6 +39,8 @@ export class TextInput extends Control {
     this._wrap = new Container();
     this._bg = new Graphics();
     this._caret = new Graphics();
+    this._clip = new Graphics();
+    this._textLayer = new Container();
     const initialText = String(text ?? value ?? '');
 
     this._text = new Text({
@@ -53,7 +55,9 @@ export class TextInput extends Control {
       resolution: UI_TEXT_RESOLUTION,
       roundPixels: true,
     });
-    this._wrap.addChild(this._bg, this._placeholderTxt, this._text, this._caret);
+    this._textLayer.addChild(this._placeholderTxt, this._text, this._caret);
+    this._textLayer.mask = this._clip;
+    this._wrap.addChild(this._bg, this._textLayer, this._clip);
     this.node.addChild(this._wrap);
 
     this._value = initialText.slice(0, this.maxLength);
@@ -140,6 +144,9 @@ export class TextInput extends Control {
       .stroke({ width: 1, color: 0x8a6a2c, alpha: 0.85 });
     this._bg.roundRect(2, 2, Math.max(0, this.width - 4), Math.max(0, this.height - 4), 2)
       .stroke({ width: 1, color: 0xffffff, alpha: 0.07 });
+    this._clip.clear();
+    this._clip.rect(3, 2, Math.max(0, this.width - 6), Math.max(0, this.height - 4))
+      .fill({ color: 0xffffff });
 
     if (this._paintedValue !== this._value) {
       this._paintedValue = this._value;

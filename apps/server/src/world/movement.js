@@ -71,6 +71,12 @@ const FLAG_BRIDGE     = 1 << 10; // 0x400 — stairs
 const FLAG_DOOR       = 1 << 29;
 
 let TILEDATA = null;
+export async function preloadTileData(file = DEFAULT_TILEDATA) {
+  if (TILEDATA !== null) return TILEDATA;
+  try { TILEDATA = JSON.parse(await fs.promises.readFile(file, 'utf8')); }
+  catch { TILEDATA = { land: [], statics: [] }; }
+  return TILEDATA;
+}
 function loadTileData() {
   if (TILEDATA !== null) return TILEDATA;
   try {
@@ -420,10 +426,15 @@ function resolveCardinalStep(facet, x, y, z, nx, ny) {
  * closest to the requested z. We deliberately do NOT gate by climb budget
  * here — this is a teleport, not a step.
  */
-export function resolveStandingZ(facet, x, y, requestedZ) {
+export function findStandingZ(facet, x, y, requestedZ) {
   const land = landProvider.landAt(facet, x, y);
   const candidates = [];
-  if (land) candidates.push({ z: land.z });
+  if (land) {
+    const flags = landInfo(land.tileId).flags;
+    if ((flags & (FLAG_IMPASSABLE | FLAG_WET)) === 0) {
+      candidates.push({ z: getAverageZ(facet, x, y)?.avg ?? land.z });
+    }
+  }
   for (const s of landProvider.staticsAt(facet, x, y)) {
     const info = staticInfo(s.tileId);
     // Same Surface-without-Impassable filter as resolveCardinalStep — don't
@@ -449,7 +460,14 @@ export function resolveStandingZ(facet, x, y, requestedZ) {
       bestDist = d;
     }
   }
-  return best ?? requestedZ;
+  return best;
+}
+
+/** Backward-compatible spawn/login snap. Callers which need to distinguish a
+ * blocked destination (Teleport and summons) use `findStandingZ`; legacy
+ * login paths retain their permissive requested-z fallback. */
+export function resolveStandingZ(facet, x, y, requestedZ) {
+  return findStandingZ(facet, x, y, requestedZ) ?? requestedZ;
 }
 
 /**

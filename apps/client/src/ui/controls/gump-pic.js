@@ -69,8 +69,6 @@ export class GumpPic extends Control {
     this._srcH = srcH | 0;
     /** @type {Sprite | null} the textured sprite, when the atlas resolves */
     this._sprite = null;
-    this._loadToken = 0;
-    this._disposed = false;
     /** Gray-silver shimmer placeholder shown while the atlas page loads.
      *  Replaces the per-id hash-coloured rect — the rainbow of bright
      *  fillers used to read as "broken UI" rather than "loading". */
@@ -137,14 +135,16 @@ export class GumpPic extends Control {
     if (img && paint(img)) return;
     const fallbackUrl = pngFallbackUrlForTexture(tex);
     if (fallbackUrl && typeof Image !== 'undefined') {
+      const generation = this.captureAsyncGeneration();
       this._pxLoading = true;
       const png = new Image();
       png.decoding = 'async';
       png.onload = () => {
+        if (!this.asyncGenerationValid(generation)) return;
         this._pxLoading = false;
         if (!paint(png)) this._pxFailed = true;
       };
-      png.onerror = () => { this._pxLoading = false; this._pxFailed = true; };
+      png.onerror = () => { if (this.asyncGenerationValid(generation)) { this._pxLoading = false; this._pxFailed = true; } };
       png.src = fallbackUrl;
       return;
     }
@@ -182,11 +182,11 @@ export class GumpPic extends Control {
   }
 
   async _mountTexture() {
-    const token = ++this._loadToken;
-    const tex = await assets.gumpTexture(this.gumpId);
-    if (this._disposed || token !== this._loadToken) return;
-    if (!tex) return; // stay on shimmer placeholder
-    this._tex = tex;
+    const generation = this.captureAsyncGeneration();
+    const loaded = await assets.gumpTexture(this.gumpId);
+    if (!this.asyncGenerationValid(generation)) return;
+    const tex = loaded ?? assets.placeholderTexture('gump', this.width || 32, this.height || 32);
+    this._tex = loaded ?? null;
     this._pxCanvas = null;
     this._pxData = null;
     this._pxLoading = false;
@@ -197,7 +197,7 @@ export class GumpPic extends Control {
     // crop, quest-progress / arena scoreboard / BOD windows displayed
     // the full sprite stretched to the requested box.
     let useTex = tex;
-    if (this._srcW > 0 && this._srcH > 0) {
+    if (loaded && this._srcW > 0 && this._srcH > 0) {
       try {
         const baseFrame = tex.frame ?? tex._frame;
         const fx = (baseFrame?.x ?? 0) + this._srcX;
@@ -214,6 +214,7 @@ export class GumpPic extends Control {
       }
     }
     this._sprite = acquireSprite(useTex);
+    this._sprite._uoMissingAsset = !loaded ? { kind: 'gump', id: this.gumpId } : null;
     this._sprite.position.set(0, 0);
     this._sprite.tint = this.tint;
     // If the user gave explicit dimensions, stretch to them; otherwise use
@@ -235,8 +236,6 @@ export class GumpPic extends Control {
   }
 
   dispose() {
-    this._disposed = true;
-    this._loadToken++;
     if (this._sprite) releaseSprite(this._sprite);
     this._sprite = null;
     this._shimmer?.dispose();

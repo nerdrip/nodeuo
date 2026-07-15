@@ -302,8 +302,9 @@ export class OptionsGump extends WindowGump {
     const lbl = new Label(label, { fontSize: 13, hue: 0xe7dfd0, fontWeight: 550 });
     lbl.setPosition(x, y);
     this._addControl(lbl);
+    const sliderWidth = opts.width ?? 92;
     const sl = new Slider({
-      width: opts.width ?? SLIDER_W,
+      width: sliderWidth,
       value: norm,
       onChange: (v) => {
         let next = min + (max - min) * v;
@@ -313,12 +314,15 @@ export class OptionsGump extends WindowGump {
         valueLbl.setText(formatValue(next));
       },
     });
-    sl.setPosition(x + 180, y);
+    sl.setPosition(x + 158, y);
     this._addControl(sl);
     const valueLbl = new Label(formatValue(raw), {
       fontSize: 11, hue: 0xd8ad63, fontWeight: 700,
     });
-    valueLbl.setPosition(x + 180 + sl.width + 8, y);
+    // Reserve a fixed value lane inside the column. The previous x+298
+    // placement left only a handful of pixels before the panel edge, so
+    // `100%` and five-digit values escaped into the next column.
+    valueLbl.setPosition(x + 258, y);
     this._addControl(valueLbl);
   }
 
@@ -390,6 +394,8 @@ export class OptionsGump extends WindowGump {
     this._addCheckbox('Footstep sounds enabled',        'audio.footstepSfx',                  y + 20, PAD_X + 330);
     this._addCheckbox('3D positional SFX',              'audio.enableSfx3d',                  y + 40, PAD_X + 330);
     this._addCheckbox('Music volume follows master',    'audio.musicVolumeFollowsMaster',     y + 60, PAD_X + 330);
+    this._addSlider('UI effects volume',                 'audio.ui',                           y + 84, PAD_X + 330);
+    this._addCheckbox('Mute when window loses focus',    'audio.muteOnBlur',                   y + 110, PAD_X + 330);
   }
 
   _buildGameplay(y) {
@@ -428,7 +434,14 @@ export class OptionsGump extends WindowGump {
     this._addCheckbox('Hide statics under roof',   'graphics.hideUnderRoof',   y + 150);
     this._addCheckbox('Animated water',            'graphics.animatedWater',   y + 170);
     this._addCheckbox('Weather (rain/snow)',       'graphics.weatherFx',       y + 190);
-    this._addSlider('Interface scale',             'ui.scale',                 y + 216, PAD_X, { min: 0.75, max: 2, step: 0.05 });
+    this._addSlider('Water intensity',             'graphics.waterIntensity', y + 216, PAD_X, { min: 0, max: 2, step: 0.1 });
+    this._addSlider('Weather density',             'graphics.weatherDensity', y + 238, PAD_X, { min: 0, max: 2, step: 0.1 });
+    this._addCheckbox('No-flicker effects',        'graphics.noFlicker',       y + 264);
+    this._addSlider('Interface scale',             'ui.scale',                 y + 290, PAD_X, { min: 0.75, max: 2, step: 0.05 });
+    this._addCheckbox('Compact side panels',       'ui.compactSidePanels',     y + 318);
+    this._addCheckbox('Hide empty side panels',    'ui.autoHideEmptyPanels',   y + 338);
+    this._addSlider('Gump snap threshold',         'ui.gumpSnapThreshold',     y + 362, PAD_X, { min: 0, max: 64, step: 1, integer: true });
+    this._addCheckbox('Lock key gumps',            'ui.lockKeyGumps',          y + 390);
     // Right column — CUO Profile.cs::EnableShadows / EnableDeathScreen / etc.
     this._addCheckbox('Enable shadows',             'experimental.enableShadows',         y,       PAD_X + 330);
     this._addCheckbox('Statics cast shadows',       'experimental.shadowsStatics',        y + 20,  PAD_X + 330);
@@ -450,6 +463,9 @@ export class OptionsGump extends WindowGump {
     this._addPicker('Field graphics',               'ui.fieldsType',
       [{ label: 'Classic', value: 'classic' }, { label: 'Static', value: 'static' }, { label: 'Animated', value: 'animated' }],
       y + 292, PAD_X + 330);
+    this._addPicker('Effects quality',              'graphics.effectsQuality',
+      [{ label: 'Automatic', value: 'auto' }, { label: 'Low GPU', value: 'low' }, { label: 'High', value: 'high' }],
+      y + 320, PAD_X + 330);
   }
 
   _buildInput(y) {
@@ -630,28 +646,31 @@ export class OptionsGump extends WindowGump {
     this._addCheckbox('Confirm dropping gold',      'containers.confirmGoldDrop',y + 147);
     this._addCheckbox('Hide empty containers',      'containers.hideEmpty',      y + 167);
     this._addSlider('Drop snap radius (px)',        'containers.dropRadius',     y + 192, PAD_X, { min: 0, max: 64, step: 1, integer: true });
-    // Right column — backpack style + scale items + relative drag.
+    // Right column — classic free-placement or a regular Tibia-style grid.
+    this._addPicker('Container layout',             'containers.layoutMode',
+      [{ label: 'Classic', value: 'classic' }, { label: 'Grid', value: 'grid' }],
+      y, PAD_X + 330);
     this._addPicker('Backpack style',               'ui.backpackStyle',
       [{ label: 'Classic', value: 'classic' }, { label: 'Flat', value: 'flat' }, { label: 'Small', value: 'small' }],
-      y, PAD_X + 330);
-    this._addCheckbox('Large container gumps',      'ui.useLargeContainerGumps', y + 22, PAD_X + 330);
-    this._addCheckbox('Scale items inside',         'ui.scaleItemsInsideContainers', y + 42, PAD_X + 330);
-    this._addCheckbox('Per-container open position','ui.overrideContainerLocation', y + 62, PAD_X + 330);
-    this._addCheckbox('Drop preserves slot offset', 'ui.relativeDragAndDropItems', y + 82, PAD_X + 330);
-    this._addSlider('Gold confirm threshold',       'containers.confirmGoldThreshold', y + 104, PAD_X + 330, { min: 0, max: 100000, step: 1000, integer: true });
+      y + 22, PAD_X + 330);
+    this._addCheckbox('Large container gumps',      'ui.useLargeContainerGumps', y + 44, PAD_X + 330);
+    this._addCheckbox('Scale items inside',         'ui.scaleItemsInsideContainers', y + 64, PAD_X + 330);
+    this._addCheckbox('Per-container open position','ui.overrideContainerLocation', y + 84, PAD_X + 330);
+    this._addCheckbox('Drop preserves slot offset', 'ui.relativeDragAndDropItems', y + 104, PAD_X + 330);
+    this._addSlider('Gold confirm threshold',       'containers.confirmGoldThreshold', y + 126, PAD_X + 330, { min: 0, max: 100000, step: 1000, integer: true });
     // Audit rev.9 P2 #3 — CUO `Profile.cs::HideZoomGump` /
     // `RestrictMaxContainerOpened`.
-    this._addCheckbox('Hide container zoom button', 'ui.hideZoomGump',           y + 126, PAD_X + 330);
-    this._addSlider('Max open containers',          'ui.restrictMaxContainerOpened', y + 148, PAD_X + 330, { min: 1, max: 30, step: 1, integer: true });
+    this._addCheckbox('Hide container zoom button', 'ui.hideZoomGump',           y + 148, PAD_X + 330);
+    this._addSlider('Max open containers',          'ui.restrictMaxContainerOpened', y + 170, PAD_X + 330, { min: 1, max: 30, step: 1, integer: true });
     this._addPicker('Open position mode',           'ui.overrideContainerLocationSetting',
       [{ label: 'Default', value: 'default' }, { label: 'Backpack', value: 'nearBackpack' },
        { label: 'Cascade', value: 'cascade' }, { label: 'Remember', value: 'remember' }],
-      y + 172, PAD_X + 330);
+      y + 194, PAD_X + 330);
     this._addPicker('Container hue',                'ui.hueContainerGumps',
       [{ label: 'None', value: 0 }, { label: 'Green', value: 0x0044 },
        { label: 'Gold', value: 0x0035 }, { label: 'Blue', value: 0x0142 },
        { label: 'Red', value: 0x0021 }],
-      y + 194, PAD_X + 330);
+      y + 216, PAD_X + 330);
   }
 
   _buildCounters(y) {
@@ -757,6 +776,10 @@ export class OptionsGump extends WindowGump {
     this._addCheckbox('Use lite atlas (low VRAM)',  'debug.liteAtlas',           y + 140);
     this._addCheckbox('CoT radius overlay',         'debug.cotOverlay',          y + 160);
     this._addCheckbox('Roof group overlay',         'debug.roofOverlay',         y + 180);
+    this._addCheckbox('Gump bounds overlay',         'debug.gumpBounds',          y + 200);
+    this._addCheckbox('Chunk state overlay',         'debug.chunkOverlay',        y + 220);
+    this._addCheckbox('Chunk cost heatmap',          'debug.chunkHeatmap',        y + 240);
+    this._addCheckbox('Selected tile z-depth',       'debug.zDepthOverlay',       y + 260);
     // Right column — CUO Profile.cs experimental flags.
     this._addCheckbox('Cast spells by single-click', 'gameplay.castSpellsByOneClick', y,      PAD_X + 330);
     this._addCheckbox('Fast spells hotbar assign',   'gameplay.fastSpellsAssign',     y + 20, PAD_X + 330);
@@ -769,11 +792,15 @@ export class OptionsGump extends WindowGump {
     this._addCheckbox('Force Unicode journal',       'experimental.forceUnicodeJournal',   y + 160, PAD_X + 330);
     this._addCheckbox('Ignore alliance messages',    'experimental.ignoreAllianceMessages', y + 180, PAD_X + 330);
     this._addCheckbox('Ignore guild messages',       'experimental.ignoreGuildMessages',    y + 200, PAD_X + 330);
+    this._addCheckbox('Reduced UI motion',            'ui.reducedMotion',                  y + 220, PAD_X + 330);
+    this._addCheckbox('High contrast focus',          'ui.highContrast',                   y + 240, PAD_X + 330);
+    this._addCheckbox('Gamepad UI navigation',        'ui.gamepadNavigation',              y + 260, PAD_X + 330);
+    this._addSlider('Minimum UI text (px)',            'ui.minTextPx',                      y + 282, PAD_X + 330, { min: 8, max: 18, step: 1, integer: true });
     const help = new Label(
       'Experimental — refresh page after toggling. Contact the shard for support.',
       { fontSize: 10, hue: 0x8888a0, stroke: false },
     );
-    help.setPosition(12, y + 220);
+    help.setPosition(12, y + 286);
     this._addControl(help);
   }
 

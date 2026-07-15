@@ -12,12 +12,13 @@
 //   ui.showFps            bool
 
 import { bus } from '../core/event-bus.js';
+import { clampLayoutRect, migrateLayoutScale } from '../shared/runtime-governor.js';
 
 const GLOBAL_KEY = 'uo.profile';
 
 const DEFAULTS = Object.freeze({
   audio: {
-    master: 0.6, music: 0.4, sfx: 0.7, ambient: 0.3,
+    master: 0.6, music: 0.4, sfx: 0.7, ambient: 0.3, ui: 0.65,
     footsteps: 0.7,                       // volume scalar for footstep SFX
     combatMusic: true,                      // swap to combat track during fight
     loginMusic: true,
@@ -25,6 +26,7 @@ const DEFAULTS = Object.freeze({
     footstepSfx: true,                      // play footstep SFX per step
     enableSfx3d: true,                      // positional pan + attenuation
     reproduceSoundsInBackground: false,     // keep audio on when tab blurred
+    muteOnBlur: true,                       // suspend all buses while document is hidden
     musicVolumeFollowsMaster: true,         // tie music slider to master
   },
   tts: {
@@ -64,9 +66,11 @@ const DEFAULTS = Object.freeze({
     compareEquipped: true,                  // numeric +/- against current slot item
     echoToChat: false,                      // copy tooltip to chat on hover
     holdAltToShow: false,                   // require Alt key before showing tooltips
+    maxPinned: 6,                           // pinned OPL panels never consume target input
   },
   containers: {
     scale: 1.0,
+    layoutMode: 'classic',                   // 'classic' free placement | 'grid' Tibia-style slots
     doubleClickToLoot: false,               // dbl-click item inside container loots to backpack
     autoStack: true,
     gridLoot: 'none',                       // 'none' | 'grid' | 'both'
@@ -159,6 +163,10 @@ const DEFAULTS = Object.freeze({
     liteAtlas: false,
     cotOverlay: false,
     roofOverlay: false,
+    gumpBounds: false,
+    chunkHeatmap: false,
+    chunkOverlay: false,
+    zDepthOverlay: false,
   },
   // Audit #34 P3 #11 — CUO `Configuration/Profile.cs:169-171` "Day &
   // Night" panel. `custom` toggles client-side override of the server
@@ -189,7 +197,16 @@ const DEFAULTS = Object.freeze({
     // default zoom keeps it readable on current 1080p/1440p monitors while
     // preserving the original logical layout and pixel proportions.
     scale: 1.25, scaleVersion: 2, showFps: false,
+    reducedMotion: false,
+    highContrast: false,
+    gamepadNavigation: false,
+    compactSidePanels: false,               // reclaim horizontal room on wide displays
+    autoHideEmptyPanels: true,              // omit rail chrome when no gump occupies it
+    gumpSnapThreshold: 12,                  // magnetic viewport/gump edge distance
+    lockKeyGumps: false,                    // topbar/actionbar/paperdoll cannot be dragged
+    minTextPx: 10,                          // accessibility floor for local UI chrome
     gumpState: {},
+    layoutProfiles: {},                     // viewport-bucketed gump layouts
     paperdollMode: 'window',                // 'window' | 'sidebar'
     containerScale: 1.0,
     // CUO `Profile.cs::GameWindowPosition/Size/Lock` — viewport persistence
@@ -365,7 +382,11 @@ const DEFAULTS = Object.freeze({
     nearestSampling:   true,
     foliageTrans:      true,
     animatedWater:     true,
+    waterIntensity:    1,
     weatherFx:         true,
+    weatherDensity:    1,
+    noFlicker:         false,
+    effectsQuality:    'auto',         // auto/low/high; auto follows device budget
     noColorObjectsOutOfRange: false,
     hideScreenshotMessage: false,
   },
@@ -463,6 +484,103 @@ class ProfileManager {
   }
   loadGumpState(gumpKey) {
     return this.settings.ui.gumpState?.[gumpKey] ?? null;
+  }
+
+  resetGumpState(gumpKey) {
+    if (!gumpKey || !this.settings.ui.gumpState?.[gumpKey]) return false;
+    delete this.settings.ui.gumpState[gumpKey];
+    this._valueCache.clear();
+    this._save();
+    bus.emit('profile:gump-reset', { gumpKey });
+    return true;
+  }
+
+  validateGumpLayout(viewport = { width: innerWidth, height: innerHeight }) {
+    const states = (this.settings.ui.gumpState ??= {});
+    for (const [key, state] of Object.entries(states)) {
+      const rect = clampLayoutRect(state, viewport);
+      states[key] = { ...state, ...rect };
+    }
+    this._valueCache.clear();
+    this._save();
+    return structuredClone(states);
+  }
+
+  migrateGumpLayoutScale(fromScale, toScale, viewport = { width: innerWidth, height: innerHeight }) {
+    const states = (this.settings.ui.gumpState ??= {});
+    for (const [key, state] of Object.entries(states)) {
+      states[key] = { ...state, ...migrateLayoutScale(state, fromScale, toScale, viewport) };
+    }
+    this._valueCache.clear();
+    this._save();
+    bus.emit('profile:layout-migrated', { fromScale, toScale });
+    return structuredClone(states);
+  }
+
+  exportLayout() {
+    return JSON.stringify({
+      version: 2,
+      uiScale: Number(this.settings.ui.scale) || 1,
+      gumpState: this.settings.ui.gumpState ?? {},
+      gameWindow: {
+        x: this.settings.ui.gameWindowX, y: this.settings.ui.gameWindowY,
+        width: this.settings.ui.gameWindowW, height: this.settings.ui.gameWindowH,
+        lock: !!this.settings.ui.gameWindowLock,
+      },
+    }, null, 2);
+  }
+
+  importLayout(payload, viewport = { width: innerWidth, height: innerHeight }) {
+    const parsed = typeof payload === 'string' ? JSON.parse(payload) : payload;
+    if (!parsed || typeof parsed !== 'object' || (parsed.version | 0) !== 2) {
+      throw new Error('Unsupported layout profile');
+    }
+    const states = {};
+    for (const [key, value] of Object.entries(parsed.gumpState ?? {})) {
+      if (!value || typeof value !== 'object') continue;
+      states[String(key).slice(0, 120)] = { ...value, ...clampLayoutRect(value, viewport) };
+    }
+    this.settings.ui.gumpState = states;
+    const game = parsed.gameWindow;
+    if (game && typeof game === 'object') {
+      const rect = clampLayoutRect(game, viewport, 96);
+      this.settings.ui.gameWindowX = rect.x; this.settings.ui.gameWindowY = rect.y;
+      this.settings.ui.gameWindowW = rect.width; this.settings.ui.gameWindowH = rect.height;
+      this.settings.ui.gameWindowLock = !!game.lock;
+    }
+    this._valueCache.clear();
+    this._save();
+    bus.emit('profile:layout-imported', { count: Object.keys(states).length });
+    return Object.keys(states).length;
+  }
+
+  resolutionLayoutKey(viewport = { width: innerWidth, height: innerHeight }) {
+    const bucket = (value, step) => Math.max(step, Math.round((Number(value) || step) / step) * step);
+    return `${bucket(viewport.width, 160)}x${bucket(viewport.height, 120)}`;
+  }
+
+  saveResolutionLayout(viewport = { width: innerWidth, height: innerHeight }) {
+    const key = this.resolutionLayoutKey(viewport);
+    const profiles = (this.settings.ui.layoutProfiles ??= {});
+    profiles[key] = structuredClone(this.settings.ui.gumpState ?? {});
+    const keys = Object.keys(profiles);
+    while (keys.length > 8) delete profiles[keys.shift()];
+    this._valueCache.clear(); this._save();
+    return key;
+  }
+
+  activateResolutionLayout(viewport = { width: innerWidth, height: innerHeight }) {
+    const key = this.resolutionLayoutKey(viewport);
+    const saved = this.settings.ui.layoutProfiles?.[key];
+    if (!saved) return { key, found: false, states: this.validateGumpLayout(viewport) };
+    const states = {};
+    for (const [name, state] of Object.entries(saved)) {
+      states[name] = { ...state, ...clampLayoutRect(state, viewport) };
+    }
+    this.settings.ui.gumpState = states;
+    this._valueCache.clear(); this._save();
+    bus.emit('profile:resolution-layout', { key, count: Object.keys(states).length });
+    return { key, found: true, states: structuredClone(states) };
   }
 
   _activeKey() { return this._charKey ?? GLOBAL_KEY; }

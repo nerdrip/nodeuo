@@ -154,21 +154,34 @@ export function readGumpResponse(pkt) {
   }
   const dv = new DataView(pkt.buffer, pkt.byteOffset, pkt.byteLength);
   let o = 1;
-  const len = dv.getUint16(o); o += 2; void len;
+  const len = dv.getUint16(o); o += 2;
+  if (len !== pkt.length) throw new Error('gump response length mismatch');
+  const need = (bytes, label) => {
+    if (!Number.isSafeInteger(bytes) || bytes < 0 || o + bytes > len) {
+      throw new Error(`truncated gump response ${label}`);
+    }
+  };
+  need(16, 'header');
   const serial = dv.getUint32(o); o += 4;
   const gumpId = dv.getUint32(o); o += 4;
   const buttonId = dv.getUint32(o); o += 4;
   const switchCount = dv.getUint32(o); o += 4;
+  if (switchCount > 1024) throw new Error('gump response has too many switches');
+  need(switchCount * 4 + 4, 'switches');
   const switches = [];
   for (let i = 0; i < switchCount; i++) {
     switches.push(dv.getUint32(o)); o += 4;
   }
   const textCount = dv.getUint32(o); o += 4;
+  if (textCount > 512) throw new Error('gump response has too many text entries');
   /** @type {{entryId:number, text:string}[]} */
   const textEntries = [];
   for (let i = 0; i < textCount; i++) {
+    need(4, 'text header');
     const entryId = dv.getUint16(o); o += 2;
     const chars = dv.getUint16(o); o += 2;
+    if (chars > 4096) throw new Error('gump response text is too long');
+    need(chars * 2, 'text body');
     let text = '';
     for (let j = 0; j < chars; j++) {
       const hi = dv.getUint8(o); o += 1;
@@ -177,6 +190,7 @@ export function readGumpResponse(pkt) {
     }
     textEntries.push({ entryId, text });
   }
+  if (o !== len) throw new Error('gump response has trailing data');
   return { serial, gumpId, buttonId, switches, textEntries };
 }
 

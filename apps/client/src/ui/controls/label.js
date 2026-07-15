@@ -1,6 +1,7 @@
 // Label — static text. Mirrors ClassicUO's Game/UI/Controls/Label.cs.
 //
-// Defaults to Pixi `Text` (Consolas) — fast to render, always visible,
+// Defaults to high-resolution Pixi `Text` using the shared modern UI stack —
+// fast to render, always visible,
 // and matches the look of every other text Control in our codebase
 // (Button labels, world overhead names, journal lines, …). Callers
 // can pass `bitmap: true` to opt into the UO fonts.mul bitmap-glyph
@@ -15,6 +16,7 @@ import { Text, TextStyle } from 'pixi.js';
 import { Control } from '../control.js';
 import { UoBitmapText, uoFontsReady } from './uo-bitmap-text.js';
 import { UI_FONT_FAMILY, UI_TEXT_RESOLUTION } from '../text-quality.js';
+import { profile } from '../../managers/profile-manager.js';
 
 /** Map our requested CSS-ish fontSize to one of the 10 UO ASCII fonts.
  *  Font 0 is the standard UO game text (~ 9-px cap height). Fonts 3/9
@@ -62,27 +64,34 @@ export class Label extends Control {
     fontWeight = 500,
     stroke = false,
     bitmap = false,
+    maxWidth = 0,
+    wordWrap = false,
+    align = 'left',
+    lineHeight = 0,
   } = {}) {
     super();
     this.acceptMouseInput = false;
     this._hue = normalizeHue(hue);
-    this._fontSize = fontSize;
+    const minimum = Math.max(8, Math.min(18, Number(profile.get('ui.minTextPx')) || 10));
+    this._fontSize = Math.max(minimum, Number(fontSize) || minimum);
     this._fontFamily = font;
     this._fontWeight = fontWeight;
     this._stroke = stroke;
     this._cachedText = text ?? '';
+    this._maxWidth = Math.max(0, Number(maxWidth) || 0);
+    this._layoutStyle = { wordWrap: !!wordWrap, align, lineHeight };
 
     if (bitmap && uoFontsReady()) {
       this._mode = 'uo';
       this._uo = new UoBitmapText(this._cachedText, {
-        hue: this._hue, fontIndex: pickUoFont(fontSize),
+        hue: this._hue, fontIndex: pickUoFont(this._fontSize),
       });
       this.node.addChild(this._uo.node);
     } else {
       this._mode = 'pixi';
       this._text = new Text({
         text: this._cachedText,
-        style: labelTextStyle(this._hue, fontSize, font, stroke, fontWeight),
+        style: this._makeStyle(this._layoutStyle),
         resolution: UI_TEXT_RESOLUTION,
         roundPixels: true,
       });
@@ -110,9 +119,7 @@ export class Label extends Control {
     if (this._mode === 'uo') {
       this._uo.setHue(rgb);
     } else {
-      this._text.style = labelTextStyle(
-        rgb, this._fontSize, this._fontFamily, this._stroke, this._fontWeight,
-      );
+      this._text.style = this._makeStyle(this._layoutStyle);
     }
   }
 
@@ -124,5 +131,30 @@ export class Label extends Control {
       this.width  = Math.ceil(this._text.width);
       this.height = Math.ceil(this._text.height);
     }
+  }
+
+  _makeStyle({ wordWrap = false, align = 'left', lineHeight = 0 } = {}) {
+    // Keep the shared immutable style cache for the overwhelmingly common
+    // one-line case. Bounded labels need their own TextStyle because Pixi
+    // mutates wordWrapWidth/align on the style instance.
+    if (!this._maxWidth && !wordWrap && align === 'left' && !lineHeight) {
+      return labelTextStyle(
+        this._hue, this._fontSize, this._fontFamily, this._stroke, this._fontWeight,
+      );
+    }
+    return new TextStyle({
+      fill: this._hue,
+      fontSize: this._fontSize,
+      fontFamily: this._fontFamily,
+      fontWeight: this._fontWeight,
+      align,
+      ...(lineHeight ? { lineHeight } : {}),
+      ...(wordWrap || this._maxWidth ? {
+        wordWrap: true,
+        wordWrapWidth: this._maxWidth || 100,
+        breakWords: true,
+      } : {}),
+      ...(this._stroke ? { stroke: { color: 0x000000, width: 1, join: 'round' } } : {}),
+    });
   }
 }

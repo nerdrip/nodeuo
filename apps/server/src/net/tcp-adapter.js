@@ -66,6 +66,12 @@ export class TcpAdapter extends EventEmitter {
     socket.setNoDelay?.(true);
   }
 
+  /** Bytes queued in Node's writable stream. NetState uses the same property
+   * as WebSocket.bufferedAmount to disconnect a peer that cannot keep up. */
+  get bufferedAmount() {
+    return Number(this.socket?.writableLength) || 0;
+  }
+
   _onData(chunk) {
     let buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     if (!this._seedHandled) {

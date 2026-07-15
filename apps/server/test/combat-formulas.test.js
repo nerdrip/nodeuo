@@ -50,6 +50,13 @@ describe('effectiveWeaponSkill', () => {
     expect(effectiveWeaponSkill(mob({ weaponSkill: 65 }))).toBe(65);
   });
 
+  it('uses the wielded weapon skill instead of the highest unrelated skill', () => {
+    expect(effectiveWeaponSkill(mob({
+      _weapon: { skill: WEAPON_SKILLS.ARCHERY },
+      skills: { [WEAPON_SKILLS.ARCHERY]: 40, [WEAPON_SKILLS.SWORDSMANSHIP]: 120 },
+    }))).toBe(40);
+  });
+
   it('returns 0 for a wholly untrained mobile', () => {
     expect(effectiveWeaponSkill(mob())).toBe(0);
   });
@@ -168,24 +175,37 @@ describe('rollDamage', () => {
     const armored = rollDamage(a, mob({ armor: 50 }), () => 0.5);
     expect(armored).toBeLessThan(naked);
   });
+
+  it('rolls the equipped weapon damage range instead of unarmed damage', () => {
+    const a = mob({ str: 0, _weapon: { minDamage: 20, maxDamage: 28 } });
+    expect(rollDamage(a, mob({ armor: 0 }), () => 0)).toBe(20);
+    expect(rollDamage(a, mob({ armor: 0 }), () => 0.999)).toBe(28);
+  });
 });
 
 describe('swingDelayMs', () => {
-  it('clamps to [1250, 3500]', () => {
-    expect(swingDelayMs(mob({ stam: 0 }), 1)).toBeLessThanOrEqual(3500);
+  it('clamps to [1250, 10000]', () => {
+    expect(swingDelayMs(mob({ stam: 0 }), 1)).toBeLessThanOrEqual(10000);
     expect(swingDelayMs(mob({ stam: 200 }), 5)).toBeGreaterThanOrEqual(1250);
   });
 
   it('higher stam → faster swings', () => {
-    const slow = swingDelayMs(mob({ stam: 20 }), 3);
-    const fast = swingDelayMs(mob({ stam: 100 }), 3);
+    const slow = swingDelayMs(mob({ stam: 20 }), 30);
+    const fast = swingDelayMs(mob({ stam: 100 }), 30);
     expect(fast).toBeLessThan(slow);
   });
 
   it('higher weaponSpeed → faster swings', () => {
-    const heavy = swingDelayMs(mob({ stam: 50 }), 1);
-    const light = swingDelayMs(mob({ stam: 50 }), 5);
+    const heavy = swingDelayMs(mob({ stam: 50 }), 25);
+    const light = swingDelayMs(mob({ stam: 50 }), 56);
     expect(light).toBeLessThan(heavy);
+  });
+
+  it('reads AOS speed directly from the equipped weapon by default', () => {
+    const dagger = swingDelayMs(mob({ stam: 50, _weapon: { speed: 56 } }));
+    const halberd = swingDelayMs(mob({ stam: 50, _weapon: { speed: 25 } }));
+    expect(dagger).toBe(2000);
+    expect(halberd).toBe(5000);
   });
 });
 

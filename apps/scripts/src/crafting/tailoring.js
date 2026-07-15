@@ -9,12 +9,15 @@
 const __PENDING__ = [];
 
 const SKILL = 35;
+// Registry ids are global. The legacy 8xxx range overlaps fletching; expose
+// tailoring under 35xxx while retaining compact source-table suffixes.
+const RECIPE_ID_OFFSET = 27000;
 const CLOTH = 0x0F95;
 const LEATHER = 0x1081;
 
 function tailor(id, name, category, minSkill, outputItemId, material, count, opts = {}) {
   __PENDING__.push({
-    id, name, category, skillId: SKILL,
+    id: id + RECIPE_ID_OFFSET, name, category, skillId: SKILL,
     minSkill, maxSkill: opts.maxSkill ?? minSkill + 250,
     outputItemId, outputCount: 1,
     inputs: [{ itemId: material, count }],

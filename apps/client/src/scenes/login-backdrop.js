@@ -26,10 +26,28 @@ export class LoginBackdrop {
     parent.addChildAt(this.container, 0);
 
     this._base = new Graphics();
-    this._clouds = new Graphics();
-    this._spot = new Graphics();
+    this._clouds = new Container();
+    this._spot = new Container();
     this._banner = new Container();
     this.container.addChild(this._base, this._clouds, this._spot, this._banner);
+
+    // Build animated primitives once. Clearing and re-tessellating eleven
+    // Graphics objects at 30 FPS dominated the login trace in headless Chrome
+    // (over a second of long tasks in 2.5 s). Animation now changes only
+    // transforms/alpha; cloud geometry is rebuilt solely on resize.
+    this._cloudShapes = Array.from({ length: 5 }, (_, i) => {
+      const shape = new Graphics();
+      shape.alpha = 0.05 + i * 0.01;
+      this._clouds.addChild(shape);
+      return shape;
+    });
+    this._spotRings = Array.from({ length: 6 }, (_, i) => {
+      const ring = new Graphics();
+      const divisor = 6 - i;
+      ring.circle(0, 0, 220 + divisor * 24).fill({ color: 0xffc080 });
+      this._spot.addChild(ring);
+      return ring;
+    });
 
     // Banner text — done once; we just rescale on resize.
     this._title = new Text({
@@ -59,11 +77,10 @@ export class LoginBackdrop {
 
     this._t0 = performance.now();
     this._raf = null;
-    // Throttle to ~30 FPS — login backdrop has no fast-moving content
-    // (sin-driven clouds drift at 0.06/0.4 Hz). 30 FPS halves CPU/GPU
-    // cost vs 60 FPS RAF without any visible difference. The user can
-    // still notice 60→30 on hard scrolls but this layer never scrolls.
-    this._minFrameMs = 33;
+    // Twenty transform updates per second are ample for the extremely slow
+    // cloud/pulse motion and leave more main-thread time for forms/password
+    // managers on low-power devices.
+    this._minFrameMs = 50;
     this._lastDrawAt = 0;
     this._loop = (now) => {
       const t = now ?? performance.now();
@@ -88,31 +105,34 @@ export class LoginBackdrop {
     const h = window.innerHeight;
     const t = (performance.now() - this._t0) / 1000;
 
-    // Base gradient (fake — three layered rectangles top→bottom).
-    this._base.clear();
-    this._base.rect(0, 0, w, h).fill({ color: 0x05080d });
-    // Bottom warm stone band.
-    const bandH = Math.min(220, h * 0.35);
-    this._base.rect(0, h - bandH, w, bandH).fill({ color: 0x1a1206, alpha: 0.65 });
-    // Top vignette.
-    this._base.rect(0, 0, w, 80).fill({ color: 0x000000, alpha: 0.6 });
+    if (w !== this._drawW || h !== this._drawH) {
+      this._drawW = w;
+      this._drawH = h;
+      // Static background and cloud meshes change only with viewport size.
+      this._base.clear();
+      this._base.rect(0, 0, w, h).fill({ color: 0x05080d });
+      const bandH = Math.min(220, h * 0.35);
+      this._base.rect(0, h - bandH, w, bandH).fill({ color: 0x1a1206, alpha: 0.65 });
+      this._base.rect(0, 0, w, 80).fill({ color: 0x000000, alpha: 0.6 });
+      for (const cloud of this._cloudShapes) {
+        cloud.clear().ellipse(0, 0, w * 0.4, 28).fill({ color: 0xffe0a0 });
+      }
+    }
 
     // Sweeping cloud ribbons (low-α horizontal bands moving sin(t)).
-    this._clouds.clear();
     for (let i = 0; i < 5; i++) {
       const y = (h * 0.18) + i * 60 + Math.sin(t * 0.4 + i) * 14;
       const ox = (Math.sin(t * 0.06 + i * 1.3) * w * 0.35) | 0;
-      this._clouds.ellipse(w / 2 + ox, y, w * 0.4, 28).fill({ color: 0xffe0a0, alpha: 0.05 + i * 0.01 });
+      this._cloudShapes[i].position.set(w / 2 + ox, y);
     }
 
     // Pulsing parchment hotspot — radial-ish glow under the banner.
     const cx = w / 2, cy = h * 0.4;
     const pulse = 0.5 + 0.5 * Math.sin(t * 0.9);
-    this._spot.clear();
-    for (let r = 6; r > 0; r--) {
-      const radius = 220 + r * 24;
-      this._spot.circle(cx, cy, radius)
-        .fill({ color: 0xffc080, alpha: (0.04 + pulse * 0.04) / r });
+    this._spot.position.set(cx, cy);
+    for (let i = 0; i < this._spotRings.length; i++) {
+      const divisor = 6 - i;
+      this._spotRings[i].alpha = (0.04 + pulse * 0.04) / divisor;
     }
 
     // Banner positioning — small floaty bob.

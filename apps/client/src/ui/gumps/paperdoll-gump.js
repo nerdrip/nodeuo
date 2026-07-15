@@ -74,14 +74,65 @@ const SPELLBOOK_ITEM_IDS = new Set([
   0x2D9D, // Mysticism
 ]);
 
+// ClassicUO Mobile.IsCovered. Coverage is item-art-specific: a normal robe
+// does not blindly delete shirt, pants, skirt and tunic from the paperdoll.
+// The previous broad layer set made valid garments disappear and caused the
+// paperdoll to disagree with the animated world mobile.
+function isLayerCovered(mob, layer) {
+  const get = (l) => mob?.equipment?.get?.(l);
+  const robe = get(22);
+  const robeId = robe?.itemId | 0;
+  const pants = get(4);
+  const pantsId = pants?.itemId | 0;
+  if (layer === 3) {
+    return !!get(24)
+      || pantsId === 0x1411
+      || pantsId === 0x0513 || pantsId === 0x0514
+      || robeId === 0x0504;
+  }
+  if (layer === 4) {
+    if (get(24) || robeId === 0x0504) return true;
+    if (pantsId === 0x01EB || pantsId === 0x03E5 || pantsId === 0x03EB) {
+      const skirtId = get(23)?.itemId | 0;
+      if (skirtId && skirtId !== 0x01C7 && skirtId !== 0x01E4) return true;
+      if (robeId && robeId !== 0x0229 && (robeId <= 0x04E7 || robeId > 0x04EB)) return true;
+    }
+  }
+  if (layer === 17 && (get(17)?.itemId | 0) === 0x0238) {
+    return !!robeId && robeId !== 0x9985 && robeId !== 0x9986 && robeId !== 0xA412;
+  }
+  if (layer === 13) {
+    if (robeId && ![0x9985, 0x9986, 0xA412, 0xA2CA].includes(robeId)) return true;
+    const tunicId = get(17)?.itemId | 0;
+    const torsoId = get(13)?.itemId | 0;
+    return !!tunicId && tunicId !== 0x1541 && tunicId !== 0x1542
+      && (torsoId === 0x782A || torsoId === 0x782B);
+  }
+  if (layer === 19) {
+    return !!robeId && ![0x9985, 0x9986, 0xA412].includes(robeId);
+  }
+  if ((layer === 6 || layer === 11) && robeId) {
+    if (robeId > 0x3173) return robeId === 0x4B9D || robeId === 0x7816;
+    if (robeId <= 0x2687) return robeId >= 0x204E;
+    return robeId === 0x2FB9 || robeId === 0x3173;
+  }
+  return false;
+}
+
 /** Resolve the paperdoll equipment gump id for a given (body, itemId).
  *  Mirrors the inline lookup `_refresh` already does — extracted so the
  *  hover-preview overlay can use the exact same fallback chain. */
 function resolveEquipGumpId(body, itemId) {
   const isFemale = (body === 0x191 || body === 0x193);
-  const gMap = assets.mobilesAtlas?.equipConv?.[body]?.[itemId];
-  if (gMap?.gump) return gMap.gump;
-  const animId = assets.tiledata?.statics?.[itemId]?.animId | 0;
+  const renderBody = assets.mobileRenderBody?.(body) ?? body;
+  const gMap = assets.mobilesAtlas?.equipConv?.[renderBody]?.[itemId]
+    ?? assets.mobilesAtlas?.equipConv?.[body]?.[itemId];
+  let animId = gMap?.gump | 0;
+  // Equipconv may store either the base wearable animation id or a complete
+  // male/female paperdoll gump id. CUO normalises the latter back to the base
+  // before probing the requested sex, rather than drawing it as-is.
+  if (animId > 50000) animId -= animId >= 60000 ? 60000 : 50000;
+  if (animId <= 0) animId = assets.tiledata?.statics?.[itemId]?.animId | 0;
   if (animId > 0) {
     const femaleId = animId + 60000;
     const maleId   = animId + 50000;
@@ -293,7 +344,6 @@ export class PaperdollGump extends Gump {
       const virtueBadge = new GumpPic(0x0071);
       virtueBadge.setPosition(80, 4);
       virtueBadge.node.eventMode = 'static';
-      virtueBadge.node.cursor = 'pointer';
       virtueBadge.node.on('pointertap', () => bus.emit('macro:gump', { kind: 'virtues' }));
       this.add(virtueBadge);
       // The legacy 0x07D2 scroll pair is intentionally omitted. In this
@@ -376,20 +426,21 @@ export class PaperdollGump extends Gump {
     this._body.gumpId = pickBodyGump(mob);
     this._body.setHue(mob?.hue ?? 0);
 
-    for (const sp of this._slots.values()) sp.dispose();
-    this._slots.clear();
     this._equipmentSerials.clear();
 
-    if (!mob?.equipment) return;
+    if (!mob?.equipment) {
+      for (const sp of this._slots.values()) sp.dispose();
+      this._slots.clear();
+      return;
+    }
     for (const eq of mob.equipment.values()) {
       if (eq?.serial != null) this._equipmentSerials.add(eq.serial >>> 0);
     }
-    // Layers we want on the paperdoll INCLUDE backpack so the bag icon
-    // hangs visibly at the avatar's hip. Put the backpack under worn
-    // items for hit-testing: hand-held spellbooks/weapons must win a
-    // double-click even if the backpack gump art is late or unusually
-    // large in the atlas.
-    const layers = [LAYER_BACKPACK, ...PAPERDOLL_LAYERS];
+    // ClassicUO composes normal equipment first and appends Backpack in a
+    // dedicated final pass. The bag therefore sits above cloak/robe at the
+    // avatar's hip; drawing it first put it behind the cape and let the
+    // cape's alpha mask steal backpack clicks.
+    const layers = [...PAPERDOLL_LAYERS, LAYER_BACKPACK];
     // OneHanded vs TwoHanded — UO retail rule: a 2H weapon dominates
     // the right hand and the 1H slot stays empty. ServUO enforces
     // this on equip but legacy players from before our hand-mutex fix
@@ -410,27 +461,10 @@ export class PaperdollGump extends Gump {
     // set lives at the top of this file.
     const oneHandIsBook = !!oneHand && SPELLBOOK_ITEM_IDS.has(oneHand.itemId | 0);
     const hideOneHand = !!twoHand && !!oneHand && !oneHandIsBook;
-    // CUO `PaperDollInteractable.IsCovered` — outer garments hide the
-    // layers underneath so the chest piece doesn't peek out from a
-    // robe and the leggings don't bleed through a kilt. Without this
-    // a player wearing robe + shirt + pants stacks three sprites with
-    // visible seams. Layers covered by each occupant:
-    //   Robe   (22) → Shirt(5), Pants(4), Tunic(17), Skirt(23), Arms(19)
-    //   Tunic  (17) → Shirt(5), Arms(19)
-    //   Torso  (13) → Shirt(5)
-    //   Skirt  (23) → Pants(4), Legs(24)
-    //   Legs   (24) → Pants(4)
-    const covered = new Set();
-    if (mob.equipment.get?.(22))      [5, 4, 17, 23, 19].forEach(l => covered.add(l));
-    else {
-      if (mob.equipment.get?.(17))    [5, 19].forEach(l => covered.add(l));
-      if (mob.equipment.get?.(13))    covered.add(5);
-      if (mob.equipment.get?.(23))    [4, 24].forEach(l => covered.add(l));
-      if (mob.equipment.get?.(24))    covered.add(4);
-    }
+    const desired = [];
     for (const layer of layers) {
       if (layer === 1 && hideOneHand) continue;
-      if (covered.has(layer)) continue;
+      if (isLayerCovered(mob, layer)) continue;
       const eq = mob.equipment.get?.(layer);
       if (!eq) continue;
       // Prefer Equipconv override → tiledata.animID + MALE/FEMALE
@@ -440,8 +474,27 @@ export class PaperdollGump extends Gump {
       // catalogue surfaces as a tinted rectangle, not invisibly).
       const gumpId = resolveEquipGumpId(mob.body, eq.itemId);
       if (!gumpId) continue;
+      desired.push({ layer, eq, gumpId });
+    }
+
+    const desiredLayers = new Set(desired.map((d) => d.layer));
+    for (const [layer, old] of this._slots) {
+      if (desiredLayers.has(layer)) continue;
+      old.dispose();
+      this._slots.delete(layer);
+    }
+
+    const orderedControls = [];
+    for (const { layer, eq, gumpId } of desired) {
       const isBackpackSlot = layer === LAYER_BACKPACK;
-      const pic = new PaperDollInteractable({
+      let pic = this._slots.get(layer);
+      const same = pic
+        && pic.gumpId === gumpId
+        && (pic.equipment?.serial >>> 0) === (eq.serial >>> 0)
+        && (pic.equipment?.itemId | 0) === (eq.itemId | 0);
+      if (!same) {
+        pic?.dispose();
+        pic = new PaperDollInteractable({
         gumpId,
         hue: eq.hue,
         layer,
@@ -470,8 +523,14 @@ export class PaperdollGump extends Gump {
         },
         onPreviewEnter: () => this._showPreview(),
         onPreviewLeave: () => this._hidePreview(),
-      });
-      pic.setPosition(BODY_OFFSET_X, BODY_OFFSET_Y);
+        });
+        pic.setPosition(BODY_OFFSET_X, BODY_OFFSET_Y);
+        this.add(pic);
+        this._slots.set(layer, pic);
+      } else {
+        pic.equipment = eq;
+        pic.setHue(eq.hue ?? 0);
+      }
       // Equipment overlays are full-body sprites (typically 260×237)
       // mostly transparent — PaperDollInteractable enables pixel-check
       // so empty alpha does not steal body/frame clicks below.
@@ -485,8 +544,26 @@ export class PaperdollGump extends Gump {
       // clothes). Mirrors CUO PaperDollInteractable click logic.
       // Click/drag/drop/use/target/preview hooks are owned by
       // PaperDollInteractable so layer sprites behave consistently.
-      this.add(pic);
-      this._slots.set(layer, pic);
+      orderedControls.push(pic);
+    }
+
+    // Keep the composition deterministic: frame → body → equipped layers in
+    // CUO order → title/buttons. Previously every refresh appended freshly
+    // created equipment after the side buttons, and async texture completion
+    // made the visible order depend on packet timing.
+    const equippedSet = new Set(this._slots.values());
+    const normal = this.children.filter((c) => !equippedSet.has(c));
+    const bodyIndex = Math.max(0, normal.indexOf(this._body));
+    this.children = [
+      ...normal.slice(0, bodyIndex + 1),
+      ...orderedControls,
+      ...normal.slice(bodyIndex + 1),
+    ];
+    for (let i = 0; i < this.children.length; i++) {
+      const node = this.children[i].node;
+      if (node?.parent === this.node && this.node.getChildIndex(node) !== i) {
+        this.node.setChildIndex(node, i);
+      }
     }
   }
 

@@ -38,6 +38,34 @@ import { manaCostFor as spellweavingCost, recordSpellweavingCast } from '../spel
 import { tryConsumeReagents } from './reagents.js';
 import { lineOfSight } from '../../world/los.js';
 import { manaCost as specializationManaCost, castTimeMs as specializationCastTimeMs } from '../specializations.js';
+import { runtimeGovernor } from '../runtime-governor.js';
+
+/** Resolve the world-space point used for range/LOS checks. Items inside a
+ * container carry gump-grid x/y values, so climb their parent chain first. */
+function targetWorldPoint(world, target) {
+  if (!target) return null;
+  let current = target;
+  const seen = new Set();
+  while (current?.serial && world?.items?.get?.(current.serial >>> 0) === current && current.parent) {
+    const serial = current.parent >>> 0;
+    if (!serial || seen.has(serial)) break;
+    seen.add(serial);
+    const parent = world.mobiles?.get?.(serial) ?? world.items?.get?.(serial);
+    if (!parent) break;
+    current = parent;
+  }
+  return {
+    x: current.x | 0, y: current.y | 0, z: current.z | 0,
+    map: current.map ?? target.map ?? 1,
+  };
+}
+
+function targetStillExists(world, target) {
+  if (!target) return false;
+  const serial = target.serial >>> 0;
+  if (!serial) return Number.isFinite(target.x) && Number.isFinite(target.y);
+  return world?.mobiles?.get?.(serial) === target || world?.items?.get?.(serial) === target;
+}
 
 // Re-export registry helpers so legacy callers importing from '../spells.js'
 // (now '../systems/spells/index.js') keep working unchanged.
@@ -85,7 +113,7 @@ export { getSpell, registerSpell, allSpells, spellsBySchool };
  * @param {CastContext & { spellId: number }} ctx
  * @returns {{ ok: boolean, reason?: string }}
  */
-export function castSpell(ctx) {
+function castSpellCore(ctx) {
   const def = getSpell(ctx.spellId);
   if (!def) return { ok: false, reason: 'unknown-spell' };
   const c = ctx.caster;
@@ -130,14 +158,26 @@ export function castSpell(ctx) {
     }
   }
 
-  // LOS gate: targeted offensive spells with a victim on a different
-  // tile must have an unobstructed line. Self-targeted (caster ===
-  // target) and untargeted (`target == null`) spells skip the check.
-  // Mirrors ServUO `Spell.CheckLOS` called from `Spell.OnCast`.
-  if (def.requiresTarget && ctx.target && ctx.target !== c && c.map === ctx.target.map) {
-    const tx = ctx.target.x | 0, ty = ctx.target.y | 0;
+  // Shared target gate. Previously every target was assumed to be a living
+  // mobile, so location spells and item spells were discarded after their
+  // cursor completed. Validate in world-space according to the actual kind.
+  const targetPoint = def.requiresTarget ? targetWorldPoint(ctx.world, ctx.target) : null;
+  if (def.requiresTarget && !targetPoint) return { ok: false, reason: 'missing-target' };
+  if (targetPoint) {
+    if ((targetPoint.map ?? c.map) !== c.map) return { ok: false, reason: 'different-map' };
+    const distance = Math.max(
+      Math.abs(targetPoint.x - (c.x | 0)),
+      Math.abs(targetPoint.y - (c.y | 0)),
+    );
+    if (distance > (def.range ?? 12)) return { ok: false, reason: 'out-of-range' };
+  }
+
+  // LOS gate. Contained items use the position of their owning mobile,
+  // rather than their backpack-grid x/y coordinates.
+  if (def.requiresTarget && targetPoint && ctx.target !== c) {
+    const tx = targetPoint.x | 0, ty = targetPoint.y | 0;
     if (tx !== (c.x | 0) || ty !== (c.y | 0)) {
-      if (!lineOfSight(c.map, c, ctx.target)) {
+      if (!lineOfSight(c.map, c, targetPoint)) {
         c.client?.sendSystemMessage?.('Target cannot be seen.');
         return { ok: false, reason: 'no-los' };
       }
@@ -281,9 +321,10 @@ export function castSpell(ctx) {
     if (ctx.target) {
       const w = ctx.world;
       const t = ctx.target;
-      const stillThere = w?.mobiles?.has?.(t.serial)
-        && (t.hp ?? 0) > 0
-        && t.map === c.map;
+      const point = targetWorldPoint(w, t);
+      const stillThere = targetStillExists(w, t)
+        && point?.map === c.map
+        && Math.max(Math.abs(point.x - c.x), Math.abs(point.y - c.y)) <= (def.range ?? 12);
       if (!stillThere) {
         c._castTimer = null;
         c._castDef = null;
@@ -323,6 +364,24 @@ export function castSpell(ctx) {
   }
 
   return { ok: true };
+}
+
+export function castSpell(ctx) {
+  const tx = runtimeGovernor.transactions.begin('cast', {
+    correlationId: ctx.correlationId ?? `cast:${ctx.caster?.serial ?? 0}:${Date.now().toString(36)}`,
+    caster: ctx.caster?.serial >>> 0, spellId: ctx.spellId | 0,
+  });
+  ctx.correlationId = tx.details.correlationId;
+  try {
+    const result = castSpellCore(ctx);
+    runtimeGovernor.transactions.event(tx, result?.ok ? 'cast.accepted' : 'cast.rejected', { reason: result?.reason ?? '' });
+    if (result?.ok) runtimeGovernor.transactions.commit(tx);
+    else runtimeGovernor.transactions.rollback(tx, result?.reason ?? 'rejected');
+    return result;
+  } catch (error) {
+    runtimeGovernor.transactions.rollback(tx, error?.message ?? error);
+    throw error;
+  }
 }
 
 /**

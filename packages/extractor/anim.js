@@ -11,6 +11,7 @@
 // Output:
 //   mobiles-atlas-NN.png   atlas pages, RGBA, ARGB1555 → ARGB8888
 //   mobiles-atlas.json     {
+//                             schemaVersion, bodyConv, mobTypes,
 //                             pageCount, atlasW, atlasH,
 //                             aliases: { bodyId: { body, hue } },
 //                             bodies: {
@@ -28,7 +29,7 @@
 //                             }
 //                          }
 
-import { open } from 'node:fs/promises';
+import { open, readdir, rename, unlink } from 'node:fs/promises';
 import { writeFile } from 'node:fs';
 import { join } from 'node:path';
 import sharp from 'sharp';
@@ -80,6 +81,7 @@ const DIRECTIONS = 5;
 const USE_UOP_ANIMATION = 0x10000;
 
 export async function extractAnim(srcDir, outDir) {
+  await cleanupAnimationTemps(outDir);
   const cfg = loadBodyConfig(srcDir);
   console.log(`[anim]    bodyConv=${cfg.bodyConv.size}  alias=${cfg.bodyAlias.size}  mobTypes=${cfg.mobTypes.size}`);
 
@@ -267,6 +269,15 @@ export async function extractAnim(srcDir, outDir) {
   let bodyPageIndices = [];
   for (const sp of sprites) {
     if (sp.body !== packingBody) {
+      // Once a body is complete, only the newest page may be reused by the
+      // next body. Encode every older page to a temporary PNG immediately
+      // and release its 64 MiB RGBA buffer. The former all-pages-at-once
+      // implementation retained ~16 GiB for a 258-page retail atlas.
+      if (packingBody !== -1) {
+        for (const pi of bodyPageIndices.slice(0, -1)) {
+          await writeAnimationPageTemp(pages[pi], pi, outDir);
+        }
+      }
       packingBody = sp.body;
       // Let a new body reuse only the most recent page. If it spills, all
       // additional pages are dedicated to that same body until it is done.
@@ -297,21 +308,28 @@ export async function extractAnim(srcDir, outDir) {
       pages.push({ buf, shelf: { x: sp.w, y: 0, rowH: sp.h } });
       bodyPageIndices.push(pages.length - 1);
     }
+    // The packed atlas owns these pixels now. Drop the decoded frame buffer
+    // so V8 can reclaim external memory while later bodies are processed.
+    sp.pixels = null;
+  }
+
+  for (let i = 0; i < pages.length; i++) {
+    await writeAnimationPageTemp(pages[i], i, outDir);
   }
 
   for (const [body, actionAliases] of actionAliasesByBody) {
     if (bodies[body]) bodies[body].actionAliases = actionAliases;
   }
 
-  for (let i = 0; i < pages.length; i++) {
-    await sharp(pages[i].buf, { raw: { width: ATLAS_W, height: ATLAS_H, channels: 4 } })
-      .png({ compressionLevel: 9 })
-      .toFile(join(outDir, `mobiles-atlas-${i.toString().padStart(2, '0')}.png`));
-  }
-
   /** @type {Record<number,{body:number,hue:number}>} */
   const aliases = {};
   for (const [k, v] of cfg.bodyAlias) aliases[k] = v;
+
+  // Runtime needs this distinction to mirror CUO correctly: Body.def is
+  // consulted only for file-0 legacy bodies; a Bodyconv.def redirect keeps
+  // the requested logical body and uses its converted animation source.
+  const bodyConv = {};
+  for (const [k, v] of cfg.bodyConv) bodyConv[k] = v;
 
   /** @type {Record<number, Record<number, {animBody:number,gump:number,hue:number}>>} */
   const equipConv = {};
@@ -329,14 +347,93 @@ export async function extractAnim(srcDir, outDir) {
   const mobTypes = {};
   for (const [body, value] of cfg.mobTypes) mobTypes[body] = value;
 
-  await writeFilePromise(join(outDir, 'mobiles-atlas.json'), JSON.stringify({
-    schemaVersion: 2,
+  const manifest = {
+    // v3 adds Bodyconv.def provenance. Consumers can now distinguish an
+    // intentional converted animation source from an obsolete Body.def
+    // alias that happens to target another valid body.
+    schemaVersion: 3,
     pageCount: pages.length, atlasW: ATLAS_W, atlasH: ATLAS_H,
     actions: LEGACY_ACTIONS, uopActions: UOP_ACTIONS, directions: DIRECTIONS,
-    aliases, equipConv, corpseConv, mobTypes, bodies,
-  }));
+    aliases, bodyConv, equipConv, corpseConv, mobTypes, bodies,
+  };
+  const validation = validateAnimationManifest(manifest, { expectedBodyConv: cfg.bodyConv.size });
+  console.log(`[anim]    validated bodies=${validation.bodies} frames=${validation.frames} pages=${validation.pages} bodyConv=${validation.bodyConv}`);
 
-  return { count: bodiesSeen, sprites: sprites.length, pages: pages.length };
+  // Do not touch the previous atlas until every temporary page and the full
+  // manifest pass validation. The manifest is committed last so a normal
+  // extraction failure cannot publish coordinates for unfinished pages.
+  const manifestTemp = join(outDir, 'mobiles-atlas.json.next');
+  await writeFilePromise(manifestTemp, JSON.stringify(manifest));
+  for (let i = 0; i < pages.length; i++) {
+    await replaceFile(
+      animationPageTempPath(outDir, i),
+      animationPagePath(outDir, i),
+    );
+  }
+  await replaceFile(manifestTemp, join(outDir, 'mobiles-atlas.json'));
+  await removeStaleAnimationPages(outDir, pages.length);
+
+  return { count: bodiesSeen, sprites: sprites.length, pages: pages.length, validation };
+}
+
+export function validateAnimationManifest(manifest, { expectedBodyConv = null } = {}) {
+  const errors = [];
+  const pages = manifest?.pageCount | 0;
+  const atlasW = manifest?.atlasW | 0;
+  const atlasH = manifest?.atlasH | 0;
+  if ((manifest?.schemaVersion | 0) < 3) errors.push('schemaVersion must be at least 3');
+  if (pages <= 0) errors.push('pageCount must be positive');
+  if (atlasW <= 0 || atlasH <= 0) errors.push('atlas dimensions must be positive');
+  const conversions = Object.entries(manifest?.bodyConv ?? {});
+  if (expectedBodyConv != null && conversions.length !== (expectedBodyConv | 0)) {
+    errors.push(`bodyConv count ${conversions.length} does not match parsed ${expectedBodyConv | 0}`);
+  }
+  for (const [body, conv] of conversions) {
+    if (!Number.isInteger(conv?.fileIndex) || conv.fileIndex < 0 || conv.fileIndex > 4
+      || !Number.isInteger(conv?.indexInFile) || conv.indexInFile < 0) {
+      errors.push(`invalid Bodyconv metadata for body ${body}`);
+      if (errors.length >= 25) break;
+    }
+  }
+  let bodyCount = 0;
+  let frameCount = 0;
+  for (const [bodyId, body] of Object.entries(manifest?.bodies ?? {})) {
+    bodyCount++;
+    const actions = body?.actions ?? {};
+    for (const [requested, physical] of Object.entries(body?.actionAliases ?? {})) {
+      if (!Object.prototype.hasOwnProperty.call(actions, physical)) {
+        errors.push(`body ${bodyId} action alias ${requested}->${physical} has no target`);
+      }
+    }
+    for (const [actionId, action] of Object.entries(actions)) {
+      for (const [direction, frames] of Object.entries(action?.dirs ?? {})) {
+        if (!Array.isArray(frames)) {
+          errors.push(`body ${bodyId} action ${actionId} direction ${direction} is not a frame array`);
+          continue;
+        }
+        for (const frame of frames) {
+          if (!frame) continue;
+          frameCount++;
+          const valid = Number.isInteger(frame.page) && frame.page >= 0 && frame.page < pages
+            && Number.isInteger(frame.u) && frame.u >= 0
+            && Number.isInteger(frame.v) && frame.v >= 0
+            && Number.isInteger(frame.w) && frame.w > 0
+            && Number.isInteger(frame.h) && frame.h > 0
+            && frame.u + frame.w <= atlasW
+            && frame.v + frame.h <= atlasH;
+          if (!valid) errors.push(`body ${bodyId} action ${actionId} direction ${direction} has an out-of-bounds frame`);
+          if (errors.length >= 25) break;
+        }
+        if (errors.length >= 25) break;
+      }
+      if (errors.length >= 25) break;
+    }
+    if (errors.length >= 25) break;
+  }
+  if (bodyCount === 0) errors.push('manifest contains no bodies');
+  if (frameCount === 0) errors.push('manifest contains no frames');
+  if (errors.length) throw new Error(`Invalid animation manifest:\n- ${errors.join('\n- ')}`);
+  return { pages, bodies: bodyCount, frames: frameCount, bodyConv: conversions.length };
 }
 
 export function compareAnimationPackingOrder(a, b) {
@@ -419,4 +516,52 @@ function writeFilePromise(p, data) {
   return new Promise((resolve, reject) => {
     writeFile(p, data, (err) => err ? reject(err) : resolve());
   });
+}
+
+function animationPagePath(outDir, index) {
+  return join(outDir, `mobiles-atlas-${index.toString().padStart(2, '0')}.png`);
+}
+
+function animationPageTempPath(outDir, index) {
+  return `${animationPagePath(outDir, index)}.next`;
+}
+
+async function writeAnimationPageTemp(page, index, outDir) {
+  if (!page?.buf || page.tempWritten) return;
+  await sharp(page.buf, { raw: { width: ATLAS_W, height: ATLAS_H, channels: 4 } })
+    .png({ compressionLevel: 9 })
+    .toFile(animationPageTempPath(outDir, index));
+  page.tempWritten = true;
+  page.buf = null;
+}
+
+async function replaceFile(from, to) {
+  try {
+    await rename(from, to);
+  } catch (error) {
+    // Windows may refuse rename-over-existing depending on filesystem and
+    // antivirus hooks. Retry after removing only the exact destination.
+    if (!['EEXIST', 'EPERM', 'EACCES'].includes(error?.code)) throw error;
+    await unlink(to).catch((e) => { if (e?.code !== 'ENOENT') throw e; });
+    await rename(from, to);
+  }
+}
+
+async function cleanupAnimationTemps(outDir) {
+  const names = await readdir(outDir).catch(() => []);
+  for (const name of names) {
+    if (name === 'mobiles-atlas.json.next'
+      || /^mobiles-atlas-\d+\.png\.next$/i.test(name)) {
+      await unlink(join(outDir, name)).catch(() => {});
+    }
+  }
+}
+
+async function removeStaleAnimationPages(outDir, pageCount) {
+  const names = await readdir(outDir).catch(() => []);
+  for (const name of names) {
+    const match = /^mobiles-atlas-(\d+)\.(png|ktx2)$/i.exec(name);
+    if (!match || Number(match[1]) < pageCount) continue;
+    await unlink(join(outDir, name)).catch(() => {});
+  }
 }

@@ -32,11 +32,9 @@ export default function register(api) {
     return out;
   };
 
-  // Shared implementation for `[give` and the convenience alias
-  // `[create`. ServUO retail uses `[Add` for staff spawns; we wire
-  // BOTH `[give` (legacy) and `[create` (intuitive) at the same
-  // handler so admins coming from other shards don't have to learn
-  // our naming. User report 2026-05-19 "[create nie istnieje :P".
+  // `[create` owns the visual creation hub (admin/create.js). Keep this
+  // command focused on direct item creation and expose `createitem` as the
+  // explicit compatibility alias.
   const runGive = (ctx) => {
       const arg = ctx.args[0];
       if (!arg) {
@@ -80,7 +78,7 @@ export default function register(api) {
 
   api.commands.register({
     name: 'give',
-    aliases: ['create'],
+    aliases: ['createitem'],
     help: '[give <itemId|template> [amount] [hue] — drop the item in your pack.',
     access: 'GM',
     run: runGive,

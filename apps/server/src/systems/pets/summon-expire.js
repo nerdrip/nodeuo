@@ -83,7 +83,11 @@ export function tickSummons(world, deps = {}) {
       } catch { /* fx optional */ }
     }
     // Notify the summoner.
-    const master = world.mobiles.get(m.controlMaster);
+    const master = world.mobiles.get((m.controlMaster || m.summonedBy) >>> 0);
+    const slots = m._followerCost | 0;
+    if (master && slots > 0) {
+      master.followers = Math.max(0, (master.followers | 0) - slots);
+    }
     if (master?.client?.sendSystemMessage) {
       master.client.sendSystemMessage(`Your ${m.name ?? 'summon'} fades away.`);
     }

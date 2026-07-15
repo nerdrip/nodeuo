@@ -6,7 +6,15 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
-import { MAX_PENDING_SEND_BYTES, NetState, Stage } from '../src/net/net-state.js';
+import {
+  MAX_INCOMING_PACKETS_PER_SECOND,
+  MAX_PACKETS_PER_TURN,
+  MAX_PENDING_RECEIVE_BYTES,
+  MAX_PENDING_SEND_BYTES,
+  SOFT_PENDING_SEND_BYTES,
+  NetState,
+  Stage,
+} from '../src/net/net-state.js';
 
 class FakeWs extends EventEmitter {
   constructor() {
@@ -68,6 +76,21 @@ describe('NetState._onClose', () => {
     expect(state._cleanupDone).toBe(true);
   });
 
+  it('fuzzes gump-target lifecycle cleanup across disconnect', () => {
+    for (let seed = 1; seed <= 32; seed++) {
+      const ws = new FakeWs();
+      const state = new NetState(ws, makeCtx());
+      state.targetCallbacks = new Map();
+      state.activeGumps = new Map();
+      state.activePrompts = new Map();
+      for (let i = 0; i < (seed * 17) % 19; i++) state.targetCallbacks.set(i, { timeout: null });
+      for (let i = 0; i < (seed * 11) % 23; i++) state.activeGumps.set(i, { consumed: false });
+      for (let i = 0; i < (seed * 7) % 13; i++) state.activePrompts.set(i, () => {});
+      ws.emit('close');
+      expect(state.targetCallbacks.size + state.activeGumps.size + state.activePrompts.size).toBe(0);
+    }
+  });
+
   it('disconnects a slow client before its ordered send queue grows unbounded', () => {
     const ws = new FakeWs();
     const state = new NetState(ws, makeCtx());
@@ -78,6 +101,23 @@ describe('NetState._onClose', () => {
     expect(ws.send).not.toHaveBeenCalled();
     expect(ws.close).toHaveBeenCalledOnce();
     expect(state._cleanupDone).toBe(true);
+  });
+
+  it('coalesces cosmetic packets while a client is above the soft watermark', () => {
+    vi.useFakeTimers();
+    const ws = new FakeWs();
+    const state = new NetState(ws, makeCtx());
+    ws.bufferedAmount = SOFT_PENDING_SEND_BYTES + 1;
+    state.sendCosmetic(new Uint8Array([0x4f, 1]), 'light');
+    state.sendCosmetic(new Uint8Array([0x4f, 2]), 'light');
+    expect(ws.send).not.toHaveBeenCalled();
+    expect(state.backpressureStats).toMatchObject({ deferred: 1, coalesced: 1 });
+    ws.bufferedAmount = 0;
+    vi.advanceTimersByTime(25);
+    expect(ws.send).toHaveBeenCalledOnce();
+    expect(state.backpressureStats.flushed).toBe(1);
+    state.close('test');
+    vi.useRealTimers();
   });
 });
 
@@ -123,5 +163,39 @@ describe('NetState._feed framing', () => {
     expect(Array.from(move.mock.calls[0][1])).toEqual(Array.from(movement));
     expect(state._rx).toHaveLength(0);
     expect(state._closed).toBe(false);
+  });
+
+  it('yields between large coalesced packet batches', async () => {
+    const ping = vi.fn();
+    const ctx = makeCtx();
+    ctx.handlers = { 0x73: ping };
+    const state = new NetState(new FakeWs(), ctx);
+    const count = MAX_PACKETS_PER_TURN + 17;
+    const input = new Uint8Array(count * 2);
+    for (let i = 0; i < count; i++) {
+      input[i * 2] = 0x73;
+      input[i * 2 + 1] = i & 0xff;
+    }
+
+    state._feed(input);
+    expect(ping).toHaveBeenCalledTimes(MAX_PACKETS_PER_TURN);
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(ping).toHaveBeenCalledTimes(count);
+    expect(state._rx).toHaveLength(0);
+  });
+
+  it('closes receive-buffer and packet-rate floods', () => {
+    const oversizedWs = new FakeWs();
+    const oversized = new NetState(oversizedWs, makeCtx());
+    oversized._feed(new Uint8Array(MAX_PENDING_RECEIVE_BYTES + 1));
+    expect(oversizedWs.close).toHaveBeenCalledOnce();
+
+    const floodWs = new FakeWs();
+    const ctx = makeCtx();
+    ctx.handlers = { 0x73: vi.fn() };
+    const flood = new NetState(floodWs, ctx);
+    flood._packetWindowCount = MAX_INCOMING_PACKETS_PER_SECOND;
+    flood._feed(new Uint8Array([0x73, 1]));
+    expect(floodWs.close).toHaveBeenCalledOnce();
   });
 });

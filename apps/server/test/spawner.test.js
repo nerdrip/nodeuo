@@ -50,4 +50,27 @@ describe('Spawner', () => {
     for (let i = 0; i < 10; i++) sp.tick();
     expect(g.spawnedSerials.size).toBe(0);
   });
+
+  it('honors enabled, schedule and player-count conditions without mutating paused groups', () => {
+    const world = new World();
+    const factory = (w, kind, pos) => w.createMobile({ name: kind, ...pos });
+    const sp = new Spawner(world, factory);
+    const mondayNoon = Date.UTC(2026, 6, 13, 12, 0, 0);
+    const group = sp.add({
+      id: 'scheduled', map: 1, rect: { x1: 10, y1: 10, x2: 12, y2: 12 },
+      maxCount: 1, respawnMs: [0, 0], kinds: ['rat'], enabled: false,
+      schedule: { days: [1], startHour: 10, endHour: 14 }, regionConditions: { minPlayers: 1, maxPlayers: 2 },
+    });
+    group.nextSpawnAt = 0;
+    sp.tick(mondayNoon);
+    expect(group.spawnedSerials.size).toBe(0);
+    group.enabled = true;
+    sp.tick(mondayNoon);
+    expect(group.spawnedSerials.size).toBe(0);
+    const player = world.createMobile({ name: 'player', x: 11, y: 11, z: 0, map: 1 });
+    player.client = {};
+    sp.tick(mondayNoon);
+    expect(group.spawnedSerials.size).toBe(1);
+    expect(world.mobiles.get([...group.spawnedSerials][0])).toMatchObject({ homeRange: 10, roaming: 'home' });
+  });
 });

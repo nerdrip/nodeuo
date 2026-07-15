@@ -13,7 +13,21 @@
 // to the linear walk when not (test setups that bypass createItem don't
 // populate the index).
 
+import { runtimeGovernor } from '../systems/runtime-governor.js';
+import { legacyNearbyClients, legacyNearbyItems, legacyNearbyMobiles } from './visibility-compat.js';
+
 export const UPDATE_RANGE = 18;
+const WORLD_CACHE_IDS = new WeakMap();
+let NEXT_WORLD_CACHE_ID = 1;
+
+function _worldCacheId(world) {
+  let id = WORLD_CACHE_IDS.get(world);
+  if (!id) {
+    id = NEXT_WORLD_CACHE_ID++;
+    WORLD_CACHE_IDS.set(world, id);
+  }
+  return id;
+}
 
 /** @param {{x:number,y:number,map:number}} a @param {{x:number,y:number,map:number}} b */
 export function inRange(a, b, range = UPDATE_RANGE) {
@@ -29,7 +43,8 @@ export function inRange(a, b, range = UPDATE_RANGE) {
  *  index would silently drop visibility results. The check is O(1). */
 function _mobilesSectorsUsable(world) {
   return !!world.sectors
-      && world.sectors.mobilesIndexed() >= world.mobiles.size;
+      && (world._sectorIndexAuthoritative
+        || world.sectors.mobilesIndexed() >= world.mobiles.size);
 }
 function _itemsSectorsUsable(world) {
   // The sectors index only buckets parent-less ground items, so its
@@ -40,23 +55,29 @@ function _itemsSectorsUsable(world) {
   // trust it. Empty index + non-empty world.items = test fixture →
   // fall back.
   if (!world.sectors) return false;
+  if (world._sectorIndexAuthoritative) return true;
   if (world.items.size === 0) return true;
   const indexed = world.sectors.itemsIndexed();
   if (indexed === 0) return false;
-  // Health-check the index against current ground-item cardinality.
-  // If the index drifts badly (e.g. partial populate after tooling ops),
-  // nearby queries falling back to sectors-only can make the world look
-  // empty while walking. Cache the expensive count for a short window.
-  const now = Date.now();
-  const cached = world._itemIndexHealth;
-  if (!cached || (now - (cached.at | 0)) > 8000 || (cached.itemsSize | 0) !== (world.items.size | 0)) {
-    let ground = 0;
-    for (const it of world.items.values()) if (!it.parent) ground++;
-    world._itemIndexHealth = { at: now, ground, itemsSize: world.items.size | 0 };
-  }
-  const ground = world._itemIndexHealth?.ground | 0;
+  // Production maintains this cardinality incrementally. Compatibility
+  // fixtures that bypass createItem keep the zero value and use the fallback.
+  const ground = world._groundItemCount | 0;
   if (ground <= 0) return true;
   return indexed >= Math.floor(ground * 0.9);
+}
+
+function _sectorCandidates(world, kind, center, range) {
+  const revision = world.sectors.revisionForRange?.(center.map | 0, center.x | 0, center.y | 0, range | 0)
+    ?? world.sectors.revision ?? 0;
+  // The governor cache is process-wide, therefore the world identity must be
+  // part of the key (tests and staged world reloads may share revisions).
+  const key = `${_worldCacheId(world)}:${kind}:${center.map | 0}:${center.x | 0}:${center.y | 0}:${range | 0}`;
+  let serials = runtimeGovernor.visibilityCache.get(key, revision);
+  if (serials) return serials;
+  serials = [...(kind === 'mobile'
+    ? world.sectors.mobileSerialsNear(center.map | 0, center.x, center.y, range)
+    : world.sectors.itemSerialsNear(center.map | 0, center.x, center.y, range))];
+  return runtimeGovernor.visibilityCache.set(key, revision, serials);
 }
 
 /**
@@ -66,18 +87,14 @@ function _itemsSectorsUsable(world) {
  */
 export function* nearbyClients(world, center, self = null, range = UPDATE_RANGE) {
   if (_mobilesSectorsUsable(world)) {
-    for (const serial of world.sectors.mobileSerialsNear(center.map | 0, center.x, center.y, range)) {
+    for (const serial of _sectorCandidates(world, 'mobile', center, range)) {
       const m = world.mobiles.get(serial);
       if (!m || m === self || !m.client) continue;
       if (inRange(center, m, range)) yield m;
     }
     return;
   }
-  for (const m of world.mobiles.values()) {
-    if (m === self) continue;
-    if (!m.client) continue;
-    if (inRange(center, m, range)) yield m;
-  }
+  yield* legacyNearbyClients(world, center, self, range, inRange);
 }
 
 /**
@@ -86,17 +103,18 @@ export function* nearbyClients(world, center, self = null, range = UPDATE_RANGE)
  */
 export function* nearbyMobiles(world, center, self = null, range = UPDATE_RANGE) {
   if (_mobilesSectorsUsable(world)) {
-    for (const serial of world.sectors.mobileSerialsNear(center.map | 0, center.x, center.y, range)) {
+    for (const serial of _sectorCandidates(world, 'mobile', center, range)) {
       const m = world.mobiles.get(serial);
-      if (!m || m === self) continue;
+      // A ridden creature remains in world.mobiles so it can be restored on
+      // dismount, but it is represented on the wire by the rider's Layer 25
+      // item. Streaming the backing pet as an ordinary mobile creates the
+      // second horse seen a few tiles behind the rider.
+      if (!m || m === self || m.mounted) continue;
       if (inRange(center, m, range)) yield m;
     }
     return;
   }
-  for (const m of world.mobiles.values()) {
-    if (m === self) continue;
-    if (inRange(center, m, range)) yield m;
-  }
+  yield* legacyNearbyMobiles(world, center, self, range, inRange);
 }
 
 /**
@@ -106,15 +124,12 @@ export function* nearbyMobiles(world, center, self = null, range = UPDATE_RANGE)
  */
 export function* nearbyItems(world, center, range = UPDATE_RANGE) {
   if (_itemsSectorsUsable(world)) {
-    for (const serial of world.sectors.itemSerialsNear(center.map | 0, center.x, center.y, range)) {
+    for (const serial of _sectorCandidates(world, 'item', center, range)) {
       const it = world.items.get(serial);
       if (!it || it.parent || it.visible === false) continue;
       if (inRange(center, it, range)) yield it;
     }
     return;
   }
-  for (const it of world.items.values()) {
-    if (it.parent || it.visible === false) continue;
-    if (inRange(center, it, range)) yield it;
-  }
+  yield* legacyNearbyItems(world, center, range, inRange);
 }

@@ -18,7 +18,7 @@
 import { Container, Sprite, Texture, Rectangle, Text } from 'pixi.js';
 import { Control } from '../control.js';
 import { assets } from '../../assets/asset-manager.js';
-import { UI_TEXT_RESOLUTION } from '../text-quality.js';
+import { UI_FONT_FAMILY, UI_TEXT_RESOLUTION } from '../text-quality.js';
 
 /** @type {Map<number, Map<number, Texture>>} */
 const _glyphTextureCache = new Map();
@@ -106,7 +106,7 @@ export class UoBitmapText extends Control {
         fontSize: Math.max(8, Math.round(
           (this._requestedFontIndex === 3 ? 16 :
            this._requestedFontIndex === 9 ? 10 : 12) * this._scale)),
-        fontFamily: 'Consolas, monospace',
+        fontFamily: UI_FONT_FAMILY,
         stroke: { color: 0x000000, width: 0.5 },
       },
       resolution: UI_TEXT_RESOLUTION,

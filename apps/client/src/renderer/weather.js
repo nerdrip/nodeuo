@@ -18,6 +18,7 @@ import { Graphics } from 'pixi.js';
 import { bus } from '../core/event-bus.js';
 import { camera } from './camera.js';
 import { world } from '../world/world.js';
+import { profile } from '../managers/profile-manager.js';
 
 // Audit #32 P1 #4 — CUO `Game/Weather.cs:13-22` canonical enum:
 //   WT_RAIN=0, WT_STORM_APPROACH=1, WT_SNOW=2, WT_STORM_BREWING=3
@@ -42,13 +43,17 @@ export function weatherTemperatureTint(temperature = 0) {
   };
 }
 
-export function weatherParticleBudget(kind, intensity, width, height) {
+export function weatherParticleBudget(kind, intensity, width, height, density = 1) {
   const k = kind & 0xff;
   const drawsParticles = k === 0 || k === KIND_APPROACH || k === KIND_SNOW;
   if (!drawsParticles) return 0;
   const amount = Math.max(0, Math.min(70, intensity | 0));
   const areaScale = Math.max(0.35, (Math.max(1, width) * Math.max(1, height)) / (640 * 480));
-  return Math.max(0, Math.min(160, Math.round(amount * areaScale)));
+  const scalar = Math.max(0, Math.min(2, Number(density) || 0));
+  // Keep a hard upper bound even at 4K / 2x density.  Beyond this point the
+  // extra particles are visually indistinguishable but make the single
+  // Graphics batch disproportionately expensive on integrated GPUs.
+  return Math.max(0, Math.min(160, Math.round(amount * areaScale * scalar)));
 }
 
 export function isWeatherSheltered(playerIndoors, regionKind) {
@@ -85,6 +90,7 @@ export class Weather {
       bus.on('atmosphere:weather', (info) => this.set(info)),
       bus.on('frame:tick', (t) => this._tick(t)),
       bus.on('weather:flash', ({ durationMs = 220, color = 0xffffff, alpha = 0.55 } = {}) => {
+        if (profile.get('graphics.noFlicker') === true) return;
         this._flashDuration = Math.max(1, durationMs);
         this._flashColor = color >>> 0;
         this._flashAlpha = Math.max(0, Math.min(1, alpha));
@@ -116,7 +122,9 @@ export class Weather {
   }
 
   _resizePool(w, h) {
-    const desired = weatherParticleBudget(this._kind, this._intensity, w, h);
+    const desired = weatherParticleBudget(
+      this._kind, this._intensity, w, h, profile.get('graphics.weatherDensity') ?? 1,
+    );
     if (desired === this._max) return;
     this._max = desired;
     while (this._particles.length < desired) this._particles.push(new Particle());
@@ -143,6 +151,10 @@ export class Weather {
   _tick(now) {
     const dt = Math.min(0.1, (now - this._lastTick) / 1000);
     this._lastTick = now;
+    if (profile.get('graphics.weatherFx') === false) {
+      if (!this._idlePainted) { this._gfx.clear(); this._idlePainted = true; }
+      return;
+    }
     const hasFlash = this._flashUntil && now < this._flashUntil;
     if ((this._kind === KIND_OFF || this._kind === 0xFF) && !hasFlash) {
       if (!this._idlePainted) {
@@ -182,7 +194,7 @@ export class Weather {
       this._nextFlashAt ??= now + 4000 + Math.random() * 4000;
       if (now >= this._nextFlashAt) {
         this._nextFlashAt = now + 4500 + Math.random() * 6500;
-        bus.emit('weather:flash', { durationMs: 220 });
+        if (profile.get('graphics.noFlicker') !== true) bus.emit('weather:flash', { durationMs: 220 });
         const thunderDelay = 250 + (Math.random() * 1800) | 0;
         const timer = setTimeout(() => {
           this._thunderTimers.delete(timer);

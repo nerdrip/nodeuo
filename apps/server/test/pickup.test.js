@@ -97,11 +97,12 @@ describe('pickup/drop handlers', () => {
     const handlers = buildHandlers();
     handlers[0x07](state, pickupPacket(torch.serial));
     state.sentPackets.length = 0;
-    handlers[0x08](state, dropPacket(torch.serial, 105, 105, 5));
+    // ServUO Item.DropToWorld accepts destinations within two tiles.
+    handlers[0x08](state, dropPacket(torch.serial, 101, 101, 0));
     expect(state.heldItem).toBeNull();
-    expect(torch.x).toBe(105);
-    expect(torch.y).toBe(105);
-    expect(torch.z).toBe(5);
+    expect(torch.x).toBe(101);
+    expect(torch.y).toBe(101);
+    expect(torch.z).toBe(0);
     expect(torch.parent).toBeNull();
     const codes = state.sentPackets.map((p) => p[0]);
     expect(codes).toContain(0x29); // dropAck
@@ -112,15 +113,28 @@ describe('pickup/drop handlers', () => {
     const handlers = buildHandlers();
     handlers[0x07](state, pickupPacket(torch.serial));
     state.sentPackets.length = 0;
-    handlers[0x08](state, dropPacketOld(torch.serial, 106, 106, 6));
+    handlers[0x08](state, dropPacketOld(torch.serial, 102, 102, 0));
     expect(state.heldItem).toBeNull();
-    expect(torch.x).toBe(106);
-    expect(torch.y).toBe(106);
-    expect(torch.z).toBe(6);
+    expect(torch.x).toBe(102);
+    expect(torch.y).toBe(102);
+    expect(torch.z).toBe(0);
     expect(torch.parent).toBeNull();
     const codes = state.sentPackets.map((p) => p[0]);
     expect(codes).toContain(0x29);
     expect(codes).toContain(0xF3);
+  });
+
+  it('rejects an out-of-range ground drop and visibly bounces it to the player', () => {
+    const handlers = buildHandlers();
+    handlers[0x07](state, pickupPacket(torch.serial));
+    state.sentPackets.length = 0;
+    handlers[0x08](state, dropPacket(torch.serial, 105, 105, 0));
+    expect(state.heldItem).toBeNull();
+    expect(torch.parent).toBeNull();
+    expect({ x: torch.x, y: torch.y, z: torch.z }).toEqual({ x: 100, y: 100, z: 0 });
+    const codes = state.sentPackets.map((p) => p[0]);
+    expect(codes).toContain(0x27); // bounce
+    expect(codes).toContain(0xF3); // authoritative item-at-feet update
   });
 
   it('rejects pickup of an already-held item', () => {

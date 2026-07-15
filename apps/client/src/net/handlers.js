@@ -64,6 +64,9 @@ import {
   NODEUO_COOLDOWN_SUBCOMMAND,
   NODEUO_NAVAL_SUBCOMMAND,
   NODEUO_HOUSE_TOOLS_SUBCOMMAND,
+  NODEUO_SKILL_INSIGHTS_SUBCOMMAND,
+  NODEUO_TRADE_AUDIT_SUBCOMMAND,
+  NODEUO_VENDOR_INSIGHTS_SUBCOMMAND,
   NODEUO_PROTOCOL_MAJOR,
   NodeUOCapability,
   NodeUOCapabilityMessage,
@@ -188,12 +191,26 @@ function _clearMobileEquipment(m) {
 /** @param {import('./net-client.js').NetClient} net */
 export function registerHandlers(net) {
   const delayedDeathRemovals = new Map();
+  let loginConfirmSerial = 0;
   bus.on('net:close', () => {
     for (const timer of delayedDeathRemovals.values()) clearTimeout(timer);
     delayedDeathRemovals.clear();
   });
+  bus.on('net:session-reset', () => {
+    for (const timer of delayedDeathRemovals.values()) clearTimeout(timer);
+    delayedDeathRemovals.clear();
+    loginConfirmSerial = 0;
+    world.reset();
+    bus.emit('atmosphere:weather', { kind: 0xFE, particles: 0, temperature: 0 });
+    bus.emit('atmosphere:light', { level: 0, reset: true });
+    bus.emit('atmosphere:season', { season: 1, playSound: false, reset: true });
+  });
   bus.on('net:resync-request', () => {
-    try { net.send(buildResyncRequest(world.moveSequence | 0)); } catch { /* socket */ }
+    // CUO ClientResyncRequest is opcode + two reserved zero bytes. It is
+    // unrelated to the 0x02 movement sequence (0x22 in the opposite
+    // direction is MovementAck). Sending world.moveSequence here was a
+    // non-canonical payload and confused strict emulator diagnostics.
+    try { net.send(buildResyncRequest()); } catch { /* socket */ }
   });
   const emitRareOpcode = (opcode, pkt, event = null, extra = {}) => {
     const payload = { opcode, length: pkt?.length ?? 0, raw: pkt, ...extra };
@@ -257,6 +274,8 @@ export function registerHandlers(net) {
 
   net.on(0x1B, (pkt) => {
     const info = decodeLoginConfirm(pkt);
+    const duplicate = loginConfirmSerial === (info.serial >>> 0) && world.player?.serial === (info.serial >>> 0);
+    loginConfirmSerial = info.serial >>> 0;
     const m = world.ensureMobile(info.serial);
     m.body = info.body; m.x = info.x; m.y = info.y; m.z = info.z;
     m.direction = info.direction; m.isPlayer = true;
@@ -264,7 +283,7 @@ export function registerHandlers(net) {
     world.mapWidth = info.mapWidth;
     world.mapHeight = info.mapHeight;
     world.moveSequence = 0;
-    bus.emit('world:login-confirm', info);
+    bus.emit(duplicate ? 'world:login-confirm-duplicate' : 'world:login-confirm', info);
   });
 
   net.on(0x55, (_pkt) => {
@@ -372,28 +391,20 @@ export function registerHandlers(net) {
       world.player = m;
     }
     const oldX = m.x, oldY = m.y, oldMap = m.map ?? 1;
-    // Drop the previous equipment Map's entries from the reverse index
-    // before rebuilding. Without this, re-incoming a mob (relog, re-enter
-    // visibility, polymorph→back) would leak stale serial → mob slot
-    // entries.
-    _clearMobileEquipment(m);
+    // 0x78 is normally a full equipment snapshot, but a large amount of
+    // ServUO-style content uses an empty equipment tail merely to refresh a
+    // flag/name/hue (reveal, facing, notoriety). Treating that empty tail as
+    // "strip every layer" made robes/gloves/backpacks disappear until a later
+    // authoritative equip update arrived. A body change is still a genuine
+    // rebuild (death/polymorph), and a non-empty tail remains authoritative.
+    // Explicit unequips arrive as 0x1D and already remove their one layer.
+    const bodyChanged = m.body !== 0 && info.body !== m.body;
+    const replaceEquipment = bodyChanged
+      || (info.equipment?.length ?? 0) > 0
+      || (m.equipment?.size ?? 0) === 0;
     _applyMobilePacketFields(m, info);
-    world.batchSpatialMutations?.(() => {
-      world.reindexMobile?.(m, oldX, oldY, oldMap);
-      for (const eq of info.equipment) {
-        world.equipOnMobile(m, eq.layer, eq);
-        // Same reason as 0x2E: register the item in world.items so it
-        // can be resolved by serial later (ContainerGump title icon,
-        // tooltips, drag-drop targets, etc.).
-        const it = world.ensureItem(eq.serial);
-        const oldParent = it.parent | 0;
-        const oldItemX = it.x, oldItemY = it.y, oldItemMap = it.map ?? 1;
-        it.itemId = eq.itemId; it.hue = eq.hue;
-        it.layer  = eq.layer;  it.parent = info.serial;
-        world.linkItemParent(it, oldParent);
-        world.reindexItem?.(it, oldItemX, oldItemY, oldItemMap, oldParent);
-      }
-    });
+    world.reindexMobile?.(m, oldX, oldY, oldMap);
+    if (replaceEquipment) world.replaceEquipment(m, info.equipment ?? []);
     _applySelfWarLatch(m);
     bus.emit('mobile:incoming', m);
   });
@@ -1176,7 +1187,10 @@ export function registerHandlers(net) {
     const mapId = pkt[7] | 0;
     if (mapId >= 0 && mapId <= 5) {
       world.mapId = mapId;
-      bus.emit('facet:changed', { mapId });
+      // GameScene owns the asynchronous asset switch. Emitting only the
+      // renderer invalidation here reset chunks while AssetManager still
+      // pointed at the prior facet, briefly painting the wrong world.
+      bus.emit('player:map', { mapId });
     }
   });
   net.on(0xB8, (pkt) => bus.emit('profile:open',    decodeCharacterProfile(pkt)));
@@ -1597,6 +1611,51 @@ export function registerHandlers(net) {
           bus.emit('nodeuo:house-tools', { kind, requestId, payload });
         } catch (error) {
           console.warn('[house-tools] parse threw', error?.message);
+        }
+        break;
+      }
+      case NODEUO_SKILL_INSIGHTS_SUBCOMMAND: {
+        if (!net.supportsNodeUO?.(NodeUOCapability.SkillInsights)) break;
+        const p = ext.payload;
+        if (p.length < 6) break;
+        const requestId = u32(p, 0);
+        const length = u16(p, 4);
+        if (length > 8 * 1024 || 6 + length > p.length) break;
+        try {
+          const payload = JSON.parse(new TextDecoder('utf-8').decode(p.subarray(6, 6 + length)));
+          bus.emit('nodeuo:skill-insight', { requestId, payload });
+        } catch (error) {
+          console.warn('[skill-insight] parse threw', error?.message);
+        }
+        break;
+      }
+      case NODEUO_TRADE_AUDIT_SUBCOMMAND: {
+        if (!net.supportsNodeUO?.(NodeUOCapability.TradeAudit)) break;
+        const p = ext.payload;
+        if (p.length < 6) break;
+        const requestId = u32(p, 0);
+        const length = u16(p, 4);
+        if (length > 4 * 1024 || 6 + length > p.length) break;
+        try {
+          const payload = JSON.parse(new TextDecoder('utf-8').decode(p.subarray(6, 6 + length)));
+          bus.emit('nodeuo:trade-audit', { requestId, payload });
+        } catch (error) {
+          console.warn('[trade-audit] parse threw', error?.message);
+        }
+        break;
+      }
+      case NODEUO_VENDOR_INSIGHTS_SUBCOMMAND: {
+        if (!net.supportsNodeUO?.(NodeUOCapability.VendorInsights)) break;
+        const p = ext.payload;
+        if (p.length < 6) break;
+        const requestId = u32(p, 0);
+        const length = u16(p, 4);
+        if (length > 16 * 1024 || 6 + length !== p.length) break;
+        try {
+          const payload = JSON.parse(new TextDecoder('utf-8').decode(p.subarray(6)));
+          bus.emit('nodeuo:vendor-insight', { requestId, payload });
+        } catch (error) {
+          console.warn('[vendor-insight] parse threw', error?.message);
         }
         break;
       }
@@ -2042,8 +2101,11 @@ export function registerHandlers(net) {
     catch (e) { console.error('[net] decodeOpenGump failed', e); }
   });
   net.on(0xDD, (pkt) => {
+    const epoch = net.sessionEpoch.capture();
     decodeCompressedGump(pkt)
-      .then((info) => bus.emit('gump:open', info))
+      .then((info) => {
+        if (net.sessionEpoch.valid(epoch)) bus.emit('gump:open', info);
+      })
       .catch((e) => console.error('[net] decodeCompressedGump failed', e));
   });
 
@@ -2052,7 +2114,16 @@ export function registerHandlers(net) {
   net.on(0x88, (pkt) => bus.emit('paperdoll:open', decodeOpenPaperdoll(pkt)));
 
   net.on(0x24, (pkt) => bus.emit('container:open', decodeOpenContainer(pkt)));
-  net.on(0x74, (pkt) => bus.emit('shop:buy',       decodeBuyList(pkt)));
+  net.on(0x74, (pkt) => {
+    const info = decodeBuyList(pkt);
+    // 0x74 carries only name+price. Standard UO sends a 0x3C stock
+    // container immediately beforehand; merge by its authored grid/order so
+    // the shop gets real serials, artwork, hue and authoritative quantities.
+    const stock = [...(world.childrenOf?.(info.vendor) ?? [])]
+      .sort((a, b) => (a.gridLocation ?? 0) - (b.gridLocation ?? 0));
+    info.items = info.items.map((line, index) => ({ ...stock[index], ...line }));
+    bus.emit('shop:buy', info);
+  });
   net.on(0x9E, (pkt) => bus.emit('shop:sell',      decodeSellList(pkt)));
 
   net.on(0x6C, (pkt) => bus.emit('target:cursor',  decodeTargetCursor(pkt)));
@@ -2073,7 +2144,9 @@ export function registerHandlers(net) {
       arr.push(it);
     }
     for (const [containerSerial, itemsForParent] of byParent) {
-      bus.emit('container:contents', { containerSerial, items: itemsForParent });
+      const committed = world.replaceContainerContents(containerSerial, itemsForParent);
+      if (committed.ok) bus.emit('container:contents', { containerSerial, items: itemsForParent });
+      else console.warn('[world] rejected container snapshot', containerSerial, committed.reason);
     }
   });
 
@@ -2125,6 +2198,7 @@ export function registerHandlers(net) {
       world.linkItemParent(fresh, 0);
       world.reindexItem?.(fresh, oldX, oldY, oldMap, oldParent);
     }
+    world.validateGraph({ repair: true });
     bus.emit('container:item-update', info);
   });
 

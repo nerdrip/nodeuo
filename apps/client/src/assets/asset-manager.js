@@ -17,6 +17,8 @@ import 'pixi.js/ktx2';
 import { Assets, Texture, Rectangle, setKTXTranscoderPath } from 'pixi.js';
 import { bus } from '../core/event-bus.js';
 import { setSharedHueLut } from '../renderer/hue-filter.js';
+import { AsyncWorkPool, clientRuntimeProfile, ResourceTelemetry } from '../shared/runtime-governor.js';
+import { EXACT_MOUNT_BODIES } from '../shared/mount-data.js';
 
 const BASE = '/assets';
 setKTXTranscoderPath({
@@ -24,6 +26,11 @@ setKTXTranscoderPath({
   wasmUrl: `${BASE}/ktx/libktx.wasm`,
 });
 const BLOCK_BYTES = 196; // 4-byte header + 64×3 LandTile
+const MAP_BLOCK_CACHE_MAX = 16_384;
+const STATIC_BLOCK_CACHE_MAX = 16_384;
+const RANGE_BLOCK_GROUP_MAX = 64;
+const STATIC_RANGE_GROUP_MAX_BYTES = 512 * 1024;
+const STATIC_RANGE_MERGE_GAP_BYTES = 1024;
 const MOBILE_FRAME_CACHE_MAX = 8192;
 const MOBILE_FRAME_CACHE_TRIM = 256;
 const EQUIP_ANIM_CACHE_MAX = 8192;
@@ -94,6 +101,16 @@ const BODY_FALLBACK = Object.freeze({
   // The same-family serpent keeps snake movement/death instead of falling
   // through to the generic daemon body.
   52: 51,     // Lava Snake               -> Giant Serpent
+  29: 211,    // Gorilla                  -> Black Bear (quadruped mammal)
+  81: 80,     // Bull Frog                -> Giant Toad
+  106: 12,    // Shadow Wyrm              -> Dragon
+  142: 42,    // Clan Chitter/Scratch     -> Ratman
+  143: 42,    // Clan Chitter/Scratch alt -> Ratman
+  235: 234,   // Great Hart               -> Deer
+  236: 277,   // stale Cu Sidhe body      -> canonical Cu Sidhe
+  239: 241,   // stale Oni body           -> canonical Oni
+  260: 24,    // Corporeal Brume          -> Wraith
+  268: 780,   // stale Vasanord body      -> canonical Vasanord
   // Stygian Abyss / Mondain post-AOS bodies (Bodyconv anim4/anim5 entries).
   716: 28,    // Chicken Lizard          → Giant Spider (closest "small skittery thing")
   717: 28,    // Clockwork Scorpion      → Giant Spider
@@ -134,10 +151,10 @@ const BODY_FALLBACK = Object.freeze({
   205: 226,   // Rabbit                  → Llama
   238: 215,   // Rat                     → Giant Rat (same creature family)
   234: 235,   // Great Hart              → Hart variant
-  235: 235,   // Hart                    → self (already best)
+  // body 235 is absent in some legacy archives; use canonical deer 234.
   287: 51,    // Blood Worm              → Giant Serpent
   // EP1 (Mondain's Legacy) — anim5 redirects, mostly UOP.
-  256: 9, 257: 235, 258: 65, 259: 9, 260: 9, 261: 13,
+  256: 9, 257: 12, 258: 65, 259: 9, 261: 13,
   262: 9, 263: 9, 264: 65, 265: 12, 266: 235, 267: 9,
   269: 5,  270: 9, 271: 9, 272: 9, 273: 9,
   276: 235, 280: 9, 281: 9, 285: 14,
@@ -163,6 +180,22 @@ const BODY_FALLBACK = Object.freeze({
   // render a visible gargoyle silhouette instead of dropping the mobile.
   666: 667,
 });
+
+function resolvedMobileBody(atlas, body) {
+  body |= 0;
+  if (!atlas) return body;
+  const hasExact = !!atlas.bodies?.[body];
+  const bodyConv = atlas.bodyConv?.[body];
+  const usesUop = ((atlas.mobTypes?.[body]?.flags | 0) & 0x10000) !== 0;
+  // CUO applies Body.def only to legacy file-0 bodies. Bodyconv, UOP and the
+  // canonical mount table keep the requested body. This also fixes existing
+  // schema-v2 manifests which contain both the correct 0x31A swamp-dragon
+  // frames and an obsolete Body.def alias to an ostard.
+  if (hasExact && (bodyConv || usesUop || EXACT_MOUNT_BODIES.has(body))) return body;
+  const alias = atlas.aliases?.[body];
+  const aliasBody = alias?.body ?? alias?.trueBody;
+  return aliasBody != null && atlas.bodies?.[aliasBody] ? aliasBody : body;
+}
 // Last-resort generic by body range (used when no specific fallback +
 // the original lookup returned nothing).
 const GENERIC_MONSTER = 9;     // Daemon — universal "scary thing"
@@ -194,7 +227,7 @@ class AssetManager {
      *  Each entry holds the loaded binaries + meta JSON. Loaded lazily:
      *  the *current* facet is fetched in init(); others materialise on the
      *  first `setFacet(n)` call. Missing facets stay null silently.
-     *  @type {Record<number, { mapMeta:any, staticsMeta:any, mapData:DataView|null, staidx:Uint8Array|null, staticsData:DataView|null, staticCache:Map<number,any[]> } | null>} */
+     *  @type {Record<number, any>} */
     this._facets = Object.create(null);
     /** Currently-selected facet (matches `world.player.map`). */
     this.currentFacet = 0;
@@ -234,6 +267,10 @@ class AssetManager {
     this._missingGumpTextures = new Set();
     this._missingTexmapTextures = new Set();
     this._missingAssetCounts = new Map();
+    this._placeholderTextures = new Map();
+    this.runtimeProfile = clientRuntimeProfile;
+    this.resourceTelemetry = new ResourceTelemetry();
+    this._decodePool = new AsyncWorkPool(clientRuntimeProfile.decodeConcurrency);
     this._cursorCanvasCache = new Map(); // cursorName|scale → processed canvas
     /** @type {Map<string, Texture>} atlas page textures by 'land:N' / 'static:N' / 'gump:N' */
     this._atlasPages = new Map();
@@ -262,6 +299,66 @@ class AssetManager {
     this._mapData = null;
     this._staticsData = null;
     this._staticCache = new Map();
+    bus.on('assets:trim-inactive', () => this.trimInactiveResources());
+  }
+
+  /** Load only assets required by the account/character-selection shell. The previous
+   *  boot path fetched the complete map, statics and mobile animation
+   *  catalogue before showing the account form (~188 MB on a clean cache). */
+  async initLogin(opts = {}) {
+    if (this._loginReady) return;
+    if (this._loginInitPromise) return this._loginInitPromise;
+    const onProgress = opts.onProgress ?? (() => {});
+    this._loginInitPromise = (async () => {
+      onProgress(0, 'login manifests');
+      const [cursorsManifest] = await Promise.all([
+        this.cursorsManifest ?? fetchJsonOptional(`${BASE}/cursors.json`),
+      ]);
+      this.cursorsManifest = cursorsManifest;
+      if (cursorsManifest && !this.cursorsImage) {
+        const img = new Image();
+        img.decoding = 'async';
+        img.onload = () => { try { bus?.emit?.('cursors:ready'); } catch { /* ignore */ } };
+        img.src = `${BASE}/${cursorsManifest.atlas ?? 'cursors-atlas.png'}`;
+        this.cursorsImage = img;
+      }
+      this._loginReady = true;
+      onProgress(1, 'login ready');
+    })();
+    try { await this._loginInitPromise; }
+    finally { this._loginInitPromise = null; }
+  }
+
+  /** Character creation is uncommon compared with ordinary login. Load its
+   *  8+ MB tile metadata and paperdoll atlas only after the user opens the
+   *  creation flow, not for every returning player. */
+  async initCharacterCreation() {
+    if (this._characterCreationReady) return;
+    if (!this._characterCreationInitPromise) {
+      this._characterCreationInitPromise = Promise.all([
+        this.tiledata ?? fetchJson(`${BASE}/tiledata.json`),
+        this.gumpAtlas ?? fetchJsonOptional(`${BASE}/gump-atlas.json`),
+        this.professions ?? fetchJsonOptional(`${BASE}/professions.json`),
+      ]).then(([tiledata, gumpAtlas, professions]) => {
+        this.tiledata = tiledata;
+        this.gumpAtlas = gumpAtlas;
+        this.professions = professions;
+        this._characterCreationReady = true;
+      });
+    }
+    try { await this._characterCreationInitPromise; }
+    finally { if (!this._characterCreationReady) this._characterCreationInitPromise = null; }
+  }
+
+  /** Load the complete in-world asset graph. Idempotent and shared across
+   *  character-selection prefetch, GameScene and reconnects. */
+  async init(opts = {}) {
+    if (this._worldReady) return;
+    if (!this._worldInitPromise) {
+      this._worldInitPromise = this._initWorld(opts).then(() => { this._worldReady = true; });
+    }
+    try { await this._worldInitPromise; }
+    finally { if (!this._worldReady) this._worldInitPromise = null; }
   }
 
   /** Load the small upfront stuff: manifests + hues palette texture. */
@@ -273,7 +370,7 @@ class AssetManager {
    *
    * @param {{ onProgress?: (pct:number, label:string) => void }} [opts]
    */
-  async init(opts = {}) {
+  async _initWorld(opts = {}) {
     const onProgress = opts.onProgress ?? (() => {});
     onProgress(0.00, 'manifests');
     // Probe meta for every possible facet (0..5) — most installs have only
@@ -285,17 +382,17 @@ class AssetManager {
     }
     const [hues, tiledata, landAtlas, staticAtlas, gumpAtlas, cliloc, mobilesAtlas, multis, animdata, texmapAtlas, housedata, cursorsManifest, radarcolManifest, fontsManifest, patches, ...facetMetas] = await Promise.all([
       fetchJson(`${BASE}/hues.json`),
-      fetchJson(`${BASE}/tiledata.json`),
+      this.tiledata ?? fetchJson(`${BASE}/tiledata.json`),
       fetchJson(`${BASE}/land-atlas.json`),
       fetchJson(`${BASE}/static-atlas.json`),
-      fetchJsonOptional(`${BASE}/gump-atlas.json`),
+      this.gumpAtlas ?? fetchJsonOptional(`${BASE}/gump-atlas.json`),
       fetchJsonOptional(`${BASE}/cliloc.json`),
       fetchJsonOptional(`${BASE}/mobiles-atlas.json`),
       fetchJsonOptional(`${BASE}/multi.json`),
       fetchJsonOptional(`${BASE}/animdata.json`),
       fetchJsonOptional(`${BASE}/texmap-atlas.json`),
       fetchJsonOptional(`${BASE}/housedata.json`),
-      fetchJsonOptional(`${BASE}/cursors.json`),
+      this.cursorsManifest ?? fetchJsonOptional(`${BASE}/cursors.json`),
       fetchJsonOptional(`${BASE}/radarcol.json`),
       fetchJsonOptional(`${BASE}/fonts.json`),
       // Audit #44 P3 #20 — Verdata-style patch manifest. Mirrors what
@@ -314,7 +411,7 @@ class AssetManager {
     // and SpeechesLoader counterparts.
     const [verdata, professions, speeches, lights, multimapMeta, unifontIndex] = await Promise.all([
       fetchJsonOptional(`${BASE}/verdata.json`),
-      fetchJsonOptional(`${BASE}/professions.json`),
+      this.professions ?? fetchJsonOptional(`${BASE}/professions.json`),
       fetchJsonOptional(`${BASE}/speeches.json`),
       fetchJsonOptional(`${BASE}/lights.json`),
       // Audit rev.9 P2 — Multimap.rle decoded to a grayscale PNG +
@@ -385,7 +482,7 @@ class AssetManager {
     // named cursor without going through the Pixi atlas pipeline.
     this._cursorCanvasCache.clear();
     this.cursorsManifest = cursorsManifest;
-    if (cursorsManifest) {
+    if (cursorsManifest && !this.cursorsImage) {
       const img = new Image();
       img.decoding = 'async';
       img.onload = () => {
@@ -462,12 +559,18 @@ class AssetManager {
           mapMeta: mm, staticsMeta: sm,
           mapData: null, staidx: null, staticsData: null,
           staticCache: new Map(),
+          mapBlockCache: new Map(), mapBlockLoads: new Map(), mapBlockPending: new Map(),
+          staticLoads: new Map(), staticPending: new Map(),
+          mapRangeReady: false, staticsRangeReady: false,
         };
       }
     }
     // Pick the lowest-numbered facet that has *any* data as the default.
     const haveAny = Object.keys(this._facets).map(Number).sort((a, b) => a - b);
-    const initialFacet = haveAny[0] ?? 0;
+    const requestedFacet = Number.isInteger(opts.facet) ? opts.facet | 0 : null;
+    const initialFacet = requestedFacet != null && haveAny.includes(requestedFacet)
+      ? requestedFacet
+      : (haveAny[0] ?? 0);
     // Preserve legacy aliases so callers (tile-renderer, walkability,
     // pathfinder) keep referring to mapMeta/staticsMeta directly.
     const slot = this._facets[initialFacet];
@@ -868,7 +971,23 @@ class AssetManager {
       const t = map.get(k);
       this._releaseCachedTexture(t);
       map.delete(k);
+      this.resourceTelemetry.note(this._cacheKind(map), 'evict');
     }
+  }
+
+  _cacheKind(map) {
+    if (map === this._landTextures) return 'land';
+    if (map === this._staticTextures) return 'static';
+    if (map === this._gumpTextures) return 'gump';
+    if (map === this._mobileTextures) return 'anim';
+    if (map === this._texmapTextures) return 'texmap';
+    return 'unknown';
+  }
+
+  _cacheLimit(kind, fallback) {
+    if (kind === 'mobile') return this.runtimeProfile?.cacheLimits?.anim
+      ?? this.runtimeProfile?.cacheLimits?.mobile ?? fallback;
+    return this.runtimeProfile?.cacheLimits?.[kind] ?? fallback;
   }
 
   _releaseCachedTexture(value) {
@@ -896,6 +1015,7 @@ class AssetManager {
    *  first during login/chunk bootstrap. */
   _touchCache(map, key, value) {
     if (!value || !map.has(key)) return value;
+    this.resourceTelemetry.note(this._cacheKind(map), 'hit');
     map.delete(key);
     map.set(key, value);
     this._touchAtlasPageForCached(value);
@@ -938,13 +1058,14 @@ class AssetManager {
     return total;
   }
 
-  _capAtlasPages(max = ATLAS_PAGE_CACHE_MAX, protectedKey = null) {
+  _capAtlasPages(max = this.runtimeProfile?.atlasPages ?? ATLAS_PAGE_CACHE_MAX, protectedKey = null) {
     let bytes = this._atlasBytesTotal();
+    const byteLimit = this.runtimeProfile?.atlasBytes ?? ATLAS_PAGE_CACHE_BUDGET_BYTES;
     const overCount = this._atlasPages.size > max;
-    const overBytes = bytes > ATLAS_PAGE_CACHE_BUDGET_BYTES;
+    const overBytes = bytes > byteLimit;
     if (!overCount && !overBytes) return;
     const target = Math.max(0, max - ATLAS_PAGE_CACHE_TRIM);
-    const byteTarget = Math.max(0, ATLAS_PAGE_CACHE_BUDGET_BYTES - ATLAS_PAGE_CACHE_TRIM_BYTES);
+    const byteTarget = Math.max(0, byteLimit - Math.min(ATLAS_PAGE_CACHE_TRIM_BYTES, byteLimit / 4));
     for (const [key, tex] of this._atlasPages) {
       if (this._atlasPages.size <= target && bytes <= byteTarget) break;
       // The caller is about to create a sub-texture from this freshly loaded
@@ -982,10 +1103,10 @@ class AssetManager {
       used,
       unused: this._atlasPages.size - used,
       unloading: this._atlasPageUnloads.size,
-      limit: ATLAS_PAGE_CACHE_MAX,
+      limit: this.runtimeProfile?.atlasPages ?? ATLAS_PAGE_CACHE_MAX,
       estimatedBytes: this._atlasBytesTotal(),
-      byteLimit: ATLAS_PAGE_CACHE_BUDGET_BYTES,
-      overByteBudget: this._atlasBytesTotal() > ATLAS_PAGE_CACHE_BUDGET_BYTES,
+      byteLimit: this.runtimeProfile?.atlasBytes ?? ATLAS_PAGE_CACHE_BUDGET_BYTES,
+      overByteBudget: this._atlasBytesTotal() > (this.runtimeProfile?.atlasBytes ?? ATLAS_PAGE_CACHE_BUDGET_BYTES),
     };
   }
 
@@ -1000,6 +1121,7 @@ class AssetManager {
       id: numericId,
       count: (prev?.count ?? 0) + 1,
     });
+    this.resourceTelemetry.missing(kind, numericId);
   }
 
   get missingAssetStats() {
@@ -1018,11 +1140,59 @@ class AssetManager {
     this._missingAssetCounts.clear();
   }
 
+  /** Deterministic placeholder per resource kind and size. Missing assets
+   * remain visually stable across frames and never masquerade as another
+   * body/item. The diagnostic catalog still records the original id. */
+  placeholderTexture(kind, width = 32, height = 32) {
+    const w = Math.max(4, Math.min(256, width | 0 || 32));
+    const h = Math.max(4, Math.min(256, height | 0 || 32));
+    const key = `${String(kind)}:${w}x${h}`;
+    if (this._placeholderTextures.has(key)) return this._placeholderTextures.get(key);
+    if (typeof document === 'undefined') return Texture.WHITE;
+    const palette = { land: ['#18384b', '#376477'], static: ['#342b3e', '#8a7198'],
+      gump: ['#292b30', '#9a8b67'], mobile: ['#392829', '#a66e6e'], texmap: ['#28362e', '#6f927d'] };
+    const [fill, edge] = palette[kind] ?? ['#2d3035', '#888e97'];
+    const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d'); ctx.fillStyle = fill; ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = edge; ctx.lineWidth = Math.max(1, Math.round(Math.min(w, h) / 16));
+    ctx.strokeRect(.5, .5, w - 1, h - 1); ctx.beginPath(); ctx.moveTo(3, 3); ctx.lineTo(w - 3, h - 3); ctx.moveTo(w - 3, 3); ctx.lineTo(3, h - 3); ctx.stroke();
+    const texture = Texture.from(canvas); texture._uoPlaceholderKind = String(kind);
+    this._placeholderTextures.set(key, texture); return texture;
+  }
+
+  diagnosticsSnapshot() {
+    return {
+      profile: this.runtimeProfile,
+      atlas: this.atlasPageStats,
+      caches: {
+        land: this._landTextures.size, static: this._staticTextures.size,
+        gump: this._gumpTextures.size, mobile: this._mobileTextures.size,
+        texmap: this._texmapTextures.size,
+      },
+      missing: this.missingAssetStats,
+      telemetry: this.resourceTelemetry.snapshot(),
+      preload: { ...this.assetPreloadStats },
+      decodePool: { ...this._decodePool.stats, limit: this._decodePool.limit },
+    };
+  }
+
+  /** Release cold, unreferenced resources after a long-hidden tab. */
+  trimInactiveResources() {
+    for (const [kind, map] of [
+      ['land', this._landTextures], ['static', this._staticTextures],
+      ['gump', this._gumpTextures], ['mobile', this._mobileTextures],
+      ['texmap', this._texmapTextures],
+    ]) this._capCache(map, Math.max(64, Math.floor(this._cacheLimit(kind, map.size) / 2)));
+    this._capAtlasPages(Math.max(16, Math.floor((this.runtimeProfile?.atlasPages ?? 96) / 2)));
+    return this.diagnosticsSnapshot();
+  }
+
   /** Get a Pixi Texture for a land tile id. Returns null if not in atlas. */
   async landTexture(id) {
     id = id | 0;
     let tex = this._landTextures.get(id);
     if (tex) return this._touchCache(this._landTextures, id, tex);
+    this.resourceTelemetry.note('land', 'miss');
     if (this._missingLandTextures.has(id)) return null;
     const pending = this._landTextureLoads.get(id);
     if (pending) return pending;
@@ -1042,7 +1212,7 @@ class AssetManager {
       });
       this._registerSubTexture(tex, page._uoAtlasPageKey);
       this._landTextures.set(id, tex);
-      this._capCache(this._landTextures, 4096);
+      this._capCache(this._landTextures, this._cacheLimit('land', 4096));
       return tex;
     })();
     this._landTextureLoads.set(id, load);
@@ -1060,6 +1230,7 @@ class AssetManager {
     id = id | 0;
     let tex = this._landTextures.get(id);
     if (tex) return this._touchCache(this._landTextures, id, tex);
+    this.resourceTelemetry.note('land', 'miss');
     if (this._missingLandTextures.has(id)) return null;
     const meta = this.landAtlas?.tiles[id];
     if (!meta) {
@@ -1074,7 +1245,7 @@ class AssetManager {
     });
     this._registerSubTexture(tex, page._uoAtlasPageKey);
     this._landTextures.set(id, tex);
-    this._capCache(this._landTextures, 4096);
+    this._capCache(this._landTextures, this._cacheLimit('land', 4096));
     return tex;
   }
 
@@ -1250,6 +1421,7 @@ class AssetManager {
     id = id | 0;
     let tex = this._staticTextures.get(id);
     if (tex) return this._touchCache(this._staticTextures, id, tex);
+    this.resourceTelemetry.note('static', 'miss');
     if (this._missingStaticTextures.has(id)) return null;
     const pending = this._staticTextureLoads.get(id);
     if (pending) return pending;
@@ -1277,7 +1449,7 @@ class AssetManager {
       tex._uoAtlasPageKey = page._uoAtlasPageKey;
       this._registerSubTexture(tex, page._uoAtlasPageKey);
       this._staticTextures.set(id, tex);
-      this._capCache(this._staticTextures, 4096);
+      this._capCache(this._staticTextures, this._cacheLimit('static', 4096));
       return tex;
     })();
     this._staticTextureLoads.set(id, load);
@@ -1298,6 +1470,7 @@ class AssetManager {
     id = id | 0;
     let tex = this._staticTextures.get(id);
     if (tex) return this._touchCache(this._staticTextures, id, tex);
+    this.resourceTelemetry.note('static', 'miss');
     if (this._missingStaticTextures.has(id)) return null;
     const tiles = this.staticAtlas?.tiles;
     const meta = tiles?.[id] ?? tiles?.[id + 0x4000];
@@ -1313,7 +1486,7 @@ class AssetManager {
     });
     this._registerSubTexture(tex, page._uoAtlasPageKey);
     this._staticTextures.set(id, tex);
-    this._capCache(this._staticTextures, 4096);
+    this._capCache(this._staticTextures, this._cacheLimit('static', 4096));
     return tex;
   }
 
@@ -1326,6 +1499,7 @@ class AssetManager {
     if (!this.texmapAtlas || !texId) return null;
     let tex = this._texmapTextures.get(texId);
     if (tex) return this._touchCache(this._texmapTextures, texId, tex);
+    this.resourceTelemetry.note('texmap', 'miss');
     if (this._missingTexmapTextures.has(texId)) return null;
     const pending = this._texmapTextureLoads.get(texId);
     if (pending) return pending;
@@ -1345,7 +1519,7 @@ class AssetManager {
       });
       this._registerSubTexture(tex, page._uoAtlasPageKey);
       this._texmapTextures.set(texId, tex);
-      this._capCache(this._texmapTextures, 1024);
+      this._capCache(this._texmapTextures, this._cacheLimit('texmap', 1024));
       return tex;
     })();
     this._texmapTextureLoads.set(texId, load);
@@ -1378,6 +1552,7 @@ class AssetManager {
     id = id | 0;
     let tex = this._gumpTextures.get(id);
     if (tex) return this._touchCache(this._gumpTextures, id, tex);
+    this.resourceTelemetry.note('gump', 'miss');
     if (this._missingGumpTextures.has(id)) return null;
     const pending = this._gumpTextureLoads.get(id);
     if (pending) return pending;
@@ -1400,7 +1575,7 @@ class AssetManager {
       tex._uoAtlasPageKey = page._uoAtlasPageKey;
       this._registerSubTexture(tex, page._uoAtlasPageKey);
       this._gumpTextures.set(id, tex);
-      this._capCache(this._gumpTextures, 2048);
+      this._capCache(this._gumpTextures, this._cacheLimit('gump', 2048));
       return tex;
     })();
     this._gumpTextureLoads.set(id, load);
@@ -1457,8 +1632,19 @@ class AssetManager {
    *  actions and none of them might match the canonical "stand" group
    *  for their CUO body type. Better to render SOME pose than nothing. */
   _tryMobileFrame(body, action, direction, frame) {
-    const alias = this.mobilesAtlas?.aliases?.[body];
-    const realBody = alias?.body ?? alias?.trueBody ?? body;
+    // Broken/partial Body.def files occasionally point at a body that was
+    // not extracted even though the requested body has complete frames
+    // (notably Gibberling 307 -> Gorilla 29). Prefer the alias only when its
+    // target actually exists, otherwise retain the original before trying a
+    // curated same-family fallback. This prevents intermittent daemon/llama
+    // substitutions when atlas pages stream in.
+    let realBody = resolvedMobileBody(this.mobilesAtlas, body);
+    if (!this.mobilesAtlas.bodies?.[realBody]) {
+      const fallback = BODY_FALLBACK[body | 0];
+      if (fallback != null) {
+        realBody = resolvedMobileBody(this.mobilesAtlas, fallback);
+      }
+    }
     const b = this.mobilesAtlas?.bodies?.[realBody];
     if (!b) return null;
     const resolvedAction = this._resolveMobileActionAlias(b, action);
@@ -1509,8 +1695,10 @@ class AssetManager {
 
   _mobileBodyEntry(body) {
     if (!this.mobilesAtlas) return null;
-    const alias = this.mobilesAtlas.aliases?.[body];
-    const realBody = alias?.body ?? alias?.trueBody ?? body;
+    let realBody = resolvedMobileBody(this.mobilesAtlas, body);
+    if (!this.mobilesAtlas.bodies?.[realBody] && BODY_FALLBACK[body | 0] != null) {
+      realBody = BODY_FALLBACK[body | 0];
+    }
     const b = this.mobilesAtlas.bodies?.[realBody];
     return b ? { realBody, body: b } : null;
   }
@@ -1518,11 +1706,28 @@ class AssetManager {
   /** Body animation type/flags from mobtypes.txt, emitted by the extractor. */
   mobileBodyInfo(body) {
     if (!this.mobilesAtlas) return null;
-    const alias = this.mobilesAtlas.aliases?.[body];
-    const realBody = alias?.body ?? alias?.trueBody ?? body;
+    const resolved = resolvedMobileBody(this.mobilesAtlas, body);
+    const realBody = this.mobilesAtlas.bodies?.[resolved]
+      ? resolved
+      : (BODY_FALLBACK[body | 0] ?? body);
     return this.mobilesAtlas.mobTypes?.[body]
       ?? this.mobilesAtlas.mobTypes?.[realBody]
       ?? null;
+  }
+
+  /** Resolve Body.def's replacement hue with the same precedence as CUO's
+   * `AnimationsLoader.ReplaceBody`. Bodyconv/UOP/exact mount bodies retain
+   * the server hue because their Body.def alias is intentionally bypassed. */
+  mobileRenderHue(body, serverHue = 0) {
+    if (!this.mobilesAtlas) return serverHue | 0;
+    const requested = body | 0;
+    if (resolvedMobileBody(this.mobilesAtlas, requested) === requested) return serverHue | 0;
+    const alias = this.mobilesAtlas.aliases?.[requested];
+    return Number.isFinite(alias?.hue) ? (alias.hue | 0) : (serverHue | 0);
+  }
+
+  mobileRenderBody(body) {
+    return resolvedMobileBody(this.mobilesAtlas, body | 0);
   }
 
   /** Exact manifest probe for animation group selection. Unlike
@@ -1609,13 +1814,15 @@ class AssetManager {
     // variety) drove the Map past 8192 indefinitely (single-step
     // eviction can't keep up with bursts). Drain to a soft floor so
     // we don't churn on every set when sitting at the cap.
-    if (this._mobileTextures.size > MOBILE_FRAME_CACHE_MAX) {
-      const target = MOBILE_FRAME_CACHE_MAX - MOBILE_FRAME_CACHE_TRIM;
+    const mobileLimit = this._cacheLimit('mobile', MOBILE_FRAME_CACHE_MAX);
+    if (this._mobileTextures.size > mobileLimit) {
+      const target = Math.max(1, mobileLimit - Math.min(MOBILE_FRAME_CACHE_TRIM, Math.floor(mobileLimit / 8)));
       while (this._mobileTextures.size > target) {
         const k = this._mobileTextures.keys().next().value;
         const v = this._mobileTextures.get(k);
         this._releaseCachedTexture(v);
         this._mobileTextures.delete(k);
+        this.resourceTelemetry.note('mobile', 'evict');
       }
     }
     this._recordMobileFrameSample(t0);
@@ -1646,8 +1853,7 @@ class AssetManager {
    */
   async prefetchMobileCycle(body, action, direction) {
     if (!this.mobilesAtlas) return;
-    const alias = this.mobilesAtlas.aliases?.[body];
-    const realBody = alias?.body ?? alias?.trueBody ?? body;
+    const realBody = resolvedMobileBody(this.mobilesAtlas, body);
     const b = this.mobilesAtlas.bodies?.[realBody];
     if (!b) return;
     const resolvedAction = this._resolveMobileActionAlias(b, action);
@@ -1699,10 +1905,14 @@ class AssetManager {
     const key = equipAnimCacheKey(bodyType, itemId, fallbackHue);
     const cached = this._equipAnimCache.get(key);
     if (cached) return this._touchCache(this._equipAnimCache, key, cached);
-    const m = this.mobilesAtlas?.equipConv?.[bodyType];
+    const renderBody = resolvedMobileBody(this.mobilesAtlas, bodyType | 0);
+    const m = this.mobilesAtlas?.equipConv?.[renderBody]
+      ?? this.mobilesAtlas?.equipConv?.[bodyType];
     const e = m?.[itemId];
     let resolved;
-    if (e) resolved = { animBody: e.animBody, hue: e.hue || fallbackHue };
+    // CUO only takes Equipconv's file hue when the equipped item itself is
+    // unhued. The previous reversed precedence repainted dyed clothing.
+    if (e) resolved = { animBody: e.animBody, hue: fallbackHue || e.hue || 0 };
     else {
       const animId = this.tiledata?.statics?.[itemId]?.animId | 0;
       resolved = animId > 0
@@ -1736,7 +1946,7 @@ class AssetManager {
     }
     const pending = this._atlasPageLoads.get(key);
     if (pending) return pending;
-    const load = this._loadAtlasPageUncached(kind, pageIndex, key);
+    const load = this._decodePool.run(`atlas:${key}`, () => this._loadAtlasPageUncached(kind, pageIndex, key));
     this._atlasPageLoads.set(key, load);
     try {
       return await load;
@@ -1836,7 +2046,7 @@ class AssetManager {
         const width = source?.pixelWidth || source?.width || tex.width || 0;
         const height = source?.pixelHeight || source?.height || tex.height || 0;
         this._atlasPageBytes.set(key, Math.max(0, width * height * 4));
-        this._capAtlasPages(ATLAS_PAGE_CACHE_MAX, key);
+        this._capAtlasPages(this.runtimeProfile?.atlasPages ?? ATLAS_PAGE_CACHE_MAX, key);
         return tex;
       } catch (e) {
         // KTX2 may be unsupported by the runtime even when the file
@@ -1856,10 +2066,28 @@ class AssetManager {
   async _loadFacetBins(facet, onProgress = () => {}) {
     const slot = this._facets[facet];
     if (!slot) return null;
-    if (slot.mapData && slot.staidx && slot.staticsData) return slot;
+    const terrainReady = !slot.mapMeta || !!slot.mapData || slot.mapRangeReady;
+    const staticsReady = !slot.staticsMeta
+      || (!!slot.staidx && (!!slot.staticsData || slot.staticsRangeReady));
+    if (terrainReady && staticsReady) return slot;
+    // WorldMap, facet-change and the renderer may request the same facet in
+    // the same frame. Share one complete fetch instead of racing 2-3 binary
+    // downloads whose partial completions could make an early map render see
+    // terrain without statics (or vice versa).
+    if (slot.loadPromise) return slot.loadPromise;
+    slot.loadPromise = this._loadFacetBinsOnce(facet, slot, onProgress);
+    try { return await slot.loadPromise; }
+    finally { slot.loadPromise = null; }
+  }
+
+  async _loadFacetBinsOnce(facet, slot, onProgress = () => {}) {
     onProgress(0.0, `facet ${facet} loading`);
-    const mapJob = slot.mapMeta && !slot.mapData
-      ? fetchBinary(`${BASE}/map${facet}.bin`).catch((e) => {
+    // Probe byte ranges instead of materialising the full 90 MB map and
+    // 20 MB statics slabs. A server that ignores Range returns HTTP 200;
+    // in that compatibility case we retain the complete response and use
+    // the legacy in-memory path. Native NodeUO/Vite respond with 206.
+    const mapJob = slot.mapMeta && !slot.mapData && !slot.mapRangeReady
+      ? fetchBinaryRange(`${BASE}/map${facet}.bin`, 0, BLOCK_BYTES).catch((e) => {
           console.warn(`[assets] map${facet}.bin load failed`, e); return null;
         })
       : Promise.resolve(null);
@@ -1868,20 +2096,27 @@ class AssetManager {
           console.warn(`[assets] staidx${facet}.bin load failed`, e); return null;
         })
       : Promise.resolve(null);
-    const datJob = slot.staticsMeta && !slot.staticsData
-      ? fetchBinary(`${BASE}/statics${facet}.bin`).catch((e) => {
+    const datJob = slot.staticsMeta && !slot.staticsData && !slot.staticsRangeReady
+      ? fetchBinaryRange(`${BASE}/statics${facet}.bin`, 0, 1).catch((e) => {
           console.warn(`[assets] statics${facet}.bin load failed`, e); return null;
         })
       : Promise.resolve(null);
-    const [mapAb, idxAb, datAb] = await Promise.all([mapJob, idxJob, datJob]);
+    const [mapResult, idxAb, datResult] = await Promise.all([mapJob, idxJob, datJob]);
     const expectedMapBytes = (slot.mapMeta?.totalBlocks | 0) * (slot.mapMeta?.blockBytes | 0);
-    if (mapAb && mapAb.byteLength >= expectedMapBytes) slot.mapData = new DataView(mapAb);
-    else if (mapAb) console.warn(`[assets] map${facet}.bin truncated: ${mapAb.byteLength}/${expectedMapBytes}B`);
+    if (mapResult?.status === 206 && mapResult.buffer.byteLength === BLOCK_BYTES) {
+      slot.mapRangeReady = true;
+      slot.mapBlockCache.set(0, new DataView(mapResult.buffer));
+    } else if (mapResult?.buffer?.byteLength >= expectedMapBytes) {
+      slot.mapData = new DataView(mapResult.buffer);
+    } else if (mapResult?.buffer) {
+      console.warn(`[assets] map${facet}.bin truncated: ${mapResult.buffer.byteLength}/${expectedMapBytes}B`);
+    }
     onProgress(0.5, `facet ${facet} terrain`);
     const expectedIdxBytes = (slot.staticsMeta?.totalBlocks | 0) * 8;
     if (idxAb && idxAb.byteLength >= expectedIdxBytes) slot.staidx = new Uint8Array(idxAb);
     else if (idxAb) console.warn(`[assets] staidx${facet}.bin truncated: ${idxAb.byteLength}/${expectedIdxBytes}B`);
-    if (datAb) slot.staticsData = new DataView(datAb);
+    if (datResult?.status === 206) slot.staticsRangeReady = true;
+    else if (datResult?.buffer) slot.staticsData = new DataView(datResult.buffer);
     onProgress(1.0, `facet ${facet} ready`);
     return slot;
   }
@@ -1893,9 +2128,10 @@ class AssetManager {
   async setFacet(facet) {
     facet = facet | 0;
     if (facet < 0 || facet > 5) return false;
-    if (this.currentFacet === facet && this._mapData) return true;
+    if (this.currentFacet === facet
+        && (this._mapData || this._facets[facet]?.mapRangeReady)) return true;
     const slot = await this._loadFacetBins(facet);
-    if (!slot?.mapData) return false;
+    if (!slot || (!slot.mapData && !slot.mapRangeReady)) return false;
     this.currentFacet = facet;
     this.activeFacet  = facet;        // alias used by landAt overlay key
     this.mapMeta     = slot.mapMeta;
@@ -1921,7 +2157,7 @@ class AssetManager {
     facet = facet | 0;
     if (facet < 0 || facet > 5) return false;
     const slot = await this._loadFacetBins(facet);
-    return !!slot?.mapData;
+    return !!slot && (!!slot.mapData || slot.mapRangeReady);
   }
 
   /** Resolve a {meta, mapData, staidx, staticsData, staticCache} slot for a
@@ -1929,11 +2165,7 @@ class AssetManager {
    *  want explicit per-facet access without changing global state. */
   _facetSlot(facet) {
     if (facet == null || facet === this.currentFacet) {
-      return {
-        mapMeta: this.mapMeta, staticsMeta: this.staticsMeta,
-        mapData: this._mapData, staidx: this._staidx,
-        staticsData: this._staticsData, staticCache: this._staticCache,
-      };
+      return this._facets[this.currentFacet] ?? null;
     }
     return this._facets[facet] ?? null;
   }
@@ -1947,7 +2179,7 @@ class AssetManager {
    *  the WS push or boot-time `fetchLandOverlay()`). */
   landAt(tx, ty, facet) {
     const slot = this._facetSlot(facet);
-    if (!slot?.mapMeta || !slot.mapData) return null;
+    if (!slot?.mapMeta || (!slot.mapData && !slot.mapBlockCache)) return null;
     if (this._landOverlay?.size) {
       const fkey = (facet ?? this.activeFacet ?? 0) | 0;
       const ov = this._landOverlay.get(packedFacetXY(fkey, tx, ty));
@@ -1957,9 +2189,13 @@ class AssetManager {
     if (cx < 0 || cy < 0 || cx >= slot.mapMeta.blocksWide || cy >= slot.mapMeta.blocksTall) return null;
     const block = cx * slot.mapMeta.blocksTall + cy;
     const ix = (tx % 8), iy = (ty % 8);
-    const off = block * BLOCK_BYTES + 4 + (iy * 8 + ix) * 3;
-    const id = slot.mapData.getUint16(off, true);
-    const z  = slot.mapData.getInt8(off + 2);
+    const dv = slot.mapData ?? slot.mapBlockCache.get(block);
+    if (!dv) return null;
+    const off = slot.mapData
+      ? block * BLOCK_BYTES + 4 + (iy * 8 + ix) * 3
+      : 4 + (iy * 8 + ix) * 3;
+    const id = dv.getUint16(off, true);
+    const z  = dv.getInt8(off + 2);
     return { id, z };
   }
 
@@ -1971,12 +2207,103 @@ class AssetManager {
    *  re-mount. */
   async fetchBlock(cx, cy, facet) {
     const slot = this._facetSlot(facet);
-    if (!slot?.mapMeta || !slot.mapData) return null;
+    if (!slot?.mapMeta || (!slot.mapData && !slot.mapRangeReady)) return null;
     if (cx < 0 || cy < 0 || cx >= slot.mapMeta.blocksWide || cy >= slot.mapMeta.blocksTall) return null;
     const block = cx * slot.mapMeta.blocksTall + cy;
     const offset = block * BLOCK_BYTES;
-    if (offset < 0 || offset + BLOCK_BYTES > slot.mapData.byteLength) return null;
-    return new DataView(slot.mapData.buffer, slot.mapData.byteOffset + offset, BLOCK_BYTES);
+    if (slot.mapData) {
+      if (offset < 0 || offset + BLOCK_BYTES > slot.mapData.byteLength) return null;
+      return new DataView(slot.mapData.buffer, slot.mapData.byteOffset + offset, BLOCK_BYTES);
+    }
+    const cached = slot.mapBlockCache.get(block);
+    if (cached) {
+      slot.mapBlockCache.delete(block);
+      slot.mapBlockCache.set(block, cached);
+      return cached;
+    }
+    const loading = slot.mapBlockLoads.get(block);
+    if (loading) return loading;
+    let resolveLoad;
+    const promise = new Promise((resolve) => { resolveLoad = resolve; });
+    slot.mapBlockLoads.set(block, promise);
+    slot.mapBlockPending.set(block, resolveLoad);
+    if (!slot.mapFlushQueued) {
+      slot.mapFlushQueued = true;
+      queueMicrotask(() => this._flushMapBlockRanges(slot, facet ?? this.currentFacet));
+    }
+    return promise;
+  }
+
+  async _flushMapBlockRanges(slot, facet) {
+    slot.mapFlushQueued = false;
+    const pending = slot.mapBlockPending;
+    slot.mapBlockPending = new Map();
+    const blocks = [...pending.keys()].sort((a, b) => a - b);
+    const groups = [];
+    for (const block of blocks) {
+      const last = groups.at(-1);
+      if (last && block === last.at(-1) + 1 && last.length < RANGE_BLOCK_GROUP_MAX) last.push(block);
+      else groups.push([block]);
+    }
+    await Promise.all(groups.map(async (group) => {
+      const first = group[0];
+      try {
+        const result = await fetchBinaryRange(
+          `${BASE}/map${facet | 0}.bin`, first * BLOCK_BYTES, group.length * BLOCK_BYTES,
+        );
+        if (result.status === 200) {
+          const expected = (slot.mapMeta.totalBlocks | 0) * BLOCK_BYTES;
+          if (result.buffer.byteLength >= expected) slot.mapData = new DataView(result.buffer);
+        } else if (result.buffer.byteLength === group.length * BLOCK_BYTES) {
+          for (let i = 0; i < group.length; i++) {
+            const block = group[i];
+            const dv = new DataView(result.buffer, i * BLOCK_BYTES, BLOCK_BYTES);
+            slot.mapBlockCache.set(block, dv);
+          }
+          this._trimOldest(slot.mapBlockCache, MAP_BLOCK_CACHE_MAX);
+        }
+      } catch (e) {
+        console.warn(`[assets] map${facet | 0}.bin range failed`, e?.message ?? e);
+      }
+      for (const block of group) {
+        const dv = slot.mapData
+          ? new DataView(slot.mapData.buffer, slot.mapData.byteOffset + block * BLOCK_BYTES, BLOCK_BYTES)
+          : (slot.mapBlockCache.get(block) ?? null);
+        pending.get(block)?.(dv);
+        slot.mapBlockLoads.delete(block);
+      }
+    }));
+    if (slot.mapBlockPending.size && !slot.mapFlushQueued) {
+      slot.mapFlushQueued = true;
+      queueMicrotask(() => this._flushMapBlockRanges(slot, facet));
+    }
+  }
+
+  _trimOldest(cache, max) {
+    if (cache.size <= max) return;
+    const remove = cache.size - Math.floor(max * 0.875);
+    const it = cache.keys();
+    for (let i = 0; i < remove; i++) cache.delete(it.next().value);
+  }
+
+  isMapRegionLoaded(cx0, cy0, cx1, cy1, facet) {
+    const slot = this._facetSlot(facet);
+    if (!slot?.mapMeta) return false;
+    if (slot.mapData) return true;
+    for (let cx = Math.max(0, cx0 | 0); cx <= Math.min(slot.mapMeta.blocksWide - 1, cx1 | 0); cx++) {
+      for (let cy = Math.max(0, cy0 | 0); cy <= Math.min(slot.mapMeta.blocksTall - 1, cy1 | 0); cy++) {
+        if (!slot.mapBlockCache.has(cx * slot.mapMeta.blocksTall + cy)) return false;
+      }
+    }
+    return true;
+  }
+
+  async fetchBlockRegion(cx0, cy0, cx1, cy1, facet) {
+    const jobs = [];
+    for (let cx = cx0 | 0; cx <= (cx1 | 0); cx++) {
+      for (let cy = cy0 | 0; cy <= (cy1 | 0); cy++) jobs.push(this.fetchBlock(cx, cy, facet));
+    }
+    await Promise.all(jobs);
   }
 
   /** Apply / merge overlay edits. Each edit is `{facet, x, y, tileId, z}`.
@@ -2048,7 +2375,7 @@ class AssetManager {
 
   async fetchStatics(cx, cy, facet) {
     const slot = this._facetSlot(facet);
-    if (!slot?.staticsMeta || !slot.staidx || !slot.staticsData) return null;
+    if (!slot?.staticsMeta || !slot.staidx || (!slot.staticsData && !slot.staticsRangeReady)) return null;
     if (cx < 0 || cy < 0 || cx >= slot.staticsMeta.blocksWide || cy >= slot.staticsMeta.blocksTall) return null;
     const block = cx * slot.staticsMeta.blocksTall + cy;
     let cached = slot.staticCache.get(block);
@@ -2068,8 +2395,24 @@ class AssetManager {
       slot.staticCache.set(block, []);
       return [];
     }
-    const dv = slot.staticsData;
-    if (offset + size > dv.byteLength) {
+    if (!slot.staticsData) {
+      const loading = slot.staticLoads.get(block);
+      if (loading) return loading;
+      let resolveLoad;
+      const promise = new Promise((resolve) => { resolveLoad = resolve; });
+      slot.staticLoads.set(block, promise);
+      slot.staticPending.set(block, { block, offset, size, resolve: resolveLoad });
+      if (!slot.staticFlushQueued) {
+        slot.staticFlushQueued = true;
+        queueMicrotask(() => this._flushStaticRanges(slot, facet ?? this.currentFacet));
+      }
+      return promise;
+    }
+    return this._parseStaticBlock(slot, block, slot.staticsData, offset, size);
+  }
+
+  _parseStaticBlock(slot, block, dv, offset, size) {
+    if (offset < 0 || size < 0 || offset + size > dv.byteLength) {
       console.warn(`[assets] corrupt statics block ${block}: ${offset}+${size} > ${dv.byteLength}`);
       slot.staticCache.set(block, []);
       return [];
@@ -2088,7 +2431,55 @@ class AssetManager {
       });
     }
     slot.staticCache.set(block, items);
+    this._trimOldest(slot.staticCache, STATIC_BLOCK_CACHE_MAX);
     return items;
+  }
+
+  async _flushStaticRanges(slot, facet) {
+    slot.staticFlushQueued = false;
+    const pending = slot.staticPending;
+    slot.staticPending = new Map();
+    const rows = [...pending.values()].sort((a, b) => a.offset - b.offset);
+    const groups = [];
+    for (const row of rows) {
+      const last = groups.at(-1);
+      const end = row.offset + row.size;
+      if (last && row.offset <= last.end + STATIC_RANGE_MERGE_GAP_BYTES
+          && end - last.start <= STATIC_RANGE_GROUP_MAX_BYTES) {
+        last.rows.push(row);
+        last.end = Math.max(last.end, end);
+      } else groups.push({ start: row.offset, end, rows: [row] });
+    }
+    await Promise.all(groups.map(async (group) => {
+      let dv = null;
+      let base = group.start;
+      try {
+        const result = await fetchBinaryRange(
+          `${BASE}/statics${facet | 0}.bin`, group.start, group.end - group.start,
+        );
+        if (result.status === 200) {
+          slot.staticsData = new DataView(result.buffer);
+          dv = slot.staticsData;
+          base = 0;
+        } else {
+          dv = new DataView(result.buffer);
+        }
+      } catch (e) {
+        console.warn(`[assets] statics${facet | 0}.bin range failed`, e?.message ?? e);
+      }
+      for (const row of group.rows) {
+        const items = dv
+          ? this._parseStaticBlock(slot, row.block, dv, row.offset - base, row.size)
+          : [];
+        if (!dv) slot.staticCache.set(row.block, items);
+        row.resolve(items);
+        slot.staticLoads.delete(row.block);
+      }
+    }));
+    if (slot.staticPending.size && !slot.staticFlushQueued) {
+      slot.staticFlushQueued = true;
+      queueMicrotask(() => this._flushStaticRanges(slot, facet));
+    }
   }
 }
 
@@ -2111,6 +2502,7 @@ const HEAVY_MANIFESTS = new Set([
   'animdata.json',     // ~1-2 MB
   'multi.json',        // ~500 KB
   'cliloc.json',       // ~2 MB
+  'mobiles-atlas.json', // ~53 MB; parsing this on the main thread freezes world entry
 ]);
 
 async function fetchBinary(url) {
@@ -2124,6 +2516,17 @@ async function fetchBinary(url) {
     throw new Error(`${url} → unexpected content-type ${type || '(missing)'}`);
   }
   return r.arrayBuffer();
+}
+
+async function fetchBinaryRange(url, start, length) {
+  const end = start + length - 1;
+  const r = await fetch(url, { headers: { Range: `bytes=${start}-${end}` } });
+  if (!r.ok) throw new Error(`${url} [${start}-${end}] → HTTP ${r.status}`);
+  const type = String(r.headers?.get?.('content-type') ?? '').toLowerCase();
+  if (type.startsWith('text/') || type.includes('html') || type.includes('json')) {
+    throw new Error(`${url} → unexpected content-type ${type || '(missing)'}`);
+  }
+  return { status: r.status, buffer: await r.arrayBuffer() };
 }
 
 async function fetchJson(url) {

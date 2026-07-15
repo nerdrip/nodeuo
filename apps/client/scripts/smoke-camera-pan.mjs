@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 
-const { camera, MIN_VIEW_W, MIN_VIEW_H } = await import('../src/renderer/camera.js');
+const {
+  camera, MIN_VIEW_W, MIN_VIEW_H, GAME_VIEW_ASPECT, calculateResponsiveViewport,
+} = await import('../src/renderer/camera.js');
 const { assets } = await import('../src/assets/asset-manager.js');
 
 function makeWorldContainer() {
@@ -18,6 +20,19 @@ function makeWorldContainer() {
 }
 
 const worldContainer = makeWorldContainer();
+
+const wideLayout = calculateResponsiveViewport(2048, 732);
+assert.ok(wideLayout.x >= 300 && wideLayout.x + wideLayout.w <= 2048 - 300,
+  'wide layout must reserve useful left/right rails');
+assert.ok(Math.abs(wideLayout.w / wideLayout.h - GAME_VIEW_ASPECT) < 0.01,
+  'responsive viewport must preserve the 16:10 world aspect');
+const compactLayout = calculateResponsiveViewport(1024, 768);
+assert.ok(compactLayout.w >= 900 && compactLayout.x >= 0,
+  'compact layout must collapse rails and prioritize the world');
+const normalDesktop = calculateResponsiveViewport(2048, 1200);
+const compactDesktop = calculateResponsiveViewport(2048, 1200, { compactSidePanels: true });
+assert.ok(compactDesktop.w > normalDesktop.w && compactDesktop.x < normalDesktop.x,
+  'compact side-panel mode must reclaim horizontal space for the world');
 
 camera.setZoom(2);
 camera.userSizedW = MIN_VIEW_W;

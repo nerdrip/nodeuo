@@ -68,6 +68,103 @@ describe('admin route safety and editor behavior', () => {
     });
   });
 
+  it('supports advanced spawner authoring, deterministic preview, diagnostics and bulk changes', async () => {
+    const { route, spawner } = fixture();
+    await route('POST', '/api/spawners').run({ body: {
+      id: 'advanced-a', map: 1, rect: { x1: 10, y1: 20, x2: 12, y2: 22 },
+      kinds: [['orc', 3], ['ettin', 1]], maxCount: 4, respawnMs: [10_000, 20_000],
+      enabled: true, team: 7, homeRange: 12, roaming: 'home',
+      schedule: { days: [1, 2, 2, 9], startHour: 18, endHour: 23 },
+      regionConditions: { region: 'Britain', minPlayers: 1, maxPlayers: 12 },
+    } });
+    expect(spawner.groups.get('advanced-a')).toMatchObject({
+      enabled: true, team: 7, homeRange: 12, roaming: 'home',
+      schedule: { days: [1, 2], startHour: 18, endHour: 23 },
+      regionConditions: { region: 'Britain', minPlayers: 1, maxPlayers: 12 },
+    });
+
+    const preview = await route('POST', '/api/spawners/simulate').run({ body: {
+      id: 'preview', map: 1, rect: { x1: 0, y1: 0, x2: 1, y2: 1 }, maxCount: 1,
+      respawnMs: [1000, 2000], kinds: [['orc', 3], ['ettin', 1]], rolls: 4000, seed: 42,
+    } });
+    expect(preview.ok).toBe(true);
+    expect(preview.simulation.outcomes.reduce((sum, item) => sum + item.count, 0)).toBe(4000);
+    expect(preview.simulation.outcomes[0].actualPct).toBeGreaterThan(70);
+
+    spawner.groups.set('advanced-b', { ...spawner.groups.get('advanced-a'), id: 'advanced-b', spawnedSerials: new Set() });
+    const diagnostics = await route('GET', '/api/spawners/diagnostics').run({});
+    expect(diagnostics.duplicatePairs).toContainEqual(expect.objectContaining({ a: 'advanced-a', b: 'advanced-b' }));
+    const bulk = await route('POST', '/api/spawners/bulk').run({ body: { ids: ['advanced-a', 'advanced-b'], action: 'move', dx: 5, dy: -2, map: 3 } });
+    expect(bulk).toMatchObject({ ok: true, changed: 2 });
+    expect(spawner.groups.get('advanced-a')).toMatchObject({ map: 3, rect: { x1: 15, y1: 18, x2: 17, y2: 20 } });
+    await route('POST', '/api/spawners/bulk').run({ body: { ids: ['advanced-a'], action: 'disable' } });
+    expect(spawner.groups.get('advanced-a').enabled).toBe(false);
+  });
+
+  it('plans and applies snapshot migrations with rollback, then manages feature rollout', async () => {
+    const { root, route } = fixture();
+    fs.writeFileSync(path.join(root, 'players.json'), JSON.stringify({ mobiles: [{ serial: 1 }], items: [] }), 'utf8');
+    const plan = await route('GET', '/api/migrations/plan').run({ query: new URLSearchParams({ file: 'players.json' }) });
+    expect(plan).toMatchObject({ file: 'players.json', dryRun: true, from: 0, target: 1 });
+    expect(plan.steps).toHaveLength(1);
+    const applied = await route('POST', '/api/migrations/apply').run({ body: { file: 'players.json' } });
+    expect(applied).toMatchObject({ ok: true, restartRequired: true });
+    expect(JSON.parse(fs.readFileSync(path.join(root, 'players.json'), 'utf8')).version).toBe(1);
+    expect(fs.existsSync(path.join(root, applied.backup))).toBe(true);
+    const verified = await route('POST', '/api/backups/verify').run({ body: { name: applied.backup } });
+    expect(verified).toMatchObject({ ok: true, version: 0 });
+
+    const flag = await route('PUT', '/api/feature-flags').run({ body: {
+      name: 'composer.visual-v2', enabled: true, nodeUOOnly: true,
+      rollout: { percent: 25, accounts: ['admin', 'admin'], shards: ['dev'] },
+    } });
+    expect(flag).toMatchObject({ ok: true, flag: { enabled: true, percent: 25, nodeUOOnly: true, accounts: ['admin'] } });
+    expect((await route('GET', '/api/feature-flags').run({})).flags['composer.visual-v2']).toBeTruthy();
+  });
+
+  it('treats an empty migration directory as a valid up-to-date state', async () => {
+    const { route } = fixture();
+    const plan = await route('GET', '/api/migrations/plan').run({ query: new URLSearchParams() });
+    expect(plan).toMatchObject({ available: false, dryRun: true, ok: true, from: 1, target: 1, steps: [] });
+  });
+
+  it('validates spell lifecycle in a side-effect-free server sandbox', async () => {
+    const liveSpell = { id: 42, name: 'Test Flame', school: 'magery', mana: 12, minSkill: 300, delayMs: 900, requiresTarget: true };
+    const { route } = fixture({ systems: { spells: { allSpells: () => [liveSpell] } } });
+    const result = await route('POST', '/api/studio/sandbox/spell').run({ body: { spell: {
+      id: 42, name: 'Test Flame', words: 'Vas Flam', mana: 12, castTimeMs: 900, requiresTarget: true, target: 'mobile', effect: 'fireball',
+    } } });
+    expect(result).toMatchObject({ ok: true, safe: true, executed: false, matchedRuntime: { id: 42 }, errors: [] });
+    expect(result.lifecycle.map((step) => step.stage)).toEqual(['incantation', 'cast-delay', 'target', 'resource-debit', 'effect']);
+    const invalid = await route('POST', '/api/studio/sandbox/spell').run({ body: { spell: { requiresTarget: true } } });
+    expect(invalid.ok).toBe(false);
+    expect(invalid.errors.map((error) => error.field)).toEqual(expect.arrayContaining(['words', 'mana', 'target']));
+  });
+
+  it('reports map, table and API performance budgets together', async () => {
+    const { route } = fixture();
+    const session = { account: 'admin' };
+    await route('POST', '/api/operations/client-metrics').run({ session, body: { view: '/editor', mapChunkMs: 240, tableRows: 720 } });
+    const report = await route('GET', '/api/operations/budgets').run({});
+    expect(report.client).toContainEqual(expect.objectContaining({ account: 'admin', mapChunkMs: 240, tableRows: 720 }));
+    expect(report.violations).toEqual(expect.arrayContaining([
+      expect.objectContaining({ metric: 'map:admin', budget: 180 }),
+      expect.objectContaining({ metric: 'table:admin', budget: 500 }),
+    ]));
+  });
+
+  it('inspects, follows and safely mutates live entities', async () => {
+    const { route, world } = fixture();
+    const mob = { serial: 0x101, name: 'rat', body: 0xd7, hue: 0, x: 10, y: 20, z: 0, map: 1, hp: 10, hpMax: 10 };
+    world.mobiles.set(mob.serial, mob);
+    const context = await route('GET', '/api/live/entity/:serial').run({ params: { serial: '0x101' } });
+    expect(context).toMatchObject({ type: 'mobile', entity: { name: 'rat', x: 10, y: 20 } });
+    const moved = await route('POST', '/api/live/mutate').run({ body: { serial: '0x101', action: 'move', x: 30, y: 40, z: 5, map: 2 } });
+    expect(moved).toMatchObject({ ok: true, action: 'move', after: { x: 30, y: 40, z: 5, map: 2 } });
+    const hued = await route('POST', '/api/live/mutate').run({ body: { serial: '0x101', action: 'hue', hue: 77 } });
+    expect(hued.after.hue).toBe(77);
+  });
+
   it('prevents a stale data-editor tab from overwriting a newer file', async () => {
     const { scriptsDir, route } = fixture();
     const file = path.join(scriptsDir, 'data', 'config', 'sample.json');

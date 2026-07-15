@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
-import { createReadStream, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { createReadStream, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -9,6 +9,7 @@ const distRoot = fileURLToPath(new URL('../dist/', import.meta.url));
 const screenshotRoot = fileURLToPath(new URL('../.screenshots/client-parity/', import.meta.url));
 const baselineFile = fileURLToPath(new URL('./visual-baselines.json', import.meta.url));
 const visualBaselines = JSON.parse(readFileSync(baselineFile, 'utf8'));
+const updateBaselines = process.env.UO_UPDATE_VISUAL_BASELINES === '1';
 
 const REQUIRED_SCENARIO_IDS = [
   'roofs',
@@ -121,6 +122,19 @@ function serveDist() {
 
   const server = createServer((request, response) => {
     const url = new URL(request.url || '/', 'http://127.0.0.1');
+    // The visual fixtures are self-contained canvases.  Loading the complete
+    // game first let its asynchronous cursor/login bootstrap race the fixture
+    // and occasionally paint a cursor into an otherwise identical baseline.
+    // A minimal document makes the test deterministic and substantially
+    // faster while preserving exactly the pixels under test.
+    if (url.searchParams.has('screenshotSmoke')) {
+      response.writeHead(200, {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'no-store',
+      });
+      response.end('<!doctype html><html><head><meta charset="utf-8"></head><body></body></html>');
+      return;
+    }
     const pathname = decodeURIComponent(url.pathname);
     const requested = pathname === '/' ? '/index.html' : pathname;
     const fullPath = resolve(distRoot, `.${requested}`);
@@ -410,6 +424,7 @@ async function run() {
   try {
     const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 });
     page.setDefaultTimeout(8_000);
+    const actualHashes = {};
 
     for (const scenario of SCENARIOS) {
       await page.goto(`${server.baseUrl}/?screenshotSmoke=${encodeURIComponent(scenario.id)}`, {
@@ -423,8 +438,17 @@ async function run() {
       const screenshotPath = resolve(screenshotRoot, scenario.fileName);
       await page.screenshot({ path: screenshotPath, fullPage: false });
       const actualHash = createHash('sha256').update(readFileSync(screenshotPath)).digest('hex');
-      assert.equal(actualHash, visualBaselines.sha256[scenario.fileName],
-        `${scenario.id} visual baseline changed (${actualHash}); inspect the PNG and update visual-baselines.json intentionally`);
+      actualHashes[scenario.fileName] = actualHash;
+      if (!updateBaselines) {
+        assert.equal(actualHash, visualBaselines.sha256[scenario.fileName],
+          `${scenario.id} visual baseline changed (${actualHash}); inspect the PNG and rerun with UO_UPDATE_VISUAL_BASELINES=1 intentionally`);
+      }
+    }
+
+    if (updateBaselines) {
+      visualBaselines.sha256 = actualHashes;
+      writeFileSync(baselineFile, `${JSON.stringify(visualBaselines, null, 2)}\n`);
+      console.log(`[smoke:screenshot-parity] updated ${Object.keys(actualHashes).length} inspected baselines`);
     }
 
     console.log(`[smoke:screenshot-parity] ok scenarios=${SCENARIOS.length} output=${screenshotRoot}`);

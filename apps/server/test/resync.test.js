@@ -48,6 +48,13 @@ describe('handleResynchronize', () => {
     expect(ops).toContain(0xA1);  // healthUpdate
   });
 
+  it('always answers burst resyncs with an authoritative self snap', () => {
+    callResync();
+    sent.length = 0;
+    callResync();
+    expect(sent.map((p) => p[0])).toEqual([0x20]);
+  });
+
   it('re-streams nearby NPC mobiles — not just other players', () => {
     // Seed a stationary NPC (no client) within update range. Resync must
     // still tell the resyncing player about it, otherwise the sprite is

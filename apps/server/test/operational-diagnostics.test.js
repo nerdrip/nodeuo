@@ -4,7 +4,8 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { CommandRegistry } from '../src/net/commands.js';
 import {
-  auditSnapshot, packet, protocolSnapshot, scanWorldIntegrity, verifySaveDirectory,
+  auditSnapshot, compatibilitySnapshot, connectionClosed, connectionOpened, packet, protocolSnapshot, recordTick, runtimeSnapshot,
+  scanWorldIntegrity, structuredEvent, structuredSnapshot, verifySaveDirectory,
 } from '../src/systems/operational-diagnostics.js';
 import { World } from '../src/world/world.js';
 
@@ -20,6 +21,19 @@ describe('operational diagnostics', () => {
     expect(JSON.stringify(after)).not.toContain('payload');
   });
 
+  it('keeps a bounded metadata-only packet ring for an inspected session', () => {
+    const state = { id: 987654, stage: 'inWorld', accountName: 'operator', mobile: { serial: 0x1234 },
+      ws: { bufferedAmount: 7 }, nodeUOTransport: false, nodeUOCapabilities: 0, roundTripMs: 12.5 };
+    connectionOpened(state);
+    for (let i = 0; i < 300; i++) packet('rx', i & 0xff, 7, 0.25, false, state);
+    const session = compatibilitySnapshot().sessions.find((entry) => entry.id === state.id);
+    expect(session).toMatchObject({ mobileSerial: 0x1234, pingMs: 12.5, rxPackets: 300, pendingBytes: 7 });
+    expect(session.packets).toHaveLength(256);
+    expect(session.packets.at(-1)).toMatchObject({ direction: 'rx', bytes: 7, error: false });
+    expect(JSON.stringify(session.packets)).not.toContain('payload');
+    connectionClosed(state, 'test complete');
+  });
+
   it('finds orphan parents, stale reverse indexes and boat attachments', () => {
     const world = new World();
     const item = world.createItem({ itemId: 1, x: 1, y: 1, z: 0, map: 1, parent: 0x12345678 });
@@ -30,6 +44,15 @@ describe('operational diagnostics', () => {
     expect(report.ok).toBe(false);
     expect(report.issues.map((issue) => issue.kind)).toEqual(expect.arrayContaining(['orphan-item', 'boat-attachment', 'child-index']));
     expect(item.serial).toBeTruthy();
+  });
+
+  it('aggregates scheduler latency and structured events', () => {
+    recordTick('combat', 4.5);
+    recordTick('combat', 55);
+    const row = runtimeSnapshot().ticks.find((entry) => entry.name === 'combat');
+    expect(row).toMatchObject({ calls: 2, slow: 1, maxMs: 55, averageMs: 29.75 });
+    structuredEvent('test.ready', { value: 3 });
+    expect(structuredSnapshot(1)[0]).toMatchObject({ event: 'test.ready', value: 3 });
   });
 
   it('verifies readable save snapshots and tracks command outcomes', async () => {

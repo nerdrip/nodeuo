@@ -12,6 +12,10 @@
 const __PENDING__ = [];
 
 const SKILL = 14;
+// Recipe ids are globally keyed, not scoped by craft skill. Early cooking
+// used the 13xxx range and silently collided with carpentry. Keep the table
+// readable while moving its public ids into the skill-aligned 14xxx range.
+const RECIPE_ID_OFFSET = 1000;
 
 const ITEM = {
   // Raw ingredients.
@@ -31,7 +35,7 @@ const ITEM = {
 
 function recipe(id, name, category, minSkill, output, inputs, opts = {}) {
   __PENDING__.push({
-    id, name, category, skillId: SKILL,
+    id: id + RECIPE_ID_OFFSET, name, category, skillId: SKILL,
     minSkill, maxSkill: opts.maxSkill ?? minSkill + 200,
     outputItemId: output, outputCount: opts.outputCount ?? 1,
     inputs: inputs.map(([itemId, count]) => ({ itemId, count })),

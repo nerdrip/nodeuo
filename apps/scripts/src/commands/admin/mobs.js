@@ -11,12 +11,12 @@ import { createMobile } from '../../_mobiles.js';
 // `[spawnmob` factory so AI behavior + loot table + gold pile fire
 // just like a wild spawn.
 
-// User-report — earlier 2-column layout was unreadable. They explicitly
-// asked for "just names, no visualization or columns". Plain vertical
-// list, one clickable name per row, that's it.
-const ROWS_PER_PAGE = 26;
+// Visual single-column rows. `mobilepic` is a NodeUO web-client extension;
+// classic clients ignore the preview verb but retain every standard button
+// and label, preserving emulator/client compatibility.
+const ROWS_PER_PAGE = 11;
 const MOBS_PER_PAGE = ROWS_PER_PAGE;
-const ROW_H = 22;
+const ROW_H = 56;
 
 const ROLE_TABS = [
   { id: 'all',   label: 'All',     match: () => true },
@@ -149,7 +149,7 @@ export default function register(api) {
     page = Math.max(0, Math.min(page, totalPages - 1));
     const slice = list.slice(page * MOBS_PER_PAGE, (page + 1) * MOBS_PER_PAGE);
 
-    const W = 420;
+    const W = 520;
     const H = 118 + ROWS_PER_PAGE * ROW_H + 40;
     const parts = [`{ page 0 }`, `{ resizepic 0 0 5054 ${W} ${H} }`];
     const texts = [];
@@ -179,11 +179,12 @@ export default function register(api) {
       parts.push(`{ text ${x + 19} 70 ${tab.id === tabId ? 1153 : 70} ${texts.length - 1} }`);
     });
 
-    // Body — plain name list, one clickable row.
+    // Body — creature preview, friendly name and template/body metadata.
     const BODY_TOP = 104;
     slice.forEach((row, i) => {
       const y = BODY_TOP + i * ROW_H;
-      parts.push(`{ button 18 ${y + 2} 4005 4007 1 0 ${100 + i} }`);
+      parts.push(`{ mobilepic 16 ${y} ${row.cfg.body | 0} ${row.cfg.hue ?? 0} 0 52 52 }`);
+      parts.push(`{ button 76 ${y + 14} 4005 4007 1 0 ${100 + i} }`);
       // Tag suffix gives the GM a hint that this row is a BOSS / tame
       // / named without a dedicated column.
       const tag = row.cfg.boss ? ' [BOSS]'
@@ -191,7 +192,9 @@ export default function register(api) {
         : row.cfg.role === 'named' ? ' [named]'
         : '';
       texts.push(`${row.cfg.name ?? row.kind}${tag}`);
-      parts.push(`{ text 44 ${y + 2} 1153 ${texts.length - 1} }`);
+      parts.push(`{ text 106 ${y + 7} 1153 ${texts.length - 1} }`);
+      texts.push(`${row.kind} · body 0x${(row.cfg.body | 0).toString(16).padStart(4, '0')} · ${row.cfg.behavior ?? 'aggressive'} AI`);
+      parts.push(`{ croppedtext 106 ${y + 29} 380 18 70 ${texts.length - 1} }`);
     });
 
     // Footer pagination.

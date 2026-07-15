@@ -1,28 +1,17 @@
 import { moveMobile } from '../../_movement.js';
-import { allItems, nearbyClients, nearbyMobiles } from '../../_spatial.js';
+import { allItems, allMobiles, nearbyClients, nearbyMobiles } from '../../_spatial.js';
 import { itemBySerial, mobileBySerial } from '../../_entities.js';
 import { createItem, destroyItemBySerial } from '../../_items.js';
 
 // `[mount` — toggle mounting / dismounting an adjacent tame horse pet.
 //
 // ServUO model: each mount creature has a `Rider` field and emits a
-// `MountItem` on layer 25 (Mount). The player's body becomes the
-// "mounted" variant (0x0190 → 0x00E2 for a horse, etc.). We mirror this
-// minimally:
+// `MountItem` on layer 25 (Mount). The player's humanoid body stays intact;
+// clients compose its mounted animation group with the mount animation.
 //   1. Player runs [mount → finds an adjacent tameable pet they own.
-//   2. We swap player.body to the body+0x100 mounted equivalent.
-//   3. The pet mob is removed from the world (hidden) — re-spawned on
+//   2. We equip the canonical hidden mount-art item on Layer.Mount.
+//   3. The pet mob is hidden from world views — restored on
 //      dismount at the player's tile.
-//
-// Mount item layer is normally 25. We don't ship a per-mount art id yet
-// (would need separate entries in the static atlas), so the body swap
-// is the only visible change. Players see "you ride a horse" overhead
-// to convey what happened.
-//
-// Body swap table (subset):
-//   horse  → 0x0027 (rider+horse merged sprite)
-//   llama  → 0x0DC
-//   bull   → unsupported (no merged body) — fallback to horse swap
 //
 // Damage-induced dismount is handled in the central combat.damage hook
 // when HP drops below 20%.
@@ -35,6 +24,9 @@ const PLAYER_FEMALE = 0x0191;
 // human + clothing layers. The old implementation replaced `player.body`,
 // which made every garment disappear and corrupted paperdoll state.
 export const MOUNT_ITEM_BY_KIND = Object.freeze({
+  reptalon: 0x3E90,
+  'cu-sidhe': 0x3E91,
+  'charger-of-the-fallen': 0x3E92,
   horse: 0x3E9F,
   llama: 0x3EA6,
   ostard: 0x3EA5,
@@ -46,6 +38,9 @@ export const MOUNT_ITEM_BY_KIND = Object.freeze({
   'fire-beetle': 0x3E95,
   'swamp-dragon': 0x3EBD,
   'scaled-swamp-dragon': 0x3EBE,
+  'bane-dragon': 0x3EBD,
+  'skeletal-mount': 0x3EBB,
+  lasher: 0x3ECB,
   unicorn: 0x3EB4,
   hiryu: 0x3E94,
   'lesser-hiryu': 0x3E94,
@@ -54,6 +49,25 @@ export const MOUNT_ITEM_BY_KIND = Object.freeze({
 });
 
 const MOUNT_MENU_KINDS = Object.keys(MOUNT_ITEM_BY_KIND);
+
+// World saves made before the mount/body audit retain the body serialized at
+// spawn time. Correct only the known bad kind/body pairs here: this preserves
+// intentional hues and polymorphs while making old pets converge to the same
+// ServUO body as newly spawned mounts after a script/server reload.
+const LEGACY_MOUNT_BODY_FIXES = Object.freeze({
+  'bane-dragon': Object.freeze({ from: Object.freeze([0x000C]), to: 0x031A }),
+  'charger-of-the-fallen': Object.freeze({ from: Object.freeze([0x00FC]), to: 0x011C }),
+  'desert-ostard': Object.freeze({ from: Object.freeze([0x00DB]), to: 0x00D2 }),
+  'fire-beetle': Object.freeze({ from: Object.freeze([0x00A1]), to: 0x00A9 }),
+  'frenzied-ostard': Object.freeze({ from: Object.freeze([0x00DB]), to: 0x00DA }),
+  'giant-beetle': Object.freeze({ from: Object.freeze([0x00A1]), to: 0x0317 }),
+  hellsteed: Object.freeze({ from: Object.freeze([0x0075]), to: 0x0319 }),
+  lasher: Object.freeze({ from: Object.freeze([0x0509]), to: 0x057F }),
+  reptalon: Object.freeze({ from: Object.freeze([0x02E0]), to: 0x0114 }),
+  ridgeback: Object.freeze({ from: Object.freeze([0x00D5]), to: 0x00BB }),
+  'scaled-swamp-dragon': Object.freeze({ from: Object.freeze([0x0033]), to: 0x031F }),
+  'swamp-dragon': Object.freeze({ from: Object.freeze([0x0033]), to: 0x031A }),
+});
 
 function mountItemFor(kind) { return MOUNT_ITEM_BY_KIND[kind] ?? 0; }
 
@@ -95,6 +109,16 @@ function broadcastUpdate(api, mob) {
 
 export default function register(api) {
   if (!api.commands || !api.protocol) return () => {};
+
+  let migratedBodies = 0;
+  for (const mob of allMobiles(api)) {
+    const fix = LEGACY_MOUNT_BODY_FIXES[mob?.kind];
+    if (!fix || !fix.from.includes(mob.body | 0)) continue;
+    mob.body = fix.to;
+    migratedBodies++;
+    broadcastUpdate(api, mob);
+  }
+  if (migratedBodies) api.log?.(`[mounts] corrected ${migratedBodies} legacy mount bod${migratedBodies === 1 ? 'y' : 'ies'}`);
 
   function currentMount(rider) {
     return rider.mountedFrom ? mobileBySerial(api, rider.mountedFrom >>> 0) : adjacentMyPet(api, rider);
@@ -318,7 +342,12 @@ export default function register(api) {
     rows.forEach((kind, i) => {
       const cfg = api.monsters.get(kind);
       const y = 52 + i * 45;
-      layout.push(`{ tilepic 18 ${y - 7} ${mountItemFor(kind)} }`);
+      // A mobile body is animation art, not item art. Rendering the hidden
+      // Layer.Mount item via tilepic used ship/tiller sprites on several UO
+      // data generations and produced the long stretched bars seen in the
+      // picker. `mobilepic` is our optional web-client gump extension;
+      // standard clients safely ignore the unknown command.
+      layout.push(`{ mobilepic 16 ${y - 5} ${cfg.body | 0} ${cfg.hue ?? 0} 0 54 54 }`);
       layout.push(`{ button 76 ${y} 4005 4007 1 0 ${100 + i} }`);
       texts.push(cfg.name ?? kind);
       layout.push(`{ text 102 ${y} 1153 ${texts.length - 1} }`);

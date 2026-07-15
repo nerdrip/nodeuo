@@ -1135,7 +1135,7 @@
   {
     "kind": "bane-dragon",
     "name": "a bane dragon",
-    "body": 12,
+    "body": 794,
     "hue": 2725,
     "hp": 1100,
     "str": 750,
@@ -1176,7 +1176,7 @@
       "raw-bird",
       "fish-steak"
     ],
-    "mountId": 16071,
+    "mountId": 16061,
     "gold": [
       800,
       1500
@@ -2913,7 +2913,7 @@
   {
     "kind": "charger-of-the-fallen",
     "name": "a charger of the fallen",
-    "body": 252,
+    "body": 284,
     "hue": 2410,
     "hp": 900,
     "str": 900,
@@ -2951,7 +2951,7 @@
       "carrot",
       "lettuce"
     ],
-    "mountId": 16071,
+    "mountId": 16018,
     "gold": [
       400,
       700
@@ -4439,7 +4439,7 @@
   {
     "kind": "cu-sidhe",
     "name": "cu sidhe",
-    "body": 236,
+    "body": 277,
     "hue": 1150,
     "hp": 450,
     "hpMax": 480,
@@ -5678,7 +5678,7 @@
   {
     "kind": "desert-ostard",
     "name": "desert ostard",
-    "body": 219,
+    "body": 210,
     "hue": 96,
     "hp": 50,
     "hpMax": 60,
@@ -6338,7 +6338,7 @@
   {
     "kind": "dread-horn-elite",
     "name": "dread horn elite",
-    "body": 236,
+    "body": 257,
     "hue": 1150,
     "hp": 1200,
     "hpMax": 1280,
@@ -6940,7 +6940,7 @@
   {
     "kind": "elder-oni",
     "name": "elder oni",
-    "body": 239,
+    "body": 241,
     "hue": 1149,
     "hp": 680,
     "hpMax": 720,
@@ -8147,7 +8147,7 @@
   {
     "kind": "fire-beetle",
     "name": "a fire beetle",
-    "body": 161,
+    "body": 169,
     "hp": 200,
     "str": 300,
     "dex": 100,
@@ -8183,7 +8183,7 @@
       "carrot",
       "lettuce"
     ],
-    "mountId": 16965,
+    "mountId": 16021,
     "gold": [
       50,
       150
@@ -8471,7 +8471,7 @@
   {
     "kind": "frenzied-ostard",
     "name": "frenzied ostard",
-    "body": 219,
+    "body": 218,
     "hue": 68,
     "hp": 70,
     "hpMax": 80,
@@ -9040,7 +9040,7 @@
   {
     "kind": "giant-beetle",
     "name": "a giant beetle",
-    "body": 161,
+    "body": 791,
     "hue": 2401,
     "hp": 200,
     "str": 300,
@@ -9077,7 +9077,7 @@
       "carrot",
       "lettuce"
     ],
-    "mountId": 16965,
+    "mountId": 16060,
     "gold": [
       50,
       150
@@ -9670,7 +9670,7 @@
   {
     "kind": "great-hart",
     "name": "a great hart",
-    "body": 235,
+    "body": 234,
     "hp": 50,
     "str": 40,
     "notoriety": 3,
@@ -10747,7 +10747,7 @@
   {
     "kind": "hellsteed",
     "name": "a hellsteed",
-    "body": 117,
+    "body": 793,
     "hue": 1645,
     "hp": 270,
     "str": 350,
@@ -10777,7 +10777,7 @@
       "16": 800,
       "40": 900
     },
-    "mountId": 16071,
+    "mountId": 16059,
     "summoned": true,
     "controlSlots": 2,
     "flags": [
@@ -13361,7 +13361,7 @@
   {
     "kind": "lasher",
     "name": "a lasher",
-    "body": 1289,
+    "body": 1407,
     "hp": 1300,
     "str": 1200,
     "dex": 180,
@@ -13693,7 +13693,7 @@
   {
     "kind": "lesser-oni",
     "name": "lesser oni",
-    "body": 239,
+    "body": 241,
     "hue": 68,
     "hp": 460,
     "hpMax": 500,
@@ -19208,7 +19208,7 @@
   {
     "kind": "reptalon",
     "name": "a reptalon",
-    "body": 736,
+    "body": 276,
     "hp": 880,
     "hpMax": 931,
     "str": 1012,
@@ -19249,7 +19249,7 @@
       "raw-bird",
       "raw-ribs"
     ],
-    "mountId": 16039,
+    "mountId": 16016,
     "gold": [
       400,
       800
@@ -19376,7 +19376,7 @@
   {
     "kind": "ridgeback",
     "name": "a ridgeback",
-    "body": 213,
+    "body": 187,
     "hue": 2318,
     "hp": 50,
     "hpMax": 70,
@@ -20111,7 +20111,7 @@
   {
     "kind": "scaled-swamp-dragon",
     "name": "scaled swamp dragon",
-    "body": 51,
+    "body": 799,
     "hue": 68,
     "hp": 520,
     "hpMax": 550,
@@ -22746,7 +22746,7 @@
   {
     "kind": "swamp-dragon",
     "name": "swamp dragon",
-    "body": 51,
+    "body": 794,
     "hue": 102,
     "hp": 460,
     "hpMax": 490,
@@ -24591,7 +24591,7 @@
   {
     "kind": "vasanord",
     "name": "a vasanord",
-    "body": 268,
+    "body": 780,
     "hue": 2116,
     "hp": 625,
     "hpMax": 675,

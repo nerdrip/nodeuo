@@ -44,6 +44,7 @@ import { GumpPicTiled } from './controls/gump-pic-tiled.js';
 import { ResizePic } from './controls/resize-pic.js';
 import { ItemPic } from './controls/item-pic.js';
 import { StaticPic } from './controls/static-pic.js';
+import { MobilePic } from './controls/mobile-pic.js';
 import { CroppedText } from './controls/cropped-text.js';
 import { HtmlControl } from './controls/html-control.js';
 import { CheckerTrans } from './controls/checker-trans.js';
@@ -80,9 +81,11 @@ function num(tokens, index) {
 }
 
 /** Walk the whole layout string and yield each `{ cmd args... }` block. */
-function* commands(layout) {
+function* commands(layout, maxCommands = 4096) {
   let i = 0;
+  let count = 0;
   while (i < layout.length) {
+    if (count++ >= maxCommands) break;
     while (i < layout.length && layout[i] !== '{') i++;
     if (i >= layout.length) break;
     const start = i + 1;
@@ -91,6 +94,31 @@ function* commands(layout) {
     yield layout.slice(start, end).trim();
     i = end + 1;
   }
+}
+
+/** Prime atlas requests before controls resolve their own textures. Pending
+ * loads are deduplicated by AssetManager, so the opened gump gets priority
+ * without downloading any page twice. */
+export function prefetchGumpAssets(layout) {
+  const ids = new Set();
+  for (const body of commands(String(layout || '').slice(0, 1024 * 1024), 4096)) {
+    const t = tokenize(body);
+    const op = String(t[0] || '').toLowerCase();
+    let candidates = [];
+    if (['gumppic', 'gumppichued', 'gumppicphued', 'tilepicasgumppic', 'kr_gumppic'].includes(op)) candidates = [t[3]];
+    else if (op === 'gumppictiled') candidates = [t[5]];
+    else if (op === 'resizepic') candidates = [t[3]];
+    else if (op === 'button' || op === 'buttontileart') candidates = [t[3], t[4]];
+    else if (op === 'checkbox' || op === 'radio') candidates = [t[3], t[4]];
+    for (const raw of candidates) {
+      const id = Number(raw);
+      if (Number.isInteger(id) && id >= 0 && id <= 0xffff) ids.add(id);
+      if (ids.size >= 128) break;
+    }
+    if (ids.size >= 128) break;
+  }
+  for (const id of ids) void assets.gumpTexture(id).catch?.(() => {});
+  return ids.size;
 }
 
 /**
@@ -106,12 +134,22 @@ function* commands(layout) {
  * @returns {Gump}
  */
 export function parseGumpLayout({ layout, textLines, serverSerial, gumpSerial, x, y }) {
+  // Network gumps are data, not trusted code. Bound work and normalize the
+  // parallel string table before constructing Pixi objects. The limits are
+  // intentionally far above ordinary ServUO gumps but prevent a malformed
+  // shard packet from allocating an unbounded UI tree or multi-megabyte Text.
+  layout = String(layout ?? '').slice(0, 1024 * 1024);
+  prefetchGumpAssets(layout);
+  textLines = Array.isArray(textLines)
+    ? textLines.slice(0, 4096).map((line) => String(line ?? '').slice(0, 16384))
+    : [];
   const g = new Gump();
   g.serverSerial = serverSerial >>> 0;
   g.gumpSerial = gumpSerial >>> 0;
   g.setPosition(x, y);
 
   let currentPage = 0;
+  let radioGroupCounter = 0;
   // Track radio-group ids so siblings can exclude each other.
   let radioGroup = `g${gumpSerial}-0`;
 
@@ -175,6 +213,26 @@ export function parseGumpLayout({ layout, textLines, serverSerial, gumpSerial, x
         case 'tilepichue': {
           const x = +t[1], y = +t[2], id = +t[3], hue = +t[4] || 0;
           const c = new StaticPic(id, { hue });
+          c.setPosition(x, y); c.page = currentPage;
+          g.add(c); break;
+        }
+        // NodeUO bounded static preview. Unlike standard `tilepic`, this
+        // contains very tall/wide art inside the supplied box.
+        case 'tilepicfit': {
+          const x = +t[1], y = +t[2], id = +t[3], hue = +t[4] || 0;
+          const width = +t[5] || 44, height = +t[6] || 44;
+          const c = new ItemPic(id, { hue, maxWidth: width, maxHeight: height });
+          c.setPosition(x, y); c.page = currentPage;
+          c.acceptMouseInput = false;
+          g.add(c); break;
+        }
+        // NodeUO extension used by visual admin catalogues:
+        //   mobilepic x y body hue direction width height
+        // Standard clients safely ignore this unknown layout verb.
+        case 'mobilepic': {
+          const x = +t[1], y = +t[2], body = +t[3], hue = +t[4] || 0;
+          const direction = +t[5] || 0, width = +t[6] || 52, height = +t[7] || 52;
+          const c = new MobilePic(body, { hue, direction, width, height });
           c.setPosition(x, y); c.page = currentPage;
           g.add(c); break;
         }
@@ -347,7 +405,7 @@ export function parseGumpLayout({ layout, textLines, serverSerial, gumpSerial, x
           radioGroup = `g${gumpSerial}-${t[1] ?? '0'}`;
           break;
         case 'endgroup':
-          radioGroup = `g${gumpSerial}-end-${Math.random()}`;
+          radioGroup = `g${gumpSerial}-end-${++radioGroupCounter}`;
           break;
         case 'tooltip': {
           // CUO `PacketHandlers.cs:6969 Tooltip` — attaches a cliloc

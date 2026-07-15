@@ -105,6 +105,74 @@ export function spawnerHeatmap(spawner, world, { map = 1, cellSize = 64 } = {}) 
     liveMobiles: [...(world?.mobiles?.values?.() ?? [])].filter((mob) => (mob.map | 0) === (map | 0)).length };
 }
 
+function spawnerKind(entry) {
+  return Array.isArray(entry) ? entry[0] : typeof entry === 'object' ? entry?.kind ?? entry?.name : entry;
+}
+
+function spawnerWeight(entry) {
+  const value = Array.isArray(entry) ? entry[1] : typeof entry === 'object' ? entry?.weight ?? entry?.max : 1;
+  return Math.max(0, Number(value) || 0);
+}
+
+/** Deterministic, side-effect-free distribution preview used by the admin UI. */
+export function simulateSpawnerDraft(raw, { rolls = 1000, seed = 0x4e6f6465 } = {}) {
+  const kinds = Array.isArray(raw?.kinds) ? raw.kinds.filter((entry) => spawnerKind(entry)) : [];
+  const weighted = kinds.map((entry) => ({ kind: String(spawnerKind(entry)), weight: spawnerWeight(entry) || 1 }));
+  const totalWeight = weighted.reduce((sum, entry) => sum + entry.weight, 0);
+  const count = Math.max(1, Math.min(100_000, finiteInt(rolls) ?? 1000));
+  let state = (finiteInt(seed) ?? 0x4e6f6465) >>> 0;
+  const next = () => {
+    state ^= state << 13; state ^= state >>> 17; state ^= state << 5;
+    return (state >>> 0) / 0x100000000;
+  };
+  const counts = Object.fromEntries(weighted.map(({ kind }) => [kind, 0]));
+  for (let i = 0; i < count && totalWeight > 0; i++) {
+    let cursor = next() * totalWeight;
+    for (const entry of weighted) {
+      cursor -= entry.weight;
+      if (cursor <= 0) { counts[entry.kind]++; break; }
+    }
+  }
+  return {
+    rolls: count, seed: (finiteInt(seed) ?? 0x4e6f6465) >>> 0, totalWeight,
+    outcomes: weighted.map((entry) => ({
+      ...entry, count: counts[entry.kind] ?? 0,
+      expectedPct: Number((100 * entry.weight / Math.max(1, totalWeight)).toFixed(2)),
+      actualPct: Number((100 * (counts[entry.kind] ?? 0) / count).toFixed(2)),
+    })),
+  };
+}
+
+/** Finds authoring mistakes and runtime drift without mutating the shard. */
+export function spawnerDiagnostics(spawner, world, now = Date.now()) {
+  const groups = [...(spawner?.groups?.values?.() ?? [])];
+  const emptyKinds = [], invalidRects = [], stalled = [], orphanSerials = [], duplicatePairs = [];
+  const rectKey = new Map();
+  for (const group of groups) {
+    const kinds = (group.kinds ?? []).map(spawnerKind).filter(Boolean);
+    if (!kinds.length) emptyKinds.push(group.id);
+    const r = group.rect;
+    if (!r || ![r.x1, r.y1, r.x2, r.y2].every(Number.isFinite) || r.x2 < r.x1 || r.y2 < r.y1) invalidRects.push(group.id);
+    if (r) {
+      const key = `${group.map}|${r.x1}|${r.y1}|${r.x2}|${r.y2}`;
+      const first = rectKey.get(key);
+      if (first) duplicatePairs.push({ a: first, b: group.id, map: group.map, rect: r });
+      else rectKey.set(key, group.id);
+    }
+    if (group.enabled !== false && (group.spawnedSerials?.size ?? 0) < (group.maxCount ?? 0)
+      && Number.isFinite(group.nextSpawnAt) && group.nextSpawnAt < now - Math.max(60_000, group.respawnMs?.[1] ?? 0)) {
+      stalled.push({ id: group.id, nextSpawnAt: group.nextSpawnAt, overdueMs: now - group.nextSpawnAt });
+    }
+    for (const serial of group.spawnedSerials ?? []) {
+      if (!world?.mobiles?.has?.(serial >>> 0)) orphanSerials.push({ id: group.id, serial: `0x${(serial >>> 0).toString(16)}` });
+    }
+  }
+  return {
+    count: groups.length, emptyKinds, invalidRects, duplicatePairs, stalled, orphanSerials,
+    issueCount: emptyKinds.length + invalidRects.length + duplicatePairs.length + stalled.length + orphanSerials.length,
+  };
+}
+
 export function validateLootDraft(registry, raw) {
   const errors = [], warnings = [];
   const name = String(raw?.name ?? '').trim();

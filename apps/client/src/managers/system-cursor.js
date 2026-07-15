@@ -191,9 +191,9 @@ class SystemCursor {
   /** Apply the OS-level cursor style based on the current hint +
    *  context. Three cases:
    *    - 'text'    → OS I-beam (TextInput hover); UO sprite hidden.
-   *    - 'pointer' → OS pointer hand (gump hover, "palec wskazujacy");
-   *                  UO sprite hidden. This is what the user wants
-   *                  for the default outside the game viewport.
+   *    - 'pointer' → native UO default arrow over gumps; the browser
+   *                  hand stays hidden so crossing a paperdoll does not
+   *                  switch between unrelated cursor families.
    *    - 'arrow'   → OS default arrow (anywhere we can't infer a UO
    *                  sprite — e.g. login screen, no-player).
    *  When _autoNameFor returns a non-null cursor name (walk-XXX inside
@@ -242,9 +242,9 @@ class SystemCursor {
     // No player → login / character-select / loading. Let the OS
     // pointer drive — no UO sprite.
     if (!world.player) return null;
-    // Over a UI gump → OS pointer takes over (sets cursor:pointer in
-    // _applyHintCss). Marcin: "ma byc palec wskazujacy" on gumps.
-    if (this._overUi) return null;
+    // UI uses the same extracted UO cursor family as the world. Only text
+    // entries intentionally fall back to the OS I-beam via _cursorHint.
+    if (this._overUi) return 'default';
     // Inside the gameplay rect → directional walk arrow.
     const vx = camera.viewX | 0;
     const vy = camera.viewY | 0;

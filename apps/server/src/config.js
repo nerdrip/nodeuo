@@ -27,3 +27,18 @@ export const config = Object.freeze({
   devAutoAccept: (process.env.UO_DEV_AUTO_ACCEPT ?? '1') === '1',
   logPackets: (process.env.UO_LOG_PACKETS ?? '0') === '1',
 });
+
+export function validateConfig(value = config) {
+  const errors = [], warnings = [];
+  const allowEphemeralPort = /^(1|true|yes)$/i.test(String(process.env.UO_ALLOW_EPHEMERAL_PORT ?? ''));
+  const validPort = (port, allowZero = false) => Number.isInteger(port) && port >= (allowZero ? 0 : 1) && port <= 65535;
+  if (!validPort(value.port, allowEphemeralPort)) errors.push(`UO_PORT must be an integer in ${allowEphemeralPort ? '0' : '1'}..65535`);
+  if (value.tcpPort != null && !validPort(value.tcpPort)) errors.push('UO_TCP_PORT must be an integer in 1..65535');
+  if (value.tcpPort != null && value.tcpPort === value.port && value.tcpHost === value.host) errors.push('WebSocket and TCP listeners cannot bind the same address and port');
+  if (!String(value.shardName || '').trim()) errors.push('UO_SHARD_NAME cannot be empty');
+  if (value.devAutoAccept && !['127.0.0.1', '::1', 'localhost'].includes(String(value.host))) warnings.push('development auto-accept is enabled on a non-loopback bind');
+  for (const [key, entry] of Object.entries(process.env)) {
+    if (/^(UO_.*(?:PASS|PASSWORD|SECRET|TOKEN|KEY))$/i.test(key) && entry === '') errors.push(`${key} is configured but empty`);
+  }
+  return { ok: errors.length === 0, errors, warnings };
+}

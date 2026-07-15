@@ -92,7 +92,8 @@ requireNeedles('Spell source drag payload', read('../src/ui/gumps/spellbook-gump
 requireNeedles('Spell action-bar assignment', read('../src/ui/gumps/action-bar-gump.js'), [
   'dropSpellShortcutOnActionBar',
   'clearActionBarSlot',
-  'readActionBarSlots',
+  'readActionBarActions',
+  'beginSkillShortcutDrag',
 ]);
 requireNeedles('CombatBook ability source', read('../src/ui/gumps/combat-book-gump.js'), [
   'UseAbilityButtonGump',
@@ -160,6 +161,7 @@ requireNeedles('StatusGump values/locks', read('../src/ui/gumps/status-gump.js')
 requireNeedles('Paperdoll layer hit tests', read('../src/ui/gumps/paperdoll-gump.js'), [
   'PaperDollInteractable',
   'PAPERDOLL_DRAW_ORDER',
+  'const layers = [...PAPERDOLL_LAYERS, LAYER_BACKPACK]',
   'dragDrop.dropToEquip',
   'dragDrop.dropToContainer',
   '_openSkinHuePicker',

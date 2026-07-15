@@ -28,8 +28,6 @@ export class ResizePic extends Control {
     this._slices = new Array(9).fill(null);
     /** @type {{ w:number, h:number }[]} natural sizes of the slices */
     this._sizes = new Array(9).fill({ w: 0, h: 0 });
-    this._loadToken = 0;
-    this._disposed = false;
     this._mountSlices();
   }
 
@@ -40,13 +38,13 @@ export class ResizePic extends Control {
   }
 
   async _mountSlices() {
-    const token = ++this._loadToken;
+    const generation = this.captureAsyncGeneration();
     const promises = [];
     for (let i = 0; i < 9; i++) {
       promises.push(assets.gumpTexture(this.gumpId + i).then((tex) => ({ i, tex })));
     }
     const results = await Promise.all(promises);
-    if (this._disposed || token !== this._loadToken) return;
+    if (!this.asyncGenerationValid(generation)) return;
     for (const { i, tex } of results) {
       if (!tex) continue;
       const sp = acquireSprite(tex);
@@ -62,8 +60,6 @@ export class ResizePic extends Control {
   }
 
   dispose() {
-    this._disposed = true;
-    this._loadToken++;
     for (let i = 0; i < this._slices.length; i++) {
       if (this._slices[i]) releaseSprite(this._slices[i]);
       this._slices[i] = null;

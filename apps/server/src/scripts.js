@@ -14,6 +14,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { runtimeGovernor } from './systems/runtime-governor.js';
+
+// File discovery is deterministic but comparatively expensive on Windows
+// (hundreds of synchronous stat calls). Keep the immutable sorted manifest
+// between reloads; the recursive watcher invalidates it before a changed file
+// is activated. This removes the scan from ordinary admin/manual reloads.
+const SCRIPT_MANIFEST_CACHE = new Map();
 
 /**
  * @typedef {Object} ScriptAPI
@@ -69,6 +76,11 @@ export class ScriptRuntime {
     this._watchDebounceMs = positiveIntEnv('UO_SCRIPT_WATCH_DEBOUNCE_MS', 600);
     this._watchQuietMs = positiveIntEnv('UO_SCRIPT_WATCH_QUIET_MS', 1200);
     this.verboseLoads = /^(1|true|yes)$/i.test(String(process.env.UO_SCRIPT_LOG_EACH ?? ''));
+    this.importConcurrency = positiveIntEnv('UO_SCRIPT_IMPORT_CONCURRENCY', 24);
+    this.initTimeoutMs = positiveIntEnv('UO_SCRIPT_INIT_TIMEOUT_MS', 250);
+    this.profile = { scanMs: 0, importMs: 0, initMs: 0, totalMs: 0, files: 0, loaded: 0,
+      skipped: 0, failed: 0, errors: [], slowest: [], lastLoadAt: 0, reason: 'startup' };
+    this.reloadHistory = [];
   }
 
   /** Load (or reload) all scripts. */
@@ -98,6 +110,7 @@ export class ScriptRuntime {
     const startedAt = performance.now();
     let skipped = 0;
     let failed = 0;
+    const errors = [];
     this._extendWatchQuietWindow();
     try {
       await this._dispose();
@@ -106,12 +119,38 @@ export class ScriptRuntime {
         this.api.log(`scripts dir not found: ${this.scriptsDir}`);
         return;
       }
-      const files = collectScriptFiles(this.scriptsDir);
-      for (const file of files) {
+      const scanStarted = performance.now();
+      const files = scriptManifest(this.scriptsDir);
+      const scanMs = performance.now() - scanStarted;
+      const importStarted = performance.now();
+      const imported = [];
+      const stamp = Date.now();
+      // Dynamic imports are I/O-heavy and independent. Import in bounded
+      // batches, then initialise in the original sorted order so command/
+      // content registration remains deterministic. The previous serial
+      // await paid 400+ event-loop round trips on every cold start.
+      for (let start = 0; start < files.length; start += this.importConcurrency) {
+        const batch = files.slice(start, start + this.importConcurrency);
+        const results = await Promise.all(batch.map(async (file, index) => {
+          const t0 = performance.now();
+          try {
+            const url = `${pathToFileURL(file).href}?t=${stamp}`;
+            return { file, order: start + index, mod: await import(url), importMs: performance.now() - t0 };
+          } catch (error) {
+            return { file, order: start + index, error, importMs: performance.now() - t0 };
+          }
+        }));
+        imported.push(...results);
+      }
+      const importMs = performance.now() - importStarted;
+      const initStarted = performance.now();
+      const timings = [];
+      imported.sort((a, b) => a.order - b.order);
+      for (const entry of imported) {
+        const { file } = entry;
         try {
-          // Cache-bust so re-imports actually re-run the module top-level.
-          const url = `${pathToFileURL(file).href}?t=${Date.now()}`;
-          const mod = await import(url);
+          if (entry.error) throw entry.error;
+          const mod = entry.mod;
           const fn = mod.default;
           if (typeof fn !== 'function') {
             skipped++;
@@ -119,24 +158,51 @@ export class ScriptRuntime {
             continue;
           }
           const scoped = createScopedScriptApi(this.api, this._rel(file));
+          const initOneStarted = performance.now();
+          let initError = null;
           const maybeDisposer = safeCall(fn, scoped.api, (e) => {
+            initError = e;
             this.api.log(`script ${this._rel(file)} threw during init: ${e.message}`);
           });
+          if (!initError && performance.now() - initOneStarted > this.initTimeoutMs) {
+            initError = new Error(`initialization exceeded ${this.initTimeoutMs}ms budget`);
+          }
+          const disposer = composeDisposer(maybeDisposer, scoped.lifecycle);
+          if (initError) {
+            failed++;
+            errors.push({ file: this._rel(file), phase: 'init', message: initError.message, stack: String(initError.stack ?? '').slice(0, 4000) });
+            this.api.log(`script ${this._rel(file)} failed during init: ${initError.message}`);
+            safeCall(disposer, undefined, () => {});
+            continue;
+          }
           this.loaded.push({
             file,
-            disposer: composeDisposer(maybeDisposer, scoped.lifecycle),
+            disposer,
+            initializer: fn,
+            exports: Object.keys(mod),
+            lifecycle: scoped.lifecycle,
           });
+          timings.push({ file: this._rel(file), ms: entry.importMs + performance.now() - initOneStarted });
           if (this.verboseLoads) this.api.log(`script loaded: ${this._rel(file)}`);
         } catch (e) {
           failed++;
+          errors.push({ file: this._rel(file), phase: entry.error ? 'import' : 'init', message: e.message, stack: String(e.stack ?? '').slice(0, 4000) });
           this.api.log(`script ${this._rel(file)} failed: ${e.message}`);
         }
       }
-      this.audit.assertClean();
+      const initMs = performance.now() - initStarted;
       const elapsedMs = Math.round(performance.now() - startedAt);
+      this.profile = {
+        scanMs: Math.round(scanMs), importMs: Math.round(importMs), initMs: Math.round(initMs),
+        totalMs: elapsedMs, files: files.length, loaded: this.loaded.length, skipped, failed,
+        errors: errors.slice(0, 100), lastLoadAt: Date.now(), reason: request.reason,
+        slowest: timings.sort((a, b) => b.ms - a.ms).slice(0, 12)
+          .map((entry) => ({ file: entry.file, ms: Math.round(entry.ms) })),
+      };
+      this.audit.assertClean();
       const reason = request.reason && request.reason !== 'manual' ? `, reason=${request.reason}` : '';
       const skippedLabel = skipped > 0 ? `${skipped} skipped (no default export)` : '0 skipped';
-      this.api.log(`scripts ready: ${this.loaded.length} loaded, ${skippedLabel}, ${failed} failed in ${elapsedMs}ms${reason}`);
+      this.api.log(`scripts ready: ${this.loaded.length} loaded, ${skippedLabel}, ${failed} failed in ${elapsedMs}ms (scan=${this.profile.scanMs}, import=${this.profile.importMs}, init=${this.profile.initMs}, concurrency=${this.importConcurrency})${reason}`);
     } finally {
       this._extendWatchQuietWindow();
     }
@@ -153,13 +219,31 @@ export class ScriptRuntime {
    * than necessary when only one file changed.
    */
   async reloadOne(rel) {
+    const reloadStarted = performance.now();
+    const rememberReload = (result) => {
+      const entry = { at: Date.now(), rel: String(rel), ms: Math.round(performance.now() - reloadStarted), ...result };
+      this.reloadHistory.push(entry);
+      if (this.reloadHistory.length > 100) this.reloadHistory.splice(0, this.reloadHistory.length - 100);
+      return entry;
+    };
     if (this._loadChain) await this._loadChain;
     const target = path.resolve(this.scriptsDir, rel.replace(/[\\/]/g, path.sep));
     const label = this._rel(target);
     this.audit.clearLabel(label);
+    if (!fs.existsSync(target)) {
+      return rememberReload({ ok: false, error: `script not found: ${rel}`, phase: 'validate' });
+    }
+    // Import and validate before touching the active implementation. Syntax
+    // errors and missing exports therefore leave the live shard unchanged.
+    let mod;
+    try { mod = await import(`${pathToFileURL(target).href}?t=${Date.now()}`); }
+    catch (error) { return rememberReload({ ok: false, error: error.message, phase: 'import', rolledBack: false }); }
+    const fn = mod.default;
+    if (typeof fn !== 'function') return rememberReload({ ok: false, error: 'no default export', phase: 'validate', rolledBack: false });
     // Find the loaded entry (path comparison is forgiving — runtime
     // stores absolute paths, callers may pass either separator).
     const idx = this.loaded.findIndex((s) => path.resolve(s.file) === target);
+    const previous = idx >= 0 ? this.loaded[idx] : null;
     if (idx >= 0) {
       const s = this.loaded[idx];
       if (s.disposer) {
@@ -169,31 +253,76 @@ export class ScriptRuntime {
       }
       this.loaded.splice(idx, 1);
     }
-    if (!fs.existsSync(target)) {
-      return { ok: false, error: `script not found: ${rel}` };
-    }
     try {
-      const url = `${pathToFileURL(target).href}?t=${Date.now()}`;
-      const mod = await import(url);
-      const fn = mod.default;
-      if (typeof fn !== 'function') {
-        return { ok: false, error: 'no default export' };
-      }
       const scoped = createScopedScriptApi(this.api, label);
+      let initError = null;
+      const initStarted = performance.now();
       const maybeDisposer = safeCall(fn, scoped.api, (e) => {
+        initError = e;
         this.api.log(`script ${this._rel(target)} threw during reloadOne: ${e.message}`);
       });
+      if (!initError && performance.now() - initStarted > this.initTimeoutMs) {
+        initError = new Error(`initialization exceeded ${this.initTimeoutMs}ms budget`);
+      }
+      const disposer = composeDisposer(maybeDisposer, scoped.lifecycle);
+      if (initError) {
+        safeCall(disposer, undefined, () => {});
+        throw initError;
+      }
       this.loaded.push({
         file: target,
-        disposer: composeDisposer(maybeDisposer, scoped.lifecycle),
+        disposer,
+        initializer: fn,
+        exports: Object.keys(mod),
+        lifecycle: scoped.lifecycle,
       });
       this.api.log(`script reloaded: ${this._rel(target)}`);
       this._emitReloaded();
       this.audit.assertClean({ label });
-      return { ok: true, rel: this._rel(target) };
+      return rememberReload({ ok: true, rel: this._rel(target), phase: 'activate',
+        initMs: Math.round(performance.now() - initStarted), exports: Object.keys(mod) });
     } catch (e) {
-      return { ok: false, error: e.message };
+      // Restore the previous initializer after a partial activation failure.
+      // Scoped lifecycle disposal above has already removed every command,
+      // listener and timer owned by the failed candidate.
+      let rolledBack = false;
+      if (typeof previous?.initializer === 'function') {
+        try {
+          const scoped = createScopedScriptApi(this.api, label);
+          let restoreError = null;
+          const maybeDisposer = safeCall(previous.initializer, scoped.api, (error) => { restoreError = error; });
+          if (restoreError) throw restoreError;
+          this.loaded.push({ ...previous, disposer: composeDisposer(maybeDisposer, scoped.lifecycle), lifecycle: scoped.lifecycle });
+          rolledBack = true;
+        } catch (restoreError) {
+          this.api.log(`script ${label} rollback failed: ${restoreError.message}`);
+        }
+      }
+      return rememberReload({ ok: false, error: e.message, phase: 'activate', rolledBack });
     }
+  }
+
+  async dryRunOne(rel) {
+    const target = path.resolve(this.scriptsDir, String(rel).replace(/[\\/]/g, path.sep));
+    if (!target.startsWith(path.resolve(this.scriptsDir) + path.sep) || !fs.existsSync(target)) {
+      return { ok: false, error: 'script not found or outside scripts directory' };
+    }
+    const started = performance.now();
+    try {
+      const mod = await import(`${pathToFileURL(target).href}?dry=${Date.now()}`);
+      if (typeof mod.default !== 'function') return { ok: false, error: 'no default export', exports: Object.keys(mod) };
+      return { ok: true, rel: this._rel(target), exports: Object.keys(mod), ms: Math.round(performance.now() - started) };
+    } catch (error) { return { ok: false, error: error.message, ms: Math.round(performance.now() - started) }; }
+  }
+
+  diagnostics() {
+    return {
+      loaded: this.loaded.length,
+      owners: this.loaded.map((entry) => ({ file: this._rel(entry.file), exports: entry.exports ?? [], resources: entry.lifecycle?.stats?.() ?? null })),
+      profile: { ...this.profile },
+      reloadHistory: this.reloadHistory.slice(-100),
+      watching: !!this._watcher,
+    };
   }
 
   /** Enable debounced file-watch hot-reload. No-op if already watching. */
@@ -204,6 +333,7 @@ export class ScriptRuntime {
       this._watcher = fs.watch(this.scriptsDir, { recursive: true }, (_ev, filename) => {
         const changed = normalizeWatchScriptFilename(this.scriptsDir, filename);
         if (!changed) return;
+        SCRIPT_MANIFEST_CACHE.delete(path.resolve(this.scriptsDir));
         if (this._loadChain || Date.now() < this._watchQuietUntil) {
           this._logSuppressedWatchChange(changed);
           return;
@@ -327,10 +457,26 @@ function collectScriptFiles(dir, out = [], root = dir) {
     // item-script object. Keep hot-reload watching the files, but load this
     // subtree only through its canonical manifest.
     if (st.isDirectory() && rel === 'items/scripts') continue;
+    // spells/index.js is the canonical data-driven manifest and imports all
+    // 155 effect modules itself. Loading every circle/school file again as a
+    // standalone runtime script only produced "no default function" skips
+    // and dominated cold-start module parsing.
+    if (st.isDirectory() && rel.startsWith('spells/')) continue;
     if (st.isDirectory()) collectScriptFiles(full, out, root);
     else if (st.isFile() && full.endsWith('.js')) out.push(full);
   }
   return out;
+}
+
+export function scriptManifest(dir, { refresh = false } = {}) {
+  const root = path.resolve(dir);
+  if (!refresh) {
+    const cached = SCRIPT_MANIFEST_CACHE.get(root);
+    if (cached) return cached.slice();
+  }
+  const files = collectScriptFiles(root).sort();
+  SCRIPT_MANIFEST_CACHE.set(root, Object.freeze(files.slice()));
+  return files;
 }
 
 function safeCall(fn, arg, onError) {
@@ -588,25 +734,32 @@ function createScopedCommands(baseCommands, lifecycle, label) {
 function createScriptLifecycle(label, baseApi = {}) {
   const log = baseApi.log ?? (() => {});
   const disposers = [];
+  const resourceKinds = new Map();
   let disposed = false;
 
   const runTimer = (kind, fn, args) => {
-    safeCall(() => fn(...args), undefined, (e) => {
+    safeCall(() => runtimeGovernor.watchdog.measure(`script:${label}:${kind}`, () => fn(...args)), undefined, (e) => {
       log(`script ${label} lifecycle ${kind} threw: ${e.message}`);
     });
   };
 
-  const onDispose = (fn) => {
+  const onDispose = (fn, kind = 'resource') => {
     if (typeof fn !== 'function') return () => {};
     if (disposed) {
       safeCall(fn, undefined, (e) => log(`script ${label} lifecycle disposer threw: ${e.message}`));
       return () => {};
     }
-    disposers.push(fn);
-    return () => {
-      const idx = disposers.indexOf(fn);
-      if (idx >= 0) disposers.splice(idx, 1);
+    const key = String(kind);
+    resourceKinds.set(key, (resourceKinds.get(key) ?? 0) + 1);
+    const tracked = () => {
+      if (!tracked.active) return;
+      tracked.active = false;
+      resourceKinds.set(key, Math.max(0, (resourceKinds.get(key) ?? 1) - 1));
+      return fn();
     };
+    tracked.active = true;
+    disposers.push(tracked);
+    return tracked;
   };
 
   const lifecycle = {
@@ -622,7 +775,7 @@ function createScriptLifecycle(label, baseApi = {}) {
       if (result === false) return null;
       onDispose(() => {
         try { baseApi.commands?.unregister?.(spec.name); } catch { /* registry optional */ }
-      });
+      }, 'command');
       return spec;
     },
 
@@ -652,30 +805,30 @@ function createScriptLifecycle(label, baseApi = {}) {
       const cleanup = typeof unsub === 'function'
         ? unsub
         : () => source.off?.(eventName, handler);
-      onDispose(() => {
+      const trackedCleanup = onDispose(() => {
         try { cleanup?.(); } catch { /* event bus optional */ }
-      });
-      return cleanup;
+      }, 'listener');
+      return trackedCleanup;
     },
 
     setTimeout(fn, delay, ...args) {
       const handle = setTimeout(() => runTimer('timeout', fn, args), delay);
       handle.unref?.();
-      onDispose(() => clearTimeout(handle));
+      onDispose(() => clearTimeout(handle), 'timeout');
       return handle;
     },
 
     setInterval(fn, delay, ...args) {
       const handle = setInterval(() => runTimer('interval', fn, args), delay);
       handle.unref?.();
-      onDispose(() => clearInterval(handle));
+      onDispose(() => clearInterval(handle), 'interval');
       return handle;
     },
 
     setImmediate(fn, ...args) {
       const handle = setImmediate(() => runTimer('immediate', fn, args));
       handle.unref?.();
-      onDispose(() => clearImmediate(handle));
+      onDispose(() => clearImmediate(handle), 'immediate');
       return handle;
     },
 
@@ -688,6 +841,11 @@ function createScriptLifecycle(label, baseApi = {}) {
         });
       }
       disposers.length = 0;
+    },
+
+    stats() {
+      return { disposed, total: [...resourceKinds.values()].reduce((sum, count) => sum + count, 0),
+        byKind: Object.fromEntries(resourceKinds) };
     },
   };
 

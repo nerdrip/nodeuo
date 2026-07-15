@@ -90,6 +90,10 @@ export class AccountDB {
       if (a.recipes && Array.isArray(a.recipes)) {
         a.recipes = new Set(a.recipes);
       }
+      if (a.craftFavorites && Array.isArray(a.craftFavorites)) {
+        a.craftFavorites = new Set(a.craftFavorites.map((id) => Number(id) | 0));
+      }
+      if (Array.isArray(a.craftHistory)) a.craftHistory = a.craftHistory.slice(0, 50);
       this.accounts.set(a.username.toLowerCase(), a);
     }
   }

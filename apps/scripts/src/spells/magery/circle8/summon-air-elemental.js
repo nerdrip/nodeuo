@@ -5,7 +5,7 @@ export default {
   cast(api, ctx) {
     api.combat.animate(api.world, ctx.sender, 0x10);
     summonOne(api, ctx, {
-      kind: 'air-elemental', soundId: 0x217,
+      kind: 'air-elemental', soundId: 0x217, followerCost: 2,
       label: 'You summon an air elemental.',
     });
   },

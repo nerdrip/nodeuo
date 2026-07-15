@@ -20,9 +20,9 @@ assert.equal(walkNameFor(0, 100), 'walk-s');
 assert.equal(walkNameFor(2, 2), null, 'cursor inside player dead-zone is not a walk arrow');
 assert.deepEqual(cursorHotspotFor('target-harmful', 48, 36), { x: 24, y: 18 });
 
-assert.deepEqual(resolveMouseRunState(110 ** 2, false, false), { autoRun: true, run: true });
-assert.deepEqual(resolveMouseRunState(85 ** 2, true, false), { autoRun: true, run: true }, 'run hysteresis must not flap');
-assert.deepEqual(resolveMouseRunState(50 ** 2, true, false), { autoRun: false, run: false });
+assert.deepEqual(resolveMouseRunState(200 ** 2, false, false), { autoRun: true, run: true });
+assert.deepEqual(resolveMouseRunState(180 ** 2, true, false), { autoRun: true, run: true }, 'run hysteresis must not flap');
+assert.deepEqual(resolveMouseRunState(150 ** 2, true, false), { autoRun: false, run: false });
 assert.equal(resolveMouseRunState(20 ** 2, false, true).run, true, 'Shift forces running');
 assert.equal(resolveSfxSourceMap(undefined, 1), 1, 'positional SFX falls back to player facet');
 assert.equal(resolveSfxSourceMap(4, 1), 4);

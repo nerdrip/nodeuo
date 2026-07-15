@@ -70,4 +70,44 @@ describe('AI stepMobile', () => {
     expect(state.pendingDirection).toBeNull();
     expect(broadcasts).toHaveLength(2);
   });
+
+  it('does not tick or re-broadcast the backing creature while mounted', () => {
+    const world = new World();
+    const ai = new AIScheduler(world, {
+      mobileMovingPacket: () => new Uint8Array(),
+      unicodeSpeechPacket: () => new Uint8Array(),
+    });
+    let ticks = 0;
+    ai.registerBehavior({ name: 'mount-test', tick: () => { ticks++; } });
+    const horse = world.createMobile({ x: 10, y: 10, z: 0, map: 1 });
+    horse.mounted = true;
+    ai.attach(horse, 'mount-test');
+
+    ai._tickAll();
+
+    expect(ticks).toBe(0);
+    expect(ai.diagnostics.get(horse.serial)?.status).toBe('mounted');
+  });
+
+  it('bounds work per pulse and advances the cursor fairly', () => {
+    const world = new World();
+    const ai = new AIScheduler(world, {
+      mobileMovingPacket: () => new Uint8Array(),
+      unicodeSpeechPacket: () => new Uint8Array(),
+      maxTicksPerPulse: 2,
+      tickBudgetMs: 1_000,
+    });
+    const seen = [];
+    ai.registerBehavior({ name: 'budget-test', tick: (_ctx, mob) => seen.push(mob.serial) });
+    const mobs = Array.from({ length: 5 }, (_, index) => world.createMobile({
+      x: 10 + index, y: 10, z: 0, map: 1,
+    }));
+    for (const mob of mobs) ai.attach(mob, 'budget-test');
+
+    ai._tickAll();
+    expect(seen).toEqual(mobs.slice(0, 2).map((mob) => mob.serial));
+    ai._tickAll();
+    expect(seen).toEqual(mobs.slice(0, 4).map((mob) => mob.serial));
+    expect(ai.schedulerDiagnostics.pulses).toBe(2);
+  });
 });

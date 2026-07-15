@@ -25,16 +25,13 @@ const BUTTONS = [
   ['minimap',   'Map',       'Mini map   (M)'],
   ['party',     'Party',     'Party      (R)'],
   ['options',   'Options',   'Options    (O)'],
-  // Audit rev.4 P3 — top-bar extras matching CUO `TopBarGump.cs:59-70`.
-  // Surface chat / help / debug / netstats / worldmap / macros buttons
-  // so the user can reach them without learning hotkeys. All emit the
-  // same `gump:*` bus events the existing routes use.
+  // Keep the primary navigation in one row. Debug/net/help already live in
+  // the right diagnostics rail; duplicating them here made the 1.25x-scaled
+  // toolbar wider than the centered world and clipped its last buttons.
   ['worldmap',  'WMap',      'World map  (Ctrl+M)'],
   ['chat',      'Chat',      'Channel manager (Ctrl+C)'],
   ['macros',    'Macros',    'Macros     (Ctrl+Y)'],
-  ['help',      'Help',      'Help / FAQ (Ctrl+H)'],
-  ['netstats',  'Net',       'Network stats panel'],
-  ['debug',     'Dbg',       'Debug overlay (F11)'],
+  ['resources', 'Diag',      'Resource diagnostics (Ctrl+Shift+D)'],
   ['logout',    'Logout',    'Logout'],
 ];
 

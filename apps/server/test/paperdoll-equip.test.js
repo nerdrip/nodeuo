@@ -4,6 +4,7 @@ import { buildHandlers } from '../src/net/handlers.js';
 import { Stage } from '../src/net/net-state.js';
 import { World } from '../src/world/world.js';
 import { createItem } from '../src/world/items.js';
+import { registerTemplate, unregisterTemplate } from '../src/world/templates.js';
 
 function packet(op, serial, extra = 1, mobile = 0) {
   if (op === 0x07) {
@@ -84,5 +85,28 @@ describe('paperdoll drag/equip round-trip', () => {
     expect(robe).toMatchObject({ parent: mobile.serial, layer: 22 });
     expect(spellbook).toMatchObject({ parent: mobile.serial, layer: 1 });
     expect(state.heldItem).toBeNull();
+  });
+
+  it('recovers the robe layer by graphic for legacy items without equip metadata', () => {
+    const { world, mobile, state, bag, handlers } = fixture();
+    const templateName = 'test-legacy-gm-robe';
+    registerTemplate({ name: templateName, itemId: 0x1F03, equipLayer: 22, clothing: true });
+    try {
+      const spellbook = createItem(world, {
+        itemId: 0x0EFA, parent: mobile.serial, layer: 1,
+        equipLayer: 1, spellbook: true, map: 1,
+      });
+      const legacyRobe = createItem(world, {
+        itemId: 0x1F03, parent: bag.serial, layer: 0, map: 1,
+      });
+
+      handlers[0x07](state, packet(0x07, legacyRobe.serial));
+      handlers[0x13](state, packet(0x13, legacyRobe.serial, 1, mobile.serial));
+
+      expect(legacyRobe).toMatchObject({ parent: mobile.serial, layer: 22 });
+      expect(spellbook).toMatchObject({ parent: mobile.serial, layer: 1 });
+    } finally {
+      unregisterTemplate(templateName);
+    }
   });
 });

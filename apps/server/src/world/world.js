@@ -5,6 +5,7 @@
 import { SerialAllocator } from './serial.js';
 import { SectorIndex } from './sectors.js';
 import { createItem as createWorldItem, destroyItem as destroyWorldItem } from './items.js';
+import { TypedSpatialRegistry } from '../systems/runtime-governor.js';
 
 /**
  * @typedef {Object} Point3
@@ -78,11 +79,28 @@ export class World {
      *  directly still fall back to scanning when the index is disabled. */
     this._onlineMobiles = new Set();
     this._onlineMobilesAuthoritative = false;
+    // Reverse indexes for small mobile subsets touched by frequent timers.
+    // Keeping these on every runtime World turns the normal empty case into
+    // an O(0) pass rather than a scan of every NPC.
+    this._pets = new Set();
+    this._combatMobiles = new Set();
+    this._mobsWithEffects = new Set();
+    this._tickingMobiles = new Set();
+    this._xmlAttachmentEntities = new Set();
+    this._xmlAttachmentIndexReady = false;
+    this._subscribersByChannel = new Map([['region', new Set()], ['weather', new Set()]]);
     /** Sector spatial index — populated automatically on createMobile/
      *  removeMobile and from items.js on createItem/destroyItem.
      *  Movement handlers must call `world.sectors.moveMobile(mob)` after
      *  changing mob.x/y/map. */
     this.sectors = new SectorIndex();
+    /** Typed indexes for systems that previously searched every item: doors,
+     * teleporters, signs, spawners and area effects. They are an internal
+     * accelerator and do not alter the Ultima protocol. */
+    this.spatial = new TypedSpatialRegistry();
+    this._spatialTypesByItem = new Map();
+    this._sectorIndexAuthoritative = false;
+    this._groundItemCount = 0;
     /** Global event bus — ServUO `EventSink`. Systems publish gameplay
      *  events here (`bod:turnedIn`, `region:enter`, `player:death`, …)
      *  and listeners (achievements, region greetings, quest objective
@@ -121,13 +139,57 @@ export class World {
     this._onlineMobilesAuthoritative = true;
     this._onlineMobiles.clear();
     for (const m of this.mobiles.values()) {
-      if (m?.client) this._onlineMobiles.add(m.serial >>> 0);
+      if (m?.client) this.markMobileOnline(m);
     }
+  }
+
+  /** Mark spatial indexes authoritative after persistence/create-world has
+   * finished. Until then unit fixtures that inject Map entries directly keep
+   * the compatibility fallback. */
+  enableSpatialIndexes() {
+    this.sectors.rebuild(this);
+    this.spatial = new TypedSpatialRegistry();
+    this._spatialTypesByItem.clear();
+    this._groundItemCount = 0;
+    for (const item of this.items.values()) {
+      if (!item.parent) this._groundItemCount++;
+      this.syncSpatialItem(item);
+    }
+    this._sectorIndexAuthoritative = true;
+    return this.spatial.validate();
+  }
+
+  syncSpatialItem(item) {
+    if (!item?.serial) return;
+    const old = this._spatialTypesByItem.get(item.serial) ?? [];
+    for (const type of old) this.spatial.remove(type, item.serial);
+    const types = [];
+    if (!item.parent) {
+      if (item.door || item.kind === 'door') types.push('door');
+      if (item.teleporter || item.destination || item.linkLocation || item.kind === 'teleporter') types.push('teleporter');
+      if (item.sign || item.kind === 'sign') types.push('sign');
+      if (item.spawner || item.xmlSpawner || item.kind === 'spawner') types.push('spawner');
+      if (item.areaEffect || item.fieldSpell || item.kind === 'area-effect') types.push('area-effect');
+    }
+    for (const type of types) this.spatial.add(type, item.serial, item, item);
+    if (types.length) this._spatialTypesByItem.set(item.serial, types);
+    else this._spatialTypesByItem.delete(item.serial);
+  }
+
+  removeSpatialItem(serial) {
+    for (const type of this._spatialTypesByItem.get(serial) ?? []) this.spatial.remove(type, serial);
+    this._spatialTypesByItem.delete(serial);
+  }
+
+  *spatialNear(type, position, range = 0) {
+    yield* this.spatial.near(type, position, range);
   }
 
   markMobileOnline(mob) {
     if (!mob?.serial) return;
     this._onlineMobiles.add(mob.serial >>> 0);
+    this.subscribeMobile('region', mob);
+    this.subscribeMobile('weather', mob);
   }
 
   markMobileOffline(mobOrSerial) {
@@ -136,6 +198,24 @@ export class World {
       : mobOrSerial?.serial >>> 0;
     if (!serial) return;
     this._onlineMobiles.delete(serial);
+    for (const subscribers of this._subscribersByChannel.values()) subscribers.delete(serial);
+  }
+
+  subscribeMobile(channel, mobOrSerial) {
+    const serial = typeof mobOrSerial === 'number' ? mobOrSerial >>> 0 : mobOrSerial?.serial >>> 0;
+    if (!serial) return () => {};
+    const key = String(channel); const set = this._subscribersByChannel.get(key) ?? new Set();
+    set.add(serial); this._subscribersByChannel.set(key, set);
+    return () => set.delete(serial);
+  }
+
+  *subscribedMobiles(channel) {
+    const set = this._subscribersByChannel.get(String(channel));
+    for (const serial of set ?? []) {
+      const mobile = this.mobiles.get(serial);
+      if (mobile?.client) yield mobile;
+      else set.delete(serial);
+    }
   }
 
   *onlineMobiles() {
@@ -219,6 +299,9 @@ export class World {
       skills: data.skills ?? {},
       client: null,
     };
+    Object.defineProperty(m, '_world', {
+      value: this, writable: true, configurable: true, enumerable: false,
+    });
     this.mobiles.set(serial, m);
     this.sectors.addMobile(m);
     return m;
@@ -230,7 +313,10 @@ export class World {
     this.sectors.removeMobile(serial);
     this._summons?.delete?.(serial);
     this._pets?.delete?.(serial);
+    this._combatMobiles?.delete?.(serial);
     this._mobsWithEffects?.delete?.(serial);
+    this._tickingMobiles?.delete?.(serial);
+    this._xmlAttachmentEntities?.delete?.(serial);
     // Fire registered destroy hooks — guild/party/pet/etc. cleanups
     // attach via `onMobileDestroyed`. Bug-hunt #4 A6 (guild leak).
     if (this._destroyHooks?.length) {

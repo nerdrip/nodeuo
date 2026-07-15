@@ -28,7 +28,10 @@ export function loadBodyConfig(srcDir) {
   if (bcPath) {
     for (const line of textLines(bcPath)) {
       const t = line.split(/[\s\t]+/).filter(Boolean);
-      if (t.length < 6) continue;
+      // Bodyconv.def is `index anim2 anim3 anim4 anim5`: five columns in
+      // total. The previous `< 6` guard rejected every normal retail row,
+      // leaving the generated manifest without any conversion provenance.
+      if (t.length < 5) continue;
       const id = +t[0];
       if (Number.isNaN(id)) continue;
       const cols = [+t[1], +t[2], +t[3], +t[4]]; // anim2..anim5
@@ -46,9 +49,12 @@ export function loadBodyConfig(srcDir) {
   const bPath = pickFile(srcDir, ['Body.def', 'body.def']);
   if (bPath) {
     for (const line of textLines(bPath)) {
-      const m = /^\s*(\d+)\s*\{\s*(\d+)\s*\}\s*(\d+)/.exec(line);
-      if (!m) continue;
-      bodyAlias.set(+m[1], { trueBody: +m[2], hue: +m[3] });
+      const def = parseGroupedDefinition(line);
+      if (!def) continue;
+      // CUO keeps the first non-empty definition for a body.
+      if (!bodyAlias.has(def.index)) {
+        bodyAlias.set(def.index, { trueBody: def.graphic & 0xFFFF, hue: def.hue & 0xFFFF });
+      }
     }
   }
 
@@ -75,12 +81,21 @@ export function loadBodyConfig(srcDir) {
       const bodyType = +t[0];
       const itemID   = +t[1];
       const animBody = +t[2];
-      const gump     = +t[3];
+      let gump       = +t[3];
       const hue      = +t[4];
       if (Number.isNaN(bodyType) || Number.isNaN(itemID)) continue;
+      // CUO Equipconv semantics: zero means the original wearable graphic;
+      // -1/0xFFFF means the converted animation graphic.
+      if (gump > 0xFFFF) continue;
+      if (gump === 0) gump = itemID;
+      else if (gump === -1 || gump === 0xFFFF) gump = animBody;
       let m = equipConv.get(bodyType);
       if (!m) { m = new Map(); equipConv.set(bodyType, m); }
-      m.set(itemID, { animBody, gump, hue });
+      m.set(itemID, {
+        animBody: animBody & 0xFFFF,
+        gump: gump & 0xFFFF,
+        hue: hue & 0xFFFF,
+      });
     }
   }
 
@@ -88,13 +103,36 @@ export function loadBodyConfig(srcDir) {
   const cPath = pickFile(srcDir, ['Corpse.def', 'corpse.def']);
   if (cPath) {
     for (const line of textLines(cPath)) {
-      const m = /^\s*(\d+)\s*\{\s*(\d+)\s*\}\s*(-?\d+)/.exec(line);
-      if (!m) continue;
-      corpseConv.set(+m[1], { corpseBody: +m[2], corpseHue: +m[3] });
+      const def = parseGroupedDefinition(line);
+      if (!def) continue;
+      if (!corpseConv.has(def.index)) {
+        corpseConv.set(def.index, {
+          corpseBody: def.graphic & 0xFFFF,
+          corpseHue: def.hue & 0xFFFF,
+        });
+      }
     }
   }
 
   return { bodyConv, bodyAlias, mobTypes, equipConv, corpseConv };
+}
+
+// CUO's DefReader accepts one or more graphics inside the braces and, for
+// both Body.def and Corpse.def, deliberately selects the third entry when it
+// exists (otherwise the first). Retail expansion data uses that form, so a
+// single-number regex silently discarded valid aliases and corpses.
+function parseGroupedDefinition(line) {
+  const integer = '-?(?:0[xX][0-9a-fA-F]+|\\d+)';
+  const match = new RegExp(`^\\s*(${integer})\\s*\\{([^}]*)\\}\\s*(${integer})`).exec(line);
+  if (!match) return null;
+  const index = Number(match[1]);
+  const group = match[2].trim().split(/[\s\t,]+/)
+    .filter(Boolean)
+    .map(Number)
+    .filter(Number.isFinite);
+  const hue = Number(match[3]);
+  if (!Number.isFinite(index) || !group.length || !Number.isFinite(hue)) return null;
+  return { index, graphic: group.length >= 3 ? group[2] : group[0], hue };
 }
 
 function pickFile(dir, names) {

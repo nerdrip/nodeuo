@@ -90,6 +90,16 @@ function forEachNearbyDynamicItem(tx, ty, map, visit) {
  * trap players on map edges where chunk data hasn't streamed yet.
  */
 export function isLocallyBlocked(tx, ty, fromZ, map = 1) {
+  // Resolve the floor first, then test the body at the height on which it
+  // would actually stand. Testing every blocker against `fromZ` trapped the
+  // player at the last tread of many canonical staircases: a 3-unit wall
+  // skirt occupies z=30..33, the source tread is z=32 and the destination
+  // floor is z=33. Against z=32 the skirt overlaps by one unit; against the
+  // real destination body (z=33..) it is correctly flush and harmless. The
+  // authoritative ServUO resolver performs the candidate-floor selection
+  // before its AABB clearance test, so mirror that ordering here.
+  const standingZ = resolveLocalStandingZ(tx, ty, fromZ, map);
+  const bodyTop = standingZ + PERSON_HEIGHT;
   // Hard impassable static — closed doors, walls, chests with no
   // surface flag. If found, the tile is unconditionally unwalkable.
   let blocked = false;
@@ -102,8 +112,12 @@ export function isLocallyBlocked(tx, ty, fromZ, map = 1) {
       // BUT: open doors have `it.door.isOpen === true` and become
       // passable. Mirrors server `runtimeSolidAt` gate.
       if (it.door && it.door.isOpen) return undefined;
-      blocked = true;
-      return false;
+      const itemZ = it.z | 0;
+      const itemTop = itemZ + Math.max(1, calcHeight(info));
+      if (itemTop > standingZ && bodyTop > itemZ) {
+        blocked = true;
+        return false;
+      }
     }
     return undefined;
   });
@@ -121,8 +135,7 @@ export function isLocallyBlocked(tx, ty, fromZ, map = 1) {
       // Body span vs static span — only block if vertical overlap exists.
       const h = calcHeight(info);
       const staticTop = s.z + h;
-      const bodyTop = fromZ + PERSON_HEIGHT;
-      if (staticTop > fromZ && bodyTop > s.z) return true;
+      if (staticTop > standingZ && bodyTop > s.z) return true;
     }
   }
   // No explicit blocker. Could still be unreachable (no surface at

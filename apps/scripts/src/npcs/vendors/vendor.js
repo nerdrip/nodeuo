@@ -1234,6 +1234,17 @@ export default function (api) {
     vendors.register({
       vendorSerial: mob.serial,
       listStock: () => stockItems,
+      listSellable: () => {
+        const byId = new Map();
+        for (const s of stockItems) {
+          const price = Math.max(1, Math.floor((s.price ?? 0) / 2));
+          if (price > (byId.get(s.itemId)?.price ?? 0)) byId.set(s.itemId, { itemId: s.itemId, price });
+        }
+        for (const s of kind.sellOverrides ?? []) {
+          byId.set(s.itemId, { itemId: s.itemId, price: Math.max(1, s.price | 0) });
+        }
+        return [...byId.values()];
+      },
       onBuy: (buyerState, picks) => {
         const buyer = buyerState.mobile;
         // BUGFIX #136 (FAZA JC): the previous code used `buyer.serial`
@@ -1311,58 +1322,50 @@ export default function (api) {
           totalCost = discounted;
           haggleMap.delete(buyer.serial);
         }
-        if (!isStaff && totalCost > 0) {
-          // Sum gold piles in the buyer's pack.
+        if (!isStaff) {
           let goldOwned = 0;
-          for (const it of packItems(api, buyer)) {
-            if (it.itemId !== 0x0EED) continue;
-            goldOwned += it.amount | 0;
-          }
+          for (const it of packItems(api, buyer)) if (it.itemId === 0x0EED) goldOwned += it.amount | 0;
           if (goldOwned < totalCost) {
             buyerState.sendSystemMessage?.(`You need ${totalCost} gold; you have ${goldOwned}.`);
             return;
           }
-          // Drain gold piles top-down.
-          let remaining = totalCost;
-          for (const it of [...packItems(api, buyer)]) {
-            if (remaining <= 0) break;
-            if (it.itemId !== 0x0EED) continue;
-            const take = Math.min(remaining, it.amount | 0);
-            it.amount -= take;
-            remaining -= take;
-            if (it.amount <= 0) {
-              try { destroyItemBySerial({ world }, it.serial); }
-              catch { /* already spent */ }
-              buyerState.send(api.protocol.removeEntity?.(it.serial));
-            } else {
-              buyerState.send(api.protocol.containerContentUpdate?.({
-                serial: it.serial, itemId: it.itemId, amount: it.amount,
-                hue: 0, gridX: 0, gridY: 0, gridLocation: 0,
-              }, packSerial));
-            }
-          }
         }
-        let stockShorted = false;
+        // Build every output first. The operation remains invisible until
+        // all rows exist and payment succeeds; any failed constructor is
+        // rolled back so a buyer can neither lose gold nor receive a
+        // partially fulfilled order.
+        const created = [];
         for (const p of adjustedPicks) {
-          if (p.amount <= 0) { stockShorted = true; continue; }
+          if (p.amount <= 0) continue;
           const def = stockItems.find((s) => s.serial === p.serial);
           if (!def) continue;
-          // Wave 10: decrement live stock so the next listStock() reflects
-          // depletion. currentStock is Infinity for hand-authored kinds —
-          // arithmetic on Infinity stays Infinity, so they never deplete.
-          def.currentStock = Math.max(0, def.currentStock - p.amount);
-          def.amount = def.currentStock;
-          // Wave 13: track sales for weighted refill — popular items
-          // restock faster than dust-collectors.
-          def._salesCount = (def._salesCount ?? 0) + p.amount;
           const item = api.game?.mobile?.giveItem?.(buyer, {
-            itemId: def.itemId, hue: def.hue, amount: Math.max(1, p.amount),
+            itemId: def.itemId, hue: def.hue, amount: p.amount,
             name: def.description, tagId: def.tagId,
           }, { notify: false, randomGrid: true });
           if (!item) {
-            stockShorted = true;
-            continue;
+            for (const made of created) destroyItemBySerial(api, made.item.serial);
+            buyerState.sendSystemMessage?.('Your backpack cannot receive that order.');
+            return;
           }
+          created.push({ item, def, amount: p.amount });
+        }
+        if (!isStaff && !spendVendorGold(api, protocol, buyerState, buyer, packSerial, totalCost)) {
+          for (const made of created) destroyItemBySerial(api, made.item.serial);
+          return;
+        }
+        let stockShorted = false;
+        for (const p of adjustedPicks) if (p.amount <= 0) stockShorted = true;
+        for (const made of created) {
+          const { item, def, amount } = made;
+          // Wave 10: decrement live stock so the next listStock() reflects
+          // depletion. currentStock is Infinity for hand-authored kinds —
+          // arithmetic on Infinity stays Infinity, so they never deplete.
+          def.currentStock = Math.max(0, def.currentStock - amount);
+          def.amount = def.currentStock;
+          // Wave 13: track sales for weighted refill — popular items
+          // restock faster than dust-collectors.
+          def._salesCount = (def._salesCount ?? 0) + amount;
           // FAZA CT: try to merge with an existing stack already in the
           // pack. ServUO does this automatically; without the merge,
           // buying 5×1 gold piles created 5 separate slots instead of
@@ -1371,6 +1374,7 @@ export default function (api) {
           if (existing) {
             api.items.mergeStacks(world, existing, item);
             buyerState.send(protocol.containerContentUpdate(existing, packSerial));
+            if (itemBySerial(api, item.serial)) buyerState.send(protocol.containerContentUpdate(item, packSerial));
           } else {
             buyerState.send(protocol.containerContentUpdate(item, packSerial));
           }
@@ -1394,7 +1398,8 @@ export default function (api) {
       },
       onSell: (sellerState, picks) => {
         let gold = 0;
-        const pack = sellerState.mobile.serial;
+        const backpack = api.game?.inventory?.findBackpack?.(sellerState.mobile);
+        if (!backpack) return;
         // Wave 9: prefer canonical SBInfo sell prices when present.
         // sellOverrides comes from extracted vendor-inventory.sell with
         // explicit {itemId, price}. Fall back to half-of-buy lookup for
@@ -1409,17 +1414,41 @@ export default function (api) {
           // Override always wins — the SBInfo price is canonical.
           priceByItemId.set(o.itemId, Math.max(1, o.price));
         }
+        const planned = [];
         for (const p of picks) {
           const item = itemBySerial({ world }, p.serial);
-          if (!item || item.parent !== pack) continue;
+          if (!item || ![...packItems(api, sellerState.mobile)].some((candidate) => candidate.serial === item.serial)) continue;
           const amount = Math.min(Math.max(1, p.amount), item.amount ?? 1);
-          const price = priceByItemId.get(item.itemId) ?? 1;
+          const price = priceByItemId.get(item.itemId);
+          if (!price || item.insured || item.blessed || item.movable === false) continue;
           gold += price * amount;
-          destroyItemBySerial({ world }, p.serial);
-          sellerState.send(protocol.removeEntity(p.serial));
+          planned.push({ item, amount });
         }
         if (gold > 0) {
-          sellerState.mobile.gold = (sellerState.mobile.gold ?? 0) + gold;
+          for (const { item, amount } of planned) {
+            if (amount >= (item.amount ?? 1)) {
+              destroyItemBySerial(api, item.serial);
+              sellerState.send(protocol.removeEntity(item.serial));
+            } else {
+              item.amount -= amount;
+              sellerState.send(protocol.containerContentUpdate(item, item.parent));
+            }
+          }
+          const payout = api.game?.mobile?.giveItem?.(sellerState.mobile, {
+            itemId: 0x0EED, amount: gold, name: 'gold coins', stackable: true,
+          }, { notify: false, randomGrid: true });
+          if (!payout) {
+            // Extremely defensive fallback: preserve value even if pack
+            // allocation fails. The scalar is persisted and bankers expose it.
+            sellerState.mobile.gold = (sellerState.mobile.gold ?? 0) + gold;
+          } else {
+            const existing = api.items.findMergeableStack?.(world, backpack.serial, payout);
+            if (existing) {
+              api.items.mergeStacks(world, existing, payout);
+              sellerState.send(protocol.containerContentUpdate(existing, backpack.serial));
+              if (itemBySerial(api, payout.serial)) sellerState.send(protocol.containerContentUpdate(payout, backpack.serial));
+            } else sellerState.send(protocol.containerContentUpdate(payout, backpack.serial));
+          }
           sellerState.sendSystemMessage?.(`You receive ${gold} gold.`);
           // Wave 13: track sell-side history too.
           bumpCustomerHistory(mob, sellerState.mobile.serial, 'sells', 1);
@@ -1464,7 +1493,7 @@ export default function (api) {
   // existing world.mobiles, find any with `vendorKind`, and re-run
   // the in-memory binding (registry + AI). Only attaches once per
   // mob — a duplicate vendors.register would shadow the prior entry.
-  function reattachExisting() {
+  function reattachExisting(onlyMob = null, knownDressed = false) {
     // ServUO `BaseVendor.PendingConvert` maps to our reattach pass:
     // a persisted vendor is converted back into a live shop binding.
     // Cheap one-shot check: does this mob already have ANY worn item?
@@ -1472,10 +1501,13 @@ export default function (api) {
     // index here, walk world.items once and bucket by parent so we
     // don't have to repeat the walk for every vendor.
     const hasWornByMob = new Set();
-    for (const it of allItems({ world })) {
-      if (it.parent && (it.layer | 0) > 0) hasWornByMob.add(it.parent);
+    if (!onlyMob && !knownDressed) {
+      for (const it of allItems({ world })) {
+        if (it.parent && (it.layer | 0) > 0) hasWornByMob.add(it.parent);
+      }
     }
-    for (const mob of allMobiles({ world })) {
+    const candidates = onlyMob ? [onlyMob] : allMobiles({ world });
+    for (const mob of candidates) {
       const kindKey = mob.vendorKind;
       if (!kindKey) continue;
       if (vendors.get?.(mob.serial)) continue; // already bound
@@ -1491,7 +1523,7 @@ export default function (api) {
       // Marcin: "Jacob the Provisioner nadal naked". The outfit items
       // are created with movable:false + layer, so the persistence
       // round-trip will keep them next save.
-      if (!hasWornByMob.has(mob.serial)) {
+      if (!knownDressed && !hasWornByMob.has(mob.serial)) {
         try { applyVendorOutfit(api, world, mob, kindKey); }
         catch (e) { api.log?.(`vendor reattach outfit: ${e?.message ?? e}`); }
       }
@@ -1500,10 +1532,18 @@ export default function (api) {
         itemId: s.itemId, hue: s.hue ?? 0,
         amount: Number.isFinite(s.stock) && s.stock > 0 ? s.stock : Infinity,
         price: s.price, description: s.name, tagId: s.tagId,
+        maxStock: Number.isFinite(s.stock) && s.stock > 0 ? s.stock : Infinity,
+        currentStock: Number.isFinite(s.stock) && s.stock > 0 ? s.stock : Infinity,
       }));
       vendors.register({
         vendorSerial: mob.serial,
         listStock: () => stockItems,
+        listSellable: () => {
+          const rows = new Map();
+          for (const s of stockItems) rows.set(s.itemId, { itemId: s.itemId, price: Math.max(1, Math.floor(s.price / 2)) });
+          for (const s of kind.sellOverrides ?? []) rows.set(s.itemId, { itemId: s.itemId, price: Math.max(1, s.price | 0) });
+          return [...rows.values()];
+        },
         onBuy: (buyerState, picks) => {
           const buyer = buyerState.mobile;
           const pack = api.game?.inventory?.findBackpack?.(buyer);
@@ -1516,18 +1556,32 @@ export default function (api) {
           for (const p of picks) {
             const def = stockItems.find((sd) => sd.serial === p.serial);
             if (!def) continue;
-            const amount = Math.max(1, p.amount | 0);
+            const amount = Math.min(Math.max(1, p.amount | 0), def.currentStock);
+            if (amount <= 0) continue;
             accepted.push({ def, amount });
             totalCost += Math.max(0, def.price | 0) * amount;
           }
-          if (!spendVendorGold(api, protocol, buyerState, buyer, pack.serial, totalCost)) return;
-          let delivered = 0;
+          const made = [];
           for (const { def, amount } of accepted) {
             const item = api.game?.mobile?.giveItem?.(buyer, {
               itemId: def.itemId, hue: def.hue, amount,
               name: def.description, tagId: def.tagId,
             }, { notify: false, randomGrid: true });
-            if (!item) continue;
+            if (!item) {
+              for (const row of made) destroyItemBySerial(api, row.item.serial);
+              buyerState.sendSystemMessage?.('The vendor could not deliver those goods.');
+              return;
+            }
+            made.push({ def, amount, item });
+          }
+          if (!spendVendorGold(api, protocol, buyerState, buyer, pack.serial, totalCost)) {
+            for (const row of made) destroyItemBySerial(api, row.item.serial);
+            return;
+          }
+          let delivered = 0;
+          for (const { def, amount, item } of made) {
+            def.currentStock = Math.max(0, def.currentStock - amount);
+            def.amount = def.currentStock;
             delivered += amount;
             const packet = protocol.containerContentUpdate?.(item, pack.serial);
             if (packet) buyerState.send?.(packet);
@@ -1538,18 +1592,36 @@ export default function (api) {
         },
         onSell: (sellerState, picks) => {
           let gold = 0;
+          const pack = api.game?.inventory?.findBackpack?.(sellerState.mobile);
+          if (!pack) return;
+          const allowed = new Map((kind.sellOverrides ?? []).map((s) => [s.itemId, Math.max(1, s.price | 0)]));
+          for (const stock of stockItems) if (!allowed.has(stock.itemId)) allowed.set(stock.itemId, Math.max(1, Math.floor(stock.price / 2)));
+          const planned = [];
           for (const pick of picks) {
             const item = itemBySerial({ world }, pick.serial);
-            if (!item) continue;
+            if (!item || ![...packItems(api, sellerState.mobile)].some((row) => row.serial === item.serial)) continue;
             const amount = Math.min(Math.max(1, pick.amount | 0), item.amount ?? 1);
-            const stock = stockItems.find((entry) => entry.itemId === item.itemId);
-            gold += Math.max(1, Math.floor((stock?.price ?? 2) / 2)) * amount;
-            destroyItemBySerial(api, item.serial);
-            const packet = protocol.removeEntity?.(item.serial);
-            if (packet) sellerState.send?.(packet);
+            const price = allowed.get(item.itemId);
+            if (!price || item.insured || item.blessed || item.movable === false) continue;
+            gold += price * amount;
+            planned.push({ item, amount });
           }
           if (gold > 0) {
-            sellerState.mobile.gold = (sellerState.mobile.gold ?? 0) + gold;
+            for (const { item, amount } of planned) {
+              if (amount >= (item.amount ?? 1)) {
+                destroyItemBySerial(api, item.serial);
+                const packet = protocol.removeEntity?.(item.serial);
+                if (packet) sellerState.send?.(packet);
+              } else {
+                item.amount -= amount;
+                sellerState.send?.(protocol.containerContentUpdate?.(item, item.parent));
+              }
+            }
+            const payout = api.game?.mobile?.giveItem?.(sellerState.mobile, {
+              itemId: 0x0EED, amount: gold, name: 'gold coins', stackable: true,
+            }, { notify: false, randomGrid: true });
+            if (payout) sellerState.send?.(protocol.containerContentUpdate?.(payout, pack.serial));
+            else sellerState.mobile.gold = (sellerState.mobile.gold ?? 0) + gold;
             sellerState.sendSystemMessage?.(`You receive ${gold} gold.`);
           }
         },
@@ -1640,6 +1712,16 @@ export default function (api) {
     if (aliased && VENDOR_KINDS[aliased]) return aliased;
     return null;
   }
+  const vendorCatalog = Object.freeze(Object.entries(VENDOR_KINDS).map(([key, value]) => Object.freeze({
+    key,
+    name: value.name ?? key,
+    itemCount: value.stock?.length ?? 0,
+    search: `${key} ${value.name ?? ''} ${(value.stock ?? []).map((row) => row.name ?? '').join(' ')}`.toLowerCase(),
+  })).sort((a, b) => a.key.localeCompare(b.key)));
+  function searchVendorCatalog(query = '') {
+    const terms = String(query).trim().toLowerCase().split(/\s+/).filter(Boolean);
+    return terms.length ? vendorCatalog.filter((entry) => terms.every((term) => entry.search.includes(term))) : vendorCatalog;
+  }
   api.vendors = {
     ...(api.vendors ?? {}),
     /** True iff the kind (or its alias) resolves to a real vendor slot.
@@ -1648,6 +1730,7 @@ export default function (api) {
     hasKind: (kindKey) => resolveVendorKind(kindKey) != null,
     /** Read-only list of canonical vendor kind keys. */
     kinds: () => Object.keys(VENDOR_KINDS),
+    search: (query) => searchVendorCatalog(query).map(({ search: _search, ...entry }) => entry),
     spawnAt(kindKey, pos) {
       const resolvedKey = resolveVendorKind(kindKey) ?? kindKey;
       const kind = VENDOR_KINDS[resolvedKey] ?? VENDOR_KINDS.wanderer;
@@ -1683,7 +1766,7 @@ export default function (api) {
         x: pos.x, y: pos.y, z, map,
         notoriety: 1,
       });
-      mob.vendorKind = kindKey;
+      mob.vendorKind = resolvedKey;
       if (kind.faction) mob.faction = kind.faction;
       // Title is the role suffix ("the banker"); spawnAt callers can
       // override via pos.title (regional NPCs use "the banker of Britain").
@@ -1694,7 +1777,10 @@ export default function (api) {
       // were universally bald-naked because reattachExisting only
       // wires registry + AI — not outfit.
       applyVendorOutfit(api, world, mob, kindKey);
-      reattachExisting();
+      // Bind only the newly created vendor. The old all-world reattach here
+      // rebuilt a worn-item index and scanned every mobile 141 times during
+      // regional NPC bootstrap (quadratic cold-start cost).
+      reattachExisting(mob, true);
       // Override AI behavior when the npcs.json template declares one.
       // reattachExisting attaches the generic 'vendor' behavior; if the
       // NPC catalog template names a more specific one (e.g. 'healer',
@@ -1858,8 +1944,9 @@ export default function (api) {
           return;
         }
         const requested = String(args?.[0] ?? '').trim().toLowerCase();
-        if (requested === 'list') {
-          const names = Object.keys(VENDOR_KINDS).sort();
+        if (requested === 'list' || requested === 'search') {
+          const query = requested === 'search' ? args.slice(1).join(' ') : '';
+          const names = searchVendorCatalog(query).map((entry) => entry.key);
           ctx.state.sendSystemMessage?.(`Vendor kinds (${names.length}):`);
           for (let i = 0; i < names.length; i += 18) {
             ctx.state.sendSystemMessage?.(`  ${names.slice(i, i + 18).join(', ')}`);

@@ -68,7 +68,8 @@ smithing(7051, 'Bronze Shield', 'Shields', 220, 0x1B72, 12);
 smithing(7052, 'Metal Shield',  'Shields', 450, 0x1B7B, 18);
 smithing(7053, 'Kite Shield',   'Shields', 525, 0x1B74, 16);
 smithing(7054, 'Heater Shield', 'Shields', 900, 0x1B76, 23);
-smithing(7055, 'Wooden Shield', 'Shields',   0, 0x1B7A,  0); // boards; ingot 0 until inputs generalized
+// Wooden Shield belongs to carpentry (recipe 13030); it cannot be expressed
+// as an ingot recipe and previously failed validation on every startup.
 
 // =====================================================================
 //  EXTENDED SMITHING — Tokuno + Gargish + Special weapons + crafting
@@ -126,9 +127,8 @@ smithing(7121, 'Heavy Cannon',     'Naval', 950, 0x4691, 75);
 smithing(7122, 'Cannon Ball',      'Naval', 200, 0x232C, 4);
 smithing(7123, 'Powder Charge',    'Naval', 250, 0x2334, 2);
 
-// Iron processing (smelting)
-smithing(7130, 'Iron Ingot Bar',   'Refining', 0, 0x1BF2, 0);
-smithing(7131, 'Smelt Ore Pile',   'Refining', 0, 0x19B7, 0);
+// Ore smelting is handled by the dedicated harvesting/refining interaction,
+// not by zero-cost craft recipes (which would mint resources from nothing).
 
 // Decorative metalwork
 smithing(7140, 'Iron Brazier',     'Decorative', 600, 0x0E31, 12);

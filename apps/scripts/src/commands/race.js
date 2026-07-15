@@ -3,6 +3,7 @@
 // the body swap + passive bag get applied + broadcast to every viewer.
 
 import { allMobiles } from '../_spatial.js';
+import { equipmentForMobile } from '../_equipment.js';
 
 export default function register(api) {
   if (!api.commands) return () => {};
@@ -32,7 +33,7 @@ export default function register(api) {
             x: ctx.sender.x, y: ctx.sender.y, z: ctx.sender.z,
             direction: ctx.sender.direction ?? 0, hue: ctx.sender.hue ?? 0,
             flags: ctx.sender.flags ?? 0, notoriety: ctx.sender.notoriety ?? 1,
-            equipment: [],
+            equipment: equipmentForMobile(api, ctx.sender),
           });
           for (const o of allMobiles(api)) {
             if (!o.client) continue;

@@ -1,5 +1,41 @@
 import { itemBySerial, mobileBySerial } from '../../_entities.js';
 import { moveItem } from '../../_movement.js';
+import { destroyItemBySerial } from '../../_items.js';
+import { findBackpack, isInPack, packItems } from '../../_inventory.js';
+
+function goldPlan(api, mobile, amount) {
+  let remaining = Math.max(0, amount | 0);
+  const rows = [];
+  for (const item of packItems(api, mobile)) {
+    if (item.itemId !== 0x0EED || remaining <= 0) continue;
+    const take = Math.min(remaining, Math.max(0, item.amount | 0));
+    if (take) rows.push({ item, take, before: item.amount | 0 });
+    remaining -= take;
+  }
+  return remaining === 0 ? rows : null;
+}
+
+function commitGold(api, state, rows) {
+  for (const row of rows) {
+    row.item.amount = row.before - row.take;
+    if (row.item.amount <= 0) {
+      destroyItemBySerial(api, row.item.serial);
+      state.send?.(api.protocol?.removeEntity?.(row.item.serial));
+    } else {
+      state.send?.(api.protocol?.containerContentUpdate?.(row.item, row.item.parent));
+    }
+  }
+}
+
+function giveGold(api, state, mobile, amount) {
+  const pack = findBackpack(api, mobile);
+  if (!pack || amount <= 0) return null;
+  const gold = api.game?.mobile?.giveItem?.(mobile, {
+    itemId: 0x0EED, amount, name: 'gold coins', stackable: true,
+  }, { notify: false, randomGrid: true });
+  if (gold) state.send?.(api.protocol?.containerContentUpdate?.(gold, pack.serial));
+  return gold;
+}
 // [pv — Player Vendor admin commands. Mirrors the four ServUO
 // PlayerVendor gumps (PlayerVendorOwnerGump / VendorRentalGump /
 // VendorInventoryGump / ReclaimVendorGump) collapsed into a flat
@@ -37,17 +73,28 @@ export default function register(api) {
       if (!vSerial || !iSerial) { ctx.state.sendSystemMessage('Usage: [pv-buy <vendorHex> <itemHex>'); return; }
       const vendor = mobileBySerial(api, vSerial);
       if (!vendor?.playerVendor) { ctx.state.sendSystemMessage('Not a player vendor.'); return; }
-      const pack = api.game?.inventory?.findBackpack?.(buyer);
+      if (!PV.canBrowse?.(vendor, buyer)) { ctx.state.sendSystemMessage('You cannot reach that vendor.'); return; }
+      const pack = findBackpack(api, buyer);
       if (!pack) {
         ctx.state.sendSystemMessage('You have no backpack.');
         return;
       }
+      const quote = vendor.playerVendor.items.get(iSerial);
+      if (!quote) { ctx.state.sendSystemMessage('That item is no longer for sale.'); return; }
+      const payment = goldPlan(api, buyer, quote.price);
+      if (!payment) { ctx.state.sendSystemMessage(`You need ${quote.price} gold in your backpack.`); return; }
       const r = PV.buyItem(api.world, vendor, buyer, iSerial);
       if (!r.ok) { ctx.state.sendSystemMessage(`Buy failed: ${r.reason}`); return; }
       // Transfer the item to the actual backpack.
       const gridX = 60 + ((Math.random() * 80) | 0);
       const gridY = 60 + ((Math.random() * 60) | 0);
-      moveItem(api, r.item, { parent: pack.serial, x: gridX, y: gridY, z: 0 });
+      const moved = moveItem(api, r.item, { parent: pack.serial, x: gridX, y: gridY, z: 0 });
+      if (!moved) {
+        PV.rollbackPurchase?.(api.world, vendor, r);
+        ctx.state.sendSystemMessage('Buy failed: delivery-error');
+        return;
+      }
+      commitGold(api, ctx.state, payment);
       r.item.gridX = gridX;
       r.item.gridY = gridY;
       r.item.gridLocation = 0;
@@ -75,6 +122,7 @@ export default function register(api) {
       if (now - lastBrowse < 1000) return;
       _browseCooldown.set(`${sender.serial}:${vSerial}`, now);
       const vendor = mobileBySerial(api, vSerial);
+      if (!PV.canBrowse?.(vendor, sender)) { ctx.state.sendSystemMessage('You cannot reach that vendor.'); return; }
       const snap = PV.browseSnapshot?.(vendor);
       if (!snap) { ctx.state.sendSystemMessage('Not a player vendor.'); return; }
       ctx.state.sendSystemMessage(`=== ${snap.shopName} (${snap.ownerName}) ===`);
@@ -113,6 +161,7 @@ export default function register(api) {
           if (now - lastBrowse < 1000) return;
           _browseCooldown.set(`${sender.serial}:${vSerial}`, now);
           const vendor = mobileBySerial(api, vSerial);
+          if (!PV.canBrowse?.(vendor, sender)) return;
           const snap = PV.browseSnapshot?.(vendor);
           if (!snap) return;
           ctx.state.sendSystemMessage(`PV === ${snap.shopName} (${snap.ownerName}) ===`);
@@ -157,7 +206,7 @@ export default function register(api) {
             return;
           }
           const item = itemBySerial(api, itemSerial);
-          if (!item || item.parent !== sender.serial) {
+          if (!item || !isInPack(api, item, sender)) {
             ctx.state.sendSystemMessage('You must hold the item in your pack.');
             return;
           }
@@ -200,7 +249,9 @@ export default function register(api) {
           const v = PV.findVendorByOwner(sender.serial);
           if (!v) { ctx.state.sendSystemMessage('You have no active vendor.'); return; }
           if (amt <= 0) { ctx.state.sendSystemMessage('Usage: [pv deposit <amount>'); return; }
-          // No real bank withdrawal yet — symbolic.
+          const payment = goldPlan(api, sender, amt);
+          if (!payment) { ctx.state.sendSystemMessage('You do not have that much gold in your backpack.'); return; }
+          commitGold(api, ctx.state, payment);
           PV.deposit(v, amt);
           ctx.state.sendSystemMessage(`Deposited ${amt}gp. Vendor balance: ${v.playerVendor.bankBalance | 0}gp.`);
           return;
@@ -210,6 +261,11 @@ export default function register(api) {
           const v = PV.findVendorByOwner(sender.serial);
           if (!v) { ctx.state.sendSystemMessage('You have no active vendor.'); return; }
           const taken = PV.withdraw(v, amt);
+          if (taken > 0 && !giveGold(api, ctx.state, sender, taken)) {
+            PV.deposit(v, taken);
+            ctx.state.sendSystemMessage('Your backpack cannot receive the withdrawal.');
+            return;
+          }
           ctx.state.sendSystemMessage(`Withdrew ${taken}gp.`);
           return;
         }

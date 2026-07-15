@@ -212,10 +212,10 @@ export function buildMovementReq(direction, sequence, fastWalkKey = 0) {
 }
 
 /** 0x22 ClientResyncRequest — 3 bytes. */
-export function buildResyncRequest(sequence = 0) {
+export function buildResyncRequest() {
   const w = new PacketWriter(3);
   w.writeU8(0x22);
-  w.writeU8(sequence & 0xff);
+  w.writeU8(0);
   w.writeU8(0);
   return w.bytes();
 }

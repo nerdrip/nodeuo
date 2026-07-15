@@ -270,6 +270,10 @@ export function killMobile(world, mob, killer = null) {
   });
   trackCorpse(world, corpse);
   corpse.spawnedAt = Date.now();
+  corpse.sourceKind = mob.kind ?? mob.creatureKind ?? null;
+  corpse.sourceBody = mob.body ?? 0;
+  corpse.sourceWasPlayer = !!mob.client || !!mob.isPlayer;
+  corpse.carveYields = Array.isArray(mob.carveYields) ? mob.carveYields.map((row) => ({ ...row })) : null;
   try { dispatchXmlAttachment(mob, 'onDeath', { world, killer, corpse }); }
   catch (e) { console.error('[corpse] xml onDeath dispatch threw:', e?.message ?? e); }
   // Loot ownership lock — for the first 10 seconds the corpse is open
@@ -524,6 +528,48 @@ export function killMobile(world, mob, killer = null) {
   world.destroyMobile?.(mob.serial);
   runKillHooks(world, mob, killer);
   return corpse;
+}
+
+const DEFAULT_CARVE_BY_KIND = Object.freeze([
+  [/dragon|drake|serpent|snake|lizard|alligator|reptile/i, [{ itemId: 0x26B4, name: 'scales', amount: 8 }, { itemId: 0x09F1, name: 'raw ribs', amount: 2 }]],
+  [/bird|eagle|chicken|ostard|harpy|crane/i, [{ itemId: 0x1BD1, name: 'feathers', amount: 12 }, { itemId: 0x09F1, name: 'raw bird', amount: 1 }]],
+  [/sheep|goat|llama/i, [{ itemId: 0x0DF8, name: 'wool', amount: 3 }, { itemId: 0x09F1, name: 'raw ribs', amount: 2 }]],
+  [/cow|bull|deer|hart|bear|wolf|horse|boar|pig|rat|rabbit|cat|dog/i, [{ itemId: 0x1078, name: 'hides', amount: 4 }, { itemId: 0x09F1, name: 'raw ribs', amount: 2 }]],
+]);
+
+/** Standard corpse carving transaction used by bladed-item scripts/commands. */
+export function carveCorpse(world, corpseOrSerial, carver) {
+  const corpse = typeof corpseOrSerial === 'number'
+    ? world?.items?.get?.(corpseOrSerial >>> 0) : corpseOrSerial;
+  if (!corpse || (corpse.itemId | 0) !== CORPSE_ITEM_ID) return { ok: false, reason: 'not-corpse' };
+  if (!carver || (corpse.map | 0) !== (carver.map | 0)
+      || Math.max(Math.abs((corpse.x | 0) - (carver.x | 0)), Math.abs((corpse.y | 0) - (carver.y | 0))) > 2) {
+    return { ok: false, reason: 'out-of-range' };
+  }
+  if (corpse.carvedAt) return { ok: false, reason: 'already-carved' };
+  if (corpse.lootLockUntil > Date.now() && corpse.lootOwnerSerial
+      && (corpse.lootOwnerSerial >>> 0) !== (carver.serial >>> 0)) {
+    return { ok: false, reason: 'loot-rights' };
+  }
+  corpse.carvedAt = Date.now();
+  if (corpse.sourceWasPlayer) return { ok: true, items: [] };
+  let yields = corpse.carveYields;
+  if (!Array.isArray(yields)) {
+    const kind = `${corpse.sourceKind ?? ''} ${corpse.name ?? ''}`;
+    yields = DEFAULT_CARVE_BY_KIND.find(([pattern]) => pattern.test(kind))?.[1] ?? [];
+  }
+  const made = [];
+  for (const row of yields.slice(0, 8)) {
+    const amount = Math.max(1, Math.min(60000, row.amount | 0));
+    const item = createItem(world, {
+      itemId: row.itemId | 0, hue: row.hue ?? 0, amount,
+      name: row.name, movable: true,
+      x: 40 + made.length * 8, y: 40, z: 0, map: corpse.map,
+      parent: corpse.serial, stackable: true,
+    });
+    made.push(item);
+  }
+  return { ok: true, items: made };
 }
 
 function emitMobileKilled(world, victim, killer, corpse) {

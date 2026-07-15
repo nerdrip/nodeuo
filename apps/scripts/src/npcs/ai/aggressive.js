@@ -53,7 +53,11 @@ function configuredAiBehavior(cfg = {}) {
   return 'aggressive';
 }
 
-function desiredAiForMob(mob, cfg) {
+export function desiredAiForMob(mob, cfg) {
+  // Wild-template AI must never override ownership. The deferred
+  // reconciliation pass used to turn freshly summoned daemons/elementals
+  // hostile again one event-loop turn after `summonOne` attached pet AI.
+  if (mob.controlled && (mob.controlMaster >>> 0)) return 'pet';
   const configured = configuredAiBehavior(cfg);
   const saved = typeof mob.aiBehavior === 'string' ? mob.aiBehavior.trim() : '';
   // Older startup code replaced an unavailable-yet specialised behavior
@@ -69,6 +73,35 @@ function freshAiState(mob, kind, previous = null) {
     kind,
     ...(previous ?? {}),
   };
+}
+
+/** Correct temporary fallback bindings after the remaining AI modules have
+ * registered. This is intentionally shard-wide and scheduled only a handful
+ * of times during script boot; doing the same full scan after every monster
+ * spawn was O(spawns * mobiles) and could also overwrite fresh pet bindings. */
+function reconcileAiBindings(api) {
+  let corrected = 0;
+  for (const mob of allMobiles(api)) {
+    if (mob.isPlayer || mob.client || mob.vendorKind || !mob.kind) continue;
+    const cfg = api.monsters.get(mob.kind);
+    if (!cfg) continue;
+    const desired = desiredAiForMob(mob, cfg);
+    if (!api.ai?.behaviors?.has?.(desired)) continue;
+    const binding = api.ai.bindings?.get?.(mob.serial);
+    if (binding?.behavior === desired) continue;
+    try {
+      api.ai.attach(mob, desired, freshAiState(mob, mob.kind, binding?.state));
+      mob.aiBehavior = desired;
+      if (mob.kind === 'rat' && (mob.body | 0) === 238 && mob.name === 'a giant rat') {
+        mob.name = cfg.name ?? 'a rat';
+      }
+      corrected++;
+    } catch (e) {
+      api.log?.(`[aggressive] AI reconcile ${mob.kind}/${desired} failed: ${e.message}`);
+    }
+  }
+  if (corrected) api.log?.(`npcs/aggressive: restored ${corrected} specialised AI binding(s)`);
+  return corrected;
 }
 
 
@@ -537,38 +570,15 @@ function spawnAggressive(api, world, kind, pos) {
     }
   }
 
-  // Files load alphabetically: aggressive.js is registered before animal,
-  // archer, mage, ninja, etc. The old eager restore therefore replaced every
-  // persisted specialised AI with `aggressive` and permanently forgot the
-  // desired name. Reconcile on the next event-loop turn, after the complete
-  // scripts directory has registered its behaviors.
-  const reconcileBindings = () => {
-    let corrected = 0;
-    for (const mob of allMobiles(api)) {
-      if (mob.isPlayer || mob.client || mob.vendorKind || !mob.kind) continue;
-      const cfg = api.monsters.get(mob.kind);
-      if (!cfg) continue;
-      const desired = desiredAiForMob(mob, cfg);
-      if (!api.ai?.behaviors?.has?.(desired)) continue;
-      const binding = api.ai.bindings?.get?.(mob.serial);
-      if (binding?.behavior === desired) continue;
-      try {
-        api.ai.attach(mob, desired, freshAiState(mob, mob.kind, binding?.state));
-        mob.aiBehavior = desired;
-        // Compatibility cleanup for saves produced from the old duplicate
-        // rat template (body 238 was incorrectly named "a giant rat").
-        if (mob.kind === 'rat' && (mob.body | 0) === 238 && mob.name === 'a giant rat') {
-          mob.name = cfg.name ?? 'a rat';
-        }
-        corrected++;
-      } catch (e) {
-        api.log?.(`[aggressive] AI reconcile ${mob.kind}/${desired} failed: ${e.message}`);
-      }
-    }
-    if (corrected) api.log?.(`npcs/aggressive: restored ${corrected} specialised AI binding(s)`);
-  };
-  if (api.lifecycle?.setImmediate) api.lifecycle.setImmediate(reconcileBindings);
-  else setImmediate(reconcileBindings);
+  // Dynamic imports register AI behaviors throughout the same script-load
+  // pass. Reconcile progressively, then once more after an explicit hot
+  // reload event. Five bounded scans replace the previous scan-per-spawn.
+  const schedule = api.lifecycle?.setTimeout?.bind(api.lifecycle) ?? setTimeout;
+  for (const delay of [0, 100, 250, 500, 1000]) {
+    schedule(() => reconcileAiBindings(api), delay);
+  }
+  api.lifecycle?.event?.('scripts:reloaded', () => reconcileAiBindings(api));
+
   if (!displayName) displayName = cfg.name;
   const mob = createMobile(api, world, {
     name: displayName, body: cfg.body, hue: cfg.hue ?? 0,

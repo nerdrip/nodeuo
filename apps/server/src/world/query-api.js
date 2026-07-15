@@ -1,4 +1,7 @@
-import { resolveStandingZ as resolveWorldStandingZ } from './movement.js';
+import {
+  findStandingZ as findWorldStandingZ,
+  resolveStandingZ as resolveWorldStandingZ,
+} from './movement.js';
 import { UPDATE_RANGE, inRange, nearbyClients, nearbyItems, nearbyMobiles } from './visibility.js';
 
 function serialOf(v) {
@@ -83,6 +86,10 @@ export function createWorldQueryApi(world) {
 
     resolveStandingZ(facet, x, y, requestedZ = 0) {
       return resolveWorldStandingZ(facet, x, y, requestedZ);
+    },
+
+    findStandingZ(facet, x, y, requestedZ = 0) {
+      return findWorldStandingZ(facet, x, y, requestedZ);
     },
 
     *clientsNear(center, range = UPDATE_RANGE, self = null) {

@@ -20,14 +20,19 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import zlib from 'node:zlib';
+import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { buildHandlers } from './routes.js';
+import * as operational from '../systems/operational-diagnostics.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const UI_FILE = path.join(HERE, 'admin-ui.html');
 const LOGIN_FILE = path.join(HERE, 'login.html');
 const EDITOR_FILE = path.join(HERE, 'editor.html');
 const DATA_EDITOR_FILE = path.join(HERE, 'data-editor.html');
+const STUDIO_FILE = path.join(HERE, 'studio.html');
+const ADMIN_ASSETS_DIR = HERE;
 // Public extractor output (atlases, tiledata, map blocks). Served as
 // read-only static so the iso editor in /editor can reuse the same art
 // the client uses, without depending on Vite running.
@@ -44,6 +49,44 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000;       // 8 h
 // Admin audit #3 — per-IP login rate limit bucket. Cleaned by sessions
 // sweeper below. Map<ip, { count, windowStart, until }>.
 const _loginBuckets = new Map();
+const ACCESS_RANK = Object.freeze({ Player: 0, Counselor: 1, Counsellor: 1, Seer: 2, GameMaster: 3, GM: 3, Admin: 4 });
+const FRESH_AUTH_MS = 5 * 60 * 1000;
+
+function accessRank(level) { return ACCESS_RANK[String(level)] ?? 0; }
+function requiredRank(method, pathname) {
+  if (pathname === '/api/preferences' || pathname === '/api/operations/client-metrics') return 1;
+  if (method === 'GET') return 1;
+  if (pathname.startsWith('/api/accounts') || pathname === '/api/world/shutdown'
+      || pathname.startsWith('/api/backups/restore') || pathname.startsWith('/api/migrations/apply')
+      || pathname.startsWith('/api/feature-flags')) return 4;
+  if (pathname === '/api/me/teleport' || pathname === '/api/world/broadcast'
+      || pathname.endsWith('/teleport') || pathname.endsWith('/kick')) return 2;
+  return 3;
+}
+function requiresFreshAuth(method, pathname) {
+  return method !== 'GET' && (pathname.startsWith('/api/accounts')
+    || pathname.startsWith('/api/world/cmd') || pathname === '/api/world/shutdown'
+    || pathname.startsWith('/api/backups/restore') || pathname.startsWith('/api/migrations/apply')
+    || pathname.startsWith('/api/feature-flags'));
+}
+function scopesFor(level) {
+  const rank = accessRank(level);
+  return { view: rank >= 1, operate: rank >= 2, edit: rank >= 3, administer: rank >= 4 };
+}
+function safeAuditValue(value, depth = 0) {
+  if (depth > 2) return '[depth-limit]';
+  if (Array.isArray(value)) return value.slice(0, 12).map((entry) => safeAuditValue(entry, depth + 1));
+  if (!value || typeof value !== 'object') return typeof value === 'string' ? value.slice(0, 120) : value;
+  const out = {};
+  for (const [key, entry] of Object.entries(value).slice(0, 24)) {
+    out[key] = ['password', 'secret', 'token', 'cookie'].some((word) => key.toLowerCase().includes(word))
+      ? '[REDACTED]' : safeAuditValue(entry, depth + 1);
+  }
+  return out;
+}
+function etagForText(jsonText) {
+  return '"' + crypto.createHash('sha256').update(jsonText).digest('base64url').slice(0, 22) + '"';
+}
 
 function applySecurityHeaders(req, res) {
   const wsOrigin = req.headers.host ? `ws://${req.headers.host} wss://${req.headers.host}` : 'ws: wss:';
@@ -106,13 +149,47 @@ export function startAdminServer(opts) {
   const envUser = opts.user ?? process.env.UO_ADMIN_USER ?? 'admin';
   const envPass = opts.pass ?? process.env.UO_ADMIN_PASS ?? '';
   const accountsApi = opts.accounts;
+  // The panel is made of a few self-contained files. Reading them
+  // synchronously on every navigation blocks the shard's event loop, so keep
+  // a process-local immutable snapshot and let validators avoid re-sending it.
+  // Development changes are picked up on the normal server restart.
+  const staticCache = new Map();
+  function cachedStatic(file) {
+    let entry = staticCache.get(file);
+    if (!entry) {
+      const body = fs.readFileSync(file);
+      entry = { body, etag: etagForText(body), length: body.length };
+      staticCache.set(file, entry);
+    }
+    return entry;
+  }
+  function sendCachedStatic(req, res, file, contentType, cacheControl = 'private, no-cache') {
+    const entry = cachedStatic(file);
+    res.setHeader('etag', entry.etag);
+    res.setHeader('cache-control', cacheControl);
+    if (req.headers['if-none-match'] === entry.etag) {
+      res.writeHead(304);
+      res.end();
+      return;
+    }
+    res.writeHead(200, {
+      'content-type': contentType,
+      'content-length': entry.length,
+    });
+    res.end(entry.body);
+  }
+  if (host !== '127.0.0.1' && host !== '::1' && !process.env.UO_ADMIN_HTTPS_TERMINATED) {
+    console.warn('[admin] panel is bound beyond localhost over plain HTTP; terminate TLS in front of it and set UO_ADMIN_HTTPS_TERMINATED=1');
+  }
 
-  /** @type {Map<string, { account: string, source: 'env'|'account', expires: number }>} */
+  /** @type {Map<string, { account: string, source: 'env'|'account', accessLevel:string, expires:number, freshUntil:number }>} */
   const sessions = new Map();
+  const idempotency = new Map();
   // Cleanup expired tokens every 5 min — cheap, avoids unbounded growth.
   setInterval(() => {
     const now = Date.now();
     for (const [tok, s] of sessions) if (s.expires < now) sessions.delete(tok);
+    for (const [key, entry] of idempotency) if (entry.expires < now) idempotency.delete(key);
   }, 5 * 60 * 1000).unref?.();
 
   const handlers = buildHandlers({
@@ -133,18 +210,23 @@ export function startAdminServer(opts) {
     if (accountsApi?.authenticate) {
       const r = accountsApi.authenticate(username, password, { autoCreate: false });
       if (!r.ok) return { ok: false, reason: r.reason };
-      if (r.account.accessLevel !== 'Admin') {
-        return { ok: false, reason: `account "${username}" is ${r.account.accessLevel}, not Admin` };
+      if (accessRank(r.account.accessLevel) < 1) {
+        return { ok: false, reason: `account "${username}" has no panel role` };
       }
-      return { ok: true, account: username, accessLevel: 'Admin', source: 'account' };
+      return { ok: true, account: username, accessLevel: r.account.accessLevel, source: 'account' };
     }
     return { ok: false, reason: 'invalid credentials' };
   }
 
   /** Issue a fresh session token + return cookie value. */
-  function makeSession(account, source = 'account') {
+  function makeSession(account, source = 'account', accessLevel = 'Admin') {
     const tok = crypto.randomBytes(32).toString('hex');
-    sessions.set(tok, { account, source, expires: Date.now() + SESSION_TTL_MS });
+    const now = Date.now();
+    sessions.set(tok, {
+      account, source, accessLevel,
+      expires: now + SESSION_TTL_MS,
+      freshUntil: now + FRESH_AUTH_MS,
+    });
     return tok;
   }
 
@@ -161,17 +243,27 @@ export function startAdminServer(opts) {
     // by design so the operator can recover a broken account database.
     if (s.source !== 'env') {
       const account = accountsApi?.accounts?.get?.(String(s.account).toLowerCase());
-      if (!account || account.banned || account.accessLevel !== 'Admin') {
+      if (!account || account.banned || accessRank(account.accessLevel) < 1) {
         sessions.delete(m[1]);
         return null;
       }
+      s.accessLevel = account.accessLevel;
     }
     s.expires = Date.now() + SESSION_TTL_MS;       // sliding TTL
-    return { token: m[1], account: s.account, source: s.source };
+    return {
+      token: m[1], account: s.account, source: s.source,
+      accessLevel: s.accessLevel, freshUntil: s.freshUntil,
+    };
   }
 
   const server = http.createServer(async (req, res) => {
     try {
+      const incomingId = String(req.headers['x-request-id'] ?? '');
+      const correlationId = /^[a-zA-Z0-9._:-]{1,96}$/.test(incomingId)
+        ? incomingId : crypto.randomUUID();
+      req.adminCorrelationId = correlationId;
+      res.uoAcceptEncoding = String(req.headers['accept-encoding'] ?? '');
+      res.setHeader('x-correlation-id', correlationId);
       applySecurityHeaders(req, res);
       // Health probe (no auth) — useful for monitoring.
       if (req.method === 'GET' && req.url === '/healthz') {
@@ -182,9 +274,7 @@ export function startAdminServer(opts) {
       // Login page (no auth needed) and root.
       if (req.method === 'GET' && (req.url === '/login' || req.url === '/login.html')) {
         try {
-          const html = fs.readFileSync(LOGIN_FILE, 'utf8');
-          res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache' });
-          res.end(html);
+          sendCachedStatic(req, res, LOGIN_FILE, 'text/html; charset=utf-8');
         } catch {
           res.writeHead(500); res.end('login.html missing');
         }
@@ -196,9 +286,7 @@ export function startAdminServer(opts) {
           res.writeHead(302, { location: '/login' }); res.end(); return;
         }
         try {
-          const html = fs.readFileSync(UI_FILE, 'utf8');
-          res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache' });
-          res.end(html);
+          sendCachedStatic(req, res, UI_FILE, 'text/html; charset=utf-8');
         } catch { res.writeHead(500); res.end('admin-ui.html missing'); }
         return;
       }
@@ -208,9 +296,7 @@ export function startAdminServer(opts) {
       if (req.method === 'GET' && (req.url === '/editor' || req.url === '/editor.html' || req.url?.startsWith('/editor?'))) {
         if (!readSession(req)) { res.writeHead(302, { location: '/login' }); res.end(); return; }
         try {
-          const html = fs.readFileSync(EDITOR_FILE, 'utf8');
-          res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache' });
-          res.end(html);
+          sendCachedStatic(req, res, EDITOR_FILE, 'text/html; charset=utf-8');
         } catch { res.writeHead(500); res.end('editor.html missing'); }
         return;
       }
@@ -222,10 +308,36 @@ export function startAdminServer(opts) {
       if (req.method === 'GET' && (req.url === '/data-editor' || req.url === '/data-editor.html' || req.url?.startsWith('/data-editor?'))) {
         if (!readSession(req)) { res.writeHead(302, { location: '/login' }); res.end(); return; }
         try {
-          const html = fs.readFileSync(DATA_EDITOR_FILE, 'utf8');
-          res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache' });
-          res.end(html);
+          sendCachedStatic(req, res, DATA_EDITOR_FILE, 'text/html; charset=utf-8');
         } catch { res.writeHead(500); res.end('data-editor.html missing'); }
+        return;
+      }
+
+      if (req.method === 'GET' && (req.url === '/studio' || req.url === '/studio.html' || req.url?.startsWith('/studio?'))) {
+        if (!readSession(req)) { res.writeHead(302, { location: '/login' }); res.end(); return; }
+        try {
+          sendCachedStatic(req, res, STUDIO_FILE, 'text/html; charset=utf-8');
+        } catch { res.writeHead(500); res.end('studio.html missing'); }
+        return;
+      }
+
+      // Shared admin design-system/runtime. Use an explicit allowlist because
+      // the same directory also contains private server-side modules.
+      if (req.method === 'GET' && req.url?.startsWith('/admin-assets/')) {
+        const name = decodeURIComponent(new URL(req.url, 'http://x').pathname.replace('/admin-assets/', ''));
+        if (!new Set(['admin.css', 'admin-core.js', 'map-worker.js']).has(name)) {
+          res.writeHead(404); res.end('not found'); return;
+        }
+        if (name !== 'admin.css' && !readSession(req)) {
+          res.writeHead(401); res.end('unauthorized'); return;
+        }
+        const full = path.join(ADMIN_ASSETS_DIR, name);
+        try {
+          sendCachedStatic(
+            req, res, full,
+            name.endsWith('.css') ? 'text/css; charset=utf-8' : 'application/javascript; charset=utf-8',
+          );
+        } catch { res.writeHead(404); res.end('not found'); }
         return;
       }
 
@@ -277,10 +389,33 @@ export function startAdminServer(opts) {
         if (!st.isFile()) { res.writeHead(404); res.end('not a file'); return; }
         const ext = path.extname(full).toLowerCase();
         const mime = ASSET_MIMES[ext] ?? 'application/octet-stream';
+        const etag = `W/"${st.size.toString(16)}-${Math.trunc(st.mtimeMs).toString(16)}"`;
+        res.setHeader('etag', etag);
+        res.setHeader('cache-control', 'public, max-age=3600');
+        if (req.headers['if-none-match'] === etag) {
+          res.writeHead(304); res.end(); return;
+        }
+        const compressible = st.size >= 4096 && ['.json', '.js', '.mjs', '.css', '.svg'].includes(ext);
+        const accepted = String(req.headers['accept-encoding'] ?? '');
+        if (compressible && /(?:^|,|\s)br(?:\s|,|$)/i.test(accepted)) {
+          res.writeHead(200, {
+            'content-type': mime, 'content-encoding': 'br', vary: 'accept-encoding',
+          });
+          fs.createReadStream(full).pipe(zlib.createBrotliCompress({
+            params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 4, [zlib.constants.BROTLI_PARAM_SIZE_HINT]: st.size },
+          })).pipe(res);
+          return;
+        }
+        if (compressible && /(?:^|,|\s)gzip(?:\s|,|$)/i.test(accepted)) {
+          res.writeHead(200, {
+            'content-type': mime, 'content-encoding': 'gzip', vary: 'accept-encoding',
+          });
+          fs.createReadStream(full).pipe(zlib.createGzip({ level: 3 })).pipe(res);
+          return;
+        }
         res.writeHead(200, {
           'content-type': mime,
           'content-length': st.size,
-          'cache-control': 'public, max-age=3600',
         });
         fs.createReadStream(full).pipe(res);
         return;
@@ -318,7 +453,7 @@ export function startAdminServer(opts) {
         }
         // Success — clear bucket.
         _loginBuckets.delete(ip);
-        const tok = makeSession(r.account, r.source);
+        const tok = makeSession(r.account, r.source, r.accessLevel);
         res.setHeader('set-cookie',
           `${COOKIE_NAME}=${tok}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_TTL_MS / 1000}`);
         json(res, 200, { ok: true, account: r.account, source: r.source });
@@ -339,9 +474,32 @@ export function startAdminServer(opts) {
           .filter(Boolean);
         json(res, 200, {
           account: sess.account,
-          accessLevel: acc?.accessLevel ?? 'Admin',
+          accessLevel: sess.accessLevel ?? acc?.accessLevel ?? 'Admin',
+          scopes: scopesFor(sess.accessLevel ?? acc?.accessLevel ?? 'Admin'),
+          freshAuthUntil: sess.freshUntil,
           characters,
         });
+        return;
+      }
+      if (req.url === '/api/auth/reauth' && req.method === 'POST') {
+        const sess = readSession(req);
+        if (!sess) { json(res, 401, { error: 'no session' }); return; }
+        const ownHost = req.headers.host ?? '';
+        const origin = req.headers.origin || req.headers.referer || '';
+        try {
+          if (!origin || new URL(origin, `http://${ownHost}`).host !== ownHost) {
+            json(res, 403, { error: 'same-origin reauthentication required' }); return;
+          }
+        } catch { json(res, 403, { error: 'invalid Origin header' }); return; }
+        const body = await readBody(req);
+        const verified = tryLogin(sess.account, String(body?.password ?? ''));
+        if (!verified.ok || verified.account.toLowerCase() !== sess.account.toLowerCase()) {
+          json(res, 401, { error: 'reauthentication failed' }); return;
+        }
+        const stored = sessions.get(sess.token);
+        stored.freshUntil = Date.now() + FRESH_AUTH_MS;
+        operational.recordAudit('admin.reauth', { actor: sess.account, target: 'admin-panel' });
+        json(res, 200, { ok: true, freshAuthUntil: stored.freshUntil });
         return;
       }
 
@@ -353,6 +511,15 @@ export function startAdminServer(opts) {
         if (!handler) { json(res, 404, { error: 'route not found', route }); return; }
         const sess = readSession(req);
         if (!sess) { json(res, 401, { error: 'unauthorized', reason: 'no session — POST /api/auth/login first' }); return; }
+        const needed = requiredRank(req.method, u.pathname);
+        if (accessRank(sess.accessLevel) < needed) {
+          operational.recordAudit('admin.denied', {
+            actor: sess.account, target: u.pathname,
+            detail: `needs-rank=${needed}`, ok: false,
+          });
+          json(res, 403, { error: 'forbidden', requiredRank: needed, accessLevel: sess.accessLevel });
+          return;
+        }
         // CSRF / cross-origin defence for mutating verbs. SameSite=Lax
         // already blocks classic CSRF, but an XSS on any localhost site
         // could still call us. Require Origin (or Referer) to match
@@ -379,20 +546,80 @@ export function startAdminServer(opts) {
             return;
           }
         }
+        if (requiresFreshAuth(req.method, u.pathname) && Number(sess.freshUntil) < Date.now()) {
+          json(res, 428, { error: 'fresh authentication required', reauth: '/api/auth/reauth' });
+          return;
+        }
         let body = null;
         if (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH' || req.method === 'DELETE') {
           body = await readBody(req);
         }
+        let idempotencyEntryKey = '';
+        let idempotencyFingerprint = '';
+        if (req.method !== 'GET') {
+          const key = String(req.headers['x-idempotency-key'] ?? '');
+          if (key && !/^[a-zA-Z0-9._:-]{8,160}$/.test(key)) {
+            json(res, 400, { error: 'invalid idempotency key' }); return;
+          }
+          if (key) {
+            idempotencyEntryKey = `${sess.account}:${key}`;
+            idempotencyFingerprint = crypto.createHash('sha256')
+              .update(`${req.method}\n${u.pathname}\n${JSON.stringify(body, replacerForBigInt)}`)
+              .digest('base64url');
+            const replay = idempotency.get(idempotencyEntryKey);
+            if (replay) {
+              if (replay.fingerprint !== idempotencyFingerprint) {
+                json(res, 409, { error: 'idempotency key was already used for another mutation', conflict: true }); return;
+              }
+              res.setHeader('x-idempotency-replay', '1');
+              json(res, replay.status, replay.result); return;
+            }
+          }
+        }
+        const requestStartedAt = performance.now();
         try {
           const result = await handler.run({
             req, res, params: handler.params, query: u.searchParams, body,
             session: sess,
           });
+          operational.recordAdminRequest(route, performance.now() - requestStartedAt, result?.error ? 400 : 200);
           if (result !== undefined && !res.writableEnded) {
+            let serializedResult = null;
+            if (req.method === 'GET') {
+              // Serialize once: previously ETag generation and `json()` each
+              // walked large editor/map responses independently.
+              serializedResult = JSON.stringify(result, replacerForBigInt);
+              const etag = etagForText(serializedResult);
+              res.setHeader('etag', etag);
+              res.setHeader('cache-control', 'private, no-cache');
+              if (req.headers['if-none-match'] === etag) {
+                res.writeHead(304); res.end(); return;
+              }
+            } else {
+              operational.recordAudit('admin.mutation', {
+                actor: sess.account,
+                target: `${req.method} ${u.pathname}`,
+                detail: JSON.stringify({
+                  correlationId: req.adminCorrelationId,
+                  undoId: result?.auditUndoId ?? result?.undoId ?? null,
+                  before: result?.before ?? null,
+                  after: result?.after ?? safeAuditValue(body),
+                  ok: !result?.error,
+                }),
+                ok: !result?.error,
+              });
+            }
             const status = result?.error ? (result.conflict ? 409 : 400) : 200;
-            json(res, status, result);
+            if (idempotencyEntryKey) {
+              idempotency.set(idempotencyEntryKey, {
+                fingerprint: idempotencyFingerprint, status, result, expires: Date.now() + 5 * 60_000,
+              });
+              while (idempotency.size > 4096) idempotency.delete(idempotency.keys().next().value);
+            }
+            json(res, status, result, serializedResult);
           }
         } catch (e) {
+          operational.recordAdminRequest(route, performance.now() - requestStartedAt, 500);
           console.error(`[admin] ${route} threw:`, e);
           if (!res.writableEnded) json(res, 500, { error: 'handler-threw', message: e?.message ?? String(e) });
         }
@@ -402,8 +629,16 @@ export function startAdminServer(opts) {
       res.writeHead(404, { 'content-type': 'text/plain' });
       res.end('not found');
     } catch (e) {
-      console.error('[admin] dispatch failed:', e);
-      try { res.writeHead(500); res.end('internal error'); } catch { /* socket dead */ }
+      const status = Number(e?.statusCode) || 500;
+      // Expected request errors are returned as structured 4xx responses.
+      if (status >= 500) console.error('[admin] dispatch failed:', e);
+      try {
+        if (status === 400 || status === 413 || status === 415) {
+          json(res, status, { error: e.message });
+        } else {
+          res.writeHead(500); res.end('internal error');
+        }
+      } catch { /* socket dead */ }
     }
   });
 
@@ -415,9 +650,32 @@ export function startAdminServer(opts) {
 
 // ---- helpers ---------------------------------------------------------------
 
-function json(res, status, body) {
-  res.writeHead(status, { 'content-type': 'application/json; charset=utf-8' });
-  res.end(JSON.stringify(body, replacerForBigInt));
+function json(res, status, body, serialized = null) {
+  const payload = serialized ?? JSON.stringify(body, replacerForBigInt);
+  const headers = { 'content-type': 'application/json; charset=utf-8' };
+  const accepted = res.uoAcceptEncoding ?? '';
+  if (payload.length >= 4096 && /(?:^|,|\s)br(?:\s|,|$)/i.test(accepted)) {
+    headers['content-encoding'] = 'br';
+    headers.vary = 'accept-encoding';
+    res.writeHead(status, headers);
+    Readable.from([payload]).pipe(zlib.createBrotliCompress({
+      params: {
+        [zlib.constants.BROTLI_PARAM_QUALITY]: 4,
+        [zlib.constants.BROTLI_PARAM_SIZE_HINT]: Buffer.byteLength(payload),
+      },
+    })).pipe(res);
+    return;
+  }
+  if (payload.length >= 4096 && /(?:^|,|\s)gzip(?:\s|,|$)/i.test(accepted)) {
+    headers['content-encoding'] = 'gzip';
+    headers.vary = 'accept-encoding';
+    res.writeHead(status, headers);
+    Readable.from([payload]).pipe(zlib.createGzip({ level: 3 })).pipe(res);
+    return;
+  }
+  headers['content-length'] = Buffer.byteLength(payload);
+  res.writeHead(status, headers);
+  res.end(payload);
 }
 
 function replacerForBigInt(_k, v) {
@@ -429,19 +687,37 @@ function readBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     let total = 0;
+    let settled = false;
     const MAX = 8 * 1024 * 1024;
     req.on('data', (c) => {
+      if (settled) return;
       total += c.length;
-      if (total > MAX) { req.destroy(new Error('payload too large')); return; }
+      if (total > MAX) {
+        settled = true;
+        const error = new Error('payload too large');
+        error.statusCode = 413;
+        reject(error);
+        return;
+      }
       chunks.push(c);
     });
     req.on('end', () => {
+      if (settled) return;
+      settled = true;
       const raw = Buffer.concat(chunks).toString('utf8');
       if (!raw) { resolve(null); return; }
       try { resolve(JSON.parse(raw)); }
-      catch { resolve({ _raw: raw }); }
+      catch {
+        const error = new Error('invalid JSON body');
+        error.statusCode = 400;
+        reject(error);
+      }
     });
-    req.on('error', reject);
+    req.on('error', (error) => {
+      if (settled) return;
+      settled = true;
+      reject(error);
+    });
   });
 }
 

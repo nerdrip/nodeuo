@@ -15,11 +15,11 @@ describe('GM+ bypass spell costs (FAZA HA / #115)', () => {
     const def = getSpell(1); // Clumsy
     expect(def).toBeTruthy();
     // Player can't cast — out of mana.
-    const r1 = castSpell({ caster: c, spellId: 1, world: w, accessLevel: 'Player' });
+    const r1 = castSpell({ caster: c, target: c, spellId: 1, world: w, accessLevel: 'Player' });
     expect(r1.ok).toBe(false);
     expect(r1.reason).toBe('low-mana');
     // GM bypasses cost gate.
-    const r2 = castSpell({ caster: c, spellId: 1, world: w, accessLevel: 'GM' });
+    const r2 = castSpell({ caster: c, target: c, spellId: 1, world: w, accessLevel: 'GM' });
     expect(r2.ok).toBe(true);
     // Mana stayed at 0 — no charge applied.
     expect(c.mana).toBe(0);
@@ -29,7 +29,7 @@ describe('GM+ bypass spell costs (FAZA HA / #115)', () => {
     const w = new World();
     const c = w.createMobile({ name: 'admin', body: 0x190, x: 0, y: 0, z: 0, map: 1, mana: 0, manaMax: 50, hp: 100, hpMax: 100, skills: { 26: 100 } });
     c.client = { send: () => {}, sendSystemMessage: () => {} };
-    const r = castSpell({ caster: c, spellId: 1, world: w, accessLevel: 'Admin' });
+    const r = castSpell({ caster: c, target: c, spellId: 1, world: w, accessLevel: 'Admin' });
     expect(r.ok).toBe(true);
   });
 
@@ -37,7 +37,7 @@ describe('GM+ bypass spell costs (FAZA HA / #115)', () => {
     const w = new World();
     const c = w.createMobile({ name: 'csr', body: 0x190, x: 0, y: 0, z: 0, map: 1, mana: 0, manaMax: 50, hp: 100, hpMax: 100, skills: { 26: 100 } });
     c.client = { send: () => {}, sendSystemMessage: () => {} };
-    const r = castSpell({ caster: c, spellId: 1, world: w, accessLevel: 'Counselor' });
+    const r = castSpell({ caster: c, target: c, spellId: 1, world: w, accessLevel: 'Counselor' });
     expect(r.ok).toBe(false);
     expect(r.reason).toBe('low-mana');
   });
@@ -52,7 +52,7 @@ describe('GM+ bypass spell costs (FAZA HA / #115)', () => {
     const orig = Math.random;
     Math.random = () => 0.99;
     try {
-      castSpell({ caster: c, spellId: 1, world: w, accessLevel: 'GM' });
+      castSpell({ caster: c, target: c, spellId: 1, world: w, accessLevel: 'GM' });
       // GM mana stays exactly where it was — the fizzle refund (#115)
       // would have pushed it to 32 (30 + 2) without the fix.
       expect(c.mana).toBe(30);

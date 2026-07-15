@@ -67,6 +67,8 @@ export function dispatchMobileEvent(world, mob, eventName, ...args) {
   if (!scriptName) return undefined;
   const s = REGISTRY.get(scriptName);
   if (!s) return undefined;
+  if (eventName === 'onSpawn' && s.hasTick) world?._tickingMobiles?.add?.(mob.serial);
+  if (eventName === 'onDelete') world?._tickingMobiles?.delete?.(mob.serial);
   const fn = s[eventName];
   if (typeof fn !== 'function') return undefined;
   try { return fn(world, mob, ...args); }
@@ -74,6 +76,19 @@ export function dispatchMobileEvent(world, mob, eventName, ...args) {
     console.error(`[mobile-script] ${scriptName}.${eventName} threw:`, e);
     return undefined;
   }
+}
+
+/** Rebuild after persistence restore or a script hot-reload. */
+export function rebuildTickingMobileIndex(world) {
+  if (!world?.mobiles) return 0;
+  const index = world._tickingMobiles ?? new Set();
+  index.clear();
+  for (const mob of world.mobiles.values()) {
+    const script = mob?.script ? REGISTRY.get(mob.script) : null;
+    if (script?.hasTick) index.add(mob.serial);
+  }
+  world._tickingMobiles = index;
+  return index.size;
 }
 
 /**
@@ -84,9 +99,13 @@ export function tickAllMobileScripts(world, dt) {
   if (!world?.mobiles) return;
   if (_tickCacheDirty) refreshTickCache();
   if (!_anyScriptHasTick) return;
-  for (const mob of world.mobiles.values()) {
+  const index = world._tickingMobiles;
+  const candidates = index ? [...index] : world.mobiles.values();
+  for (const candidate of candidates) {
+    const mob = index ? world.mobiles.get(candidate) : candidate;
+    if (!mob) { index?.delete?.(candidate); continue; }
     const s = mob.script ? REGISTRY.get(mob.script) : null;
-    if (!s?.hasTick) continue;
+    if (!s?.hasTick) { index?.delete?.(mob.serial); continue; }
     try { s.onTick?.(world, mob, dt); }
     catch (e) {
       console.error(`[mobile-script] ${mob.script}.onTick threw:`, e);

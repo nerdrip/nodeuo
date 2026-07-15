@@ -47,7 +47,7 @@ class TargetManager {
     // `active` + `cursorId` outlived the socket; on reconnect any
     // click sent a 0x6C reply for the OLD cursorId, ServUO answered
     // with "no pending prompt" → disconnect recursion.
-    bus.on('net:close', () => {
+    const resetSession = () => {
       this.active = false;
       this.cursorId = 0;
       this.flag = 0;
@@ -55,7 +55,9 @@ class TargetManager {
       this._queue.length = 0;
       this._queueHead = 0;
       bus.emit('target:cleared');
-    });
+    };
+    bus.on('net:close', resetSession);
+    bus.on('net:session-reset', resetSession);
     bus.on('combat:target', ({ serial = 0 } = {}) => this.confirmAttack(serial));
     bus.on('mobile:death', ({ serial = 0 } = {}) => {
       const s = serial >>> 0;

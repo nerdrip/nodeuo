@@ -16,7 +16,7 @@
 //   [craft list smithing       — list recipes for the named skill
 
 import { normalizeSkillValue } from '../../_rules.js';
-import { mobileBySerial } from '../../_entities.js';
+import { itemBySerial, mobileBySerial } from '../../_entities.js';
 import { packItems } from '../../_inventory.js';
 import { createItem, destroyItemBySerial } from '../../_items.js';
 
@@ -54,74 +54,87 @@ const TOOL_KIND_ITEM_IDS = {
   glassblow:   [0x182D],
 };
 
-function findCraftingTool(api, mob, toolKind) {
+const CRAFT_MATERIALS = Object.freeze({
+  iron:          { hue: 0x000, skillReq: 0 },
+  'dull-copper': { hue: 0x973, skillReq: 650 },
+  shadow:        { hue: 0x966, skillReq: 700 },
+  copper:        { hue: 0x96D, skillReq: 750 },
+  bronze:        { hue: 0x972, skillReq: 800 },
+  gold:          { hue: 0x8A5, skillReq: 850 },
+  agapite:       { hue: 0x979, skillReq: 900 },
+  verite:        { hue: 0x89F, skillReq: 950 },
+  valorite:      { hue: 0x8AB, skillReq: 990 },
+});
+
+export function findCraftingTool(api, mob, toolKind) {
   if (!toolKind) return null;
   const ids = TOOL_KIND_ITEM_IDS[(toolKind ?? '').toLowerCase()] ?? null;
   if (!ids) return null;
   for (const it of packItems(api, mob)) {
     if (!ids.includes(it.itemId)) continue;
-    // Looks like a tool — wrap it as ctx.tool so crafting/index.js
-    // decrements its `tool.charges` and destroys at 0.
+    // Crafting expects the actual item: item.tool.charges + item.serial.
     if (it.tool?.charges == null) it.tool = { charges: 50, ...(it.tool ?? {}) };
-    return { serial: it.serial, tool: it };
+    return it;
   }
   return null;
 }
 
-function findIngredientsInPack(api, mob, itemId, count) {
-  // Walk world.items for items whose parent chain ends at the mob's
-  // backpack and whose itemId matches. Returns total quantity available
-  // and the matching item refs.
-  const matches = [];
-  let total = 0;
-  for (const it of packItems(api, mob)) {
-    if ((it.itemId | 0) !== (itemId | 0)) continue;
-    matches.push(it);
-    total += it.amount ?? 1;
-    if (total >= count) break;
-  }
-  return { matches, total };
-}
-
-function buildItemStore(api) {
+export function buildItemStore(api) {
   const world = api.world;
-  return {
-    checkIngredients(crafter, inputs) {
-      for (const ing of inputs ?? []) {
-        const { total } = findIngredientsInPack(api, crafter, ing.itemId, ing.count);
-        if (total < ing.count) return false;
+  const reserve = (crafter, inputs, ratio = 1) => {
+    const r = Math.max(0, Math.min(1, ratio ?? 1));
+    const takes = new Map();
+    for (const ing of inputs ?? []) {
+      let remaining = Math.ceil((ing.count | 0) * r);
+      if (remaining <= 0) continue;
+      for (const it of packItems(api, crafter)) {
+        if ((it.itemId | 0) !== (ing.itemId | 0)) continue;
+        if (ing.hue != null && (it.hue | 0) !== (ing.hue | 0)) continue;
+        const already = takes.get(it.serial) ?? 0;
+        const available = Math.max(0, (it.amount ?? 1) - already);
+        const take = Math.min(available, remaining);
+        if (take > 0) takes.set(it.serial, already + take);
+        remaining -= take;
+        if (remaining <= 0) break;
       }
-      return true;
-    },
-    consumeIngredients(crafter, inputs, ratio) {
-      const r = Math.max(0, Math.min(1, ratio ?? 1));
-      for (const ing of inputs ?? []) {
-        const need = Math.ceil(ing.count * r);
-        if (need <= 0) continue;
-        const { matches } = findIngredientsInPack(api, crafter, ing.itemId, ing.count);
-        let remaining = need;
-        for (const it of matches) {
-          if (remaining <= 0) break;
-          const have = it.amount ?? 1;
-          if (have <= remaining) {
-            destroyItemBySerial(api, it.serial);
-            remaining -= have;
-          } else {
-            it.amount = have - remaining;
-            // Broadcast amount change so containers refresh.
-            try { api.broadcast?.itemUpdate?.(world, it); } catch { /* advisory */ }
-            remaining = 0;
+      if (remaining > 0) return null;
+    }
+    let committed = false;
+    return {
+      commit() {
+        if (committed) return false;
+        for (const [serial, amount] of takes) {
+          const item = itemBySerial(api, serial);
+          if (!item || (item.amount ?? 1) < amount) return false;
+        }
+        committed = true;
+        for (const [serial, amount] of takes) {
+          const item = itemBySerial(api, serial);
+          const have = item.amount ?? 1;
+          if (have === amount) destroyItemBySerial(api, serial);
+          else {
+            item.amount = have - amount;
+            try { api.broadcast?.itemUpdate?.(world, item); } catch { /* advisory */ }
           }
         }
-        if (remaining > 0) return false;
-      }
-      return true;
+        return true;
+      },
+    };
+  };
+  return {
+    checkIngredients(crafter, inputs) {
+      return reserve(crafter, inputs, 1) != null;
     },
-    spawnItem({ itemId, amount, container, crafter, quality }) {
+    reserveIngredients: reserve,
+    consumeIngredients(crafter, inputs, ratio) {
+      return reserve(crafter, inputs, ratio)?.commit() ?? false;
+    },
+    spawnItem({ itemId, amount, container, crafter, quality, hue = 0, ...metadata }) {
       const created = createItem(api, world, {
-        itemId, hue: 0, amount: amount ?? 1, parent: container,
+        itemId, hue, amount: amount ?? 1, parent: container,
         crafter,
         quality,
+        ...metadata,
       });
       return created ?? null;
     },
@@ -153,6 +166,139 @@ function skillValue(mob, skillId) {
   return normalizeSkillValue(raw);
 }
 
+function recipeByArg(crafting, arg) {
+  const value = String(arg ?? '').trim();
+  const numeric = Number.parseInt(value, 10);
+  if (Number.isFinite(numeric) && /^\d+$/.test(value)) return crafting.getRecipe(numeric);
+  const lower = value.toLowerCase();
+  return crafting.allRecipes().find((r) => r.name.toLowerCase() === lower)
+      ?? crafting.allRecipes().find((r) => r.name.toLowerCase().includes(lower));
+}
+
+function supportsWorkbench(api, state) {
+  const capability = api.protocol?.NodeUOCapability?.CraftingWorkbench;
+  return !!capability && !!state?.supportsNodeUO?.(capability);
+}
+
+function sendProgress(state, recipeId, done, total, status, message = '') {
+  state.sendSystemMessage?.(
+    `@@CRAFT_PROGRESS@@${recipeId | 0}|${done | 0}|${total | 0}|${status}|${encodeURIComponent(message)}`,
+  );
+}
+
+function resultMessage(recipe, result) {
+  if (result.ok) {
+    return `${result.exceptional ? 'Exceptional ' : ''}${recipe.name} crafted` +
+      (result.resource && result.resource !== 'iron' ? ` (${result.resource})` : '') + '.';
+  }
+  return ({
+    'unknown-recipe': 'Recipe not found.',
+    'low-skill': `You lack the skill to craft ${recipe.name}.`,
+    'material-skill': 'You lack the skill required for the selected material.',
+    'recipe-locked': `You have not learned the recipe for ${recipe.name}.`,
+    'insufficient-materials': 'You lack the required materials.',
+    'no-mana': 'You lack the mana required for this recipe.',
+    'failed': 'You failed to craft the item.',
+    'missing-tool': `You need the correct tool to craft ${recipe.name}.`,
+    'tool-worn-out': 'That crafting tool is worn out.',
+    'output-failed': 'The crafted item could not be placed; no resources were consumed.',
+  })[result.reason] ?? `Craft failed (${result.reason}).`;
+}
+
+const accountSaveTimers = new WeakMap();
+function scheduleAccountSave(state) {
+  const db = state?.ctx?.accounts;
+  if (!db?.saveSync || accountSaveTimers.has(db)) return;
+  const timer = setTimeout(() => {
+    accountSaveTimers.delete(db);
+    try { db.saveSync(); }
+    catch (error) { console.error('[craft] account metadata save failed:', error?.message); }
+  }, 1000);
+  timer.unref?.();
+  accountSaveTimers.set(db, timer);
+}
+
+function recordCraftingHistory(state, recipe, result) {
+  const account = state?.account;
+  if (!account) return;
+  account.craftHistory ??= [];
+  account.craftHistory.unshift({
+    recipeId: recipe.id, name: recipe.name, at: new Date().toISOString(),
+    exceptional: !!result.exceptional, resource: result.resource ?? 'iron',
+  });
+  account.craftHistory.splice(50);
+  scheduleAccountSave(state);
+}
+
+/** Schedule exactly one authoritative craft commit. The timer owns no
+ * inventory state: resources and the tool are revalidated in the callback,
+ * so logout/cancel cannot leave a half-reserved stack behind. */
+function scheduleAttempt(api, crafting, ctx, recipe, onComplete) {
+  const now = Date.now();
+  if ((ctx.sender._craftBusyUntil ?? 0) > now) return false;
+  const delayMs = crafting.CRAFT_DELAY_MS[(recipe.toolKind ?? '').toLowerCase()] ?? 1500;
+  ctx.sender._craftBusyUntil = now + delayMs;
+  crafting.emitCraftSfx(ctx.sender, recipe.toolKind);
+  const senderRef = ctx.sender;
+  const stateRef = ctx.state;
+  const worldRef = ctx.world;
+  setTimeout(() => {
+    senderRef._craftBusyUntil = 0;
+    if (!mobileBySerial(api, senderRef) || stateRef._closed
+      || (senderRef.client != null && senderRef.client !== stateRef)) {
+      return onComplete?.({ ok: false, reason: 'disconnected' });
+    }
+    const tool = findCraftingTool(api, senderRef, recipe.toolKind);
+    const requireTool = !!TOOL_KIND_ITEM_IDS[(recipe.toolKind ?? '').toLowerCase()];
+    const result = crafting.craft({
+      recipeId: recipe.id,
+      crafter: senderRef,
+      world: worldRef,
+      itemStore: buildItemStore(api),
+      tool,
+      requireTool,
+      emitSfx: false,
+      material: senderRef._craftMaterial ?? null,
+    });
+    stateRef.sendSystemMessage(resultMessage(recipe, result));
+    if (result.ok) recordCraftingHistory(stateRef, recipe, result);
+    onComplete?.(result);
+  }, delayMs);
+  return true;
+}
+
+function startBatch(api, crafting, ctx, recipe, requested) {
+  if (!supportsWorkbench(api, ctx.state)) {
+    ctx.state.sendSystemMessage('Batch crafting requires the negotiated NodeUO workbench; crafting one item instead.');
+    scheduleAttempt(api, crafting, ctx, recipe);
+    return;
+  }
+  if (ctx.sender._craftQueue) {
+    ctx.state.sendSystemMessage('A crafting queue is already active.');
+    return;
+  }
+  const total = Math.max(1, Math.min(50, requested | 0));
+  const queue = { recipeId: recipe.id, total, done: 0, cancelled: false };
+  ctx.sender._craftQueue = queue;
+  const finish = (status, message) => {
+    if (ctx.sender._craftQueue === queue) ctx.sender._craftQueue = null;
+    sendProgress(ctx.state, recipe.id, queue.done, total, status, message);
+  };
+  const step = () => {
+    if (queue.cancelled) return finish('cancelled', `Cancelled after ${queue.done}/${total}`);
+    if (queue.done >= total) return finish('complete', `Completed ${queue.done}/${total}`);
+    sendProgress(ctx.state, recipe.id, queue.done, total, 'working', `Crafting ${queue.done + 1}/${total}`);
+    if (!scheduleAttempt(api, crafting, ctx, recipe, (result) => {
+      if (result?.ok) queue.done += 1;
+      if (!result?.ok && result?.reason !== 'failed') {
+        return finish('failed', resultMessage(recipe, result));
+      }
+      step();
+    })) finish('failed', 'The crafter is already busy.');
+  };
+  step();
+}
+
 export default function register(api) {
   if (!api.commands?.register) return () => {};
   const crafting = api.systems?.crafting;
@@ -172,13 +318,81 @@ export default function register(api) {
       // rest of the body can keep the simple `.trim() / .startsWith()`
       // shape it already uses.
       const arg = (Array.isArray(ctx.args) ? ctx.args.join(' ') : (ctx.args ?? '')).trim();
+      if (arg.toLowerCase().startsWith('favorite ')) {
+        if (!supportsWorkbench(api, ctx.state)) {
+          ctx.state.sendSystemMessage('Server-side crafting favorites require the NodeUO workbench.');
+          return;
+        }
+        const recipe = recipeByArg(crafting, arg.slice(9));
+        if (!recipe) { ctx.state.sendSystemMessage('Recipe not found.'); return; }
+        const account = ctx.state.account;
+        if (!account) return;
+        account.craftFavorites = account.craftFavorites instanceof Set
+          ? account.craftFavorites : new Set(account.craftFavorites ?? []);
+        const selected = account.craftFavorites.has(recipe.id);
+        if (selected) account.craftFavorites.delete(recipe.id);
+        else account.craftFavorites.add(recipe.id);
+        scheduleAccountSave(ctx.state);
+        ctx.state.sendSystemMessage(`${recipe.name} ${selected ? 'removed from' : 'added to'} server favorites.`);
+        return;
+      }
+      if (arg.toLowerCase() === 'favorites') {
+        const ids = [...(ctx.state.account?.craftFavorites ?? [])];
+        ctx.state.sendSystemMessage(ids.length ? `Craft favorites: ${ids.join(', ')}` : 'No server crafting favorites.');
+        return;
+      }
+      if (arg.toLowerCase() === 'history') {
+        const rows = ctx.state.account?.craftHistory ?? [];
+        ctx.state.sendSystemMessage(rows.length ? 'Recent crafts:' : 'No server crafting history.');
+        for (const row of rows.slice(0, 10)) {
+          ctx.state.sendSystemMessage(`  #${row.recipeId} ${row.name}${row.exceptional ? ' (exceptional)' : ''} — ${row.at}`);
+        }
+        return;
+      }
+      if (arg.toLowerCase() === 'cancel') {
+        const queue = ctx.sender._craftQueue;
+        if (!queue) ctx.state.sendSystemMessage('No crafting queue is active.');
+        else {
+          queue.cancelled = true;
+          ctx.state.sendSystemMessage('The crafting queue will stop after the current attempt.');
+        }
+        return;
+      }
+      if (arg.toLowerCase().startsWith('material ')) {
+        const name = arg.slice(9).trim().toLowerCase();
+        const material = CRAFT_MATERIALS[name];
+        if (!material) {
+          ctx.state.sendSystemMessage(`Unknown material. Choose: ${Object.keys(CRAFT_MATERIALS).join(', ')}.`);
+          return;
+        }
+        ctx.sender._craftMaterial = { name, ...material };
+        ctx.state.sendSystemMessage(`Crafting material selected: ${name}.`);
+        return;
+      }
       if (arg.toLowerCase().startsWith('gump')) {
         const rest = arg.slice(4).trim().toLowerCase();
         const skillId = rest ? SKILL_ALIAS[rest] ?? null : null;
         const recipes = skillId != null ? crafting.recipesForSkill(skillId) : crafting.allRecipes();
-        // Filter to a sensible cap and serialize as `id|name|skill|min|max`.
+        const rich = supportsWorkbench(api, ctx.state);
+        // The first five fields remain backwards compatible. Skill values on
+        // the wire are human-facing (0.0–120.0), while recipes store tenths.
         const rows = recipes.slice(0, 80).map((r) =>
-          `${r.id}|${r.name}|${r.skillId}|${r.minSkill}|${r.maxSkill}`,
+          [
+            r.id, String(r.name).replace(/[|;]/g, ' '), r.skillId,
+            (r.minSkill / 10).toFixed(1), (r.maxSkill / 10).toFixed(1),
+            ...(rich ? [
+              encodeURIComponent(r.category ?? 'Other'), r.outputItemId ?? 0, r.outputCount ?? 1,
+              encodeURIComponent(r.toolKind ?? ''),
+              (r.inputs ?? []).slice(0, 16).map((i) => `${i.itemId | 0}:${i.count | 0}:`).join(','),
+              Math.max(0, Math.min(1, ((skillValue(ctx.sender, r.skillId) * 10) - r.minSkill) /
+                Math.max(1, r.maxSkill - r.minSkill))).toFixed(4),
+              Math.max(0, Number(r.exceptionalChance ?? 0)).toFixed(4),
+              (r.inputs ?? []).some((i) => (i.itemId | 0) === 0x1BF2)
+                ? Object.entries(CRAFT_MATERIALS).map(([name, m]) =>
+                  `${encodeURIComponent(name)}:${m.hue}:${m.skillReq / 10}`).join(',')
+                : '',
+            ] : []),
+          ].join('|'),
         ).join(';');
         const skillVal = skillValue(ctx.sender, skillId);
         ctx.state.sendSystemMessage?.(
@@ -186,21 +400,22 @@ export default function register(api) {
         );
         return;
       }
+      if (arg.toLowerCase().startsWith('batch ')) {
+        const [, recipeArg = '', qtyRaw = '1'] = arg.match(/^batch\s+(\S+)\s*(\d*)/i) ?? [];
+        const recipe = recipeByArg(crafting, recipeArg);
+        if (!recipe) {
+          ctx.state.sendSystemMessage(`No recipe matching "${recipeArg}".`);
+          return;
+        }
+        startBatch(api, crafting, ctx, recipe, Number.parseInt(qtyRaw, 10) || 1);
+        return;
+      }
       if (!arg || arg.toLowerCase().startsWith('list')) {
         const rest = arg.slice(4).trim().toLowerCase();
         const skillId = rest ? SKILL_ALIAS[rest] ?? null : null;
         return listRecipes(ctx, skillId, crafting);
       }
-      let recipe = null;
-      const numeric = Number.parseInt(arg, 10);
-      if (Number.isFinite(numeric) && /^\d+$/.test(arg)) {
-        recipe = crafting.getRecipe(numeric);
-      }
-      if (!recipe) {
-        const lower = arg.toLowerCase();
-        recipe = crafting.allRecipes().find((r) => r.name.toLowerCase() === lower)
-              ?? crafting.allRecipes().find((r) => r.name.toLowerCase().includes(lower));
-      }
+      const recipe = recipeByArg(crafting, arg);
       if (!recipe) {
         ctx.state.sendSystemMessage(`No recipe matching "${arg}".`);
         return;
@@ -208,7 +423,6 @@ export default function register(api) {
       // Bug-hunt #7 bonus: pass the crafting tool so its charges
       // decrement on success. Without `ctx.tool`, regular (non-runic)
       // tools never crumbled.
-      const tool = findCraftingTool(api, ctx.sender, recipe.toolKind);
       // ServUO `CraftItem.Craft` — canonical apply-timer pattern:
       //   t = 0      → PlaySound(GetCraftPlaySound())        // initial tick
       //   t = Delay  → CompleteCraft (resolve + result msg)
@@ -218,48 +432,9 @@ export default function register(api) {
       // schedule the actual `craft()` call after the per-skill Delay
       // (CRAFT_DELAY_MS). Per-crafter `_craftBusyUntil` stamp blocks
       // re-entry so you can't stack five [craft commands in 100ms.
-      const now = Date.now();
-      if ((ctx.sender._craftBusyUntil ?? 0) > now) {
+      if (!scheduleAttempt(api, crafting, ctx, recipe)) {
         ctx.state.sendSystemMessage('You are still working on a craft.');
-        return;
       }
-      const delayMs = crafting.CRAFT_DELAY_MS[(recipe.toolKind ?? '').toLowerCase()] ?? 1500;
-      ctx.sender._craftBusyUntil = now + delayMs;
-      crafting.emitCraftSfx(ctx.sender, recipe.toolKind);
-      const senderRef = ctx.sender;
-      const stateRef = ctx.state;
-      const worldRef = ctx.world;
-      const recipeRef = recipe;
-      const toolRef = tool;
-      setTimeout(() => {
-        senderRef._craftBusyUntil = 0;
-        // Drop the craft if the player vanished mid-timer (logout,
-        // disconnect, death without resurrection). `mobiles.has` is
-        // the canonical "still in world" check.
-        if (!mobileBySerial(api, senderRef)) return;
-        const result = crafting.craft({
-          recipeId: recipeRef.id,
-          crafter: senderRef,
-          world: worldRef,
-          itemStore: buildItemStore(api),
-          tool: toolRef,
-          emitSfx: false,            // already emitted at t=0
-        });
-        if (result.ok) {
-          stateRef.sendSystemMessage(
-            `${result.exceptional ? 'Exceptional ' : ''}${recipeRef.name} crafted` +
-            (result.resource && result.resource !== 'iron' ? ` (${result.resource})` : '') + '.',
-          );
-        } else {
-          const reason = ({
-            'unknown-recipe': 'Recipe not found.',
-            'low-skill': `You lack the skill to craft ${recipeRef.name}.`,
-            'insufficient-materials': 'You lack the required materials.',
-            'failed': 'You failed to craft the item.',
-          })[result.reason] ?? `Craft failed (${result.reason}).`;
-          stateRef.sendSystemMessage(reason);
-        }
-      }, delayMs);
     },
   });
   return () => api.commands.unregister?.('craft');

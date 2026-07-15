@@ -30,6 +30,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // estimateStageCounts() preview; the actual apply functions resolve
 // their own DECO_PATH/SIGNS_PATH/etc inside each sub-command module.
 const DATA_DIR  = resolve(__dirname, '..', '..', 'data', 'world');
+// Bump whenever a full population pass changes its deterministic stages.
+// Stored in world metadata so operators can distinguish an already-current
+// shard from one that needs an explicit `[recreateworld` migration.
+export const WORLD_CONTENT_VERSION = 3;
 
 const STAGES = [
   { name: 'Decorations', apply: applyDecorations,  remove: deleteDecorations  },
@@ -134,6 +138,7 @@ function runStages(api, state, opts, enabled = 0xffff, priorFailures = 0) {
   const fullWorldRun = !opts?.facets && allStagesSelected;
   if (fullWorldRun && totals.ran === STAGES.length && totals.failed === 0) {
     api.world._createWorldDone = true;
+    api.world._createWorldVersion = WORLD_CONTENT_VERSION;
   }
   try {
     // Spawner.add deliberately staggers normal first spawns by minutes;
@@ -274,8 +279,12 @@ export default function register(api) {
       // and easy to recover from.
       const force = args[0] === 'force';
       if (api.world._createWorldDone && !force && !args.length) {
+        const applied = api.world._createWorldVersion | 0;
+        const versionHint = applied && applied !== WORLD_CONTENT_VERSION
+          ? ` Content version ${applied} is older than ${WORLD_CONTENT_VERSION}; use [recreateworld to migrate.`
+          : '';
         ctx.state.sendSystemMessage(
-          'CreateWorld: already run on this shard. Use [wipeworld for a clean slate or [recreateworld to wipe-and-repopulate in one step. Or `[createworld gump` for a per-stage preview.',
+          'CreateWorld: already run on this shard. Use [wipeworld for a clean slate or [recreateworld to wipe-and-repopulate in one step. Or `[createworld gump` for a per-stage preview.' + versionHint,
         );
         return;
       }
@@ -310,7 +319,10 @@ export default function register(api) {
       // Per-facet runs leave it alone — the world is still partially
       // populated and a bare `[createworld` would skip the leftover
       // facets without us needing to re-stamp anything.
-      if (!facets) api.world._createWorldDone = false;
+      if (!facets) {
+        api.world._createWorldDone = false;
+        api.world._createWorldVersion = 0;
+      }
       refreshConnectedClients(api);
       queueWorldSave(api, ctx.state);
       ctx.state.sendSystemMessage(`DeleteWorld done. Total items removed: ${totals.removed}.`);
@@ -328,7 +340,10 @@ export default function register(api) {
       const facets = args.length ? args.map((s) => parseInt(s, 10)).filter(Number.isFinite) : null;
       const opts = facets ? { facets } : {};
       let removed = 0; let removeFailures = 0;
-      if (!facets) api.world._createWorldDone = false;
+      if (!facets) {
+        api.world._createWorldDone = false;
+        api.world._createWorldVersion = 0;
+      }
       for (const stage of STAGES) {
         try { removed += stage.remove(api, opts).removed ?? 0; }
         catch (e) {

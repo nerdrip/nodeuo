@@ -1,5 +1,6 @@
 import { mobileBySerial } from '../../_entities.js';
 import { allMobiles } from '../../_spatial.js';
+import { equipmentForMobile } from '../../_equipment.js';
 // `[face` — character / NPC paperdoll customization gump.
 //
 // ServUO `Engines/Customization/FaceChange.cs`. Players visit a Barber
@@ -129,12 +130,11 @@ function openFaceGump(api, ctx, target) {
         x: target.x, y: target.y, z: target.z,
         direction: target.direction ?? 0,
         hue: target.hue ?? 0, flags: target.flags ?? 0,
-        notoriety: target.notoriety ?? 1, equipment: [],
+        notoriety: target.notoriety ?? 1, equipment: equipmentForMobile(api, target),
       });
       if (incoming) for (const m of allMobiles(api)) {
         if (!m.client || m.map !== target.map) continue;
         if (Math.abs(m.x - target.x) > 18 || Math.abs(m.y - target.y) > 18) continue;
-        m.client.sendRemove?.(target.serial);
         m.client.send(incoming);
       }
     } catch { /* tolerate */ }

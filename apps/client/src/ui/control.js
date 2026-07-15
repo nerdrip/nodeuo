@@ -11,6 +11,7 @@
 // when a control returns true.
 
 import { Container } from 'pixi.js';
+import { AsyncGenerationOwner } from '../shared/runtime-governor.js';
 
 let _nextLocalSerial = 1;
 
@@ -28,6 +29,7 @@ export class Control {
     this.visible = true;
     this.acceptMouseInput = true;
     this.acceptKeyboardInput = false;
+    this.keyboardFocusable = false;
     /** When true, mouse-down on this control starts a gump drag. Default
      *  for ResizePic backgrounds + WindowGump title bars. */
     this.isDragHandle = false;
@@ -36,6 +38,10 @@ export class Control {
     /** @type {Container} */
     this.node = new Container();
     this.node._uoControl = this;
+    // Every control owns one async generation. Texture/image callbacks must
+    // validate it before mutating Pixi state; dispose invalidates all pending
+    // work in one place instead of relying on ad-hoc booleans per widget.
+    this.asyncOwner = new AsyncGenerationOwner();
   }
 
   /** Add a child below this control in the tree. */
@@ -62,6 +68,7 @@ export class Control {
 
   /** Recursively dispose all children + Pixi nodes. */
   dispose() {
+    this.asyncOwner.dispose();
     while (this.children.length) {
       this.children[this.children.length - 1].dispose();
     }
@@ -70,9 +77,19 @@ export class Control {
     this.node.destroy({ children: true });
   }
 
+  beginAsyncGeneration() { return this.asyncOwner.invalidate(); }
+  captureAsyncGeneration() { return this.asyncOwner.capture(); }
+  asyncGenerationValid(generation) { return this.asyncOwner.valid(generation); }
+
   setPosition(x, y) {
-    const nx = x | 0;
-    const ny = y | 0;
+    // Server-authored gumps are untrusted input. Bitwise coercion turns
+    // Infinity/NaN into surprising values and very large coordinates can
+    // explode Pixi bounds calculations. Keep the useful signed range while
+    // preserving legitimate negative art offsets used by classic gumps.
+    const nx = Number.isFinite(Number(x))
+      ? Math.max(-32768, Math.min(32767, Math.trunc(Number(x)))) : 0;
+    const ny = Number.isFinite(Number(y))
+      ? Math.max(-32768, Math.min(32767, Math.trunc(Number(y)))) : 0;
     if (nx === this.x && ny === this.y) return;
     this.x = nx;
     this.y = ny;
@@ -81,8 +98,10 @@ export class Control {
   }
 
   setSize(w, h) {
-    this.width  = w | 0;
-    this.height = h | 0;
+    const safeSize = (value) => Number.isFinite(Number(value))
+      ? Math.max(0, Math.min(8192, Math.trunc(Number(value)))) : 0;
+    this.width  = safeSize(w);
+    this.height = safeSize(h);
     this.onResize?.();
   }
 

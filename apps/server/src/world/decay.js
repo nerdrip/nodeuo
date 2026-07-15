@@ -150,6 +150,34 @@ export function tickDecay(world, now = Date.now(), decayMs = DEFAULT_DECAY_MS) {
   return { stamped, expired: expired.length };
 }
 
+/** Bounded round-robin decay pass used by production scheduling. */
+export function tickDecayBudgeted(world, now = Date.now(), decayMs = DEFAULT_DECAY_MS, maxItems = 512) {
+  const budget = Math.max(1, maxItems | 0);
+  let state = world._decayBudgetState;
+  if (!state?.iterator) state = world._decayBudgetState = { iterator: world.sectors?.allItemSerials?.() ?? world.items.keys(), cycles: 0 };
+  const serials = [];
+  let completed = false;
+  while (serials.length < budget) {
+    const next = state.iterator.next();
+    if (next.done) { completed = true; break; }
+    serials.push(next.value);
+  }
+  let stats = { stamped: 0, expired: 0 };
+  if (serials.length) {
+    const view = Object.create(world);
+    const sectors = Object.create(world.sectors ?? null);
+    sectors.allItemSerials = () => serials.values();
+    sectors.itemsIndexed = () => serials.length;
+    view.sectors = sectors;
+    stats = tickDecay(view, now, decayMs);
+  }
+  if (completed) {
+    state.iterator = world.sectors?.allItemSerials?.() ?? world.items.keys();
+    state.cycles++;
+  }
+  return { ...stats, processed: serials.length, remaining: !completed, cycles: state.cycles };
+}
+
 /**
  * Schedule the sweeper on `setInterval`. Returns the handle so the
  * caller can `clearInterval(handle)` on shutdown.
@@ -163,7 +191,9 @@ export function startDecaySweeper(world, opts = {}) {
   const handle = setInterval(() => {
     try {
       const now = Date.now();
-      const stats = tickDecay(world, now, decayMs);
+      const stats = opts.maxPerTick
+        ? tickDecayBudgeted(world, now, decayMs, opts.maxPerTick)
+        : tickDecay(world, now, decayMs);
       if (opts.onTick) opts.onTick({ ...stats, now });
     } catch (e) {
       console.error('[decay] sweep failed:', e);

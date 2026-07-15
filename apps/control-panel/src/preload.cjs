@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('uo', {
   stopAll:      () => ipcRenderer.invoke('stop-all'),
   killPort:     (port) => ipcRenderer.invoke('kill-port', { port }),
   openUrl:      (url) => ipcRenderer.invoke('open-url', { url }),
+  chooseDirectory: (defaultPath) => ipcRenderer.invoke('choose-directory', { defaultPath }),
   onLog:        (cb) => ipcRenderer.on('service:log',   (_e, p) => cb(p)),
   onState:      (cb) => ipcRenderer.on('service:state', (_e, p) => cb(p)),
 });

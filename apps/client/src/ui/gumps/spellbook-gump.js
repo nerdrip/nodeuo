@@ -14,7 +14,7 @@
 // circle's INDEX page. Page corners flip ±1.
 //
 // Per icon:
-//   • Left click   → cast (0x12 TextCommand "<spellId>")
+//   • Double click → cast (0x12 TextCommand "<spellId>")
 //   • Left drag    → drop into an exact action-bar slot, or drop on the
 //                    world to create a freely movable shortcut tile
 //
@@ -27,6 +27,7 @@ import { Gump } from '../gump.js';
 import { Label } from '../controls/label.js';
 import { Control } from '../control.js';
 import { GumpPic } from '../controls/gump-pic.js';
+import { GumpPicTiled } from '../controls/gump-pic-tiled.js';
 import { bus } from '../../core/event-bus.js';
 import { world } from '../../world/world.js';
 import { net } from '../../net/net-client.js';
@@ -35,7 +36,7 @@ import { tooltips } from '../../managers/tooltip-manager.js';
 import { profile } from '../../managers/profile-manager.js';
 import {
   SPELLBOOK_GUMPS, spellsForSchool, spellById,
-  spellIconId, expandReagents, circleName,
+  spellIconId, expandReagents, circleName, spellWords,
 } from './spell-data.js';
 import { beginSpellShortcutDrag } from './spell-shortcut-drag.js';
 
@@ -52,6 +53,9 @@ const PAGE_CORNER_LEFT  = 0x08BB;
 const PAGE_CORNER_RIGHT = 0x08BC;
 const BOOK_W = 406;
 const BOOK_H = 229;
+const INK = 0x352417;
+const INK_MUTED = 0x6b4328;
+const INK_HOVER = 0x8d2f1d;
 
 // Layout coords pulled from CUO SpellbookGump.cs.
 const ICON_X_LEFT  = 62;
@@ -73,8 +77,26 @@ const TOP_TEXT_Y = 6;
 // edge while column 1 sat 58 px in from the left). Re-balancing so
 // both halves match: 58 / 93 / 130 / 164  |  237 / 271 / 308 / 343.
 const CIRCLE_BUTTON_Y = 175;
-const CIRCLE_BUTTON_X = [58, 93, 130, 164, 218, 252, 289, 324];
+const CIRCLE_BUTTON_X = [58, 93, 130, 164, 227, 260, 297, 332];
 const CIRCLE_BUTTON_GUMP = [0x08B1, 0x08B2, 0x08B3, 0x08B4, 0x08B5, 0x08B6, 0x08B7, 0x08B8];
+
+/** ClassicUO gives Magery spell names an 80 px wrapping column. Pixi Text
+ * does not wrap without a dedicated wordWrap style, so insert the same
+ * visual line break at the most balanced word boundary. This preserves the
+ * complete name instead of ellipsizing it ("Summon Dae..."). */
+function wrapSpellName(text) {
+  const words = String(text ?? '').trim().split(/\s+/);
+  if (words.length < 2) return words[0] ?? '';
+  let best = 1;
+  let imbalance = Number.POSITIVE_INFINITY;
+  for (let i = 1; i < words.length; i++) {
+    const left = words.slice(0, i).join(' ');
+    const right = words.slice(i).join(' ');
+    const score = Math.abs(left.length - right.length);
+    if (score < imbalance) { best = i; imbalance = score; }
+  }
+  return `${words.slice(0, best).join(' ')}\n${words.slice(best).join(' ')}`;
+}
 
 class SpellIcon extends Control {
   /** @param {{id,name,circle,mana,reagents}} spell */
@@ -195,7 +217,7 @@ class SpellIcon extends Control {
     tooltips.showText(e?.global?.x ?? 0, e?.global?.y ?? 0, tip);
   }
   onMouseLeave() { this._drawFrame(false); tooltips.hide(); }
-  onClick(btn) {
+  onDoubleClick(btn) {
     if (btn !== 0) return;
     if (!this.known) {
       bus.emit('chat:system', { text: `${this.spell.name} is not written in this spellbook.` });
@@ -220,13 +242,12 @@ class SpellNameLink extends Control {
     this.width = 130;
     this.height = 14;
     this.acceptMouseInput = true;
-    // Cream + stroke for max contrast on tan parchment.
-    this._lbl = new Label(spell.name, { fontSize: 12, hue: 0xfff0c0, stroke: true });
+    this._lbl = new Label(spell.name, { fontSize: 11, hue: INK, fontWeight: 600 });
     this._lbl.acceptMouseInput = false;
     this.add(this._lbl);
   }
-  onMouseEnter() { this._lbl.setHue?.(0xffd060); }
-  onMouseLeave() { this._lbl.setHue?.(0xfff0c0); }
+  onMouseEnter() { this._lbl.setHue?.(INK_HOVER); }
+  onMouseLeave() { this._lbl.setHue?.(INK); }
   onClick(btn) { if (btn === 0) this._onJump(this._targetPage); }
 }
 
@@ -234,11 +255,11 @@ class CircleJumpButton extends Control {
   constructor(circle, gumpId, onPick) {
     super();
     this.circle = circle;
-    this.width = 28;
-    this.height = 24;
+    this.width = 19;
+    this.height = 20;
     this.acceptMouseInput = true;
     this._onPick = onPick;
-    const pic = new GumpPic(gumpId, { width: 28, height: 24 });
+    const pic = new GumpPic(gumpId, { width: 19, height: 20 });
     pic.acceptMouseInput = false;
     this.add(pic);
   }
@@ -249,12 +270,12 @@ class PageCorner extends Control {
   constructor(direction, onClick) {
     super();
     this.direction = direction; // 'prev' | 'next'
-    this.width = 27;
-    this.height = 23;
+    this.width = direction === 'prev' ? 37 : 36;
+    this.height = 27;
     this.acceptMouseInput = true;
     this._onClick = onClick;
     const pic = new GumpPic(direction === 'prev' ? PAGE_CORNER_LEFT : PAGE_CORNER_RIGHT,
-      { width: 27, height: 23 });
+      { width: this.width, height: this.height });
     pic.acceptMouseInput = false;
     this.add(pic);
   }
@@ -302,6 +323,20 @@ export class SpellbookGump extends Gump {
 
     /** @type {SpellIcon[]} */ this._icons = [];
     /** @type {SpellNameLink[]} */ this._links = [];
+    /** Controls owned by page content and rebuilt when the server sends the
+     * authoritative known-spell mask. CUO only lays out spells present in
+     * the physical book; showing 62 grey placeholders made navigation full
+     * of blank pages. */
+    this._pageControls = [];
+
+    const hasInitialMask = Number.isFinite(optsObj.offset)
+      && (Object.hasOwn(optsObj, 'hi') || Object.hasOwn(optsObj, 'lo'));
+    if (hasInitialMask) {
+      this._replaceKnownMask(optsObj.offset | 0, optsObj.hi >>> 0, optsObj.lo >>> 0);
+    } else {
+      // Permissive until the 0xBF 0x1B content packet arrives.
+      for (const s of spellsForSchool(this.gumpId)) this._known.add(s.id);
+    }
 
     this._buildPages();
 
@@ -310,13 +345,8 @@ export class SpellbookGump extends Gump {
     this._cornerLeft  = new PageCorner('prev', (d) => this._flipPage(d));
     this._cornerLeft.setPosition(50, 8);
     this.add(this._cornerLeft);
-    // Right page corner — slid a touch further right than the strict
-    // mirror so the visible curl sits FLUSH with the right-page edge
-    // (CUO native art has the curl drawn off-centre toward the right
-    // half of the sprite). 38 px from the book's right edge places
-    // the artwork's curl tip in the corresponding corner.
     this._cornerRight = new PageCorner('next', (d) => this._flipPage(d));
-    this._cornerRight.setPosition(BOOK_W - 38 - 36, 8);
+    this._cornerRight.setPosition(321, 8);
     this.add(this._cornerRight);
 
     // 4. Magery quick-jump circle buttons across both pages, Y=175.
@@ -327,16 +357,6 @@ export class SpellbookGump extends Gump {
         b.setPosition(CIRCLE_BUTTON_X[c - 1], CIRCLE_BUTTON_Y);
         this.add(b);
       }
-    }
-
-    // 5. Initial known-spell mask.
-    if (Number.isFinite(optsObj.offset) && (optsObj.hi || optsObj.lo)) {
-      this._setMask(optsObj.offset | 0, optsObj.hi >>> 0, optsObj.lo >>> 0);
-    } else {
-      // Permissive default — every spell appears known until the
-      // server's 0xBF 0x1B push lands and overrides.
-      for (const s of spellsForSchool(this.gumpId)) this._known.add(s.id);
-      for (const ic of this._icons) ic.setKnown(true);
     }
 
     this._gotoPage(1);
@@ -352,18 +372,41 @@ export class SpellbookGump extends Gump {
   get type() { return 'spellbook'; }
   dispose() { for (const u of this._unsubs) u(); super.dispose(); }
 
-  /** Assemble all pages once and stash their controls with the right
-   *  `page` filter. Magery: 4 index spreads (8 circles paired) + 32
-   *  detail spreads (one spell per side). Non-Magery schools collapse
-   *  to a single index spread + ⌈n/2⌉ detail spreads. */
+  _addPageControl(control, page) {
+    control.page = page;
+    this.add(control);
+    this._pageControls.push(control);
+    return control;
+  }
+
+  _clearPageControls() {
+    for (const control of this._pageControls) {
+      try { this.remove(control); } catch { /* already detached */ }
+      try { control.dispose?.(); } catch { /* best effort */ }
+    }
+    this._pageControls.length = 0;
+    this._icons.length = 0;
+    this._links.length = 0;
+  }
+
+  _rebuildPages() {
+    const previous = this._activePage ?? 1;
+    this._clearPageControls();
+    this._buildPages();
+    this._gotoPage(Math.min(previous, this._maxPage));
+  }
+
+  /** Assemble CUO-style dictionary + detail spreads using only spells that
+   * are physically present in this book. */
   _buildPages() {
-    const spells = spellsForSchool(this.gumpId);
-    const circles = [...new Set(spells.map((s) => s.circle))].sort((a, b) => a - b);
+    const catalog = spellsForSchool(this.gumpId);
+    const spells = catalog.filter((spell) => this._known.has(spell.id));
+    const circles = [...new Set(catalog.map((s) => s.circle))].sort((a, b) => a - b);
     const isMagery = this._school === 'Magery' && circles.length === 8;
 
     // pagesToFill = # of INDEX spreads. CUO pairs 2 circles per spread.
     const indexSpreads = isMagery ? 4 : 1;
-    let detailPage = indexSpreads + 1;
+    let detailPage = indexSpreads;
 
     // Each spell gets a detail page assigned (left or right slot).
     /** @type {Map<number, {page:number, side:'L'|'R'}>} */
@@ -371,11 +414,11 @@ export class SpellbookGump extends Gump {
     let placed = 0;
     for (const sp of spells) {
       const side = (placed % 2 === 0) ? 'L' : 'R';
-      if (placed > 0 && placed % 2 === 0) detailPage++;
+      if (placed % 2 === 0) detailPage++;
       detailFor.set(sp.id, { page: detailPage, side });
       placed++;
     }
-    this._maxPage = detailPage;
+    this._maxPage = Math.max(indexSpreads, detailPage);
     this._indexSpreads = indexSpreads;
 
     // ---- Index pages ----
@@ -397,15 +440,13 @@ export class SpellbookGump extends Gump {
   }
 
   _buildIndexSide(page, circle, baseX, allSpells, detailFor) {
-    // Cream-on-black "embossed" lettering — matches the paperdoll
-    // title strip and reads cleanly on UO's tan parchment in both
-    // daylight and night dim. The dark-ink-on-cream variant we used
-    // before blended into the parchment tone at certain hue settings.
-    const title = new Label(circleName(circle), { fontSize: 14, hue: 0xfff0c0, stroke: true });
-    title.setPosition(baseX, 8);
-    title.acceptMouseInput = false;
-    title.page = page;
-    this.add(title);
+    const indexX = baseX === ICON_X_LEFT ? 106 : 269;
+    const index = new Label('Index', { fontSize: 12, hue: INK, fontWeight: 700 });
+    index.setPosition(indexX, 10);
+    this._addPageControl(index, page);
+    const title = new Label(circleName(circle), { fontSize: 12, hue: INK_MUTED, fontWeight: 600 });
+    title.setPosition(baseX, 30);
+    this._addPageControl(title, page);
     // Spell name list — clickable, jumps to detail page.
     const circleSpells = allSpells.filter((s) => s.circle === circle);
     circleSpells.forEach((sp, i) => {
@@ -414,65 +455,62 @@ export class SpellbookGump extends Gump {
         detailFor.get(sp.id).page,
         (p) => this._gotoPage(p),
       );
-      link.setPosition(baseX, 32 + i * 14);
-      link.page = page;
-      this.add(link);
+      link.setPosition(baseX, 52 + i * 15);
+      this._addPageControl(link, page);
       this._links.push(link);
     });
   }
 
   _buildDetailSide(page, spell, iconX, headerX, nameX) {
-    // Circle header — same cream embossed style as the index.
     const hdr = new Label(circleName(spell.circle),
-      { fontSize: 11, hue: 0xffd080, stroke: true });
+      { fontSize: 11, hue: INK_MUTED, fontWeight: 600 });
     hdr.setPosition(headerX, TOP_TEXT_Y + 4);
     hdr.acceptMouseInput = false;
-    hdr.page = page;
-    this.add(hdr);
+    this._addPageControl(hdr, page);
 
     // Big icon — interactive (cast / drag).
     const known = this._known.has(spell.id);
     const ic = new SpellIcon(spell, known);
     ic.setPosition(iconX, ICON_Y);
-    ic.page = page;
-    this.add(ic);
+    this._addPageControl(ic, page);
     this._icons.push(ic);
 
-    // Spell name — cream with thick stroke. Larger than the index list
-    // so the user can read the active spell name from across the room.
     const name = new Label(spell.name,
-      { fontSize: 13, hue: 0xfff0c0, stroke: true });
-    name.setPosition(nameX, ICON_Y - 4);
-    name.acceptMouseInput = false;
-    name.page = page;
-    this.add(name);
-
-    // Mana cost just under the name — slightly dimmer to draw the eye
-    // to the spell name first.
-    const mana = new Label(`Mana ${spell.mana}`,
-      { fontSize: 11, hue: 0xc0d0ff, stroke: true });
-    mana.setPosition(nameX, ICON_Y + 14);
-    mana.acceptMouseInput = false;
-    mana.page = page;
-    this.add(mana);
+      { fontSize: 11, hue: INK, fontWeight: 500 });
+    if (name.width > 80) name.setText(wrapSpellName(spell.name));
+    name.setPosition(nameX, 34);
+    this._addPageControl(name, page);
+    const words = spellWords(spell);
+    if (words) {
+      const incantation = new Label(words,
+        { fontSize: 10, hue: INK_MUTED, fontWeight: 500 });
+      // Reserve the measured name height. CUO's font-6 line metrics differ
+      // from browser fonts, so copying its arithmetic verbatim makes a
+      // wrapped second line collide with the incantation in Pixi.
+      const incantationY = 34 + name.height + 2;
+      incantation.setPosition(nameX, incantationY);
+      this._addPageControl(incantation, page);
+    }
 
     // "Reagents:" header + multi-line reagent list.
     if (spell.reagents) {
+      const rule = new GumpPicTiled(0x0835, { width: 120, height: 5 });
+      rule.setPosition(iconX, 88);
+      rule.acceptMouseInput = false;
+      this._addPageControl(rule, page);
       const reagHdr = new Label('Reagents:',
-        { fontSize: 11, hue: 0xffd080, stroke: true });
+        { fontSize: 11, hue: INK_MUTED, fontWeight: 600 });
       reagHdr.setPosition(iconX, REAGENT_HEADER_Y);
       reagHdr.acceptMouseInput = false;
-      reagHdr.page = page;
-      this.add(reagHdr);
+      this._addPageControl(reagHdr, page);
       const reagList = expandReagents(spell);
       const lines = reagList.split('\n');
       lines.forEach((line, i) => {
         const lbl = new Label(line,
-          { fontSize: 11, hue: 0xfff0c0, stroke: true });
+          { fontSize: 10, hue: INK, fontWeight: 500 });
         lbl.setPosition(iconX, REAGENT_LIST_Y + i * 12);
         lbl.acceptMouseInput = false;
-        lbl.page = page;
-        this.add(lbl);
+        this._addPageControl(lbl, page);
       });
     }
   }
@@ -500,10 +538,14 @@ export class SpellbookGump extends Gump {
   }
 
   _setMask(offset, hi, lo) {
+    this._replaceKnownMask(offset, hi, lo);
+    this._rebuildPages();
+  }
+
+  _replaceKnownMask(offset, hi, lo) {
     this._known.clear();
     for (let b = 0; b < 32; b++) if (lo & (1 << b)) this._known.add(offset + b);
     for (let b = 0; b < 32; b++) if (hi & (1 << b)) this._known.add(offset + 32 + b);
-    for (const ic of this._icons) ic.setKnown(this._known.has(ic.spell.id));
   }
 
   _onContents({ containerSerial, items }) {
@@ -513,6 +555,6 @@ export class SpellbookGump extends Gump {
       const spellId = it.itemId & 0xff;
       if (spellById(spellId)) this._known.add(spellId);
     }
-    for (const ic of this._icons) ic.setKnown(this._known.has(ic.spell.id));
+    this._rebuildPages();
   }
 }

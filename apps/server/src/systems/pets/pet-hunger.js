@@ -53,7 +53,7 @@ export function tickPetHunger(world, dtSec = 1) {
   // scan when the index doesn't exist (tests build worlds without
   // going through tame/hire paths). The fallback ALSO lazily populates
   // the index so subsequent ticks take the fast path.
-  if (world._pets && world._pets.size > 0) {
+  if (world._pets) {
     for (const serial of [...world._pets]) {
       const m = world.mobiles.get(serial);
       if (!m || !m.controlMaster || m.client) { world._pets.delete(serial); continue; }
@@ -64,8 +64,6 @@ export function tickPetHunger(world, dtSec = 1) {
   for (const m of world.mobiles.values()) {
     if (m.client) continue;
     if (!m.controlMaster) continue;
-    // Lazy-build the index so the next tick uses the fast path.
-    if (world._pets) world._pets.add(m.serial);
     _stepPet(world, m, dtSec);
   }
 }

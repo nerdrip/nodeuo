@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { RegionRegistry } from '../src/regions.js';
-import { classifyRegion } from '../../scripts/src/spawns/random-encounters.js';
+import { classifyRegion, encounterSpawnPoint } from '../../scripts/src/spawns/random-encounters.js';
 
 function mob(x, y, map = 1) {
   return { x, y, map };
@@ -39,5 +39,21 @@ describe('random encounter region safety', () => {
   it('uses wilderness only when no registered region owns the tile', () => {
     const regions = new RegionRegistry();
     expect(classifyRegion({ regions }, mob(500, 500))).toBe('wilderness');
+  });
+
+  it('never offsets an automatic encounter across a guarded city boundary', () => {
+    const regions = new RegionRegistry();
+    regions.register({
+      name: 'Border Town', map: 1, type: 'town',
+      rects: [{ x1: 0, y1: -20, x2: 20, y2: 20 }],
+    });
+    const rolls = [0, 0, 0.5, 0]; // east into town, then west into wilderness
+    let index = 0;
+    const point = encounterSpawnPoint(
+      { regions }, mob(-1, 0), 'wilderness',
+      () => rolls[index++] ?? 0.5,
+    );
+    expect(point).toMatchObject({ x: -5, y: 0, map: 1 });
+    expect(classifyRegion({ regions }, point)).toBe('wilderness');
   });
 });

@@ -64,6 +64,14 @@ export function effectiveSkill(mob, skillId) {
  */
 export function effectiveWeaponSkill(mob) {
   if (!mob) return 0;
+  // A wielded weapon always selects its authored combat skill. The old
+  // "highest weapon skill" shortcut let a 120 Swords character fire a bow
+  // with Swords instead of Archery and made weapon swaps meaningless.
+  const wieldedSkill = Number(mob._weapon?.skill);
+  if (Number.isFinite(wieldedSkill) && wieldedSkill >= 0) {
+    const selected = effectiveSkill(mob, wieldedSkill);
+    if (selected > 0) return selected;
+  }
   if (mob.skills) {
     let best = 0;
     for (const id of WEAPON_SKILL_LIST) {
@@ -298,7 +306,13 @@ export function applyArmor(damage, armor) {
 export function rollDamage(attacker, defender, rng = Math.random) {
   // Use effective Str so Weaken / Strength buffs alter the swing range
   // (Bug-hunt #6 P2 #2).
-  const { lo, hi } = unarmedDamageRange(effectiveStat(attacker, 'str'));
+  const weaponLo = Number(attacker?._weapon?.minDamage);
+  const weaponHi = Number(attacker?._weapon?.maxDamage);
+  const hasWeaponRange = Number.isFinite(weaponLo) && Number.isFinite(weaponHi)
+    && weaponLo >= 0 && weaponHi >= weaponLo;
+  const { lo, hi } = hasWeaponRange
+    ? { lo: weaponLo | 0, hi: weaponHi | 0 }
+    : unarmedDamageRange(effectiveStat(attacker, 'str'));
   const base = lo + Math.floor(rng() * (hi - lo + 1));
   let scaled = Math.max(1, Math.floor(base * damageMultiplier(attacker)));
 
@@ -530,22 +544,14 @@ export function damageRiders(attacker, defender, dmg) {
  * Clamped so a fully-decked-out fighter still has a 1.25s minimum and an
  * exhausted brawler doesn't take 10s between swings.
  */
-export function swingDelayMs(attacker, weaponSpeed = 3) {
+export function swingDelayMs(attacker, weaponSpeed = attacker?._weapon?.speed ?? 30) {
   const stam = Math.max(0, attacker?.stam ?? attacker?.dex ?? 50);
-  let raw = 4500 - stam * 8 - weaponSpeed * 200;
-  // Chivalry Divine Fury halves the delay between swings while active.
-  // Spellweaving Essence of Wind doubles the defender's swing delay —
-  // we apply it on the attacker side too for symmetry (a slowed mob
-  // also swings less often).
-  if (hasEffect(attacker, 'divine-fury'))     raw = Math.floor(raw * 0.5);
-  if (hasEffect(attacker, 'essence-of-wind')) raw = Math.floor(raw * 1.5);
-  // BUGFIX #126 (FAZA HL): dual-wield (weapon on layer 1 AND layer 2,
-  // neither being a shield) treated as free DPS doubling before. Add
-  // +30% swing delay penalty when `_dualWield` is set by the equip
-  // path (handlers.handleWearItem).
-  if (attacker?._dualWield) raw = Math.floor(raw * 1.3);
-  // AOS Swing Speed Increase. ServUO `WeaponAttributes.SwingSpeedIncrease`
-  // is capped at 60 — divides the post-formula delay by `(1 + ssi/100)`.
+  // ServUO BaseWeapon.GetDelay (AOS):
+  //   floor(40000 / ((stam + 100) * speed * (1 + SSI/100))) * 0.5 s
+  // Weapon definitions carry the real AOS speed values (22..56), not the
+  // old local 1..5 rating. Previously the live auto-attack omitted this
+  // argument entirely, so daggers, bows and halberds all used speed=3.
+  const speed = Math.max(1, Number(weaponSpeed) || 30);
   let ssi = _attrs(attacker)?.swingSpeedIncrease | 0;
   // Audit #37 P1 #6 — Reaper Form grants +10 SSI from the transform.
   ssi += (attacker?._reaperSSI | 0);
@@ -556,9 +562,17 @@ export function swingDelayMs(attacker, weaponSpeed = 3) {
   if ((attacker?._rampageUntil ?? 0) > Date.now()) {
     ssi += Math.min(25, (attacker._rampageStacks | 0) * 5);
   }
-  if (ssi !== 0) raw = Math.floor(raw / Math.max(0.1, 1 + ssi / 100));
+  ssi = clamp(ssi, -90, 60);
+  const divisor = Math.max(1, (stam + 100) * speed * (1 + ssi / 100));
+  let raw = Math.floor(40000 / divisor) * 500;
+  // The AOS minimum is 1.25 s. Keep a defensive upper bound for malformed
+  // custom weapons without flattening legitimate slow weapons.
+  raw = clamp(raw || 1250, 1250, 10_000);
+  if (hasEffect(attacker, 'divine-fury'))     raw = Math.floor(raw * 0.5);
+  if (hasEffect(attacker, 'essence-of-wind')) raw = Math.floor(raw * 1.5);
+  if (attacker?._dualWield) raw = Math.floor(raw * 1.3);
   if ((attacker?._staggerUntil ?? 0) > Date.now()) raw = Math.floor(raw * 1.5);
-  return clamp(raw, 1250, 3500);
+  return clamp(raw, 1250, 10_000);
 }
 
 export function applyConfidenceParryStamina(mob) {

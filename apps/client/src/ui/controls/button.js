@@ -33,19 +33,28 @@ const BUTTON_LABEL_STYLE = new TextStyle({
 });
 
 export class Button extends Control {
-  constructor({
-    normalGumpId, pressedGumpId,
-    width = 50, height = 22,
-    buttonId = 0, pageNo = 0, action = ButtonAction.Activate,
-    label = '', flat = false,
-  }) {
+  constructor(options = {}) {
+    const {
+      normalGumpId, pressedGumpId,
+      width = 50, height = 22,
+      buttonId = 0, pageNo = 0, action = ButtonAction.Activate,
+      label = '', flat = false,
+    } = options;
     super();
+    this.keyboardFocusable = true;
     this.normalGumpId  = normalGumpId  | 0;
     this.pressedGumpId = pressedGumpId | 0;
     this.buttonId = buttonId | 0;
     this.pageNo   = pageNo   | 0;
     this.action   = action   | 0;
     this.flat = !!flat;
+    // Do not infer intent from the numeric default. A code-authored 50×22
+    // button is explicitly 50×22 and must not jump to its atlas sprite's
+    // natural dimensions a frame later. Server layout buttons omit bounds
+    // and therefore still adopt their native UO art size.
+    this._explicitSize = this.flat
+      || Object.prototype.hasOwnProperty.call(options, 'width')
+      || Object.prototype.hasOwnProperty.call(options, 'height');
     this.width  = width;
     this.height = height;
 
@@ -62,9 +71,7 @@ export class Button extends Control {
     /** @type {Sprite | null} loaded gump-art face (replaces shimmer once mounted) */
     this._sprite = null;
     this._faceCache = { normalId: 0, pressedId: 0 };
-    this._loadToken = 0;
     this._faceToken = 0;
-    this._disposed = false;
 
     this._label = new Text({
       text: label || '',
@@ -88,17 +95,19 @@ export class Button extends Control {
   async _mountSprite() {
     const id = this.normalGumpId;
     if (!id) return;
-    const token = ++this._loadToken;
-    const tex = await assets.gumpTexture(id);
-    if (this._disposed || token !== this._loadToken) return;
-    if (!tex || this._sprite) return;
+    const generation = this.captureAsyncGeneration();
+    const loaded = await assets.gumpTexture(id);
+    if (!this.asyncGenerationValid(generation)) return;
+    if (this._sprite) return;
+    const tex = loaded ?? assets.placeholderTexture('gump', this.width || 22, this.height || 22);
     const sp = acquireSprite(tex);
+    sp._uoMissingAsset = !loaded ? { kind: 'gump', id } : null;
     sp.position.set(0, 0);
     this._wrap.addChildAt(sp, 0);
     this._sprite = sp;
     // Adopt the gump's natural size so 30×22 button arts (CUO 0x0FA5
     // family) don't get stretched into a 50×22 placeholder default.
-    if (this.width === 50 && this.height === 22) {
+    if (!this._explicitSize) {
       this.width = tex.width; this.height = tex.height;
     }
     this._shimmer?.dispose();
@@ -114,7 +123,7 @@ export class Button extends Control {
     this._layout();
   }
 
-  setSize(w, h) { super.setSize(w, h); this._draw(); }
+  setSize(w, h) { this._explicitSize = true; super.setSize(w, h); this._draw(); }
 
   _draw() {
     if (this._flatFace) {
@@ -142,12 +151,13 @@ export class Button extends Control {
     if (!id) return;
     if (!this._sprite) return;                       // race: sprite gone
     const token = ++this._faceToken;
+    const generation = this.captureAsyncGeneration();
     if (this._sprite._currentId === id) return;
     const tex = await assets.gumpTexture(id);
     // Race: gump closed (and the sprite torn down by Pixi) before the
     // texture promise resolved. Pixi's measure mixin throws when you
     // assign `.texture` on a destroyed sprite, so bail early.
-    if (this._disposed || token !== this._faceToken) return;
+    if (!this.asyncGenerationValid(generation) || token !== this._faceToken) return;
     if (!tex || !this._sprite || this._sprite.destroyed) return;
     this._sprite.texture = tex;
     this._sprite._currentId = id;
@@ -164,12 +174,13 @@ export class Button extends Control {
     this._label.position.set(this.width / 2, this.height / 2);
   }
 
-  onMouseDown(_btn) { this._pressed = true; this._draw(); }
+  onMouseDown(_btn) { if (this.enabled === false) return; this._pressed = true; this._draw(); }
   onMouseUp(_btn)   { this._pressed = false; this._draw(); }
-  onMouseEnter()    { this._hovered = true; this._draw(); }
+  onMouseEnter()    { if (this.enabled === false) return; this._hovered = true; this._draw(); }
   onMouseLeave()    { this._hovered = false; this._pressed = false; this._draw(); }
 
   onClick(_btn) {
+    if (this.enabled === false) return;
     // Switch a page in this gump locally (no round-trip to the server).
     if (this.action === ButtonAction.SwitchPage) {
       const gump = this._rootGump();
@@ -192,8 +203,6 @@ export class Button extends Control {
   }
 
   dispose() {
-    this._disposed = true;
-    this._loadToken++;
     this._faceToken++;
     if (this._sprite) releaseSprite(this._sprite);
     this._sprite = null;

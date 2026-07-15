@@ -9,8 +9,10 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
+import { spawn } from 'node:child_process';
 import { composePaperdoll } from './paperdoll.js';
-import { refreshSurroundings } from '../net/handlers.js';
+import { scheduleRefreshSurroundings } from '../net/handlers.js';
 import { landProvider } from '../world/land-provider.js';
 import { tileDataTable, resolveStandingZ } from '../world/movement.js';
 import { invalidateLosCache } from '../world/los.js';
@@ -19,15 +21,31 @@ import { extMapTileEdit, NODEUO_CAPABILITIES_CURRENT, NodeUOCapability } from '@
 import { AI_GRAPH_NODE_TYPES } from '../world/ai-graphs.js';
 import { simulateCombat } from '../systems/combat-simulator.js';
 import { animationBodySnapshot, animationFramePng, validateMonsterAnimations } from './animation-catalog.js';
+import { staticArtPng, staticArtStatus } from './static-art.js';
 import {
-  regionDiagnostics, spawnerHeatmap, validateLootDraft, validateQuestDraft,
+  regionDiagnostics, simulateSpawnerDraft, spawnerDiagnostics, spawnerHeatmap, validateLootDraft, validateQuestDraft,
   validateRegionDraft, validateSpawnerDraft,
 } from './world-authoring.js';
 import * as operational from '../systems/operational-diagnostics.js';
+import { CURRENT_SNAPSHOT_VERSION, migrateSnapshot, planSnapshotMigration } from '../world/persistence-migrations.js';
+import { buildServerQualityReport, runtimeGovernor } from '../systems/runtime-governor.js';
 
 export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, persistence, accounts }) {
   const world = sharedCtx?.world;
   const mapProvider = sharedCtx?.landProvider ?? landProvider;
+  const undoableAuditMutations = new Map();
+  let nextUndoMutationId = 0;
+
+  function registerUndoableMutation(actor, kind, payload) {
+    const id = `undo-${Date.now().toString(36)}-${(++nextUndoMutationId).toString(36)}`;
+    undoableAuditMutations.set(id, { id, actor: String(actor ?? '').toLowerCase(), kind,
+      createdAt: Date.now(), usedAt: 0, ...payload });
+    for (const [key, entry] of undoableAuditMutations) {
+      if (undoableAuditMutations.size <= 256 && Date.now() - entry.createdAt <= 60 * 60_000) break;
+      undoableAuditMutations.delete(key);
+    }
+    return id;
+  }
 
   function queryInt(query, name, fallback, min, max) {
     const text = query?.get?.(name);
@@ -96,14 +114,232 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
   }
 
   const routes = [];
+  const repoRoot = path.resolve(scriptsDir, '../../..');
+  const featureFile = path.join(saveDir, 'admin-feature-flags.json');
+  const alertFile = path.join(saveDir, 'admin-alert-thresholds.json');
+  const preferencesFile = path.join(saveDir, 'admin-preferences.json');
+  const readJsonState = (file, fallback) => { try { return { ...fallback, ...JSON.parse(fs.readFileSync(file, 'utf8')) }; } catch { return structuredClone(fallback); } };
+  const writeJsonState = (file, value) => { fs.mkdirSync(path.dirname(file), { recursive: true }); const temp = `${file}.tmp`; fs.writeFileSync(temp, JSON.stringify(value, null, 2)); fs.renameSync(temp, file); };
+  let featureFlags = readJsonState(featureFile, { revision: 1, flags: {} });
+  let alertThresholds = readJsonState(alertFile, { eventLoopLagMs: 100, tickMs: 50, memoryMB: 2048, protocolErrors: 10, parserErrors: 5 });
+  let administratorPreferences = readJsonState(preferencesFile, { users: {} });
+  const testJobs = new Map();
+  const adminClientMetrics = new Map();
+  let testJobSequence = 0;
+
+  // ---- Unified content studio ------------------------------------------
+  // One metadata catalogue powers dedicated visual editors without copying
+  // persistence logic into twenty different pages. Every entry points at the
+  // canonical JSON source used by gameplay scripts; writes still go through
+  // /api/data-tree/file (backup + optimistic mtime check + optional reload).
+  const studioDomains = [
+    { id:'mobiles', label:'Mobiles & AI', icon:'🐉', files:['config/monsters.json','config/npcs.json'], preview:'mobile', tags:['body','hue','stats','skills','ai','equipment','loot','resists','mount','pet'] },
+    { id:'items', label:'Items', icon:'⚔️', files:['config/items.json','config/item-types.json','config/magic-properties.json'], preview:'item', tags:['art','hue','layer','amount','weight','flags','durability','container','scripts'] },
+    { id:'multis', label:'Multis, houses & boats', icon:'🏰', files:['config/housedata.json','world/addons.json','world/addons.generated.json'], preview:'multi', tags:['footprint','house','boat','addon'] },
+    { id:'links', label:'Doors, signs & teleporters', icon:'🚪', files:['world/signs.json','world/teleporters.json'], preview:'link', tags:['door','sign','teleporter','links'] },
+    { id:'vendors', label:'Vendors & rentals', icon:'🛒', files:['config/vendor-inventory.json','config/store-catalogue.json','world/regional-npcs.json','world/spawns/magincia-bazaar.json'], preview:'vendor', tags:['buy','sell','price','stock','restock','rental'] },
+    { id:'crafting', label:'Crafting', icon:'🛠️', files:['config/recipes.json','config/magincia-recipes.json'], preview:'craft', tags:['profession','recipe','requirements','materials','chance','result','dependencies'] },
+    { id:'skills', label:'Skills', icon:'📈', files:['config/skills.json'], preview:'skill', tags:['id','cap','gain','handler'] },
+    { id:'spells', label:'Spells', icon:'✨', files:['config/spells.json','config/reagents.json'], preview:'spell', tags:['circle','mana','reagents','target','effect','lifecycle'] },
+    { id:'combat', label:'Combat & abilities', icon:'🛡️', files:['config/monsters.json','config/items.json','config/poison-levels.json'], preview:'combat', tags:['weapon','speed','damage','ability','requirements','resists'] },
+    { id:'loot', label:'Loot tables', icon:'💎', files:['config/loot-tables.json','config/loot-packs.json','world/artifacts.json','world/eodon-artifacts.json'], preview:'loot', tags:['nested','weight','simulation','drop'] },
+    { id:'quests', label:'Quests & dialogue', icon:'📜', files:['world/quest-chains.json','world/quests-extracted.json','world/quest-reward-items.json'], preview:'quest', tags:['graph','step','condition','dialog','reward'] },
+    { id:'books', label:'Books, BOD & collections', icon:'📚', files:['world/books-extended.json','world/books.servuo.generated.json','world/anniversary-tiers.json'], preview:'book', tags:['book','bod','collection','achievement'] },
+    { id:'environment', label:'Weather, seasons & events', icon:'🌦️', files:['world/seasonal-events.json','world/camps.json','world/revamped-dungeons.json'], preview:'environment', tags:['weather','season','day','night','calendar','scheduler'] },
+    { id:'world', label:'Regions & world design', icon:'🗺️', files:['world/decorations.json','world/decoratives.json','world/xmlspawners.json'], preview:'world', tags:['region','geometry','guards','music','spawner'] },
+    { id:'gumps', label:'Gumps & layouts', icon:'🪟', files:['config/servuo-p2-admin-parity.json'], preview:'gump', tags:['layout','overflow','dialog','client-preview'] },
+    { id:'commands', label:'Commands & ACL', icon:'⌨️', files:['config/servuo-p2-admin-parity.json'], preview:'command', tags:['acl','alias','help','duplicate'] },
+    { id:'create', label:'Create catalogue', icon:'➕', files:['config/items.json','config/monsters.json','config/housedata.json'], preview:'create', tags:['item','mobile','mount','multi','favorite','recent'] },
+  ];
+
+  routes.push({
+    method: 'GET', path: '/api/studio/catalog',
+    run: () => ({
+      domains: studioDomains.map((domain) => ({
+        ...domain,
+        files: domain.files.filter((rel) => fs.existsSync(path.join(scriptsDir, 'data', rel))),
+      })),
+      capabilities: {
+        drafts: true, optimisticConcurrency: true, diffPreview: true,
+        undoRedo: true, importExport: true, bulkEdit: true, liveReload: !!scriptRuntime,
+      },
+    }),
+  });
+  routes.push({
+    method: 'POST', path: '/api/studio/sandbox/spell',
+    run: ({ body }) => {
+      const spell = body?.spell;
+      if (!spell || Array.isArray(spell) || typeof spell !== 'object') return { error: 'spell object required' };
+      const errors = [], warnings = [];
+      const words = String(spell.words ?? spell.mantra ?? '').trim();
+      const mana = Number(spell.mana ?? spell.manaCost);
+      const castMs = Number(spell.delayMs ?? spell.castTimeMs ?? spell.castTime ?? 0);
+      const requiresTarget = spell.requiresTarget === true || /object|mobile|item|point|target/i.test(String(spell.target ?? spell.targetKind ?? ''));
+      const target = String(spell.target ?? spell.targetKind ?? (requiresTarget ? '' : 'self')).trim();
+      if (!words) errors.push({ field: 'words', message: 'missing words/mantra' });
+      if (!Number.isFinite(mana) || mana < 0) errors.push({ field: 'mana', message: 'mana cost must be a non-negative number' });
+      if (!Number.isFinite(castMs) || castMs < 0 || castMs > 120_000) errors.push({ field: 'castTime', message: 'cast time must be between 0 and 120 seconds' });
+      if (requiresTarget && !target) errors.push({ field: 'target', message: 'target kind is required' });
+      const all = sharedCtx?.systems?.spells?.allSpells?.() ?? [];
+      const id = Number(spell.id ?? spell.spellId);
+      const registered = all.find((entry) => (Number.isFinite(id) && entry.id === id)
+        || (spell.name && String(entry.name).toLowerCase() === String(spell.name).toLowerCase()));
+      if (!registered) warnings.push('No matching live runtime spell; preview validates the authored record only.');
+      else {
+        if (Number.isFinite(mana) && Number.isFinite(registered.mana) && mana !== registered.mana) warnings.push(`Runtime mana is ${registered.mana}.`);
+        if (requiresTarget !== !!registered.requiresTarget) warnings.push(`Runtime target mode is ${registered.requiresTarget ? 'targeted' : 'untargeted'}.`);
+      }
+      return {
+        ok: errors.length === 0, safe: true, executed: false, errors, warnings,
+        matchedRuntime: registered ? { id: registered.id, name: registered.name, school: registered.school, mana: registered.mana,
+          minSkill: registered.minSkill, delayMs: registered.delayMs, requiresTarget: !!registered.requiresTarget } : null,
+        lifecycle: [
+          { stage: 'incantation', atMs: 0, detail: words || '(missing)' },
+          { stage: 'cast-delay', atMs: 0, durationMs: Number.isFinite(castMs) ? castMs : 0 },
+          { stage: 'target', atMs: Number.isFinite(castMs) ? castMs : 0, detail: target || '(missing)' },
+          { stage: 'resource-debit', atMs: Number.isFinite(castMs) ? castMs : 0, mana: Number.isFinite(mana) ? mana : null },
+          { stage: 'effect', atMs: Number.isFinite(castMs) ? castMs : 0, detail: String(spell.effect ?? spell.handler ?? registered?.name ?? 'effect') },
+        ],
+      };
+    },
+  });
+  routes.push({
+    method: 'GET', path: '/api/studio/art/:itemId',
+    run: async ({ params, res }) => {
+      const itemId = parseSerial(params.itemId);
+      const png = await staticArtPng(itemId);
+      if (!png) {
+        res.writeHead(404, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ error: 'static art not found', ...staticArtStatus(itemId) }));
+        return undefined;
+      }
+      res.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'public, max-age=86400' });
+      res.end(png);
+      return undefined;
+    },
+  });
+
+  routes.push({
+    method: 'GET', path: '/api/preferences',
+    run: ({ session }) => ({ preferences: administratorPreferences.users?.[String(session?.account ?? '').toLowerCase()] ?? {} }),
+  });
+  routes.push({
+    method: 'PUT', path: '/api/preferences',
+    run: ({ session, body }) => {
+      const account = String(session?.account ?? '').toLowerCase();
+      if (!account) return { error: 'session account missing' };
+      const preferences = body?.preferences;
+      if (!preferences || Array.isArray(preferences) || typeof preferences !== 'object') return { error: 'preferences object required' };
+      const text = JSON.stringify(preferences); if (text.length > 100_000) return { error: 'preferences exceed 100 KB' };
+      administratorPreferences.users ??= {}; administratorPreferences.users[account] = JSON.parse(text);
+      writeJsonState(preferencesFile, administratorPreferences);
+      return { ok: true, preferences: administratorPreferences.users[account] };
+    },
+  });
 
   // ---- Operational readiness -------------------------------------------
   routes.push({ method: 'GET', path: '/api/operations/protocol', run: () => operational.protocolSnapshot() });
   routes.push({ method: 'GET', path: '/api/operations/compatibility', run: () => operational.compatibilitySnapshot() });
+  routes.push({ method: 'GET', path: '/api/operations/runtime', run: () => operational.runtimeSnapshot() });
+  routes.push({ method: 'GET', path: '/api/health/live', run: () => ({ live: runtimeGovernor.health.snapshot().live }) });
+  routes.push({ method: 'GET', path: '/api/health/ready', run: () => runtimeGovernor.health.snapshot() });
+  routes.push({ method: 'GET', path: '/api/operations/profile', run: ({ query }) => operational.runtimeSnapshot(queryInt(query, 'windowMs', 60_000, 1000, 300_000)) });
+  routes.push({ method: 'GET', path: '/api/operations/runtime-governor', run: () => ({
+    health: runtimeGovernor.health.snapshot(),
+    queues: { visibility: runtimeGovernor.visibility.snapshot(), background: runtimeGovernor.background.snapshot() },
+    cache: runtimeGovernor.visibilityCache.snapshot(),
+    watchdog: runtimeGovernor.watchdog.snapshot(),
+    lifecycle: runtimeGovernor.lifecycle.stats(),
+  }) });
+  routes.push({ method: 'GET', path: '/api/operations/quality-report', run: () => buildServerQualityReport({
+    world, diagnostics: operational, commands: sharedCtx?.commands?.list?.({ includeHidden: true }) ?? [], scripts: scriptRuntime,
+  }) });
+  routes.push({
+    method: 'POST', path: '/api/operations/client-metrics',
+    run: ({ body, session }) => {
+      const account = String(session?.account ?? 'unknown').toLowerCase();
+      const previous = adminClientMetrics.get(account) ?? {};
+      const next = { ...previous, account, at: Date.now(), view: String(body?.view ?? previous.view ?? '').slice(0, 160) };
+      for (const key of ['mapChunkMs', 'mapFetchMs', 'mapDecodeMs', 'tableRows']) {
+        if (body?.[key] == null) continue;
+        const value = Number(body[key]);
+        if (!Number.isFinite(value) || value < 0 || value > 1_000_000) return { error: `${key} must be a bounded non-negative number` };
+        next[key] = value;
+      }
+      adminClientMetrics.set(account, next);
+      return { ok: true, metrics: next };
+    },
+  });
+  routes.push({
+    method: 'GET', path: '/api/operations/events',
+    run: ({ query }) => {
+      const filter = String(query.get('filter') ?? '').toLowerCase(), level = String(query.get('level') ?? '').toLowerCase(), event = String(query.get('event') ?? '').toLowerCase();
+      const entries = operational.structuredSnapshot(2000).filter((entry) => (!filter || JSON.stringify(entry).toLowerCase().includes(filter))
+        && (!level || String(entry.level).toLowerCase() === level) && (!event || String(entry.event).toLowerCase().includes(event)))
+        .slice(0, queryInt(query, 'limit', 200, 1, 2000));
+      return { entries, filter, level, event };
+    },
+  });
   routes.push({ method: 'GET', path: '/api/operations/commands', run: () => sharedCtx?.commands?.usageSnapshot?.() ?? { commands: [] } });
   routes.push({
     method: 'GET', path: '/api/operations/audit',
-    run: ({ query }) => ({ entries: operational.auditSnapshot(queryInt(query, 'limit', 200, 1, 2000)) }),
+    run: ({ query }) => {
+      const q = String(query.get('q') ?? '').trim().toLowerCase();
+      const kind = String(query.get('kind') ?? '').trim().toLowerCase();
+      const actor = String(query.get('actor') ?? '').trim().toLowerCase();
+      const target = String(query.get('target') ?? '').trim().toLowerCase();
+      const okText = String(query.get('ok') ?? '').trim().toLowerCase();
+      const entries = operational.auditSnapshot(2000).filter((entry) => {
+        if (kind && !String(entry.kind ?? '').toLowerCase().includes(kind)) return false;
+        if (actor && !String(entry.actor ?? '').toLowerCase().includes(actor)) return false;
+        if (target && !String(entry.target ?? '').toLowerCase().includes(target)) return false;
+        if (okText && String(!!entry.ok) !== okText) return false;
+        return !q || JSON.stringify(entry).toLowerCase().includes(q);
+      }).slice(0, queryInt(query, 'limit', 200, 1, 2000));
+      return { entries, filters: { q, kind, actor, target, ok: okText } };
+    },
+  });
+  routes.push({
+    method: 'POST', path: '/api/operations/audit/:id/undo',
+    run: ({ params, session }) => {
+      const mutation = undoableAuditMutations.get(String(params.id));
+      if (!mutation) return { error: 'undo operation not found or expired' };
+      if (mutation.usedAt) return { error: 'undo operation was already consumed', conflict: true };
+      if (mutation.actor && mutation.actor !== String(session?.account ?? '').toLowerCase()) {
+        return { error: 'undo operation belongs to another administrator', conflict: true };
+      }
+      if (mutation.kind !== 'statics.batch') return { error: 'mutation kind is not undoable' };
+      const create = sharedCtx?.items?.createItem;
+      const destroy = sharedCtx?.items?.destroyItem;
+      if (!create || !destroy) return { error: 'item mutation API unavailable' };
+      const createdStillPresent = mutation.createdSerials.map((serial) => world.items.get(serial)).filter(Boolean);
+      if (createdStillPresent.length !== mutation.createdSerials.length) {
+        return { error: 'world changed since this operation; reload before undo', conflict: true };
+      }
+      const restored = [];
+      try {
+        for (const snapshot of mutation.removedSnapshots) {
+          const item = create(world, snapshot);
+          if (snapshot.isDecoration) item.isDecoration = true;
+          if (snapshot.script != null) item.script = snapshot.script;
+          world.syncSpatialItem?.(item);
+          restored.push(item);
+        }
+      } catch (error) {
+        for (const item of restored) { try { destroy(world, item.serial); } catch {} }
+        return { error: `undo rolled back: ${error?.message ?? error}` };
+      }
+      for (const item of createdStillPresent) destroy(world, item.serial);
+      mutation.usedAt = Date.now();
+      try { invalidateLosCache(); } catch { /* advisory */ }
+      for (const mobile of world.onlineMobiles?.() ?? []) {
+        if ((mobile.map | 0) !== (mutation.facet | 0) || !mobile.client) continue;
+        try { sharedCtx?.refreshSurroundings?.(mobile.client); } catch { /* socket race */ }
+      }
+      return { ok: true, undoId: mutation.id, restored: restored.length,
+        removed: createdStillPresent.length, before: { mutation: mutation.id },
+        after: { restoredSerials: restored.map((item) => item.serial >>> 0) } };
+    },
   });
   routes.push({
     method: 'POST', path: '/api/operations/integrity',
@@ -134,6 +370,8 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
     method: 'GET', path: '/api/operations/scripts',
     run: () => ({
       loaded: scriptRuntime?.loaded?.length ?? 0,
+      profile: scriptRuntime?.profile ?? null,
+      reloadHistory: scriptRuntime?.reloadHistory?.slice?.(-100)?.reverse?.() ?? [],
       files: (scriptRuntime?.loaded ?? []).filter((entry) => entry?.file)
         .map((entry) => path.relative(scriptsDir, entry.file).replace(/\\/g, '/')),
       commandCollisions: sharedCtx?.commands?.collisions?.map((entry) => ({ name: entry.name, aliasFor: entry.aliasFor })) ?? [],
@@ -152,8 +390,238 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
         saves,
         commands: { collisions: commands.collisions?.length ?? 0, errors: commands.commands?.reduce((sum, command) => sum + command.errors, 0) ?? 0 },
         network: operational.protocolSnapshot(),
+        runtime: operational.runtimeSnapshot(),
         compatibility: operational.compatibilitySnapshot(),
       };
+    },
+  });
+
+  routes.push({
+    method: 'GET', path: '/api/operations/command-catalog',
+    run: () => ({
+      commands: (sharedCtx?.commands?.list?.({ includeHidden: false }) ?? []).map((command) => ({
+        name: command.name, access: command.access ?? 'Admin', help: command.help ?? '',
+        aliases: command.aliases ?? [], hidden: !!command.hidden,
+      })).sort((a, b) => a.name.localeCompare(b.name)),
+      collisions: sharedCtx?.commands?.usageSnapshot?.().collisions ?? [],
+    }),
+  });
+
+  routes.push({
+    method: 'GET', path: '/api/operations/overview',
+    run: () => {
+      const runtime = operational.runtimeSnapshot();
+      const network = operational.protocolSnapshot();
+      const compatibility = operational.compatibilitySnapshot();
+      const storage = storageSnapshot();
+      const memory = process.memoryUsage();
+      const aiTicks = runtime.ticks.filter((tick) => /ai|path|spawn/i.test(tick.name));
+      const expensiveEntities = [...(sharedCtx?.ai?.diagnostics?.entries?.() ?? [])].map(([serial, diag]) => {
+        const mobile = world?.mobiles?.get?.(serial >>> 0);
+        return { serial: `0x${(serial >>> 0).toString(16)}`, name: mobile?.name ?? '', behavior: sharedCtx?.ai?.bindings?.get?.(serial)?.behavior ?? '', ...diag };
+      }).sort((a, b) => (b.lastTickMs ?? 0) - (a.lastTickMs ?? 0)).slice(0, 50);
+      return {
+        runtime: { ...runtime, memory: Object.fromEntries(Object.entries(memory).map(([key, bytes]) => [key, bytes])),
+          cpu: process.cpuUsage(), activeResources: process.getActiveResourcesInfo?.() ?? [] },
+        network: { ...network, sessions: compatibility.sessions, pendingBytes: compatibility.sessions.reduce((sum, session) => sum + (session.pendingBytes ?? 0), 0) },
+        scripts: { loaded: scriptRuntime?.loaded?.length ?? 0, collisions: sharedCtx?.commands?.collisions?.length ?? 0,
+          profile: scriptRuntime?.profile ?? null, reloadHistory: scriptRuntime?.reloadHistory?.slice?.(-20)?.reverse?.() ?? [] },
+        ai: { ticks: aiTicks, expensive: aiTicks.slice().sort((a, b) => b.maxMs - a.maxMs).slice(0, 20),
+          expensiveEntities, bindings: sharedCtx?.ai?.bindings?.size ?? 0, scheduler: sharedCtx?.ai?.schedulerDiagnostics ?? null },
+        storage,
+      };
+    },
+  });
+
+  routes.push({
+    method: 'GET', path: '/api/operations/alerts',
+    run: () => {
+      const runtime = operational.runtimeSnapshot(), protocol = operational.protocolSnapshot(), memoryMB = process.memoryUsage().rss / 1048576;
+      const active = [
+        runtime.eventLoop.currentLagMs > alertThresholds.eventLoopLagMs && { key: 'event-loop', value: runtime.eventLoop.currentLagMs, threshold: alertThresholds.eventLoopLagMs, href: '#operations' },
+        (runtime.ticks[0]?.maxMs ?? 0) > alertThresholds.tickMs && { key: 'tick', value: runtime.ticks[0]?.maxMs ?? 0, threshold: alertThresholds.tickMs, href: '#operations' },
+        memoryMB > alertThresholds.memoryMB && { key: 'memory', value: Number(memoryMB.toFixed(1)), threshold: alertThresholds.memoryMB, href: '#operations' },
+        protocol.protocolErrors > alertThresholds.protocolErrors && { key: 'protocol', value: protocol.protocolErrors, threshold: alertThresholds.protocolErrors, href: '#operations' },
+      ].filter(Boolean);
+      return { thresholds: alertThresholds, active, ok: active.length === 0 };
+    },
+  });
+  routes.push({
+    method: 'PUT', path: '/api/operations/alerts',
+    run: ({ body }) => {
+      for (const key of ['eventLoopLagMs', 'tickMs', 'memoryMB', 'protocolErrors', 'parserErrors']) {
+        if (body?.[key] != null && (!Number.isFinite(Number(body[key])) || Number(body[key]) < 0)) return { error: `${key} must be a non-negative number` };
+      }
+      alertThresholds = { ...alertThresholds, ...Object.fromEntries(Object.entries(body ?? {}).filter(([key]) => key in alertThresholds).map(([key, value]) => [key, Number(value)])) };
+      writeJsonState(alertFile, alertThresholds);
+      return { ok: true, thresholds: alertThresholds };
+    },
+  });
+
+  const safeSaveFile = (name) => {
+    const base = path.basename(String(name ?? ''));
+    if (!base || base !== name || !/^[a-zA-Z0-9._-]+$/.test(base)) return null;
+    const file = path.resolve(saveDir, base);
+    return file.startsWith(path.resolve(saveDir) + path.sep) ? file : null;
+  };
+  const readSnapshotFile = (name) => {
+    const file = safeSaveFile(name);
+    if (!file || !fs.existsSync(file)) throw new Error('save file not found');
+    const bytes = fs.readFileSync(file);
+    const text = /\.gz(?:\.|$)/.test(name) ? zlib.gunzipSync(bytes).toString('utf8') : bytes.toString('utf8');
+    return { file, bytes, snapshot: JSON.parse(text) };
+  };
+  const saveFiles = () => {
+    try { return fs.readdirSync(saveDir, { withFileTypes: true }).filter((entry) => entry.isFile() && /\.json(?:\.gz)?(?:\.(?:bak|legacy|pre-(?:restore|migration)\.\d+))?$/.test(entry.name)).map((entry) => {
+      const stat = fs.statSync(path.join(saveDir, entry.name));
+      return { name: entry.name, bytes: stat.size, modifiedAt: stat.mtimeMs, backup: /\.(?:bak|legacy|pre-restore\.)/.test(entry.name) };
+    }).sort((a, b) => b.modifiedAt - a.modifiedAt); } catch { return []; }
+  };
+  const storageSnapshot = () => {
+    const files = saveFiles();
+    let journal = null;
+    try { journal = JSON.parse(fs.readFileSync(path.join(saveDir, 'save-journal.json'), 'utf8')); }
+    catch (error) { journal = { status: 'unavailable', error: error.message }; }
+    return {
+      ...operational.verifySaveDirectory(saveDir),
+      files,
+      totalBytes: files.reduce((sum, file) => sum + file.bytes, 0),
+      latestModifiedAt: files[0]?.modifiedAt ?? null,
+      journal,
+      saves: persistence?.diagnostics?.(saveDir) ?? null,
+    };
+  };
+  routes.push({ method: 'GET', path: '/api/backups', run: () => ({ saveDir, files: saveFiles() }) });
+  routes.push({
+    method: 'POST', path: '/api/backups/verify',
+    run: ({ body }) => {
+      try { const parsed = readSnapshotFile(String(body?.name ?? '')); return { ok: true, name: body.name, bytes: parsed.bytes.length, version: parsed.snapshot?.version ?? 0,
+        records: { mobiles: parsed.snapshot?.mobiles?.length ?? 0, items: parsed.snapshot?.items?.length ?? 0 } }; }
+      catch (error) { return { error: error.message, ok: false }; }
+    },
+  });
+  routes.push({
+    method: 'POST', path: '/api/backups/restore',
+    run: ({ body }) => {
+      const source = safeSaveFile(String(body?.source ?? ''));
+      const inferred = String(body?.source ?? '').replace(/\.(?:bak|legacy|pre-restore\.\d+)$/, '');
+      const targetName = String(body?.target ?? inferred);
+      if (!/^(?:players|mobs|items|world|houses|bazaar|world-state)\.json(?:\.gz)?$/.test(targetName)) return { error: 'target is not an allowlisted canonical save file' };
+      const target = safeSaveFile(targetName);
+      if (!source || !fs.existsSync(source) || !target) return { error: 'source backup not found' };
+      try { readSnapshotFile(path.basename(source)); } catch (error) { return { error: `source verification failed: ${error.message}` }; }
+      const before = fs.existsSync(target) ? `${target}.pre-restore.${Date.now()}` : null;
+      if (before) fs.copyFileSync(target, before);
+      const temp = `${target}.restore.tmp`; fs.copyFileSync(source, temp); fs.renameSync(temp, target);
+      return { ok: true, source: path.basename(source), target: targetName, rollback: before ? path.basename(before) : null, restartRequired: true };
+    },
+  });
+
+  routes.push({
+    method: 'GET', path: '/api/migrations/plan',
+    run: ({ query }) => {
+      const name = query.get('file') ?? saveFiles().find((file) => /^(?:world|players|mobs|items)\.json/.test(file.name) && !file.backup)?.name;
+      if (!name) return {
+        file: null,
+        bytes: 0,
+        available: false,
+        dryRun: true,
+        ...planSnapshotMigration({ version: CURRENT_SNAPSHOT_VERSION }),
+      };
+      try { const { snapshot, bytes } = readSnapshotFile(name); return { file: name, bytes: bytes.length, dryRun: true, ...planSnapshotMigration(snapshot) }; }
+      catch (error) { return { error: error.message }; }
+    },
+  });
+  routes.push({
+    method: 'POST', path: '/api/migrations/apply',
+    run: ({ body }) => {
+      const name = String(body?.file ?? '');
+      try {
+        const { file, snapshot } = readSnapshotFile(name), result = migrateSnapshot(snapshot, { targetVersion: CURRENT_SNAPSHOT_VERSION });
+        if (!result.plan.ok) return { error: result.plan.reason, plan: result.plan };
+        if (!result.plan.steps.length) return { ok: true, unchanged: true, plan: result.plan };
+        const backup = `${file}.pre-migration.${Date.now()}`; fs.copyFileSync(file, backup);
+        const jsonText = JSON.stringify(result.snapshot); const output = name.includes('.gz') ? zlib.gzipSync(jsonText) : Buffer.from(jsonText);
+        const temp = `${file}.migration.tmp`; fs.writeFileSync(temp, output); fs.renameSync(temp, file);
+        return { ok: true, plan: result.plan, backup: path.basename(backup), bytes: output.length, restartRequired: true };
+      } catch (error) { return { error: error.message }; }
+    },
+  });
+
+  routes.push({ method: 'GET', path: '/api/feature-flags', run: () => featureFlags });
+  routes.push({
+    method: 'PUT', path: '/api/feature-flags',
+    run: ({ body }) => {
+      const name = String(body?.name ?? '').trim();
+      if (!/^[a-z][a-z0-9._-]{1,63}$/.test(name)) return { error: 'invalid feature flag name' };
+      const rollout = body?.rollout ?? {};
+      featureFlags.flags[name] = {
+        enabled: body?.enabled !== false, percent: Math.max(0, Math.min(100, Number(rollout.percent ?? 100))),
+        accounts: [...new Set((Array.isArray(rollout.accounts) ? rollout.accounts : []).map(String))].slice(0, 1000),
+        shards: [...new Set((Array.isArray(rollout.shards) ? rollout.shards : []).map(String))].slice(0, 100),
+        nodeUOOnly: body?.nodeUOOnly !== false, description: String(body?.description ?? '').slice(0, 240), updatedAt: Date.now(),
+      };
+      featureFlags.revision = (featureFlags.revision | 0) + 1; writeJsonState(featureFile, featureFlags);
+      return { ok: true, revision: featureFlags.revision, name, flag: featureFlags.flags[name] };
+    },
+  });
+
+  routes.push({
+    method: 'GET', path: '/api/operations/health',
+    run: () => {
+      const assets = ['static-atlas.json', 'land-atlas.json', 'anim-atlas.json'].map((name) => {
+        const file = path.join(repoRoot, 'apps/client/public/assets', name); try { const stat = fs.statSync(file); JSON.parse(fs.readFileSync(file, 'utf8')); return { name, ok: true, bytes: stat.size }; } catch (error) { return { name, ok: false, error: error.message }; }
+      });
+      const checks = [
+        { name: 'Node.js', ok: Number(process.versions.node.split('.')[0]) >= 20, detail: process.version },
+        { name: 'scripts', ok: fs.existsSync(scriptsDir), detail: scriptsDir },
+        { name: 'save directory', ok: fs.existsSync(saveDir), detail: saveDir },
+        { name: 'world', ok: !!world?.mobiles && !!world?.items, detail: `${world?.mobiles?.size ?? 0} mobiles / ${world?.items?.size ?? 0} items` },
+        ...assets,
+      ];
+      return { ok: checks.every((check) => check.ok), checks, assets };
+    },
+  });
+
+  const testSuites = {
+    'server-unit': { label: 'Server unit/integration', command: 'pnpm', args: ['--filter', '@uo/server', 'test'], timeoutMs: 360_000 },
+    'protocol-unit': { label: 'Protocol unit', command: 'pnpm', args: ['--filter', '@uo/protocol', 'test'], timeoutMs: 180_000 },
+    'admin-e2e': { label: 'Admin browser E2E', command: 'node', args: ['tools/audit/admin-browser-e2e.mjs'], timeoutMs: 180_000 },
+    'quality-smoke': { label: 'NodeUO quality smoke', command: 'node', args: ['tools/audit/nodeuo-quality-suite.mjs'], timeoutMs: 600_000 },
+  };
+  routes.push({ method: 'GET', path: '/api/test-jobs', run: () => ({ suites: Object.entries(testSuites).map(([id, spec]) => ({ id, label: spec.label })), jobs: [...testJobs.values()].slice(-20).reverse() }) });
+  routes.push({
+    method: 'POST', path: '/api/test-jobs',
+    run: ({ body, session }) => {
+      const suite = String(body?.suite ?? ''), spec = testSuites[suite]; if (!spec) return { error: 'unknown or unapproved test suite' };
+      if ([...testJobs.values()].some((job) => job.status === 'running')) return { error: 'another admin test job is running' };
+      const id = `test-${Date.now().toString(36)}-${++testJobSequence}`;
+      const job = { id, suite, label: spec.label, status: 'running', actor: session?.account, startedAt: Date.now(), output: '' }; testJobs.set(id, job);
+      const command = process.platform === 'win32' && spec.command === 'pnpm' ? 'pnpm.cmd' : spec.command;
+      const child = spawn(command, spec.args, { cwd: repoRoot, shell: false, windowsHide: true, env: { ...process.env, CI: '1', FORCE_COLOR: '0' } });
+      const append = (chunk) => { job.output = (job.output + chunk.toString()).slice(-250_000); };
+      child.stdout.on('data', append); child.stderr.on('data', append);
+      const timer = setTimeout(() => { job.timedOut = true; child.kill(); }, spec.timeoutMs); timer.unref?.();
+      child.on('error', (error) => { clearTimeout(timer); job.status = 'failed'; job.error = error.message; job.finishedAt = Date.now(); });
+      child.on('close', (code, signal) => { clearTimeout(timer); job.status = code === 0 ? 'passed' : 'failed'; job.exitCode = code; job.signal = signal; job.finishedAt = Date.now(); job.durationMs = job.finishedAt - job.startedAt; });
+      return { ok: true, job: { ...job, output: '' } };
+    },
+  });
+  routes.push({ method: 'GET', path: '/api/test-jobs/:id', run: ({ params }) => testJobs.get(params.id) ?? { error: 'test job not found' } });
+
+  routes.push({
+    method: 'GET', path: '/api/operations/budgets',
+    run: () => {
+      const runtime = operational.runtimeSnapshot(), apiStats = operational.adminRequestSnapshot?.() ?? { routes: [] };
+      const budgets = { apiP95Ms: 250, mapChunkMs: 180, tableRows: 500, eventLoopP95Ms: 50 };
+      const client = [...adminClientMetrics.values()].sort((a, b) => b.at - a.at);
+      const violations = [
+        runtime.eventLoop.p95LagMs > budgets.eventLoopP95Ms && { metric: 'eventLoopP95Ms', value: runtime.eventLoop.p95LagMs, budget: budgets.eventLoopP95Ms },
+        ...apiStats.routes.filter((route) => route.p95Ms > budgets.apiP95Ms).map((route) => ({ metric: `api:${route.route}`, value: route.p95Ms, budget: budgets.apiP95Ms })),
+        ...client.filter((row) => row.mapChunkMs > budgets.mapChunkMs).map((row) => ({ metric: `map:${row.account}`, value: row.mapChunkMs, budget: budgets.mapChunkMs })),
+        ...client.filter((row) => row.tableRows > budgets.tableRows).map((row) => ({ metric: `table:${row.account}`, value: row.tableRows, budget: budgets.tableRows })),
+      ].filter(Boolean);
+      return { ok: violations.length === 0, budgets, violations, api: apiStats, runtime: runtime.eventLoop, client };
     },
   });
 
@@ -671,6 +1139,12 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
       return { ok: true, cleared: all.length, broadcast };
     },
   });
+  routes.push({
+    method: 'POST', path: '/api/scripts/dry-run',
+    run: async ({ body }) => scriptRuntime?.dryRunOne
+      ? scriptRuntime.dryRunOne(String(body?.path ?? ''))
+      : { ok: false, error: 'dry-run unavailable on runtime' },
+  });
 
   // Tiledata search — pagination + substring match on the static or
   // land tile name. Used by the editor palette browser to let admins
@@ -810,7 +1284,8 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
         if (it.x < x0 || it.x >= x0 + w || it.y < y0 || it.y >= y0 + h) return;
         stackFor(it.x, it.y).push({
           tileId: it.itemId, z: it.z, hue: it.hue ?? 0,
-          source: 'item', serial: '0x' + (it.serial >>> 0).toString(16),
+          source: (it.house != null || it.boat != null || it.multiId != null || it.addon != null || it.addonName != null) ? 'multi' : 'item',
+          serial: '0x' + (it.serial >>> 0).toString(16),
         });
       };
       if (sectorsReady && world.sectors.itemSerialsNear) {
@@ -1021,6 +1496,87 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
         }
       }
       return { ok: true };
+    },
+  });
+
+  // Atomic editor commit. The old UI fired one HTTP request per tile, which
+  // was slow and could leave half a brush stroke applied after a disconnect.
+  // Validate the complete command first, stage all additions, and only then
+  // perform deterministic removals. A failed create rolls every staged item
+  // back before returning an error.
+  routes.push({
+    method: 'POST', path: '/api/statics/batch',
+    run: ({ body, session }) => {
+      const facet = Number(body?.facet ?? 1) | 0;
+      const additions = Array.isArray(body?.additions) ? body.additions : [];
+      const removals = [...new Set(Array.isArray(body?.removals) ? body.removals.map(parseSerial).filter(Boolean) : [])];
+      if (!additions.length && !removals.length) return { error: 'empty batch' };
+      if (additions.length + removals.length > 4096) return { error: 'batch exceeds 4096 mutations' };
+      if (facet < 0 || facet > 5) return { error: 'invalid facet' };
+      const td = tileDataTable();
+      const staticCount = Math.max(0, (td.statics?.length ?? 0) - (td.land?.length ?? 0));
+      const normalized = [];
+      for (const row of additions) {
+        const itemId = Number(row?.itemId) | 0;
+        const x = Number(row?.x), y = Number(row?.y), z = Number(row?.z ?? 0);
+        if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)
+            || x < 0 || x > 0xffff || y < 0 || y > 0xffff
+            || itemId < 1 || itemId >= staticCount) return { error: 'invalid addition in batch' };
+        normalized.push({ itemId, x: x | 0, y: y | 0,
+          z: Math.max(-128, Math.min(127, z | 0)), hue: Number(row?.hue ?? 0) & 0xffff });
+      }
+      const removalSnapshots = [];
+      for (const serial of removals) {
+        const item = world.items.get(serial);
+        if (!item || item.parent != null) return { error: `removal item 0x${serial.toString(16)} not found on ground` };
+        removalSnapshots.push({ serial: item.serial, itemId: item.itemId, hue: item.hue ?? 0,
+          amount: item.amount ?? 1, map: item.map, x: item.x, y: item.y, z: item.z,
+          name: item.name, movable: item.movable, parent: null, gumpId: item.gumpId ?? 0,
+          gridX: item.gridX ?? 0, gridY: item.gridY ?? 0, gridLocation: item.gridLocation ?? 0,
+          layer: item.layer ?? 0, template: item.template, isDecoration: !!item.isDecoration,
+          script: item.script });
+      }
+      const create = sharedCtx?.items?.createItem;
+      const destroy = sharedCtx?.items?.destroyItem;
+      if (!create || !destroy) return { error: 'item mutation API unavailable' };
+      const created = [];
+      try {
+        for (const row of normalized) {
+          const item = create(world, { ...row, map: facet, movable: false });
+          item.isDecoration = true; item.script = 'static';
+          world.syncSpatialItem?.(item);
+          created.push(item);
+        }
+      } catch (error) {
+        for (const item of created) { try { destroy(world, item.serial); } catch {} }
+        return { error: `batch rolled back: ${error?.message ?? error}`, rolledBack: created.length };
+      }
+      for (const serial of removals) destroy(world, serial);
+      try { invalidateLosCache(); } catch { /* advisory */ }
+      // One surrounding refresh per affected client, instead of N packets per
+      // tile. Standard clients receive the normal UO item/remove packets.
+      const touched = [...created, ...removalSnapshots];
+      const removePackets = new Map(removalSnapshots.map((item) => [item.serial,
+        sharedCtx?.protocol?.removeEntity?.(item.serial) ?? null]));
+      for (const mobile of world.onlineMobiles?.() ?? []) {
+        if ((mobile.map | 0) !== facet || !mobile.client) continue;
+        for (const item of created) {
+          if (Math.max(Math.abs(mobile.x - item.x), Math.abs(mobile.y - item.y)) > 18) continue;
+          try { mobile.client.sendItem?.(item); } catch { /* socket race */ }
+        }
+        for (const item of removalSnapshots) {
+          if (Math.max(Math.abs(mobile.x - item.x), Math.abs(mobile.y - item.y)) > 18) continue;
+          const packet = removePackets.get(item.serial);
+          if (packet) { try { mobile.client.send(packet); } catch { /* socket race */ } }
+        }
+        try { sharedCtx?.refreshSurroundings?.(mobile.client); } catch { /* advisory */ }
+      }
+      const auditUndoId = registerUndoableMutation(session?.account, 'statics.batch', {
+        facet, createdSerials: created.map((item) => item.serial >>> 0),
+        removedSnapshots: removalSnapshots.map(({ serial: _serial, ...snapshot }) => snapshot),
+      });
+      return { ok: true, added: created.length, removed: removals.length, auditUndoId,
+        serials: created.map((item) => `0x${(item.serial >>> 0).toString(16)}`), touched: touched.length };
     },
   });
 
@@ -1281,6 +1837,73 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
     },
   });
 
+  const entityContext = (serial) => {
+    const id = parseSerial(serial), mobile = world?.mobiles?.get?.(id), item = world?.items?.get?.(id);
+    const entity = mobile ?? item;
+    if (!entity) return null;
+    const regions = (sharedCtx?.regions?.all?.() ?? sharedCtx?.regions?.regions ?? []).filter((region) => (region.map | 0) === (entity.map | 0)
+      && (region.rects ?? []).some((rect) => entity.x >= rect.x1 && entity.x <= rect.x2 && entity.y >= rect.y1 && entity.y <= rect.y2))
+      .map((region) => ({ name: region.name, type: region.type, priority: region.priority }));
+    const spawners = [...(sharedCtx?.spawner?.groups?.values?.() ?? [])].filter((group) => (group.map | 0) === (entity.map | 0) && group.rect
+      && entity.x >= group.rect.x1 && entity.x <= group.rect.x2 && entity.y >= group.rect.y1 && entity.y <= group.rect.y2).map((group) => group.id);
+    const ownerSerial = item?.parent ?? mobile?.controlMaster ?? null;
+    const template = entity.template ?? entity.kind ?? entity.servuoClass ?? null;
+    const quickLinks = {
+      owner: ownerSerial ? { type: 'entity', serial: ownerSerial >>> 0 } : null,
+      regions: regions.map((region) => ({ type: 'region', name: region.name })),
+      template: template ? { type: 'template', name: String(template) } : null,
+      spawners: spawners.map((id) => ({ type: 'spawner', id })),
+    };
+    return { type: mobile ? 'mobile' : 'item', entity: mobile ? snapshotMobile(mobile) : snapshotItem(item),
+      regions, spawners, quickLinks };
+  };
+  routes.push({ method: 'GET', path: '/api/live/entity/:serial', run: ({ params }) => entityContext(params.serial) ?? { error: 'entity not found' } });
+  routes.push({
+    method: 'GET', path: '/api/live/entity/:serial/events',
+    run: ({ params, query }) => {
+      const id = parseSerial(params.serial), hex = `0x${id.toString(16)}`.toLowerCase(), decimal = String(id), limit = queryInt(query, 'limit', 200, 1, 2000);
+      const matches = (entry) => { const text = JSON.stringify(entry).toLowerCase(); return text.includes(hex) || text.includes(decimal); };
+      const session = operational.compatibilitySnapshot().sessions.find((entry) => (entry.mobileSerial >>> 0) === id);
+      return { serial: hex, packets: session?.packets?.slice(-limit).reverse() ?? [],
+        structured: operational.structuredSnapshot(2000).filter(matches).slice(0, limit), audit: operational.auditSnapshot(2000).filter(matches).slice(0, limit) };
+    },
+  });
+  routes.push({
+    method: 'GET', path: '/api/live/follow/:serial',
+    run: ({ params }) => {
+      const context = entityContext(params.serial); if (!context) return { error: 'entity not found' };
+      const id = parseSerial(params.serial), session = operational.compatibilitySnapshot().sessions.find((entry) => (entry.mobileSerial >>> 0) === id);
+      return { ...context, observedAt: Date.now(), client: session ?? null };
+    },
+  });
+  routes.push({
+    method: 'POST', path: '/api/live/mutate',
+    run: ({ body }) => {
+      const serial = parseSerial(body?.serial), mobile = world?.mobiles?.get?.(serial), item = world?.items?.get?.(serial), action = String(body?.action ?? '');
+      if (!mobile && !item) return { error: 'entity not found' };
+      if (!['kill', 'delete', 'move', 'hue'].includes(action)) return { error: 'action must be kill, delete, move or hue' };
+      const before = mobile ? snapshotMobile(mobile) : snapshotItem(item);
+      if (action === 'kill') {
+        if (!mobile) return { error: 'kill requires a mobile' };
+        mobile.hp = 0;
+        const killMobile = sharedCtx?.corpse?.killMobile ?? sharedCtx?.systems?.corpse?.killMobile;
+        if (typeof killMobile === 'function') killMobile(world, mobile, null); else world.destroyMobile?.(serial);
+      } else if (action === 'delete') {
+        if (mobile) world.destroyMobile?.(serial); else destroyItem(world, serial);
+      } else if (action === 'move') {
+        const entity = mobile ?? item, x = Number(body?.x), y = Number(body?.y), z = Number(body?.z ?? entity.z), map = Number(body?.map ?? entity.map);
+        if (![x, y, z, map].every(Number.isFinite)) return { error: 'move requires finite x,y,z,map' };
+        entity.x = x | 0; entity.y = y | 0; entity.z = z | 0; entity.map = Math.max(0, Math.min(5, map | 0));
+        if (mobile) world?.sectors?.moveMobile?.(mobile); else world?.sectors?.moveItem?.(item);
+      } else {
+        const hue = Number(body?.hue); if (!Number.isFinite(hue)) return { error: 'hue requires a number' };
+        (mobile ?? item).hue = Math.max(0, Math.min(0xffff, hue | 0));
+      }
+      const afterContext = entityContext(serial);
+      return { ok: true, action, serial: `0x${serial.toString(16)}`, before, after: afterContext?.entity ?? null };
+    },
+  });
+
   routes.push({
     method: 'GET', path: '/api/ai/:serial',
     run: ({ params }) => {
@@ -1445,7 +2068,7 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
       // the admin HTTP response and button state are released immediately;
       // mobileUpdate above already moves the player on the client at once.
       if (mob.client) setImmediate(() => {
-        try { refreshSurroundings(mob.client); }
+        try { scheduleRefreshSurroundings(mob.client, { priority: 0 }); }
         catch (e) { console.error('[admin/teleport] refreshSurroundings:', e.message); }
       });
       return {
@@ -1588,6 +2211,14 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
         kinds: g.kinds, maxCount: g.maxCount,
         active: g.spawnedSerials?.size ?? 0,
         respawnMs: g.respawnMs,
+        enabled: g.enabled !== false,
+        proximityRange: g.proximityRange ?? 0,
+        homeRange: g.homeRange ?? 10,
+        roaming: g.roaming ?? 'home',
+        team: g.team ?? 0,
+        schedule: g.schedule ?? null,
+        regionConditions: g.regionConditions ?? null,
+        nextSpawnAt: g.nextSpawnAt ?? null,
         // Pre-computed center so the UI's "tp here" button doesn't need
         // to know the rect math. Floor to integer tile.
         center: g.rect ? {
@@ -1603,6 +2234,56 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
         }).filter(Boolean),
       })) : [];
       return { count: list.length, spawners: list };
+    },
+  });
+
+  routes.push({
+    method: 'POST', path: '/api/spawners/simulate',
+    run: ({ body }) => {
+      const checked = validateSpawnerDraft(body, sharedCtx?.monsters?.kinds?.() ?? []);
+      return { ...checked, simulation: simulateSpawnerDraft(body, { rolls: body?.rolls, seed: body?.seed }) };
+    },
+  });
+
+  routes.push({
+    method: 'GET', path: '/api/spawners/diagnostics',
+    run: () => spawnerDiagnostics(sharedCtx?.spawner, world),
+  });
+
+  routes.push({
+    method: 'GET', path: '/api/spawners/templates',
+    run: () => ({ templates: [
+      { id: 'vendor', label: 'Vendor', value: { maxCount: 1, respawnMs: [60_000, 180_000], proximityRange: 24, homeRange: 1, roaming: 'stationary', team: 0, kinds: ['banker'] } },
+      { id: 'town', label: 'Town life', value: { maxCount: 6, respawnMs: [120_000, 300_000], proximityRange: 36, homeRange: 12, roaming: 'home', team: 0, kinds: [['townsperson', 4], ['guard', 1]] } },
+      { id: 'dungeon', label: 'Dungeon encounter', value: { maxCount: 8, respawnMs: [90_000, 240_000], proximityRange: 28, homeRange: 18, roaming: 'home', team: 1, kinds: [['skeleton', 4], ['zombie', 3], ['lich', 1]] } },
+      { id: 'event', label: 'Scheduled event', value: { enabled: true, maxCount: 12, respawnMs: [30_000, 90_000], proximityRange: 48, homeRange: 24, roaming: 'home', team: 2, schedule: { days: [5, 6], startHour: 18, endHour: 23 }, kinds: [['orc', 4], ['ettin', 2], ['ogre', 1]] } },
+    ] }),
+  });
+
+  routes.push({
+    method: 'POST', path: '/api/spawners/bulk',
+    run: ({ body }) => {
+      const sp = sharedCtx?.spawner;
+      if (!sp) return { error: 'spawner subsystem not wired' };
+      const ids = [...new Set((Array.isArray(body?.ids) ? body.ids : []).map(String))].slice(0, 5000);
+      const action = String(body?.action ?? '');
+      if (!['move', 'enable', 'disable', 'delete'].includes(action)) return { error: 'action must be move, enable, disable or delete' };
+      const results = [];
+      for (const id of ids) {
+        const group = sp.groups.get(id);
+        if (!group) { results.push({ id, ok: false, error: 'not found' }); continue; }
+        if (action === 'delete') sp.remove(id);
+        else if (action === 'enable') group.enabled = true;
+        else if (action === 'disable') group.enabled = false;
+        else {
+          const dx = Math.max(-65535, Math.min(65535, Number(body?.dx) | 0));
+          const dy = Math.max(-65535, Math.min(65535, Number(body?.dy) | 0));
+          group.rect = { x1: group.rect.x1 + dx, y1: group.rect.y1 + dy, x2: group.rect.x2 + dx, y2: group.rect.y2 + dy };
+          if (body?.map != null) group.map = Math.max(0, Math.min(5, Number(body.map) | 0));
+        }
+        results.push({ id, ok: true });
+      }
+      return { ok: results.every((result) => result.ok), action, changed: results.filter((result) => result.ok).length, results };
     },
   });
 
@@ -1630,6 +2311,25 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
         Math.max(1000, Number(g.respawnMs[1]) || 120_000),
       ];
       g.maxCount = Math.max(1, Math.min(50, (g.maxCount | 0) || 5));
+      g.enabled = g.enabled !== false;
+      g.proximityRange = Math.max(0, Math.min(256, Number(g.proximityRange) | 0));
+      g.homeRange = Math.max(0, Math.min(256, Number(g.homeRange) | 0));
+      g.team = Math.max(-1, Math.min(255, Number(g.team) | 0));
+      g.roaming = ['stationary', 'home', 'free'].includes(g.roaming) ? g.roaming : 'home';
+      if (g.schedule && typeof g.schedule === 'object') {
+        g.schedule = {
+          days: Array.isArray(g.schedule.days) ? [...new Set(g.schedule.days.map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6))] : [],
+          startHour: Math.max(0, Math.min(23, Number(g.schedule.startHour) | 0)),
+          endHour: Math.max(0, Math.min(24, Number(g.schedule.endHour) | 0)),
+        };
+      } else g.schedule = null;
+      if (g.regionConditions && typeof g.regionConditions === 'object') {
+        g.regionConditions = {
+          minPlayers: Math.max(0, Math.min(1000, Number(g.regionConditions.minPlayers) | 0)),
+          maxPlayers: Math.max(0, Math.min(1000, Number(g.regionConditions.maxPlayers ?? 1000) | 0)),
+          region: String(g.regionConditions.region ?? '').trim().slice(0, 80),
+        };
+      } else g.regionConditions = null;
       const map = Number(g.map);
       g.map = Number.isInteger(map) && map >= 0 && map <= 5 ? map : 1;
       g.rect = {
@@ -1661,6 +2361,17 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
       const had = sp.groups.has(params.id);
       sp.remove(params.id);
       return { ok: had, id: params.id };
+    },
+  });
+
+  routes.push({
+    method: 'POST', path: '/api/spawners/:id/respawn',
+    run: ({ params }) => {
+      const group = sharedCtx?.spawner?.groups?.get?.(params.id);
+      if (!group) return { error: 'spawner not found' };
+      group.nextSpawnAt = 0;
+      sharedCtx.spawner.tick?.(Date.now());
+      return { ok: true, id: params.id, active: group.spawnedSerials?.size ?? 0, nextSpawnAt: group.nextSpawnAt };
     },
   });
 
@@ -1744,8 +2455,14 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
   // ---- Logs (in-memory ring buffer; buildHandlers caller wires this) ---
   routes.push({
     method: 'GET', path: '/api/logs',
-    run: () => {
-      return { lines: getLogTail() };
+    run: ({ query }) => {
+      const filter = String(query.get('filter') ?? '').toLowerCase(), level = String(query.get('level') ?? '').toLowerCase();
+      const limit = queryInt(query, 'limit', 200, 1, 500);
+      const lines = getLogTail(500).filter((entry) => {
+        const text = entry.line.toLowerCase();
+        return (!filter || text.includes(filter)) && (!level || text.includes(level));
+      }).slice(-limit);
+      return { lines, count: lines.length, filter, level };
     },
   });
 
@@ -1887,6 +2604,8 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
           mtime: Math.trunc(st.mtimeMs),
           backup,
           reloaded,
+          before: before ? { size: before.size, mtime: Math.trunc(before.mtimeMs) } : null,
+          after: { size: st.size, mtime: Math.trunc(st.mtimeMs) },
         };
       } catch (e) {
         return { error: `write failed: ${e.message}` };
@@ -1917,6 +2636,13 @@ function snapshotMobile(mob) {
     isPlayer: !!mob.isPlayer,
     online: !!mob.client,
     accountName: mob.accountName,
+    client: mob.client ? {
+      id: mob.client.id ?? null,
+      version: mob.client.clientVersionString ?? null,
+      transport: mob.client.nodeUOTransport ? 'nodeuo.v1' : 'standard-uo',
+      capabilities: mob.client.nodeUOCapabilities >>> 0,
+      pendingBytes: Number(mob.client.ws?.bufferedAmount ?? mob.client.socket?.writableLength ?? 0) || 0,
+    } : null,
     // Civic-NPC tag exposed for the admin "Vendors" filter — without
     // it the UI couldn't tell a banker from a wild orc and the
     // operator's "where are my shopkeepers" lookup blended into the
@@ -1941,7 +2667,7 @@ function snapshotItem(it) {
 
 function parseSerial(s) {
   if (!s) return 0;
-  if (s.startsWith('0x') || s.startsWith('0X')) return parseInt(s, 16) >>> 0;
+  if (typeof s === 'string' && (s.startsWith('0x') || s.startsWith('0X'))) return parseInt(s, 16) >>> 0;
   return Number(s) >>> 0;
 }
 
@@ -1981,4 +2707,4 @@ export function pushLogLine(line) {
   LOG_RING.push({ ts: Date.now(), line: String(line).slice(0, 1024) });
   while (LOG_RING.length > LOG_MAX) LOG_RING.shift();
 }
-function getLogTail() { return LOG_RING.slice(-200); }
+function getLogTail(limit = 200) { return LOG_RING.slice(-Math.max(1, Math.min(LOG_MAX, limit | 0))); }

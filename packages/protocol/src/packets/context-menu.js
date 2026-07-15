@@ -9,8 +9,7 @@
 //   u16 version = 2 (enhanced)
 //   u32 targetSerial
 //   u8 entryCount
-//   entryCount × { u32 entryId? actually u16 returnId; u16 clilocOffset (cliloc - 3000000);
-//                  u16 flags }
+//   entryCount × { u32 cliloc; u16 returnId; u16 flags }
 //
 // ServUO: Server/Network/Packets.cs — `DisplayContextMenu`.
 //
@@ -20,7 +19,7 @@ import { PacketWriter } from '../buffer.js';
 
 /**
  * @typedef {Object} ContextEntry
- * @property {number} responseId   value echoed back in 0x15 response
+ * @property {number} responseId   value echoed back in 0x16 response
  * @property {number} cliloc       cliloc number (usually 3006xxx)
  * @property {number} [flags]      bit1 = disabled, bit2 = arrow (submenu), bit4 = colored
  * @property {number} [color]      ARGB short (if flags & 0x20)
@@ -34,7 +33,7 @@ import { PacketWriter } from '../buffer.js';
  * @param {ContextEntry[]} p.entries
  */
 export function displayContextMenu({ serial, entries }) {
-  const w = new PacketWriter(16 + entries.length * 10);
+  const w = new PacketWriter(12 + entries.length * 8);
   w.writeU8(0xBF);
   const lenPos = w.length;
   w.writeU16(0);
@@ -43,15 +42,11 @@ export function displayContextMenu({ serial, entries }) {
   w.writeU32(serial >>> 0);
   w.writeU8(entries.length & 0xff);
   for (const e of entries) {
+    // ServUO DisplayContextMenu + ClassicUO PopupMenuData.Parse mode >= 2:
+    // full 32-bit cliloc FIRST, then the id echoed by 0xBF/0x16.
+    w.writeU32(e.cliloc >>> 0);
     w.writeU16(e.responseId & 0xFFFF);
-    // Cliloc delta from 3000000; Razor enhanced clients accept either the raw
-    // cliloc OR the delta. Use delta for maximum compat.
-    const delta = (e.cliloc - 3000000) & 0xFFFF;
-    w.writeU16(delta);
     w.writeU16((e.flags ?? 0) & 0xFFFF);
-    if (((e.flags ?? 0) & 0x20) !== 0) {
-      w.writeU16((e.color ?? 0xFFFF) & 0xFFFF);
-    }
   }
   w.setU16At(lenPos, w.length);
   return w.bytes();

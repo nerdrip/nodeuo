@@ -23,6 +23,7 @@ import { commandManager } from '../managers/command-manager.js';
 import { CommandPanel } from '../managers/command-panel.js';
 import { installAdminPanelLink } from '../managers/admin-panel-link.js';
 import { TileRenderer } from '../renderer/tile-renderer.js';
+import { spritePool } from '../renderer/sprite-pool.js';
 import { MobileRenderer } from '../renderer/mobile-renderer.js';
 import { TILE_HALF_W } from '../renderer/iso.js';
 import { GameWorldPicker } from './game-world-picker.js';
@@ -55,6 +56,7 @@ import { PaperdollGump } from '../ui/gumps/paperdoll-gump.js';
 import { StatusGump }    from '../ui/gumps/status-gump.js';
 import { JournalGump }   from '../ui/gumps/journal-gump.js';
 import { SkillsGump }    from '../ui/gumps/skills-gump.js';
+import { SkillGumpAdvanced } from '../ui/gumps/skill-gump-advanced.js';
 import { ContainerGump } from '../ui/gumps/container-gump.js';
 import { BuyShopGump, SellShopGump } from '../ui/gumps/buy-gump.js';
 import { SpellbookGump } from '../ui/gumps/spellbook-gump.js';
@@ -157,20 +159,22 @@ export class GameScene extends Scene {
     this._hud = null;
     /** @type {HTMLElement | null} */
     this._journal = null;
+    /** @type {HTMLElement | null} */
+    this._journalBody = null;
     /** @type {HTMLInputElement | null} */
     this._chatInput = null;
     this._journalLines = [];
     /** outstanding 0x02 sequences awaiting 0x22 ack */
     this._pendingMoves = new Map();
-    /** millis until we next allow a walk packet (rate-limit) */
-    this._nextWalkAt = 0;
     this._worldPicker = new GameWorldPicker({
       world,
       camera,
       assets,
       isMobileLayerReady: () => !!this._mobiles,
     });
-    /** mouse position relative to viewport center; null when not inside */
+    /** Mouse steering vector relative to the player's feet. While RMB is
+     * held it remains active outside the viewport and is clamped to the
+     * nearest viewport edge, matching ClassicUO's continuous mouse walk. */
     this._mouseDx = 0;
     this._mouseDy = 0;
     this._mouseInside = false;
@@ -187,6 +191,15 @@ export class GameScene extends Scene {
   async load() {
     const Pixi = await import('pixi.js');
     this._Pixi = Pixi;
+    // The character/map packet can arrive while LoginScene is still active.
+    // Bind the streamed terrain to the authoritative world facet before any
+    // ChunkVisual starts requesting blocks.
+    await assets.setFacet(world.mapId | 0);
+    // Establish the centered workspace before constructing persistent gumps.
+    // GameController calls resize again after load, but waiting until then
+    // made the top bar restore relative to the obsolete (8,8) viewport.
+    camera.setSidePanelMode(profile.get('ui.compactSidePanels'));
+    camera.setViewport(window.innerWidth, window.innerHeight);
 
     // Gameplay viewport rectangle — anything on `gc.world` gets masked
     // to this rectangle so the world never spills into the floating UI.
@@ -350,6 +363,14 @@ export class GameScene extends Scene {
     // UI manager mounts under the scene's UI overlay container.
     this._ui = new UIManager(this.gc.ui);
     uiManagerInstance.set(this._ui);
+    this._unsubs.push(bus.on('profile:changed', ({ path }) => {
+      if (path !== 'ui.compactSidePanels' && path !== 'ui.autoHideEmptyPanels') return;
+      camera.setSidePanelMode(profile.get('ui.compactSidePanels'));
+      camera.setViewport(window.innerWidth, window.innerHeight);
+      this._redrawViewportFrame();
+    }));
+    this._unsubs.push(bus.on('gump:opened', () => this._redrawViewportFrame()));
+    this._unsubs.push(bus.on('gump:disposed', () => this._redrawViewportFrame()));
     this._ui.serverGumpResponder = ({ serverSerial, gumpSerial, buttonId, switches = [], textEntries = [] }) => {
       // Collect default text entries / switches from the gump that triggered
       // the response. The server-gump parser stores TextInput.entryId and
@@ -420,7 +441,8 @@ export class GameScene extends Scene {
     // Swap the asset-manager's active facet, drop chunk visuals, refresh
     // the camera. Bins for unloaded facets stream in on demand.
     this._sub('player:map', async ({ mapId }) => {
-      if (mapId == null || (mapId | 0) === world.mapId) return;
+      if (mapId == null) return;
+      if ((mapId | 0) === world.mapId && (mapId | 0) === assets.currentFacet) return;
       world.mapId = mapId | 0;
       if (world.player) world.player.map = mapId | 0;
       // Audit #35 F7 — CUO `World.MapIndex = -1; world.MapIndex = map;`
@@ -473,7 +495,8 @@ export class GameScene extends Scene {
     const _ensureTopBar = () => {
       if (!this._ui) return;
       if (this._ui.findGump((g) => g._toggleKey === 'topbar')) return;
-      const g = new TopBarGump();
+      const uiScale = this._ui.scale || 1;
+      const g = new TopBarGump((camera.viewX + 4) / uiScale, (camera.viewY + 4) / uiScale);
       g._toggleKey = 'topbar';
       this._ui.addGump(g);
     };
@@ -525,7 +548,6 @@ export class GameScene extends Scene {
     });
     this._sub('player:resynced', () => {
       this._pendingMoves.clear();
-      this._nextWalkAt = performance.now();
     });
     // "You see" is the header ServUO uses for 0x09 LookReq replies — the
     // overhead-name capture in net/handlers.js consumed those silently;
@@ -537,13 +559,29 @@ export class GameScene extends Scene {
     // direct-append handlers below were the leak path (user report 2026-05-17).
     const _isGumpBridgeMarker = (t) =>
       typeof t === 'string' && t.startsWith('@@OPEN_') && t.includes('_GUMP@@');
+    const _handleCraftProgress = (t) => {
+      if (typeof t !== 'string' || !t.startsWith('@@CRAFT_PROGRESS@@')) return false;
+      const [recipeId, done, total, status, encoded = ''] = t.slice('@@CRAFT_PROGRESS@@'.length).split('|');
+      let message = '';
+      try { message = decodeURIComponent(encoded); } catch { /* optional text */ }
+      bus.emit('ui:craft:progress', {
+        recipeId: Number(recipeId) | 0,
+        done: Number(done) | 0,
+        total: Number(total) | 0,
+        status: String(status || ''),
+        message,
+      });
+      return true;
+    };
     this._sub('chat:ascii',      (m) => {
       if (m.name === 'You see') return;
+      if (_handleCraftProgress(m.text)) return;
       if (_isGumpBridgeMarker(m.text)) return;
       this._appendJournal(`${m.name || '?'}: ${m.text}`);
     });
     this._sub('chat:unicode',    (m) => {
       if (m.name === 'You see') return;
+      if (_handleCraftProgress(m.text)) return;
       if (_isGumpBridgeMarker(m.text)) return;
       this._appendJournal(`${m.name || '?'}: ${m.text}`);
     });
@@ -593,6 +631,7 @@ export class GameScene extends Scene {
         : 0xFFB1;
       const g = new SpellbookGump(serial, gumpId, { offset, hi, lo });
       g._toggleKey = key;
+      g._reopenFactory = () => new SpellbookGump(serial, gumpId, { offset, hi, lo });
       this._ui.addGump(g);
     });
     this._sub('shop:buy',         (info) => this._toggleGump(`buy:${info.vendor >>> 0}`, () => new BuyShopGump(info)));
@@ -666,12 +705,10 @@ export class GameScene extends Scene {
       switch (kind) {
         case 'paperdoll': this._toggleGump('paperdoll', () => new PaperdollGump(world.player?.serial ?? 0)); break;
         case 'journal':   this._toggleGump('journal',   () => new JournalGump());   break;
-        case 'skills':    this._toggleGump('skills',    () => new SkillsGump());    break;
+        case 'skills':    this._toggleGump('skills', () => profile.get('experimental.useStandardSkillsGump')
+          ? new SkillsGump() : new SkillGumpAdvanced()); break;
         case 'skills-advanced':
-          this._toggleGump('skills-advanced', async () => {
-            const { SkillGumpAdvanced } = await import('../ui/gumps/skill-gump-advanced.js');
-            return new SkillGumpAdvanced();
-          });
+          this._toggleGump('skills-advanced', () => new SkillGumpAdvanced());
           break;
         case 'corpse-filter': {
           // Re-open the most-recently-opened corpse using the filter gump.
@@ -733,6 +770,10 @@ export class GameScene extends Scene {
         case 'netstats':  this._toggleGump('network-stats', async () => {
           const { NetworkStatsGump } = await import('../ui/gumps/network-stats-gump.js');
           return new NetworkStatsGump();
+        }); break;
+        case 'resources': this._toggleGump('resource-diagnostics', async () => {
+          const { ResourceDiagnosticsGump } = await import('../ui/gumps/resource-diagnostics-gump.js');
+          return new ResourceDiagnosticsGump();
         }); break;
         case 'debug':     this._toggleGump('inspector', async () => {
           const { InspectorGump } = await import('../ui/gumps/inspector-gump.js');
@@ -1362,13 +1403,29 @@ export class GameScene extends Scene {
       // fallback (`_showPopupMenu`) is still around for emergencies but
       // no longer wired by default.
       if (!info?.entries?.length || !this._ui) return;
-      const sx = this._lastRClickX ?? 200;
-      const sy = this._lastRClickY ?? 200;
+      const rawX = this._lastRClickX ?? 200;
+      const rawY = this._lastRClickY ?? 200;
+      // PointerEvent coordinates are physical CSS pixels; Pixi gumps use the
+      // UI manager's unscaled logical space. Mixing them displaced menus as
+      // soon as UI scale differed from 1.
+      const anchor = this._ui.screenToLogical?.(rawX, rawY) ?? { x: rawX, y: rawY };
+      const sx = anchor.x;
+      const sy = anchor.y;
       const existing = this._ui.findGump((g) => g._toggleKey === 'popup-menu');
       if (existing) this._ui.removeGump(existing);
       const g = new PopupMenuGump(info, sx, sy);
       g._toggleKey = 'popup-menu';
+      const logicalW = (window.innerWidth || 1024) / (this._ui.scale || 1);
+      const logicalH = (window.innerHeight || 768) / (this._ui.scale || 1);
+      g.setPosition(
+        Math.max(4, Math.min(sx, logicalW - g.width - 4)),
+        Math.max(4, Math.min(sy, logicalH - g.height - 4)),
+      );
       this._ui.addGump(g);
+    });
+    this._sub('popup:anchor', ({ x, y } = {}) => {
+      if (Number.isFinite(x)) this._lastRClickX = x;
+      if (Number.isFinite(y)) this._lastRClickY = y;
     });
     this._sub('macro:close-all-gumps', () => {
       // Don't dispose the manager — just remove every open gump.
@@ -1727,6 +1784,8 @@ export class GameScene extends Scene {
     this._hud?.remove();
     this._hudBody = null;
     this._journal?.remove();
+    this._journal = null;
+    this._journalBody = null;
     this._chatInput?.parentElement?.remove();
     this.gc.world.removeChildren();
     this.gc.ui.removeChildren();
@@ -1773,10 +1832,39 @@ export class GameScene extends Scene {
     if (!this._backdrop || !this._Pixi) return;
     const x = camera.viewX, y = camera.viewY;
     const w = camera.viewW, h = camera.viewH;
-    this._backdrop.clear().rect(x, y, w, h).fill(0x143a5a);
+    const screenW = this.gc.app.screen.width || window.innerWidth;
+    const screenH = this.gc.app.screen.height || window.innerHeight;
+    const leftW = Math.max(0, x - 12);
+    const rightX = x + w + 12;
+    const rightW = Math.max(0, screenW - rightX);
+    const autoHide = !!profile.get('ui.autoHideEmptyPanels');
+    const compact = !!profile.get('ui.compactSidePanels');
+    const occupancy = autoHide ? this._sideRailOccupancy(x, x + w) : { left: true, right: true };
+    const backdrop = this._backdrop.clear()
+      .rect(0, 0, screenW, screenH).fill(0x070b10);
+    // Quiet side rails give journals, paperdolls and diagnostics a visual
+    // home without turning the full Pixi surface into a blue empty map.
+    // Skip collapsed rails entirely: a negative/zero roundRect is undefined
+    // in WebGL tessellation and was itself capable of producing long spikes.
+    if (leftW > 12 && occupancy.left) {
+      backdrop.roundRect(6, 6, leftW, Math.max(0, screenH - 72), 8)
+        .fill({ color: 0x0c131b, alpha: compact ? 0.86 : 0.96 })
+        .stroke({ width: 1, color: 0x263443, alpha: 0.72 });
+    }
+    if (rightW > 12 && occupancy.right) {
+      backdrop.roundRect(rightX, 6, rightW - 6, Math.max(0, screenH - 72), 8)
+        .fill({ color: 0x0c131b, alpha: compact ? 0.86 : 0.96 })
+        .stroke({ width: 1, color: 0x263443, alpha: 0.72 });
+    }
+    backdrop.rect(x, y, w, h).fill(0x143a5a);
     this._mask.clear().rect(x, y, w, h).fill(0xffffff);
-    this._frame.clear().rect(x - 2, y - 2, w + 4, h + 4)
-      .stroke({ width: 2, color: 0x6e5520, alpha: 0.9 });
+    this._frame.clear()
+      .roundRect(x - 5, y - 5, w + 10, h + 10, 7)
+      .stroke({ width: 3, color: 0x000000, alpha: 0.72 })
+      .rect(x - 2, y - 2, w + 4, h + 4)
+      .stroke({ width: 2, color: 0x9a7430, alpha: 0.92 })
+      .rect(x, y, w, h)
+      .stroke({ width: 1, color: 0xe1bd63, alpha: 0.28 });
     if (this._resizeHandle) {
       this._resizeHandle.clear()
         .poly([x + w - 16, y + h, x + w, y + h, x + w, y + h - 16], true)
@@ -1811,7 +1899,12 @@ export class GameScene extends Scene {
     // a freshly-constructed GameScene with the renderers still null —
     // skip rather than crash. Same null-window applies during destroy.
     if (!this._tiles || !this._mobiles) return;
-    this._tiles.update(world.player.x, world.player.y, r, now);
+    this._tiles.update(world.player.x, world.player.y, r, now, {
+      viewW: camera.viewW,
+      viewH: camera.viewH,
+      zoom: camera.zoom,
+      centerZ: world.player.z,
+    });
     this._mobiles.update(frameDt, now);
     this._effects?.tick(frameDt, now);
     if (this._worldText?.hasActive?.()) this._worldText.tick(frameDt, now);
@@ -1865,6 +1958,7 @@ export class GameScene extends Scene {
 
     // Per-frame tick for any gump that opted in (minimap, worldmap).
     if (this._ui) {
+      this._ui.tick?.(frameDt, now);
       const tickGumps = this._ui.tickGumps ?? this._ui.gumps;
       for (const g of tickGumps) g.tick?.(frameDt, now);
     }
@@ -1950,7 +2044,7 @@ export class GameScene extends Scene {
       #dom-ui .uo-hud-panel {
         width: 300px;
         max-width: 300px;
-        max-height: calc(100vh - 78px);
+        max-height: none;
         overflow-y: auto;
         padding: 10px 12px;
         font: 500 12px/1.4 "Segoe UI Variable Text", "Segoe UI", Inter, system-ui, sans-serif;
@@ -2012,15 +2106,62 @@ export class GameScene extends Scene {
         text-transform: uppercase;
       }
       #dom-ui .uo-journal-panel {
-        width: min(420px, calc(100vw - 28px));
+        width: min(300px, calc(100vw - 28px));
+        min-height: 112px;
         max-height: 184px;
-        padding: 9px 11px;
-        overflow-y: auto;
-        white-space: pre-wrap;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
         line-height: 1.35;
         font: 500 12px/1.45 "Segoe UI Variable Text", "Segoe UI", Inter, system-ui, sans-serif;
         opacity: 0.96;
+      }
+      #dom-ui .uo-journal-head {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        min-height: 30px;
+        padding: 0 7px 0 11px;
+        color: #ffd98a;
+        background: rgba(255, 255, 255, 0.025);
+        border-bottom: 1px solid rgba(226, 180, 92, 0.2);
+        font-size: 10px;
+        font-weight: 750;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+      }
+      #dom-ui .uo-journal-open {
+        min-width: 25px;
+        height: 22px;
+        padding: 0 7px;
+        color: #f4dfad;
+        background: rgba(226, 180, 92, 0.09);
+        border: 1px solid rgba(226, 180, 92, 0.26);
+        border-radius: 4px;
+        cursor: pointer;
+        font: 700 10px/1 "Segoe UI Variable Text", "Segoe UI", sans-serif;
+      }
+      #dom-ui .uo-journal-open:hover {
+        color: #fff6dc;
+        background: rgba(226, 180, 92, 0.18);
+      }
+      #dom-ui .uo-journal-lines {
+        flex: 1 1 auto;
+        min-height: 0;
+        padding: 8px 11px 9px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        color: #f2e7c8;
         scrollbar-color: rgba(226, 180, 92, 0.55) rgba(0, 0, 0, 0.2);
+      }
+      #dom-ui .uo-journal-lines.is-empty {
+        display: grid;
+        place-items: center;
+        color: rgba(242, 231, 200, 0.48);
+        font-style: italic;
+        text-align: center;
       }
       #dom-ui .uo-chatbar {
         display: grid;
@@ -2074,13 +2215,30 @@ export class GameScene extends Scene {
     (document.head || document.body || document.documentElement)?.appendChild(style);
   }
 
+  _sideRailOccupancy(viewLeft, viewRight) {
+    if (!this._ui?.gumps?.length) return { left: false, right: false };
+    const scale = this._ui.scale || 1;
+    let left = false;
+    let right = false;
+    for (const gump of this._ui.gumps) {
+      if (!gump?.node?.visible || gump._toggleKey === 'topbar' || gump._toggleKey === 'actionbar') continue;
+      const gx = (Number(gump.node.x) || 0) * scale;
+      const gw = Math.max(1, (Number(gump.width) || Number(gump.node.width) || 1) * scale);
+      if (gx + gw <= viewLeft + 12) left = true;
+      if (gx >= viewRight - 12) right = true;
+      if (left && right) break;
+    }
+    return { left, right };
+  }
+
   _buildHud() {
     this._ensureDomUiStyles();
     const el = document.createElement('div');
     el.className = 'uo-panel uo-game-panel uo-hud-panel';
     el.style.position = 'fixed';
-    el.style.top = '8px';
+    el.style.top = 'calc(50vh + 4px)';
     el.style.right = '8px';
+    el.style.bottom = '60px';
     el.innerHTML = '<div class="uo-hud-title">Debug</div><div id="uo-hud-body" class="uo-hud-grid"></div>';
     this.gc.domMount(el);
     this._hud = el;
@@ -2095,8 +2253,21 @@ export class GameScene extends Scene {
     el.style.bottom = '60px';
     el.style.left = '8px';
     el.id = 'uo-journal';
+    el.innerHTML = `
+      <div class="uo-journal-head">
+        <span>Dziennik</span>
+        <button class="uo-journal-open" type="button" title="Otwórz pełny dziennik (J)">J</button>
+      </div>
+      <div class="uo-journal-lines is-empty" aria-live="polite">Brak wiadomości</div>`;
+    const body = el.querySelector('.uo-journal-lines');
+    el.querySelector('.uo-journal-open')?.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this._toggleGump('journal', () => new JournalGump());
+    });
     this.gc.domMount(el);
     this._journal = el;
+    this._journalBody = body;
   }
 
   _buildChat() {
@@ -2323,6 +2494,12 @@ export class GameScene extends Scene {
     const ns = net?.stats ?? {};
     const lf = lightPoints.lightFrameStats ?? {};
     const le = lightPoints.equipmentLightStats ?? {};
+    const tileDiagnostics = this._tiles?.diagnosticsSnapshot?.() ?? {};
+    const spriteStats = spritePool.stats();
+    const textureStats = assets.diagnosticsSnapshot?.() ?? {};
+    const longTasks = clientPerfStats.longTaskHistory ?? [];
+    const latestLongTask = longTasks.length
+      ? longTasks[(clientPerfStats.longTaskHead - 1 + longTasks.length) % longTasks.length] : null;
     const renderer = this.gc?.app?.renderer;
     const rendererType = renderer?.type === 1 ? 'WebGL' : (renderer?.type === 2 ? 'WebGPU' : 'unknown');
     const perfObj = typeof performance !== 'undefined' ? performance : null;
@@ -2338,9 +2515,12 @@ export class GameScene extends Scene {
       ${row('fps', `${fmt(fps, 0)} (${fmt(clientPerfStats.frameMs)}ms)`)}
       ${row('update/draw', `${fmt(clientPerfStats.updateMs)}/${fmt(clientPerfStats.drawMs)}ms`)}
       ${row('tick/lag', `${fmt(clientPerfStats.tickMs)}/${fmt(clientPerfStats.eventLoopLagMs)}ms`)}
-      ${row('long tasks', `${clientPerfStats.longTaskCount} last=${fmt(clientPerfStats.lastLongTaskMs)} max=${fmt(clientPerfStats.maxLongTaskMs)}ms`)}
+      ${row('long tasks', `${clientPerfStats.longTaskCount} last=${fmt(clientPerfStats.lastLongTaskMs)} max=${fmt(clientPerfStats.maxLongTaskMs)}ms ${latestLongTask?.subsystem ?? ''}`)}
       ${row('renderer', `${rendererType} x${renderer?.resolution ?? 1}`)}
       ${row('memory', mem)}
+      ${row('sprites/meshes', `${spriteStats.active}/${tileDiagnostics.landMeshes?.active ?? 0}`)}
+      ${row('textures', Object.values(textureStats.caches ?? {}).reduce((sum, count) => sum + (Number(count) || 0), 0))}
+      ${row('scene resources', `listeners=${this._unsubs.length} timers=${this._touchLongPressTimer ? 1 : 0}`)}
       ${section('World')}
       ${row('serial', serial)}
       ${row('body', bodyId)}
@@ -2350,6 +2530,7 @@ export class GameScene extends Scene {
       ${row('mobiles', world.mobiles.size)}
       ${row('items', world.items.size)}
       ${row('chunks', this._tiles?.visuals.size ?? 0)}
+      ${row('chunk queue', `${tileDiagnostics.queuedChunks ?? 0} last=${tileDiagnostics.lastPopulateAt ? new Date(tileDiagnostics.lastPopulateAt).toLocaleTimeString() : '-'}`)}
       ${row('light level', world.lightLevel ?? '-')}
       ${section('Lighting')}
       ${row('lights', `src=${lightPoints.size?.() ?? '-'} cand=${lf.candidates ?? 0} vis=${lf.visible ?? 0}`)}
@@ -2376,15 +2557,27 @@ export class GameScene extends Scene {
    *  0x16 with the entry's responseId. Disabled entries (flag 0x01)
    *  are dimmed and ignore clicks. */
   _showPopupMenu({ serial, entries }) {
-    if (!entries || entries.length === 0) return;
+    entries = Array.isArray(entries) ? entries : [];
     this._closePopupMenu();
     const el = document.createElement('div');
     el.className = 'uo-panel uo-game-panel uo-popup-menu';
     el.style.cssText = `
       position:fixed; left:${this._lastRClickX}px; top:${this._lastRClickY}px;
       min-width:160px; padding:4px; z-index:9999;
-      font:11px Consolas, monospace; cursor:pointer;
+      font:500 13px/1.35 "Segoe UI Variable Text", "Segoe UI", Inter, system-ui, sans-serif; cursor:pointer;
     `;
+    const pinned = tooltips.pinnedSerials().includes(serial >>> 0);
+    const pinItem = document.createElement('div');
+    pinItem.textContent = pinned ? 'Unpin properties' : 'Pin properties';
+    pinItem.style.cssText = 'padding:5px 8px;color:#9fdcff;border-bottom:1px solid rgba(216,175,98,.18)';
+    pinItem.addEventListener('mouseenter', () => { pinItem.style.background = '#3a2a10'; });
+    pinItem.addEventListener('mouseleave', () => { pinItem.style.background = ''; });
+    pinItem.addEventListener('click', () => {
+      if (pinned) tooltips.unpin(serial);
+      else tooltips.pin(serial, this._lastRClickX, this._lastRClickY);
+      this._closePopupMenu();
+    });
+    el.appendChild(pinItem);
     for (const e of entries) {
       const item = document.createElement('div');
       const disabled = (e.flags & 0x01) !== 0;
@@ -2421,13 +2614,14 @@ export class GameScene extends Scene {
   }
 
   _appendJournal(line) {
-    if (!this._journal) return;
+    if (!this._journal || !this._journalBody) return;
     this._journalLines.push(line);
     if (this._journalLines.length > 40) {
       this._journalLines.splice(0, this._journalLines.length - 40);
     }
-    this._journal.textContent = this._journalLines.join('\n');
-    this._journal.scrollTop = this._journal.scrollHeight;
+    this._journalBody.classList.remove('is-empty');
+    this._journalBody.textContent = this._journalLines.join('\n');
+    this._journalBody.scrollTop = this._journalBody.scrollHeight;
   }
 
   // -------------------------------------------------------------------------
@@ -2473,16 +2667,29 @@ export class GameScene extends Scene {
     // `window.innerWidth/2` made the avatar drift toward the bottom
     // of the screen on every mouse-walk because the browser centre
     // sat below the player.
+    const viewLeft = camera.viewX;
+    const viewTop = camera.viewY;
+    const viewRight = viewLeft + camera.viewW;
+    const viewBottom = viewTop + camera.viewH;
+    const insideViewport = e.clientX >= viewLeft && e.clientX <= viewRight
+      && e.clientY >= viewTop && e.clientY <= viewBottom;
+    // Once RMB walking starts in the world, the surrounding UI/chrome is an
+    // extension of the steering surface. Clamp the vector at the gameplay
+    // edge so a cursor on a side rail keeps a stable direction/run distance
+    // without producing an enormous off-screen vector.
+    const steerX = this._mouseHeld
+      ? Math.max(viewLeft, Math.min(viewRight, e.clientX))
+      : e.clientX;
+    const steerY = this._mouseHeld
+      ? Math.max(viewTop, Math.min(viewBottom, e.clientY))
+      : e.clientY;
     const playerPoint = this._playerScreenPoint();
     const playerScreenX = playerPoint.x;
     const playerScreenY = playerPoint.y;
-    this._mouseDx = e.clientX - playerScreenX;
-    this._mouseDy = e.clientY - playerScreenY;
-    this._mouseInside = e.clientX >= camera.viewX
-      && e.clientX <= camera.viewX + camera.viewW
-      && e.clientY >= camera.viewY
-      && e.clientY <= camera.viewY + camera.viewH
-      && !this._ui?.pickAtScreen(e.clientX, e.clientY);
+    this._mouseDx = steerX - playerScreenX;
+    this._mouseDy = steerY - playerScreenY;
+    const overUi = !!this._ui?.pickAtScreen(e.clientX, e.clientY);
+    this._mouseInside = this._mouseHeld || (insideViewport && !overUi);
     if (houseCustomization.state === HouseCustomState.Editing) {
       const tile = this._pickWorldTile(e.clientX, e.clientY);
       if (tile) houseCustomization.setPreviewTile(tile.x, tile.y, tile.z);
@@ -2522,8 +2729,12 @@ export class GameScene extends Scene {
     }
     // Hover tooltip — find a mobile under the cursor and ask the server
     // for properties on the first hover. Subsequent renders use the cache.
-    const hit = this._pickWorldEntity(e.clientX, e.clientY);
-    if (dragDrop.isHolding()) {
+    const hit = overUi ? null : this._pickWorldEntity(e.clientX, e.clientY);
+    if (overUi) {
+      // Gump controls own their hover lifecycle. Hiding here used to erase a
+      // ContainerGump tooltip in the very same pointermove that displayed it.
+      bus.emit('world:cursor-hint', { name: null });
+    } else if (dragDrop.isHolding()) {
       tooltips.hide();
       bus.emit('world:cursor-hint', { name: 'drag-hold' });
     } else if (hit && hit.serial) {
@@ -2538,7 +2749,12 @@ export class GameScene extends Scene {
     }
   };
   _onMouseLeave = () => {
-    this._mouseInside = false;
+    // Leaving the document while RMB is physically held must not cancel
+    // movement: browsers stop reporting pointer coordinates at the window
+    // edge but the game loop can safely keep using the last clamped vector.
+    // `mouseup`, window blur and visibilitychange still end the hold, so this
+    // cannot leave an avatar walking after Alt-Tab.
+    this._mouseInside = !!this._mouseHeld;
     bus.emit('world:cursor-hint', { name: null });
     if (this._peekPanActive) {
       this._peekPanActive = false;
@@ -3069,7 +3285,7 @@ export class GameScene extends Scene {
           this._appendJournal('[system] No path to that tile.');
           return;
         }
-        this._autowalk = { dirs, idx: 0, lastAt: 0 };
+        this._autowalk = { dirs, idx: 0 };
       })
       .catch(() => {
         if (requestId === this._autowalkRequestId) {
@@ -3094,11 +3310,8 @@ export class GameScene extends Scene {
       this._autowalk = null;
       return;
     }
-    const cadence = 200;          // CUO walking pace
-    if (now - aw.lastAt < cadence) return;
     if (!walker.canStep(now)) return;
     const dir = aw.dirs[aw.idx++];
-    aw.lastAt = now;
     this._sendMove(dir, false, now);
   }
 
@@ -3177,7 +3390,12 @@ export class GameScene extends Scene {
     // mid-flow (Mark/Recall/heal target); RMB-hold-to-walk shouldn't
     // hijack the gesture. Wait until the cursor closes.
     if (targetManager?.active) return;
-    if (now < this._nextWalkAt) return;
+    // Walker is the single cadence authority for turns/walk/run. The old
+    // `_nextWalkAt` gate duplicated the same throttle and advanced even when
+    // `_sendMove` failed to reserve a step (ACK pressure / a prior walk still
+    // finishing). That made a walk→run transition keep walking cadence and
+    // was the source of the "different animation, same speed" report.
+    if (!walker.canStep(now)) return;
     // Dead zone — pivot ~½ tile around the player avatar so a small
     // nudge starts walking. CUO uses ~14 px radius (player feet); we
     // match by squaring TILE_HALF_W * 0.6 ≈ 13 px. Without a generous
@@ -3197,22 +3415,17 @@ export class GameScene extends Scene {
     const run = movementMode.run;
 
     const dir = mouseAngleToDirection(this._mouseDx, this._mouseDy);
-    // Direction-change → turn-only step (CUO Mobile.cs:743-779). Pure
-    // turns share the TURN_DELAY=80ms cadence, real walks the
-    // STEP_DELAY_WALK=400ms cadence. Mirroring CUO `MovementSpeed`
-    // exactly so a click-drag mouse-walk doesn't run double-time on
-    // localhost (which felt like 2 tiles/sec when our 200ms throttle
-    // collided with the walker's own 400ms gate — walker said "no",
-    // we tried again 200ms later, every other attempt got through).
-    const isTurn = world.player?.direction !== dir;
+    // Direction-change → turn-only step. Walker.reserve selects the
+    // canonical 80/200/400ms delay after it knows whether this packet really
+    // reserved a turn, run or walk.
     this._sendMove(dir, run, now);
-    this._nextWalkAt = now + (isTurn ? 80 : (run ? 200 : 400));
   }
 
   // -------------------------------------------------------------------------
   // Arrow-key fallback (until we wire targeting/chat properly).
 
   _onKey = (e) => {
+    if (e.__uoUiHandled) return;
     if (document.activeElement instanceof HTMLInputElement) return;
 
     // ESC cancels active target prompt.
@@ -3282,7 +3495,8 @@ export class GameScene extends Scene {
           else this._toggleGump('paperdoll', () => new PaperdollGump(world.player?.serial ?? 0));
           e.preventDefault(); return;
         case 'j': this._toggleGump('journal',   () => new JournalGump());                          e.preventDefault(); return;
-        case 'k': this._toggleGump('skills',    () => new SkillsGump());                           e.preventDefault(); return;
+        case 'k': this._toggleGump('skills', () => profile.get('experimental.useStandardSkillsGump')
+          ? new SkillsGump() : new SkillGumpAdvanced());                                          e.preventDefault(); return;
         case 't': this._toggleGump('status',    () => new StatusGump());                           e.preventDefault(); return;
         case 'm': this._toggleGump('minimap',   () => new MinimapGump());                          e.preventDefault(); return;
         case 'r': this._toggleGump('party',     () => new PartyGump());                            e.preventDefault(); return;
@@ -3302,6 +3516,13 @@ export class GameScene extends Scene {
       e.preventDefault(); return;
     }
     if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'd') {
+      this._toggleGump('resource-diagnostics', async () => {
+        const { ResourceDiagnosticsGump } = await import('../ui/gumps/resource-diagnostics-gump.js');
+        return new ResourceDiagnosticsGump();
+      });
+      e.preventDefault(); return;
+    }
+    if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'x') {
       this._toggleGump('inspector', async () => new (await lazyInspector())());
       e.preventDefault(); return;
     }
@@ -3337,7 +3558,7 @@ export class GameScene extends Scene {
     if (!this._heldDirs) this._heldDirs = new Set();
     this._heldDirs.add(dir);
     this._heldDirsRun = !!e.shiftKey;
-    // Walker handles the throttle, no need to compute `_nextWalkAt`.
+    // Walker handles the throttle; browser key-repeat timing is irrelevant.
     // Use the resolved diagonal so pressing the 2nd cardinal of a pair
     // (e.g. W then D) immediately steps NE instead of stepping E first.
     const resolved = this._resolveHeldDirection();
@@ -3404,11 +3625,13 @@ export class GameScene extends Scene {
           return;
         }
         g._toggleKey = key;
+        g._reopenFactory = factory;
         this._ui.addGump(g);
       }).catch((e) => console.error(`[gump:${key}] lazy load failed:`, e));
       return null;
     }
     r._toggleKey = key;
+    r._reopenFactory = factory;
     this._ui.addGump(r);
     return r;
   }
@@ -3547,7 +3770,12 @@ export class GameScene extends Scene {
     const p = world.player;
     if (!p) return;
     const oldX = p.x, oldY = p.y, oldMap = p.map ?? 1;
-    p.x = x; p.y = y; p.z = z; p.direction = direction;
+    // 0x21 echoes the protocol direction byte, including bit 0x80 for run.
+    // Keeping that bit in Mobile.direction made the next comparison against
+    // a logical 0..7 direction look like a facing change, so a rejected run
+    // was followed by a fake turn-only request. Under occasional ACK/speed
+    // rejects this repeatedly collapsed run throughput toward walk speed.
+    p.x = x; p.y = y; p.z = z; p.direction = direction & 0x07;
     world.reindexMobile?.(p, oldX, oldY, oldMap);
     // Snap visual offset to zero — interrupting the in-flight lerp so
     // the avatar doesn't keep sliding toward the rejected tile.
@@ -3647,6 +3875,7 @@ export class GameScene extends Scene {
     if (existing) this._ui.removeGump(existing);
     const g = factory();
     g._toggleKey = key;
+    g._reopenFactory = factory;
     this._ui.addGump(g);
   }
 

@@ -17,6 +17,7 @@ import {
   buildPartyDecline,
   buildPartyMessage,
   buildPartyMessageTo,
+  buildResyncRequest,
   buildUOLiveHashResponse,
   buildUseSkill,
 } from '../src/net/outgoing.js';
@@ -57,6 +58,7 @@ assert.equal(hex(buildOpenSpellBook(6)), '1200054306');
 assert.equal(hex(buildClickQuestArrow(false)), 'bf0006000700');
 assert.equal(hex(buildClickQuestArrow(true)), 'bf0006000701');
 assert.equal(hex(buildLoginSeedOld(0x0a000001)), '0a000001');
+assert.equal(hex(buildResyncRequest()), '220000', 'client resync reserved bytes must stay canonical zeroes');
 assert.equal(hex(buildDropReq(0x40000001, 0x1234, 0x5678, -1, 0x7f, 0xffffffff)), '084000000112345678ff7fffffffff');
 assert.equal(hex(buildDropReqOld(0x40000001, 0x1234, 0x5678, -1, 0xffffffff)), '084000000112345678ffffffffff');
 assert.equal(hex(buildMegaClilocRequest([0x40000001, 0x40000002])), 'd6000b4000000140000002');

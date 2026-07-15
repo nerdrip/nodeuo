@@ -11,18 +11,10 @@
     <meta name="theme-color" content="#07090c" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>Ultima Online — Web Client</title>
-    <!-- Preload only JSON manifests that the JS boot path fetches
-         immediately. Image atlases are warmed with prefetch instead:
-         Pixi may consume them after the load event or through its own
-         loader, and hard image preload makes Chrome spam "preloaded but
-         not used" warnings in the console. -->
-    <link rel="preload" as="fetch" crossorigin="anonymous" href="/assets/hues.json" />
-    <link rel="preload" as="fetch" crossorigin="anonymous" href="/assets/tiledata.json" />
-    <link rel="prefetch" as="image" href="/assets/hues.png" />
+    <!-- Only the cursor is useful before a character is selected. Terrain,
+         hue/font textures and paperdoll pages are scheduled by their owning
+         flow so the login screen does not compete with world downloads. -->
     <link rel="prefetch" as="image" href="/assets/cursors-atlas.png" />
-    <link rel="prefetch" as="image" href="/assets/fonts.png" />
-    <link rel="prefetch" as="image" href="/assets/gump-atlas-000.png" />
-    <link rel="prefetch" as="image" href="/assets/land-atlas-00.png" />
     <!-- DNS / connection prewarm for the WS endpoint (same origin in
          production but explicit hint speeds up cross-origin proxies). -->
     <link rel="preconnect" href="/" />

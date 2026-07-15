@@ -21,6 +21,36 @@ const RUNE_MARKED_HUE = 0x47;
 const MOONGATE_BLUE_ID = 0x0F6C;
 const GATE_TTL_MS = 30_000;
 
+function regionsOf(api) {
+  return api?.regions ?? api?.ctx?.regions ?? api?.world?.regions ?? null;
+}
+
+export function travelAllowed(api, map, x, y) {
+  const regions = regionsOf(api);
+  if (!regions) return true;
+  try {
+    if (typeof regions.allowGate === 'function' && !regions.allowGate(map, x, y)) return false;
+    const here = regions.at?.(map, x, y) ?? [];
+    return !here.some((region) => region.noRecall || region.noGate || region.travelBlocked);
+  } catch {
+    return false;
+  }
+}
+
+function standingDestination(api, dest) {
+  if (!dest || !Number.isFinite(dest.x) || !Number.isFinite(dest.y)
+      || !Number.isFinite(dest.map)) return null;
+  if (!travelAllowed(api, dest.map | 0, dest.x | 0, dest.y | 0)) return null;
+  const resolve = api?.game?.movement?.findStandingZ
+    ?? api?.query?.findStandingZ
+    ?? api?.ops?.findStandingZ;
+  const z = resolve
+    ? resolve(dest.map | 0, dest.x | 0, dest.y | 0, dest.z | 0)
+    : (dest.z | 0);
+  if (z == null) return null;
+  return { ...dest, x: dest.x | 0, y: dest.y | 0, z: z | 0, map: dest.map | 0 };
+}
+
 function* clientsNear(api, center, range = 18, self = null) {
   yield* nearbyClients(api, center, self, range);
 }
@@ -34,6 +64,21 @@ export function findMarkedRune(api, mob) {
   for (const it of packDescendants(api, mob)) {
     if (!it.runeDest) continue;
     return it;
+  }
+  return null;
+}
+
+/** Resolve a targeted marked rune or a runebook's default destination. */
+export function markedDestination(item) {
+  if (!item) return null;
+  if (item.runeDest && Number.isFinite(item.runeDest.x)) return item.runeDest;
+  if (item.runebook) {
+    const index = item.runebook.defaultIndex | 0;
+    return index >= 0 ? (item.runebook.slots?.[index] ?? null) : null;
+  }
+  if (Array.isArray(item.runes) && item.runes.length) {
+    const index = Math.max(0, item.defaultIndex | 0);
+    return item.runes[index] ?? item.runes[0] ?? null;
   }
   return null;
 }
@@ -56,6 +101,9 @@ export function checkRecallCast(api, caster, state) {
   // the player, then drops where the cursor lands → stack stays on the
   // ground in source AND in pack). ServUO `Spell.CheckCast` rejects.
   if (state?.heldItem) return 'You cannot recall with an item in your hand.';
+  if (!travelAllowed(api, caster?.map ?? 1, caster?.x | 0, caster?.y | 0)) {
+    return 'A magical force prevents travel from this region.';
+  }
   // Stratics / ServUO `WeightOverloading.IsOverloaded`: weight > strCap.
   const w = caster?._wornWeight ?? 0;
   const cap = (caster?.str ?? 100) * 4 + 40;
@@ -99,13 +147,8 @@ export function markRune(rune, caster) {
  * when the destination is unusable.
  */
 export function teleportToRune(api, mob, dest) {
-  if (!dest || typeof dest.map !== 'number') return false;
-  // Region no-recall gate (Felucca dungeons, jail, etc.).
-  if (api.regions?.find) {
-    const region = api.regions.find(dest.x, dest.y, dest.map);
-    if (region?.noRecall) return false;
-  }
-  const target = { x: dest.x, y: dest.y, z: dest.z, map: dest.map };
+  const target = standingDestination(api, dest);
+  if (!target) return false;
   if (api.game?.mobile?.teleport?.(mob, target, { state: mob.client, refresh: true })) {
     return true;
   }
@@ -160,20 +203,27 @@ export function teleportToRune(api, mob, dest) {
  */
 export function spawnGatePair(api, caster, dest) {
   if (!canCreateItem(api, api.world)) return false;
+  if (!travelAllowed(api, caster.map ?? 1, caster.x | 0, caster.y | 0)) return false;
+  const target = standingDestination(api, dest);
+  if (!target) return false;
+  const source = standingDestination(api, {
+    x: caster.x, y: caster.y, z: caster.z, map: caster.map,
+  });
+  if (!source) return false;
   const gateScript = 'teleporter';
   const gateA = createItem(api, api.world, {
     itemId: MOONGATE_BLUE_ID,
-    x: caster.x, y: caster.y, z: caster.z, map: caster.map,
+    x: source.x, y: source.y, z: source.z, map: source.map,
     script: gateScript,
-    teleportTo: { x: dest.x, y: dest.y, z: dest.z, map: dest.map },
+    teleportTo: { x: target.x, y: target.y, z: target.z, map: target.map },
     creatures: true,
     name: 'a moongate',
   });
   const gateB = createItem(api, api.world, {
     itemId: MOONGATE_BLUE_ID,
-    x: dest.x, y: dest.y, z: dest.z, map: dest.map,
+    x: target.x, y: target.y, z: target.z, map: target.map,
     script: gateScript,
-    teleportTo: { x: caster.x, y: caster.y, z: caster.z, map: caster.map },
+    teleportTo: { x: source.x, y: source.y, z: source.z, map: source.map },
     creatures: true,
     name: 'a moongate',
   });

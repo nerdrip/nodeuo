@@ -26,13 +26,32 @@ export const METAL_TIERS = {
  *  charges. Returns null when no runic tool is present. */
 export function findRunicTool(world, crafter, kind = 'smith') {
   if (!world?.items) return null;
-  // Reverse parent index — walks pack only (~30 items) instead of full
-  // 110k world.items. Crafting loops call this on every recipe attempt;
-  // hot path on busy crafters.
-  const idx = world._childrenByParent?.get?.(crafter.serial);
-  const iter = idx
-    ? Array.from(idx, (s) => world.items.get(s)).filter(Boolean)
-    : [...world.items.values()].filter((it) => it.parent === crafter.serial);
+  const owned = (item) => {
+    let parent = item?.parent;
+    for (let depth = 0; parent != null && depth < 16; depth++) {
+      if ((parent >>> 0) === (crafter.serial >>> 0)) return true;
+      parent = world.items.get(parent >>> 0)?.parent;
+    }
+    return false;
+  };
+  // The runic tool normally lives inside the layer-21 backpack, not as a
+  // direct child of the mobile. Use the reverse index to walk that small
+  // subtree and fall back to an ownership-chain check for test worlds.
+  const iter = [];
+  const queue = [...(world._childrenByParent?.get?.(crafter.serial) ?? [])];
+  const seen = new Set();
+  while (queue.length) {
+    const serial = queue.shift() >>> 0;
+    if (seen.has(serial)) continue;
+    seen.add(serial);
+    const item = world.items.get(serial);
+    if (!item) continue;
+    iter.push(item);
+    for (const child of world._childrenByParent?.get?.(serial) ?? []) queue.push(child);
+  }
+  if (iter.length === 0) {
+    for (const item of world.items.values()) if (owned(item)) iter.push(item);
+  }
   for (const it of iter) {
     if (!it.runicTool) continue;
     if (it.runicTool.kind && it.runicTool.kind !== kind) continue;

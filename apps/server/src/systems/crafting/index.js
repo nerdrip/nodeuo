@@ -9,10 +9,11 @@
 //           success roll, exceptional roll, consume + spawn).
 
 import { effectiveSkill } from '../../combat-formulas.js';
-import { getRecipe, registerRecipe, allRecipes, recipesForSkill, recipesByCategory } from './registry.js';
+import { getRecipe, registerRecipe, allRecipes, recipesForSkill, recipesByCategory, recipeCatalogDiagnostics } from './registry.js';
 import { recordCraftForBods } from '../economy/bods.js';
-import { findRunicTool, applyRunicTier } from './runic.js';
+import { findRunicTool, applyRunicTier, METAL_TIERS } from './runic.js';
 import { playSound } from '@uo/protocol';
+import { runtimeGovernor } from '../runtime-governor.js';
 
 // Per-tool crafting SFX, verified against ServUO `Scripts/Services/Craft/
 // Def*.cs::PlayCraftEffect`. Each CraftSystem ships an EffectSound id
@@ -89,7 +90,7 @@ import {
   extractedRecipesForSkill, extractedRecipeSkills, extractedRecipeCount,
 } from './extracted-recipes.js';
 
-export { getRecipe, registerRecipe, allRecipes, recipesForSkill, recipesByCategory };
+export { getRecipe, registerRecipe, allRecipes, recipesForSkill, recipesByCategory, recipeCatalogDiagnostics };
 export { extractedRecipesForSkill, extractedRecipeSkills, extractedRecipeCount };
 
 /**
@@ -147,12 +148,32 @@ function resolveBackpack(world, mob) {
  *
  * @param {CraftContext & { recipeId: number }} ctx
  */
-export function craft(ctx) {
+function craftCore(ctx) {
   const recipe = getRecipe(ctx.recipeId);
   if (!recipe) return { ok: false, reason: 'unknown-recipe' };
 
   const skill = effectiveSkill(ctx.crafter, recipe.skillId) * 10;
   if (skill < recipe.minSkill) return { ok: false, reason: 'low-skill' };
+  const materialName = String(ctx.material?.name ?? '').toLowerCase();
+  const material = materialName && METAL_TIERS[materialName]
+    && recipe.inputs?.some?.((input) => (input.itemId | 0) === 0x1BF2)
+    ? METAL_TIERS[materialName]
+    : null;
+  if (material && skill < Number(ctx.material?.skillReq ?? 0)) {
+    return { ok: false, reason: 'material-skill' };
+  }
+  const inputs = material
+    ? recipe.inputs.map((input) => (input.itemId | 0) === 0x1BF2 ? { ...input, hue: material.hue } : input)
+    : recipe.inputs;
+
+  if (ctx.requireTool && !ctx.tool) return { ok: false, reason: 'missing-tool' };
+  if (ctx.tool?.tool && Number.isFinite(ctx.tool.tool.charges) && ctx.tool.tool.charges <= 0) {
+    return { ok: false, reason: 'tool-worn-out' };
+  }
+  if (typeof ctx.validateAccess === 'function') {
+    const access = ctx.validateAccess(recipe, ctx);
+    if (access !== true) return { ok: false, reason: typeof access === 'string' ? access : 'inaccessible' };
+  }
 
   // Recipe-scroll gate — high-tier recipes flagged `requiresRecipe`
   // need the account-level unlock from a consumed scroll. Without
@@ -170,7 +191,8 @@ export function craft(ctx) {
   }
 
   const span = Math.max(1, recipe.maxSkill - recipe.minSkill);
-  const pSuccess = Math.max(0, Math.min(1, (skill - recipe.minSkill) / span));
+  const regionalBonus = Math.max(-0.25, Math.min(0.25, Number(ctx.region?.craftSuccessBonus ?? 0)));
+  const pSuccess = Math.max(0, Math.min(1, (skill - recipe.minSkill) / span + regionalBonus));
 
   // BUGFIX #94 (FAZA DZ): the original fail path called
   // consumeIngredients(0.5) WITHOUT checking the return — meaning a
@@ -179,8 +201,8 @@ export function craft(ctx) {
   // their ingots. We now run the materials check FIRST so the
   // success and failure branches are both gated on the same
   // ingredient guarantee, then apply the half-refund on fail.
-  const have = ctx.itemStore?.checkIngredients?.(ctx.crafter, recipe.inputs)
-            ?? ctx.itemStore?.consumeIngredients?.(ctx.crafter, recipe.inputs, 0);
+  const have = ctx.itemStore?.checkIngredients?.(ctx.crafter, inputs)
+            ?? ctx.itemStore?.consumeIngredients?.(ctx.crafter, inputs, 0);
   if (!have) return { ok: false, reason: 'insufficient-materials' };
 
   // Audit #35 P2 #6 — recipe-declared mana cost gate. Inscription
@@ -194,15 +216,17 @@ export function craft(ctx) {
   }
 
   if (Math.random() > pSuccess) {
-    ctx.itemStore?.consumeIngredients?.(ctx.crafter, recipe.inputs, 0.5);
+    const failedReservation = ctx.itemStore?.reserveIngredients?.(ctx.crafter, inputs, 0.5);
+    if (failedReservation) failedReservation.commit();
+    else ctx.itemStore?.consumeIngredients?.(ctx.crafter, inputs, 0.5);
     // ServUO `BaseTool.OnFailedCraft` debits one charge on failure too.
     // Without this the SUCCESS branch was the only path that ticked
     // down the hammer/saw/kit — a 50% crafter got full charge value
     // while a perfect crafter exhausted the tool. Charge the tool now
     // (before the early return) so failures cost the same as successes.
-    if (ctx.tool && Number.isFinite(ctx.tool.charges)) {
-      ctx.tool.charges -= 1;
-      if (ctx.tool.charges <= 0) {
+    if (ctx.tool?.tool && Number.isFinite(ctx.tool.tool.charges)) {
+      ctx.tool.tool.charges -= 1;
+      if (ctx.tool.tool.charges <= 0) {
         ctx.itemStore?.destroyItem?.(ctx.tool.serial);
       }
     }
@@ -210,8 +234,8 @@ export function craft(ctx) {
     return { ok: false, reason: 'failed' };
   }
 
-  const consumed = ctx.itemStore?.consumeIngredients?.(ctx.crafter, recipe.inputs, 1);
-  if (!consumed) return { ok: false, reason: 'insufficient-materials' };
+  const reservation = ctx.itemStore?.reserveIngredients?.(ctx.crafter, inputs, 1) ?? null;
+  if (ctx.itemStore?.reserveIngredients && !reservation) return { ok: false, reason: 'insufficient-materials' };
 
   // ServUO `CraftItem.cs:1268 GetExceptionalChance` scales the chance
   // linearly with skill above min, plus +5% per crafter-bonus item
@@ -227,6 +251,7 @@ export function craft(ctx) {
     const tal = ctx.crafter?._equipment?.find?.((p) => p?.talisman?.crafterBonus);
     if (tal?.talisman?.crafterBonus) exceptionalChance += 0.05;
     if (ctx.crafter?._wearingApron)  exceptionalChance += 0.05;
+    exceptionalChance += Number(ctx.region?.exceptionalChanceBonus ?? 0);
   }
   const isExceptional = exceptionalChance > 0 && Math.random() < exceptionalChance;
 
@@ -234,20 +259,32 @@ export function craft(ctx) {
     itemId: recipe.outputItemId,
     amount: recipe.outputCount,
     container: resolveBackpack(ctx.world, ctx.crafter),
-    crafter: ctx.crafter.name,
+    crafter: isExceptional ? ctx.crafter.name : null,
+    makerMark: isExceptional && ctx.makerMark !== false ? ctx.crafter.name : null,
     // Server parity #13 #5 — stamp crafter serial so `runic-reforging`
     // can gate "only the original crafter may rework" + a future
     // "signed by" engraving renders the right owner.
     crafterSerial: ctx.crafter.serial,
     quality: isExceptional ? 'exceptional' : 'regular',
+    hue: material?.hue ?? 0,
   });
+  if (!item) return { ok: false, reason: 'output-failed' };
+  const consumed = reservation
+    ? reservation.commit()
+    : ctx.itemStore?.consumeIngredients?.(ctx.crafter, inputs, 1);
+  if (!consumed) {
+    ctx.itemStore?.destroyItem?.(item.serial);
+    return { ok: false, reason: 'insufficient-materials' };
+  }
   // Runic-tool overlay: when the crafter has a matching runic hammer /
   // sewing kit / fletcher tool in pack, consume one charge and bump
   // the item's hue + stat bonuses to that tier (dull-copper → valorite,
   // plus blaze/ice/toxic). Without this all crafted gear was iron-tier
   // forever — there was no progression past the base recipe stats.
-  const tool = findRunicTool(ctx.world, ctx.crafter, recipe.toolKind ?? 'smith');
-  if (item && tool) {
+  const tool = material ? null : findRunicTool(ctx.world, ctx.crafter, recipe.toolKind ?? 'smith');
+  if (item && material) {
+    applyRunicTier(item, materialName);
+  } else if (item && tool) {
     applyRunicTier(item, tool.tier);
     tool.tool.runicTool.charges -= 1;
     if (tool.tool.runicTool.charges <= 0) {
@@ -313,7 +350,26 @@ export function craft(ctx) {
       }
     } catch { /* advisory */ }
   }
-  return { ok: true, item, exceptional: isExceptional, resource: tool?.tier ?? 'iron' };
+  return { ok: true, item, exceptional: isExceptional, resource: materialName || tool?.tier || 'iron' };
+}
+
+export function craft(ctx) {
+  const tx = runtimeGovernor.transactions.begin('craft', {
+    correlationId: ctx.correlationId ?? `craft:${ctx.crafter?.serial ?? 0}:${Date.now().toString(36)}`,
+    crafter: ctx.crafter?.serial >>> 0, recipe: ctx.recipeId ?? ctx.recipe?.id ?? null,
+  });
+  ctx.correlationId = tx.details.correlationId;
+  try {
+    const result = craftCore(ctx);
+    if (result?.item?.serial) runtimeGovernor.transactions.item(tx, result.item.serial, 'create', { parent: result.item.parent ?? null });
+    runtimeGovernor.transactions.event(tx, result?.ok ? 'craft.committed' : 'craft.rejected', { reason: result?.reason ?? '' });
+    if (result?.ok) runtimeGovernor.transactions.commit(tx);
+    else runtimeGovernor.transactions.rollback(tx, result?.reason ?? 'rejected');
+    return result;
+  } catch (error) {
+    runtimeGovernor.transactions.rollback(tx, error?.message ?? error);
+    throw error;
+  }
 }
 
 // Late-bound achievements module — main.js calls `setAchievementsModule`

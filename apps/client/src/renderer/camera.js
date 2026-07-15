@@ -14,6 +14,15 @@ import { world } from '../world/world.js';
 export const GAME_VIEW_MARGIN = 8;
 export const MIN_VIEW_W = 640;
 export const MIN_VIEW_H = 480;
+export const GAME_VIEW_ASPECT = 16 / 10;
+// Fixed chat (60 px) + a 100 px action-bar deck. Treating both as part of
+// the workspace prevents the hotbar from covering the world on the user's
+// short 2048x732 display while centering the combined world+hotbar group.
+const GAME_FOOTER_H = 160;
+const SIDE_RAIL_MIN = 310;
+const SIDE_RAIL_MAX = 360;
+const COMPACT_SIDE_RAIL_MIN = 220;
+const COMPACT_SIDE_RAIL_MAX = 260;
 
 // Discrete zoom steps. Picked so TILE_HALF_W (22) × zoom lands on (or
 // very close to) integer pixels, keeping adjacent diamond edges in
@@ -23,7 +32,44 @@ export const MIN_VIEW_H = 480;
 // 0.6/0.7/0.8/0.9 stops that produced sub-pixel scales.
 const ZOOM_STEPS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 4.0];
 
-const STORAGE_KEY = 'uo.viewport';
+// v2 intentionally ignores the old top-left 640/680×480 layout. Those
+// values were persisted when the canvas was a CUO-style floating window and
+// are the reason a modern wide screen could still open with a tiny world in
+// its top-left corner. New manual sizes are persisted under the new key.
+const STORAGE_KEY = 'uo.viewport.v2';
+
+/** Compute the modern game workspace. On desktop the world is a 16:10
+ * rectangle centered between two useful side rails. On compact displays the
+ * rails collapse and the world consumes the available width. Exported for
+ * deterministic layout smoke tests. */
+export function calculateResponsiveViewport(browserW, browserH, { compactSidePanels = false } = {}) {
+  const bw = Math.max(320, Math.floor(Number(browserW) || 0));
+  const bh = Math.max(240, Math.floor(Number(browserH) || 0));
+  const margin = GAME_VIEW_MARGIN;
+  const desktop = bw >= 1400;
+  const railMin = compactSidePanels ? COMPACT_SIDE_RAIL_MIN : SIDE_RAIL_MIN;
+  const railMax = compactSidePanels ? COMPACT_SIDE_RAIL_MAX : SIDE_RAIL_MAX;
+  const rail = desktop
+    ? Math.max(railMin, Math.min(railMax, Math.round(bw * (compactSidePanels ? 0.11 : 0.15))))
+    : margin;
+  const availableW = Math.max(320, bw - rail * 2 - margin * 2);
+  const availableH = Math.max(240, bh - GAME_FOOTER_H - margin * 2);
+
+  let w = Math.min(availableW, Math.floor(availableH * GAME_VIEW_ASPECT));
+  let h = Math.min(availableH, Math.floor(w / GAME_VIEW_ASPECT));
+  // Keep the exact aspect instead of independently clamping width/height —
+  // independent minimums distorted the world rectangle around 1366 px.
+  w = Math.max(320, w);
+  h = Math.max(200, Math.floor(w / GAME_VIEW_ASPECT));
+  return {
+    x: Math.round((bw - w) / 2),
+    y: margin + Math.round((availableH - h) / 2),
+    w,
+    h,
+    leftRailW: Math.max(0, Math.round((bw - w) / 2) - margin * 2),
+    rightRailW: Math.max(0, Math.round((bw - w) / 2) - margin * 2),
+  };
+}
 
 /** Persisted user-chosen viewport size — when set, overrides
  *  setViewport's "fit-to-window" auto-sizing. Drag-resize stores it. */
@@ -139,15 +185,26 @@ export class Camera {
     const y = profile?.get?.('ui.gameWindowY');
     const w = profile?.get?.('ui.gameWindowW');
     const h = profile?.get?.('ui.gameWindowH');
-    if (w > 0 && h > 0) this.setUserSize(w, h);
-    if (x >= 0 && y >= 0) {
+    const locked = !!profile?.get?.('ui.gameWindowLock');
+    // Old profiles saved the former tiny top-left viewport even when the
+    // player never asked to lock it. Only an explicitly locked profile is a
+    // deliberate fixed workspace; otherwise v2 responsive layout wins.
+    if (locked && w > 0 && h > 0) this.setUserSize(w, h);
+    if (locked && x >= 0 && y >= 0) {
       this.viewX = x | 0;
       this.viewY = y | 0;
       this._userPositioned = true;
     }
-    this._locked = !!profile?.get?.('ui.gameWindowLock');
+    this._locked = locked;
   }
   isLocked() { return !!this._locked; }
+
+  /** Switch between the normal CUO-sized side workspaces and a compact
+   * modern layout. The next setViewport() recomputes the centered world
+   * rectangle; persisted manual sizes remain authoritative. */
+  setSidePanelMode(compact) {
+    this.compactSidePanels = !!compact;
+  }
 
   /** Trigger a quick screen shake. Magnitude in pixels (peak amplitude),
    *  duration in ms. Mirrors CUO's `Renderer.Camera.Shake(magnitude,
@@ -218,18 +275,24 @@ export class Camera {
   }
 
   setViewport(browserW, browserH) {
+    const layout = calculateResponsiveViewport(browserW, browserH, {
+      compactSidePanels: !!this.compactSidePanels,
+    });
     if (this.userSizedW != null && this.userSizedH != null) {
       // Honour the user's drag-chosen size, but cap to the current window.
       this.viewW = Math.min(this.userSizedW, Math.max(MIN_VIEW_W, browserW - GAME_VIEW_MARGIN * 2));
       this.viewH = Math.min(this.userSizedH, Math.max(MIN_VIEW_H, browserH - GAME_VIEW_MARGIN * 2 - 56));
     } else {
-      // Auto-fit to the browser window minus margins + bottom chat strip.
-      this.viewW = Math.max(MIN_VIEW_W, browserW - GAME_VIEW_MARGIN * 2);
-      this.viewH = Math.max(MIN_VIEW_H, browserH - GAME_VIEW_MARGIN * 2 - 56);
+      this.viewW = layout.w;
+      this.viewH = layout.h;
     }
     if (!this._userPositioned) {
-      this.viewX = GAME_VIEW_MARGIN;
-      this.viewY = GAME_VIEW_MARGIN;
+      // Custom sizes are centered too; resizing the browser never glues the
+      // game window back to (8,8).
+      this.viewX = Math.round((browserW - this.viewW) / 2);
+      this.viewY = GAME_VIEW_MARGIN + Math.round(
+        (Math.max(0, browserH - GAME_FOOTER_H - GAME_VIEW_MARGIN * 2 - this.viewH)) / 2,
+      );
     } else {
       // Preserve the profile/user origin across browser resizes, while still
       // keeping a reachable sliver of the game viewport on a smaller screen.

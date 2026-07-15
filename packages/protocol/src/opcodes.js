@@ -139,12 +139,18 @@ export function opcodeInfo(opcode) {
  * lose the valid request (and therefore its ACK).
  *
  * @param {Uint8Array} input
- * @param {{ dropReqSize?: 14 | 15 }} [options]
+ * @param {{ dropReqSize?: 14 | 15, maxPackets?: number }} [options]
  */
 export function frameIncoming(input, options = {}) {
   const packets = [];
   let offset = 0;
+  const maxPackets = Number.isFinite(options.maxPackets)
+    ? Math.max(1, Math.trunc(options.maxPackets))
+    : Number.POSITIVE_INFINITY;
   while (offset < input.length) {
+    if (packets.length >= maxPackets) {
+      return { packets, consumed: offset, limited: true };
+    }
     const opcode = input[offset];
     const info = INCOMING_OPCODES[opcode];
     if (!info) {
@@ -180,5 +186,5 @@ export function frameIncoming(input, options = {}) {
     packets.push(input.subarray(offset, offset + size));
     offset += size;
   }
-  return { packets, consumed: offset };
+  return { packets, consumed: offset, limited: false };
 }

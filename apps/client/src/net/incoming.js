@@ -218,12 +218,9 @@ export function decodeExtendedCommand(pkt) {
  *    u16 version (2)
  *    u32 targetSerial
  *    u8  entryCount
- *    entryCount × {
- *      u16 responseId
- *      u16 clilocOffset    (cliloc - 3000000)
- *      u16 flags           (bit 0x01=disabled, 0x20=coloured)
- *      [u16 colour]        ← only when flags & 0x20
- *    }
+ *    version >= 2: entryCount × { u32 cliloc, u16 responseId, u16 flags }
+ *    legacy:       entryCount × { u16 responseId, u16 clilocOffset,
+ *                                      u16 flags, optional extension words }
  */
 export function decodeContextMenu(payload) {
   if (!payload || payload.length < 7) return { serial: 0, entries: [] };
@@ -233,15 +230,29 @@ export function decodeContextMenu(payload) {
   const count = payload[p]; p += 1;
   const entries = [];
   for (let i = 0; i < count; i++) {
-    if (p + 6 > payload.length) break;
-    const responseId = (payload[p] << 8) | payload[p + 1]; p += 2;
-    const cliOff     = (payload[p] << 8) | payload[p + 1]; p += 2;
-    const flags      = (payload[p] << 8) | payload[p + 1]; p += 2;
+    let responseId, cliloc, flags;
     let colour = 0;
-    if ((flags & 0x20) !== 0 && p + 2 <= payload.length) {
-      colour = (payload[p] << 8) | payload[p + 1]; p += 2;
+    if (ver >= 2) {
+      if (p + 8 > payload.length) break;
+      cliloc = ((payload[p] * 0x1000000)
+        + (payload[p + 1] << 16)
+        + (payload[p + 2] << 8)
+        + payload[p + 3]) >>> 0; p += 4;
+      responseId = (payload[p] << 8) | payload[p + 1]; p += 2;
+      flags = (payload[p] << 8) | payload[p + 1]; p += 2;
+    } else {
+      if (p + 6 > payload.length) break;
+      responseId = (payload[p] << 8) | payload[p + 1]; p += 2;
+      const cliOff = (payload[p] << 8) | payload[p + 1]; p += 2;
+      cliloc = 3000000 + cliOff;
+      flags = (payload[p] << 8) | payload[p + 1]; p += 2;
+      if ((flags & 0x84) !== 0 && p + 2 <= payload.length) p += 2;
+      if ((flags & 0x40) !== 0 && p + 2 <= payload.length) p += 2;
+      if ((flags & 0x20) !== 0 && p + 2 <= payload.length) {
+        colour = (payload[p] << 8) | payload[p + 1]; p += 2;
+      }
     }
-    entries.push({ responseId, cliloc: 3000000 + cliOff, flags, colour });
+    entries.push({ responseId, cliloc, flags, colour });
   }
   return { version: ver, serial, entries };
 }

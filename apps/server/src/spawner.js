@@ -1,5 +1,6 @@
 import { resolveStandingZ } from './world/movement.js';
 import { applySpawnDirectives } from './systems/xml-spawner.js';
+import { runtimeGovernor } from './systems/runtime-governor.js';
 // Spawner — periodically respawn hostile mobs inside rectangular areas.
 //
 // Each spawn-group declares: a rect {x1,y1,x2,y2,map}, a max count, a
@@ -34,6 +35,10 @@ import { applySpawnDirectives } from './systems/xml-spawner.js';
  *  @property {number} [proximityRange]              0 = always; >0 = require player within N tiles
  *  @property {number} [homeRange]                    distance the mob may wander from its spawn point
  *  @property {number} [team]                         team id stamped on every mob (default 0)
+ *  @property {boolean} [enabled]                     false pauses the group without deleting it
+ *  @property {'stationary'|'home'|'free'} [roaming] AI roaming policy
+ *  @property {{days?:number[],startHour?:number,endHour?:number}} [schedule] UTC schedule
+ *  @property {{minPlayers?:number,maxPlayers?:number,region?:string}} [regionConditions]
  *  @property {(world:any, mob:any, group:SpawnGroup) => void} [onSpawn]
  *  @property {Set<number>} [spawnedSerials]          filled at runtime
  *  @property {number} [nextSpawnAt]                  ms timestamp
@@ -49,6 +54,32 @@ export class Spawner {
     this.factory = factory;
     /** @type {Map<string, SpawnGroup>} */
     this.groups = new Map();
+    this._groupsBySector = new Map();
+    this._sectorsByGroup = new Map();
+    this._globalGroups = new Set();
+    this._tickCursor = 0;
+    this.maxGroupsPerTick = 256;
+  }
+
+  _sectorKey(map, sx, sy) { return `${map | 0}:${sx | 0}:${sy | 0}`; }
+  _unindexGroup(id) {
+    for (const key of this._sectorsByGroup.get(id) ?? []) {
+      const set = this._groupsBySector.get(key); set?.delete(id);
+      if (set?.size === 0) this._groupsBySector.delete(key);
+    }
+    this._sectorsByGroup.delete(id); this._globalGroups.delete(id);
+  }
+  _indexGroup(g) {
+    this._unindexGroup(g.id);
+    const sx0 = g.rect.x1 >> 3, sy0 = g.rect.y1 >> 3, sx1 = g.rect.x2 >> 3, sy1 = g.rect.y2 >> 3;
+    const count = (sx1 - sx0 + 1) * (sy1 - sy0 + 1);
+    if (count > 4096) { this._globalGroups.add(g.id); return; }
+    const keys = [];
+    for (let sx = sx0; sx <= sx1; sx++) for (let sy = sy0; sy <= sy1; sy++) {
+      const key = this._sectorKey(g.map, sx, sy); const set = this._groupsBySector.get(key) ?? new Set();
+      set.add(g.id); this._groupsBySector.set(key, set); keys.push(key);
+    }
+    this._sectorsByGroup.set(g.id, keys);
   }
 
   /** @param {SpawnGroup} g */
@@ -71,11 +102,34 @@ export class Spawner {
       g.nextSpawnAt = Date.now() + lo + Math.floor(Math.random() * Math.max(1, hi - lo + 1));
     }
     this.groups.set(g.id, g);
+    this._indexGroup(g);
     return g;
   }
 
   remove(id) {
+    this._unindexGroup(id);
     this.groups.delete(id);
+  }
+
+  *groupsNear(map, x, y, range = 0) {
+    const seen = new Set(this._globalGroups);
+    const sx0 = (x - range) >> 3, sy0 = (y - range) >> 3, sx1 = (x + range) >> 3, sy1 = (y + range) >> 3;
+    for (let sx = sx0; sx <= sx1; sx++) for (let sy = sy0; sy <= sy1; sy++) {
+      for (const id of this._groupsBySector.get(this._sectorKey(map, sx, sy)) ?? []) seen.add(id);
+    }
+    for (const id of seen) { const group = this.groups.get(id); if (group) yield group; }
+  }
+
+  validateIndex({ repair = false } = {}) {
+    const indexed = new Set([...this._groupsBySector.values()].flatMap((set) => [...set]));
+    for (const id of this._globalGroups) indexed.add(id);
+    const missing = [...this.groups.keys()].filter((id) => !indexed.has(id));
+    const orphaned = [...indexed].filter((id) => !this.groups.has(id));
+    if (repair && (missing.length || orphaned.length)) {
+      this._groupsBySector.clear(); this._sectorsByGroup.clear(); this._globalGroups.clear();
+      for (const group of this.groups.values()) this._indexGroup(group);
+    }
+    return { ok: missing.length === 0 && orphaned.length === 0, missing, orphaned, repaired: !!(repair && (missing.length || orphaned.length)) };
   }
 
   /**
@@ -104,12 +158,18 @@ export class Spawner {
   }
 
   tick(now = Date.now()) {
+    const tickStarted = performance.now();
     // Don't tick spawner until `[createworld` has finished. Bug-hunt #3
     // drobiazgi: without this gate, a respawn fires DURING the bulk
     // initial-spawn pass and produces phantom mobs that are tracked
     // by spawner but missing from the just-finalised state.
     if (this.world._createWorldDone === false) return;
-    for (const g of this.groups.values()) {
+    const groups = [...this.groups.values()];
+    const adaptiveBudget = runtimeGovernor.budgets.spawners;
+    const budget = Math.min(groups.length, Math.max(1, Math.min(this.maxGroupsPerTick | 0, adaptiveBudget.current | 0)));
+    for (let offset = 0; offset < budget; offset++) {
+      const g = groups[(this._tickCursor + offset) % groups.length];
+      if (g.enabled === false || !this._scheduleActive(g, now) || !this._regionConditionsMet(g)) continue;
       // Cull dead/missing/escaped/tamed serials. Bug-hunt #10 #5: a
       // tamed mob keeps eating spawner slots forever (`controlMaster` set
       // → still in world.mobiles but not the spawner's responsibility).
@@ -150,7 +210,8 @@ export class Spawner {
       mob.homeX = pos.x;
       mob.homeY = pos.y;
       mob.homeZ = pos.z;
-      mob.homeRange = g.homeRange ?? 10;
+      mob.homeRange = g.roaming === 'stationary' ? 0 : g.roaming === 'free' ? 0 : (g.homeRange ?? 10);
+      mob.roaming = g.roaming ?? 'home';
       if (typeof g.team === 'number') mob.team = g.team;
       mob._xmlSpawnerEntry = entry.raw ?? entry.kind;
       g.spawnedSerials.add(mob.serial);
@@ -159,6 +220,11 @@ export class Spawner {
       try { g.onSpawn?.(this.world, mob, g); }
       catch (e) { console.error(`[spawner ${g.id}] onSpawn threw:`, e); }
     }
+    if (groups.length) this._tickCursor = (this._tickCursor + budget) % groups.length;
+    const tickMs = performance.now() - tickStarted;
+    adaptiveBudget.observe(tickMs);
+    if (groups.length > budget) adaptiveBudget.noteSkipped(groups.length - budget);
+    runtimeGovernor.watchdog.record('spawner', tickMs);
   }
 
   _pickPos(rect, map) {
@@ -264,5 +330,37 @@ export class Spawner {
       return true;
     }
     return false;
+  }
+
+  _scheduleActive(g, now) {
+    const schedule = g.schedule;
+    if (!schedule || typeof schedule !== 'object') return true;
+    const date = new Date(now);
+    if (Array.isArray(schedule.days) && schedule.days.length && !schedule.days.includes(date.getUTCDay())) return false;
+    const hour = date.getUTCHours();
+    const start = Math.max(0, Math.min(23, Number(schedule.startHour) || 0));
+    const end = Math.max(0, Math.min(24, Number(schedule.endHour) || 24));
+    if (start === end) return true;
+    return start < end ? hour >= start && hour < end : hour >= start || hour < end;
+  }
+
+  _regionConditionsMet(g) {
+    const conditions = g.regionConditions;
+    if (!conditions || typeof conditions !== 'object') return true;
+    let players = 0;
+    const cx = (g.rect.x1 + g.rect.x2) >> 1, cy = (g.rect.y1 + g.rect.y2) >> 1;
+    const range = Math.max(g.rect.x2 - cx, g.rect.y2 - cy);
+    const serials = this.world.sectors?.mobileSerialsNear
+      ? this.world.sectors.mobileSerialsNear(g.map, cx, cy, range)
+      : this.world.mobiles.keys();
+    for (const serial of serials) {
+      const mobile = this.world.mobiles.get(serial);
+      if (!mobile?.client || mobile.map !== g.map) continue;
+      if (mobile.x < g.rect.x1 || mobile.x > g.rect.x2 || mobile.y < g.rect.y1 || mobile.y > g.rect.y2) continue;
+      players++;
+    }
+    const min = Math.max(0, Number(conditions.minPlayers) || 0);
+    const max = Math.max(min, Number.isFinite(Number(conditions.maxPlayers)) ? Number(conditions.maxPlayers) : Number.POSITIVE_INFINITY);
+    return players >= min && players <= max;
   }
 }

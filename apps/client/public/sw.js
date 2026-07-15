@@ -21,7 +21,7 @@
 // drawing garbage pixels because the per-frame (u, v, w, h) rect now
 // pointed into an OLD atlas page on disk). Format:
 //   uo-assets-<timestamp> — millis since epoch, monotonically increasing.
-const CACHE_VERSION = 'uo-assets-v1783717764451';
+const CACHE_VERSION = 'uo-assets-v1784070731622';
 const ASSET_PATH    = /^\/assets\/.+\.(png|bin|mp3|ktx2)$/;
 
 self.addEventListener('install', (e) => {
@@ -45,6 +45,10 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
+  // CacheStorage matches by URL and can return a cached HTTP 200 body for a
+  // later Range request. Let the browser/network own byte ranges so streamed
+  // map blocks never accidentally inflate back into the complete 90 MB file.
+  if (req.headers.has('range')) return;
   let url;
   try { url = new URL(req.url); } catch { return; }
   if (url.origin !== self.location.origin) return;

@@ -112,13 +112,15 @@ function alreadyPlaced(world, entry, pos) {
 
 /** Public: spawn every regional NPC. Idempotent; safe to call from
  *  [createworld and at script load. Returns `{ placed, skipped, errors }`. */
-export function placeRegionalNpcs(api) {
+export function placeRegionalNpcs(api, entries = null) {
   if (!api.vendors?.spawnAt) {
     return { placed: 0, skipped: 0, errors: ['vendors.spawnAt unavailable'] };
   }
-  let list = [];
-  try { list = JSON.parse(fs.readFileSync(DATA, 'utf8')); }
-  catch (e) { return { placed: 0, skipped: 0, errors: [e.message] }; }
+  let list = entries;
+  if (!Array.isArray(list)) {
+    try { list = JSON.parse(fs.readFileSync(DATA, 'utf8')); }
+    catch (e) { return { placed: 0, skipped: 0, errors: [e.message] }; }
+  }
 
   const out = { placed: 0, skipped: 0, errors: [] };
   for (const entry of list) {
@@ -171,9 +173,34 @@ export default function register(api) {
   }
   // Expose for `[createworld` stage hook to reach.
   api.regionalNpcs = { place: () => placeRegionalNpcs(api) };
-  // Initial pass at script load (cold boot or hot-reload). Idempotent.
-  const r = placeRegionalNpcs(api);
-  api.log?.(`spawn/regional-npcs: placed ${r.placed}, skipped ${r.skipped}` +
-    (r.errors.length ? `, ${r.errors.length} error(s)` : ''));
+  // A cold world creates ~141 NPCs and several hundred worn items. Doing all
+  // of that inside the script initializer made startup depend on single-core
+  // speed (roughly 200-450 ms) and could trip the runtime's 250 ms safety
+  // budget. Populate in small event-loop slices: the listener becomes ready
+  // immediately and no first client sees a half-second main-thread stall.
+  let list;
+  try { list = JSON.parse(fs.readFileSync(DATA, 'utf8')); }
+  catch (e) {
+    api.log?.(`spawn/regional-npcs: ${e.message}`);
+    return () => {};
+  }
+  const total = { placed: 0, skipped: 0, errors: [] };
+  let cursor = 0;
+  const schedule = api.lifecycle?.setImmediate ?? setImmediate;
+  const populateSlice = () => {
+    const slice = list.slice(cursor, cursor + 12);
+    cursor += slice.length;
+    const result = placeRegionalNpcs(api, slice);
+    total.placed += result.placed;
+    total.skipped += result.skipped;
+    total.errors.push(...result.errors);
+    if (cursor < list.length) {
+      schedule(populateSlice);
+      return;
+    }
+    api.log?.(`spawn/regional-npcs: placed ${total.placed}, skipped ${total.skipped}` +
+      (total.errors.length ? `, ${total.errors.length} error(s)` : ''));
+  };
+  schedule(populateSlice);
   return () => { /* mobs persist by design */ };
 }

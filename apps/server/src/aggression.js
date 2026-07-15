@@ -42,6 +42,7 @@ export function stamp(world, attacker, victim) {
     if (!m) continue;
     const wasInCombat = (m._combatUntil ?? 0) > now;
     m._combatUntil = expires;
+    world?._combatMobiles?.add?.(m.serial);
     if (!wasInCombat) {
       added++;
       // Send the buff icon to the player so their buff bar shows the
@@ -100,6 +101,7 @@ export function clear(world, mob) {
   if (!mob) return;
   if ((mob._combatUntil ?? 0) > 0) {
     mob._combatUntil = 0;
+    world?._combatMobiles?.delete?.(mob.serial);
     _emitBuffOff(world, mob);
   }
 }
@@ -112,10 +114,15 @@ export function clear(world, mob) {
 export function sweepExpired(world, now = Date.now()) {
   if (!world?.mobiles) return 0;
   let cleared = 0;
-  for (const m of world.mobiles.values()) {
+  const indexed = world._combatMobiles;
+  const candidates = indexed ? [...indexed] : world.mobiles.values();
+  for (const candidate of candidates) {
+    const m = indexed ? world.mobiles.get(candidate) : candidate;
+    if (!m) { indexed?.delete?.(candidate); continue; }
     if (!m._combatUntil) continue;
     if (m._combatUntil > now) continue;
     m._combatUntil = 0;
+    indexed?.delete?.(m.serial);
     _emitBuffOff(world, m);
     cleared++;
   }

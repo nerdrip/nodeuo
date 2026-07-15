@@ -19,8 +19,6 @@ export class GumpPicTiled extends Control {
     this.height = this._requestedHeight || 32;
     /** @type {TilingSprite | null} */
     this._sprite = null;
-    this._loadToken = 0;
-    this._disposed = false;
     this._shimmer = createShimmer(this.width, this.height);
     this.node.addChild(this._shimmer.gfx);
     this._mountTexture();
@@ -46,13 +44,14 @@ export class GumpPicTiled extends Control {
   }
 
   async _mountTexture() {
-    const token = ++this._loadToken;
-    const tex = await assets.gumpTexture(this.gumpId);
-    if (this._disposed || token !== this._loadToken) return;
-    if (!tex) return; // stay on shimmer placeholder
+    const generation = this.captureAsyncGeneration();
+    const loaded = await assets.gumpTexture(this.gumpId);
+    if (!this.asyncGenerationValid(generation)) return;
+    const tex = loaded ?? assets.placeholderTexture('gump', this.width || 32, this.height || 32);
     if (!this._requestedWidth) this.width = tex.width;
     if (!this._requestedHeight) this.height = tex.height;
     this._sprite = new TilingSprite({ texture: tex, width: this.width, height: this.height });
+    this._sprite._uoMissingAsset = !loaded ? { kind: 'gump', id: this.gumpId } : null;
     this._sprite.position.set(0, 0);
     if (this.hue && assets.huesTexture && assets.huesMeta) {
       applyHueTo(this._sprite, this.hue, 1, assets.huesTexture, assets.huesMeta.count);
@@ -64,8 +63,6 @@ export class GumpPicTiled extends Control {
   }
 
   dispose() {
-    this._disposed = true;
-    this._loadToken++;
     this._shimmer?.dispose();
     this._shimmer = null;
     super.dispose();

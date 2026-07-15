@@ -15,6 +15,7 @@ import { huffmanDecompress } from '@uo/protocol';
 import { frameServerStream, SERVER_OPCODES } from './incoming-table.js';
 import { bus } from '../core/event-bus.js';
 import { buildUnicodeSpeech } from './outgoing.js';
+import { SessionEpoch } from '../shared/runtime-governor.js';
 
 /** Quick "is this byte a known server opcode?" check for the Huffman
  *  auto-probe. Both the SERVER_OPCODES table (numeric keys) and a few
@@ -75,6 +76,10 @@ export class NetClient {
     this.nodeUOTransport = false;
     this.nodeUONegotiated = false;
     this.nodeUOCapabilities = 0;
+    this.sessionEpoch = new SessionEpoch();
+    this.frameDiagnostics = {
+      warnings: 0, consecutive: 0, resyncRequests: 0, recent: [], unknownFrames: [], resyncReports: [],
+    };
     try { this.tracePackets = globalThis.localStorage?.uoTrace === '1'; }
     catch { this.tracePackets = false; }
     try { this.debugHues = globalThis.localStorage?.uoHueDebug === '1'; }
@@ -112,6 +117,8 @@ export class NetClient {
   /** Connect to a `ws://host:port/path` URL. Resolves on open, rejects on error/close-before-open. */
   connect(url) {
     return new Promise((resolve, reject) => {
+      const epoch = this.sessionEpoch.advance();
+      bus.emit('net:session-reset', { epoch });
       // Client audit #4 C1/C2 — close + clear any prior socket so a
       // reconnect doesn't leak the previous handlers (which would later
       // emit `net:close` mid-second-session and bounce the user back to
@@ -125,6 +132,8 @@ export class NetClient {
         } catch { /* ignore */ }
       }
       this._rxLen = 0;
+      clearTimeout(this._decoderWatchdogTimer);
+      this._decoderWatchdogTimer = null;
       this._huffmanProbed = false;
       this.serverHuffman = true;
       this.nodeUOTransport = false;
@@ -161,7 +170,7 @@ export class NetClient {
         };
 
         ws.onopen = () => {
-          if (retired) return;
+          if (retired || !this.sessionEpoch.valid(epoch) || this.ws !== ws) return;
           opened = true;
           this.nodeUOTransport = ws.protocol === 'nodeuo.v1';
           this.state = 'open';
@@ -169,35 +178,42 @@ export class NetClient {
           resolve();
         };
         ws.onerror = (ev) => {
+          if (!this.sessionEpoch.valid(epoch) || this.ws !== ws) return;
           if (fallback()) return;
           this.error = 'websocket error';
           bus.emit('net:error', ev);
           if (!opened) reject(new Error(this.error));
         };
         ws.onclose = (ev) => {
-          if (retired || fallback()) return;
+          if (retired || !this.sessionEpoch.valid(epoch) || this.ws !== ws || fallback()) return;
           this.state = 'closed';
           this.nodeUONegotiated = false;
           this.nodeUOCapabilities = 0;
           bus.emit('net:close', { code: ev.code, reason: ev.reason });
           if (!opened) reject(new Error(`websocket closed before open (code ${ev.code})`));
         };
-        ws.onmessage = (ev) => this._onMessage(ev.data);
+        ws.onmessage = (ev) => {
+          if (this.sessionEpoch.valid(epoch) && this.ws === ws) this._onMessage(ev.data, epoch);
+        };
       };
       open(true);
     });
   }
 
   close() {
+    const epoch = this.sessionEpoch.advance();
     if (this.ws && this.ws.readyState === WebSocket.OPEN) this.ws.close();
     this.ws = null;
     this._rxLen = 0;
+    clearTimeout(this._decoderWatchdogTimer);
+    this._decoderWatchdogTimer = null;
     // Reset the Huffman probe so a fresh connection (e.g. switching
     // from our shard to a ServUO bridge) re-detects the mode.
     this._huffmanProbed = false;
     this.nodeUOTransport = false;
     this.nodeUONegotiated = false;
     this.nodeUOCapabilities = 0;
+    bus.emit('net:session-reset', { epoch });
   }
 
   supportsNodeUO(capability) {
@@ -262,6 +278,7 @@ export class NetClient {
       ? bytes
       : bytes.slice();
     this.ws.send(frame);
+    bus.emit('net:packet-meta', { direction: 'tx', bytes: frame });
     this.stats.bytesSent += frame.byteLength;
     this.stats.packetsSent += 1;
     this.stats.lastSendAt = performance.now();
@@ -280,7 +297,8 @@ export class NetClient {
     }
   }
 
-  _onMessage(data) {
+  _onMessage(data, epoch = this.sessionEpoch.capture()) {
+    if (!this.sessionEpoch.valid(epoch)) return;
     /** @type {Uint8Array} */
     let raw;
     if (data instanceof ArrayBuffer) raw = new Uint8Array(data);
@@ -329,9 +347,35 @@ export class NetClient {
     const view = this._rxBuf.subarray(0, this._rxLen);
     const { packets, consumed, warnings } = frameServerStream(view);
     if (warnings && warnings.length > 0) {
-      for (const w of warnings) console.warn('[net]', w);
+      this.frameDiagnostics.warnings += warnings.length;
+      this.frameDiagnostics.consecutive++;
+      for (const w of warnings) {
+        console.warn('[net]', w);
+        this.frameDiagnostics.recent.push(String(w).slice(0, 240));
+        const diagnosticBytes = plain.subarray(0, Math.min(64, plain.length));
+        this.frameDiagnostics.unknownFrames.push({
+          at: Date.now(), signature: String(w).slice(0, 160),
+          hex: [...diagnosticBytes].map((byte) => byte.toString(16).padStart(2, '0')).join(' '),
+        });
+      }
+      if (this.frameDiagnostics.recent.length > 16) {
+        this.frameDiagnostics.recent.splice(0, this.frameDiagnostics.recent.length - 16);
+      }
+      if (this.frameDiagnostics.unknownFrames.length > 8) {
+        this.frameDiagnostics.unknownFrames.splice(0, this.frameDiagnostics.unknownFrames.length - 8);
+      }
+      if (this.frameDiagnostics.consecutive >= 3) {
+        this.frameDiagnostics.consecutive = 0;
+        this.frameDiagnostics.resyncRequests++;
+        this._recordResyncReport('frame-warning', warnings[0], consumed);
+        bus.emit('net:resync-request', { reason: 'frame-watchdog' });
+      }
+    } else {
+      this.frameDiagnostics.consecutive = 0;
     }
     if (consumed > 0) {
+      clearTimeout(this._decoderWatchdogTimer);
+      this._decoderWatchdogTimer = null;
       // Compact unconsumed bytes back to slot 0. copyWithin handles
       // overlapping ranges correctly and is a couple of memcpy()s
       // worth of cost — much cheaper than the old subarray + set
@@ -340,13 +384,35 @@ export class NetClient {
       const remaining = this._rxLen - consumed;
       if (remaining > 0) this._rxBuf.copyWithin(0, consumed, this._rxLen);
       this._rxLen = remaining;
+    } else if (this._rxLen > 0 && !this._decoderWatchdogTimer) {
+      const expectedEpoch = epoch;
+      const expectedLength = this._rxLen;
+      this._decoderWatchdogTimer = setTimeout(() => {
+        this._decoderWatchdogTimer = null;
+        if (!this.sessionEpoch.valid(expectedEpoch) || this._rxLen !== expectedLength || this._rxLen === 0) return;
+        this.frameDiagnostics.resyncRequests++;
+        this._recordResyncReport('decoder-stall', 'no decoder progress for 2000ms', 0);
+        bus.emit('net:resync-request', { reason: 'decoder-stall' });
+      }, 2000);
     }
 
     this.stats.packetsReceived += packets.length;
-    for (const pkt of packets) this._dispatch(pkt);
+    for (const pkt of packets) {
+      if (!this.sessionEpoch.valid(epoch)) break;
+      this._dispatch(pkt);
+    }
+  }
+
+  _recordResyncReport(reason, signature, offset = 0) {
+    const row = { at: Date.now(), reason: String(reason), offset: offset | 0, signature: String(signature).slice(0, 200) };
+    this.frameDiagnostics.resyncReports.push(row);
+    if (this.frameDiagnostics.resyncReports.length > 16) this.frameDiagnostics.resyncReports.shift();
+    bus.emit('net:resync-report', row);
+    return row;
   }
 
   _dispatch(pkt) {
+    bus.emit('net:packet-meta', { direction: 'rx', bytes: pkt });
     const opcode = pkt[0];
     this._bumpRx(opcode);
     const handler = this._handlers.get(opcode);

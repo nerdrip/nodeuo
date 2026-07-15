@@ -49,6 +49,8 @@ profiles/
 /uo-files/
 /uo-src/
 /apps/client/public/assets/
+/apps/client/.generated/
+/apps/client/.screenshots/runtime-audit/
 
 # Local shard state, saves, accounts, and backups
 /saves/

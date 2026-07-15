@@ -37,6 +37,7 @@ import {
   NODEUO_SPECIALIZATION_SUBCOMMAND,
   NODEUO_HOUSE_TOOLS_SUBCOMMAND,
   NODEUO_PROTOCOL_MAJOR,
+  NODEUO_PROTOCOL_MINOR,
   NodeUOCapabilityMessage,
   NodeUOSpellComposerMessage,
   NodeUOSpecializationMessage,
@@ -46,8 +47,19 @@ import {
   extNodeUOMovementHint,
   extNodeUOCooldown,
   extNodeUOHouseTools,
+  extNodeUOSkillInsights,
+  extNodeUOTradeAudit,
+  extNodeUOVendorInsights,
 } from '@uo/protocol';
 import * as specializations from '../systems/specializations.js';
+import {
+  attachSkillTarget,
+  beginSkillUse,
+  completeSkillUse,
+  interruptSkillUse,
+  SKILL_TARGET_TIMEOUT_MS,
+  skillUseSnapshot,
+} from '../systems/skill-use.js';
 import { Stage } from './net-state.js';
 import { SKILL_TO_COMMAND } from './skill-actions.js';
 import { trace } from '../trace.js';
@@ -58,13 +70,16 @@ import nodePath from 'node:path';
 import nodeUrl from 'node:url';
 import { nearbyClients, nearbyMobiles, nearbyItems } from '../world/visibility.js';
 import { castSpell as castSpellDispatch, getSpell, disturbCast } from '../systems/spells/index.js';
+import { runtimeGovernor } from '../systems/runtime-governor.js';
 import { has as hasEffect } from '../status-effects.js';
 import { stamp as stampAggression } from '../aggression.js';
 import { lineOfSight } from '../world/los.js';
 import {
   containerChildren, createItem, destroyItem, findMergeableStack, mergeStacks, splitStack,
 } from '../world/items.js';
-import { useItem as useTemplateItem, spawn as spawnTemplate, getTemplate } from '../world/templates.js';
+import {
+  useItem as useTemplateItem, spawn as spawnTemplate, getTemplate, getTemplateByItemId,
+} from '../world/templates.js';
 import * as itemsMod from '../world/items.js';
 import { markAttrDirty } from '../world/attributes.js';
 // Direct ref to setItemParent — used by all drag/drop/trade reparent
@@ -72,7 +87,7 @@ import { markAttrDirty } from '../world/attributes.js';
 // Without this, drag chains leave stale entries in the per-parent Set
 // (audit #2 A5). Returns the item for chaining.
 const setItemParent = itemsMod.setItemParent;
-import { resolveStep, resolveStandingZ } from '../world/movement.js';
+import { findStandingZ, resolveStep, resolveStandingZ } from '../world/movement.js';
 import {
   canCarry, encumbrance, maxWeight, pileWeight, totalContainerWeight,
 } from '../world/weight.js';
@@ -109,10 +124,19 @@ import {
   graphicalEffect, huedEffect, EffectKind,
   oplInfo, objectProperties, readOPLRequest, computeOPLHash,
   questArrow,
-  readProfileRequest, profileResponse,
+  readProfileRequest, profileResponse, closeGump,
 } from '@uo/protocol';
 import { attackLimiter } from './attack-limiter.js';
 import { buildEquipmentByOwner, equipmentFor } from './handlers/equipment-visibility.js';
+import {
+  GUMP_LIMITS,
+  allowHeavyGump,
+  makeActiveGumpEntry,
+  pruneActiveGumps,
+  validateGumpDefinition,
+  validateGumpResponse,
+} from './gump-security.js';
+import * as diagnostics from '../systems/operational-diagnostics.js';
 import * as helpQueue from '../help-queue.js';
 import * as chatChannels from '../chat-channels.js';
 import {
@@ -479,7 +503,7 @@ function karmaTitleFor(mob) {
  * positional args, which silently failed AND left the client's cast
  * lock armed (every subsequent cast looked ignored).
  */
-function dispatchCastFromMacro(state, spellId) {
+export function dispatchCastFromMacro(state, spellId) {
   const def = getSpell(spellId);
   if (!def) {
     state.sendSystemMessage?.(`Unknown spell (${spellId}).`);
@@ -602,9 +626,11 @@ function dispatchCastFromMacro(state, spellId) {
         }
         let target = null;
         if (picked.serial) {
-          target = world?.mobiles?.get?.(picked.serial >>> 0) ?? null;
+          target = world?.mobiles?.get?.(picked.serial >>> 0)
+            ?? world?.items?.get?.(picked.serial >>> 0)
+            ?? null;
         }
-        if (!target && (picked.x | picked.y)) {
+        if (!target && Number.isFinite(picked.x) && Number.isFinite(picked.y)) {
           target = {
             x: picked.x | 0, y: picked.y | 0, z: picked.z | 0,
             map: state.mobile.map ?? 1,
@@ -678,11 +704,36 @@ function handleTextCommand(state, pkt) {
       // menu when invoking the diamond — user report 2026-05-17.
       const cmdName = SKILL_TO_COMMAND[skillId];
       if (cmdName) {
+        const started = beginSkillUse(state, skillId, cmdName);
+        if (!started.ok) {
+          const message = started.reason === 'cooldown'
+            ? 'You must wait to use another skill.'
+            : `You cannot use that skill while ${started.reason}.`;
+          state.sendSystemMessage?.(message);
+          break;
+        }
         const handled = state.ctx.commands.dispatch(cmdName, {
           sender: state.mobile, state, world: state.ctx.world,
         });
         if (!handled) {
           state.sendSystemMessage?.(`Skill ${skillId} — handler missing.`);
+        }
+        // Targeting.request changes the status synchronously. Non-targeted
+        // skills finish with the command dispatch itself.
+        if (state._activeSkillUse === started.use && started.use.status === 'dispatching') {
+          completeSkillUse(state, handled ? 'completed' : 'cancelled');
+        }
+        if (state.supportsNodeUO?.(NodeUOCapability.SkillInsights)) {
+          const base = Number(state.mobile.skills?.[skillId] ?? 0);
+          const cap = Number(state.mobile.skillCaps?.[skillId] ?? 100);
+          state.send(extNodeUOSkillInsights({
+            requestId: started.use.id,
+            payload: {
+              skillId, base, cap,
+              lock: state.mobile.skillLocks?.[skillId] ?? 'up',
+              lifecycle: skillUseSnapshot(skillId)[0] ?? null,
+            },
+          }));
         }
       } else if (Number.isFinite(skillId)) {
         state.sendSystemMessage?.(
@@ -1111,11 +1162,21 @@ function handleProfileReq(state, pkt) {
   }));
 }
 function handleResynchronize(state) {
+  if (state?.stage !== Stage.InWorld || !state.mobile) return;
   // Bug-hunt #10 #4 — 0x22 spam amplifies into MB/s of nearby-mobile
-  // egress + heavy server CPU (buildEquipByOwner + streaming). Cap at
-  // 1/sec per client to prevent line-rate abuse.
+  // egress + heavy server CPU (buildEquipByOwner + streaming). A full
+  // surroundings refresh stays capped at 1/sec per client, but NEVER
+  // silently drop the request: the browser walker latches after a 0x21
+  // rejection until an authoritative self update arrives. Several queued
+  // movement rejects can therefore produce several 0x22 requests inside
+  // this window; dropping the last one used to leave movement disabled
+  // forever. A cheap 0x20 self snap is enough to release that latch while
+  // keeping the expensive item/mobile stream rate-limited.
   const now = Date.now();
-  if (now - (state._lastResyncAt ?? 0) < 1000) return;
+  if (now - (state._lastResyncAt ?? 0) < 1000) {
+    sendAuthoritativeSelf(state);
+    return;
+  }
   state._lastResyncAt = now;
   // Client 0x22 ClientResyncRequest. Fired by ClassicUO after a long stall
   // (e.g. alt-tab back, network hiccup) to say "my world state may be
@@ -1125,6 +1186,20 @@ function handleResynchronize(state) {
   refreshSurroundings(state);
 }
 
+/** Send the canonical self-position packet used to release a client's
+ * movement-resync latch. Deliberately excludes nearby entities/equipment so
+ * repeated 0x22 requests remain O(1). */
+function sendAuthoritativeSelf(state) {
+  const mob = state?.mobile;
+  if (!mob || state?.stage !== Stage.InWorld) return false;
+  state.send(mobileUpdate({
+    serial: mob.serial,
+    body: mob.body, hue: mob.hue, flags: mob.flags,
+    x: mob.x, y: mob.y, z: mob.z, direction: mob.direction,
+  }));
+  return true;
+}
+
 /**
  * Re-push the player's own snap + every in-range mob/item back to their
  * client. Used by 0x22 ClientResyncRequest AND by server-initiated
@@ -1132,16 +1207,23 @@ function handleResynchronize(state) {
  * actually sees the new area instead of an empty viewport until the next
  * movement packet trickles in.
  */
-export function refreshSurroundings(state) {
+export function adaptiveVisibilityRange(state, { priority = 1 } = {}) {
+  const requested = Math.max(8, Math.min(18, Number(state?.updateRange) || 18));
+  // Teleports, login and explicit resync must always receive the canonical
+  // UO window. Background movement may temporarily contract by at most six
+  // tiles while the measured visibility budget is under pressure.
+  if ((priority | 0) <= 0) return requested;
+  const budget = runtimeGovernor.budgets.visibility;
+  const ratio = Math.max(0, Math.min(1, Number(budget.current) / Math.max(1, Number(budget.base))));
+  return Math.max(12, Math.min(requested, Math.round(12 + (requested - 12) * ratio)));
+}
+
+export function refreshSurroundings(state, { priority = 0 } = {}) {
   if (state?.stage !== Stage.InWorld) return;
   const mob = state.mobile;
   if (!mob) return;
 
-  state.send(mobileUpdate({
-    serial: mob.serial,
-    body: mob.body, hue: mob.hue, flags: mob.flags,
-    x: mob.x, y: mob.y, z: mob.z, direction: mob.direction,
-  }));
+  sendAuthoritativeSelf(state);
   // ONE walk over world.items to bucket equipment by owner — shared
   // across self + every nearbyMobiles iteration. Without this, each
   // mob's equipmentFor() did its own full O(items) walk and a refresh
@@ -1173,8 +1255,9 @@ export function refreshSurroundings(state) {
   const previousMobiles = state._visibleMobiles ?? new Set();
   const nextItems = new Set();
   const nextMobiles = new Set();
-  const nearbyMobSnapshot = Array.from(nearbyMobiles(state.ctx.world, mob, mob));
-  const items = Array.from(nearbyItems(state.ctx.world, mob));
+  const visibilityRange = adaptiveVisibilityRange(state, { priority });
+  const nearbyMobSnapshot = Array.from(nearbyMobiles(state.ctx.world, mob, mob, visibilityRange));
+  const items = Array.from(nearbyItems(state.ctx.world, mob, visibilityRange));
   for (const other of nearbyMobSnapshot) nextMobiles.add(other.serial >>> 0);
   for (const item of items) nextItems.add(item.serial >>> 0);
   for (const serial of previousItems) {
@@ -1271,8 +1354,9 @@ function streamVisibilityDelta(state, mob, prevX, prevY) {
   const nextI = new Set();
   const nextM = new Set();
   let itemStreamErrors = 0;
+  const visibilityRange = adaptiveVisibilityRange(state, { priority: 2 });
   try {
-    for (const item of nearbyItems(world, mob)) {
+    for (const item of nearbyItems(world, mob, visibilityRange)) {
       const s = item.serial >>> 0;
       nextI.add(s);
       if (!seenI.has(s)) {
@@ -1287,7 +1371,7 @@ function streamVisibilityDelta(state, mob, prevX, prevY) {
     }
   } catch (e) { console.warn('[visibility] item stream threw:', e?.message); }
   try {
-    for (const other of nearbyMobiles(world, mob, mob)) {
+    for (const other of nearbyMobiles(world, mob, mob, visibilityRange)) {
       const s = other.serial >>> 0;
       nextM.add(s);
       if (!seenM.has(s)) {
@@ -1330,6 +1414,32 @@ function streamVisibilityDelta(state, mob, prevX, prevY) {
     `mobs +${newM} -${dropM} (now ${nextM.size})`);
   state._visibleItems  = nextI;
   state._visibleMobiles = nextM;
+}
+
+let visibilityDrainScheduled = false;
+function requestVisibilityDrain() {
+  if (visibilityDrainScheduled) return;
+  visibilityDrainScheduled = true;
+  setImmediate(() => {
+    visibilityDrainScheduled = false;
+    const started = performance.now();
+    runtimeGovernor.watchdog.measure('visibility-queue', () => runtimeGovernor.visibility.drain());
+    runtimeGovernor.budgets.visibility.observe(performance.now() - started);
+    if (runtimeGovernor.visibility.size > 0) requestVisibilityDrain();
+  });
+}
+
+/** Coalesce repeated admin/script teleports while preserving the immediate
+ * canonical refresh path used by login and explicit 0x22 resync. */
+export function scheduleRefreshSurroundings(state, { priority = 1 } = {}) {
+  if (!state || state._closed) return false;
+  const key = `refresh:${state.id ?? state.mobile?.serial ?? 'unknown'}`;
+  const queued = runtimeGovernor.visibility.enqueue(key, () => refreshSurroundings(state, { priority }), {
+    priority,
+    sector: `${state.mobile?.map ?? 0}:${(state.mobile?.x ?? 0) >> 3}:${(state.mobile?.y ?? 0) >> 3}`,
+  });
+  requestVisibilityDrain();
+  return queued;
 }
 
 function handlePlayCharacter(state, pkt) {
@@ -1898,9 +2008,7 @@ function bringIntoWorld(state, nameOrChoice) {
   // Private features are offered only to a browser transport that selected
   // the `nodeuo.v1` WebSocket subprotocol. Desktop/OSI/ServUO-compatible
   // sessions stay on the classic packet set and never receive 0xF100.
-  if (state.nodeUOTransport) {
-    state.send(extNodeUOCapabilities());
-  }
+  offerNodeUOCapabilities(state);
   state.send(clientVersionRequest());
   state.send(unicodeMessage({ text: `Welcome to ${state.ctx.config.shardName}!` }));
 
@@ -2005,6 +2113,37 @@ function bringIntoWorld(state, nameOrChoice) {
   console.log(`[net#${state.id}] ${mob.name} (${mob.serial.toString(16)}) entered world`);
 }
 
+export const NODEUO_NEGOTIATION_TIMEOUT_MS = 5000;
+
+/** Offer private features only on the explicitly selected NodeUO transport. */
+export function offerNodeUOCapabilities(state, now = Date.now()) {
+  if (!state?.nodeUOTransport || state._closed) return false;
+  if (state._nodeUOCapabilityTimer) clearTimeout(state._nodeUOCapabilityTimer);
+  state.nodeUOProtocol = null;
+  state.nodeUOCapabilities = 0;
+  state._nodeUOCapabilityOffer = {
+    offered: NODEUO_CAPABILITIES_ALL >>> 0,
+    sentAt: now,
+    expiresAt: now + NODEUO_NEGOTIATION_TIMEOUT_MS,
+    acceptedAt: null,
+  };
+  state.send(extNodeUOCapabilities({ capabilities: NODEUO_CAPABILITIES_ALL }));
+  state._nodeUOCapabilityTimer = setTimeout(() => {
+    state._nodeUOCapabilityTimer = null;
+    const offer = state._nodeUOCapabilityOffer;
+    if (offer && offer.acceptedAt == null) {
+      // Standard UO is already active. Timeout merely leaves all private
+      // capabilities disabled; it never disconnects or changes packet flow.
+      state.nodeUOProtocol = null;
+      state.nodeUOCapabilities = 0;
+      offer.expired = true;
+      diagnostics.connectionUpdated(state);
+    }
+  }, NODEUO_NEGOTIATION_TIMEOUT_MS);
+  state._nodeUOCapabilityTimer.unref?.();
+  return true;
+}
+
 function handleExtendedCommand(state, pkt) {
   const r = new PacketReader(pkt);
   r.readU8(); r.readU16(); // opcode + length
@@ -2019,9 +2158,20 @@ function handleExtendedCommand(state, pkt) {
     const minor = r.readU8();
     r.readU8(); // reserved
     const requested = r.readU32() >>> 0;
-    if (kind !== NodeUOCapabilityMessage.Accept || major !== NODEUO_PROTOCOL_MAJOR) return;
-    state.nodeUOProtocol = { major, minor };
-    state.nodeUOCapabilities = (requested & NODEUO_CAPABILITIES_ALL) >>> 0;
+    const offer = state._nodeUOCapabilityOffer;
+    const now = Date.now();
+    if (kind !== NodeUOCapabilityMessage.Accept
+      || major !== NODEUO_PROTOCOL_MAJOR
+      || !offer
+      || offer.acceptedAt != null
+      || offer.expired
+      || now > offer.expiresAt) return;
+    offer.acceptedAt = now;
+    if (state._nodeUOCapabilityTimer) clearTimeout(state._nodeUOCapabilityTimer);
+    state._nodeUOCapabilityTimer = null;
+    state.nodeUOProtocol = { major, minor: Math.min(NODEUO_PROTOCOL_MINOR, minor) };
+    state.nodeUOCapabilities = (requested & offer.offered & NODEUO_CAPABILITIES_ALL) >>> 0;
+    diagnostics.connectionUpdated(state);
     pushCommandCatalogue(state);
     pushMovementHint(state);
     return;
@@ -2818,6 +2968,7 @@ function handleMovementReq(state, pkt) {
   // onWalkOff for the source and onWalkOn for the destination — the
   // hooks that drive spike-traps, pressure plates, teleporter pads.
   const fromTile = { x: mob.x, y: mob.y, z: mob.z, map: mob.map };
+  if (state._activeSkillUse?.interruptOnMove) interruptSkillUse(state, 'movement');
   const oldZ = mob.z;
   const prevX = mob.x;
   const prevY = mob.y;
@@ -2910,7 +3061,7 @@ function handleMovementReq(state, pkt) {
       const incoming = mobileIncoming({
         serial: mob.serial, body: mob.body, x: mob.x, y: mob.y, z: mob.z,
         direction: mob.direction, hue: mob.hue, flags: mob.flags,
-        notoriety: mob.notoriety, equipment: [],
+        notoriety: mob.notoriety, equipment: equipmentFor(state.ctx.world, mob),
       });
       for (const other of nearbyClients(state.ctx.world, mob, mob)) {
         other.client.send(incoming);
@@ -3024,10 +3175,16 @@ function processPlayerSpeech(state, { type = 0, hue = 0x03B2, font = 3, lang = '
 
   // Command prefix: `[cmd args` (GM) or `.cmd args` (user). Dispatch instead
   // of broadcasting as speech.
-  trace('speech', `net#${state.id} text=${JSON.stringify(text)} type=0x${type.toString(16)}`);
+  // Never put credentials from `[account create user password` into trace
+  // files. Traces are operational artefacts and are commonly attached to bug
+  // reports, so redaction must happen before either speech or command logging.
+  const tracedText = (text.startsWith('[') || text.startsWith('.'))
+    ? `${text[0]}${redactCommandForLog(text.slice(1))}`
+    : text;
+  trace('speech', `net#${state.id} text=${JSON.stringify(tracedText)} type=0x${type.toString(16)}`);
   if (text && (text.startsWith('[') || text.startsWith('.'))) {
     const line = text.slice(1);
-    trace('cmd', `net#${state.id} dispatch line=${JSON.stringify(line)} access=${state.account?.accessLevel}`);
+    trace('cmd', `net#${state.id} dispatch line=${JSON.stringify(redactCommandForLog(line))} access=${state.account?.accessLevel}`);
     const handled = state.ctx.commands.dispatch(line, {
       sender: mob, state, world: state.ctx.world,
     });
@@ -3160,6 +3317,16 @@ function processPlayerSpeech(state, { type = 0, hue = 0x03B2, font = 3, lang = '
   }
 }
 
+function redactCommandForLog(line) {
+  const parts = String(line ?? '').trim().split(/\s+/);
+  const command = parts[0]?.toLowerCase();
+  const subcommand = parts[1]?.toLowerCase();
+  if (command === 'account' && ['create', 'password', 'setpassword', 'passwd'].includes(subcommand)) {
+    return `${parts.slice(0, 3).join(' ')} [REDACTED]`;
+  }
+  return String(line ?? '');
+}
+
 function transmitCommunicationCrystals(state, speaker, text) {
   if (!speaker || !text || (text.startsWith('[') || text.startsWith('.') || text.startsWith('/'))) return;
   const world = state.ctx?.world;
@@ -3224,6 +3391,15 @@ function rootMobileForItem(world, item) {
     parent = container.parent;
   }
   return null;
+}
+
+function nudgeItemProperties(state, item) {
+  const provider = state?.ctx?.propertyProvider;
+  if (!provider || !item) return;
+  try {
+    const result = provider(item.serial, state);
+    if (result?.entries) properties.nudge(state, item.serial, properties.computeHash(result.entries));
+  } catch { /* OPL refresh is advisory; mutation already committed */ }
 }
 
 // ---- Pickup / Drop (0x07 / 0x08) -------------------------------------------
@@ -3538,6 +3714,8 @@ function handlePickUp(state, pkt) {
   // Off the ground → off the sector index (parented items aren't tile-bound).
   state.ctx?.world?.sectors?.removeItem(item.serial);
   state.heldItem = item;
+  nudgeItemProperties(state, item);
+  if (splitRemainder) nudgeItemProperties(state, splitRemainder);
   // FAZA BN: lifecycle hook for ground / container pickup.
   dispatchItemEvent(state.ctx.world, item, 'onPickUp', state.mobile);
   // Wave 13: auto-identify magic items at high ItemIdentification skill.
@@ -3631,13 +3809,27 @@ function handleDrop(state, pkt) {
   }
 
   if (container === 0xFFFFFFFF) {
+    const dx = Math.abs((x | 0) - (state.mobile.x | 0));
+    const dy = Math.abs((y | 0) - (state.mobile.y | 0));
+    const standZ = findStandingZ(state.mobile.map, x, y, z);
+    if (Math.max(dx, dy) > 2 || standZ == null || !lineOfSight(
+      state.mobile.map,
+      { x: state.mobile.x, y: state.mobile.y, z: state.mobile.z + 14 },
+      { x, y, z: standZ + 2 },
+    )) {
+      state.send(dropAck(false));
+      state.send(bounce(0x01));
+      bounceHeldToFeet(state, item);
+      state.sendSystemMessage?.('You cannot drop that there.');
+      return;
+    }
     // Drop to ground. Reset ALL container-relative fields so a later
     // pickup → container move doesn't carry stale grid coords from the
     // ground state (gridLocation carries vendor-slot hints from the
     // buy window, for example, and will collide with other items).
     item.x = x;
     item.y = y;
-    item.z = z;
+    item.z = standZ;
     item.map = state.mobile.map;
     setItemParent(state.ctx.world, item, null);
     item.layer = 0;
@@ -3659,6 +3851,7 @@ function handleDrop(state, pkt) {
     }
     // FAZA BN: ground-drop lifecycle hook.
     dispatchItemEvent(state.ctx.world, item, 'onDrop', null, state.mobile);
+    nudgeItemProperties(state, item);
     return;
   }
 
@@ -3921,7 +4114,8 @@ function handleDrop(state, pkt) {
     const incomingW = (item.weight ?? 0) * Math.max(1, item.amount ?? 1);
     const cap   = Number.isFinite(target.capacity)  ? target.capacity  : Infinity;
     const wcap  = Number.isFinite(target.maxWeight) ? target.maxWeight : Infinity;
-    if (count >= cap || (weight + incomingW) > wcap) {
+    const canMergeIntoExisting = !!findMergeableStack(state.ctx.world, target.serial, item);
+    if ((count >= cap && !canMergeIntoExisting) || (weight + incomingW) > wcap) {
       state.send(dropAck(false));
       state.send(bounce(0x05));
       bounceHeldToFeet(state, item);
@@ -3944,6 +4138,7 @@ function handleDrop(state, pkt) {
   if (mergeTarget) {
     const incomingSerial = item.serial;
     mergeStacks(state.ctx.world, mergeTarget, item);
+    const remainder = state.ctx.world.items.get(incomingSerial);
     state.heldItem = null;
     state.send(dropAck(true));
     const remove = removeEntity(incomingSerial);
@@ -3955,13 +4150,25 @@ function handleDrop(state, pkt) {
       gridLocation: mergeTarget.gridLocation ?? 0,
       hue: mergeTarget.hue ?? 0,
     }, container);
-    state.send(remove);
+    if (!remainder) state.send(remove);
     state.send(upd);
+    let remainderUpdate = null;
+    if (remainder) {
+      setItemParent(state.ctx.world, remainder, container);
+      remainder.layer = 0;
+      remainder.gridX = x & 0xffff;
+      remainder.gridY = y & 0xffff;
+      remainder.gridLocation = gridLocation;
+      remainderUpdate = containerContentUpdate(remainder, container);
+      state.send(remainderUpdate);
+    }
+    nudgeItemProperties(state, mergeTarget);
     for (const m of state.ctx.world.mobiles.values()) {
       if (!m.client || m === state.mobile) continue;
       if (m.client.openContainers?.has?.(container)) {
-        m.client.send(remove);
+        if (!remainder) m.client.send(remove);
         m.client.send(upd);
+        if (remainderUpdate) m.client.send(remainderUpdate);
       }
     }
     return;
@@ -4009,6 +4216,8 @@ function handleDrop(state, pkt) {
     hue: item.hue,
   }, container);
   state.send(updPkt);
+  nudgeItemProperties(state, item);
+  nudgeItemProperties(state, target);
   // Other players who have this same container open (corpse loot, shared
   // chest, traded backpack) also need to see the new item — without this,
   // their UI shows stale contents until they re-open the container.
@@ -4025,13 +4234,19 @@ function handleDrop(state, pkt) {
 // on the client so subsequent pickups/drops can be authorized.
 
 function handleUseReq(state, pkt) {
+  const r = new PacketReader(pkt);
+  r.readU8();
+  const serial = r.readU32();
+  handleUseSerial(state, serial);
+}
+
+/** Canonical use path shared by packet 0x06 and server-built context menus. */
+function handleUseSerial(state, serial) {
   if (state.stage !== Stage.InWorld || !state.mobile) {
     trace('use', `net#${state.id}: rejected — stage=${state.stage} mobile=${!!state.mobile}`);
     return;
   }
-  const r = new PacketReader(pkt);
-  r.readU8();
-  const serial = r.readU32();
+  serial >>>= 0;
   trace('use', `net#${state.id} target=0x${serial.toString(16)}`);
 
   // Double-click on a mobile.
@@ -4042,6 +4257,15 @@ function handleUseReq(state, pkt) {
   //                    distinguishes self vs. other via the flags byte)
   const mob = state.ctx.world.mobiles.get(serial);
   if (mob) {
+    // ServUO Mobile.OnDoubleClick: double-clicking yourself while mounted
+    // dismounts before the paperdoll path. This also gives the browser client
+    // a protocol-native gesture independent of NodeUO's optional macro.
+    if (mob === state.mobile && state.mobile.mountedFrom) {
+      state.ctx?.commands?.dispatch?.('mount', {
+        sender: state.mobile, state, world: state.ctx.world, args: [],
+      });
+      return;
+    }
     if (vendorRegistry.has(mob.serial)) {
       // Shopkeeper — open their buy window first; double-clicking a
       // vendor in canon UO is the "buy" gesture, not a paperdoll open.
@@ -4424,14 +4648,52 @@ function handleTargetResponse(state, pkt) {
   let parsed;
   try { parsed = readTargetResponse(pkt); }
   catch { return; }
-  const cb = state.targetCallbacks?.get(parsed.id);
-  if (!cb) return;
+  const entry = state.targetCallbacks?.get(parsed.id);
+  if (!entry) return;
   state.targetCallbacks.delete(parsed.id);
+  const cb = typeof entry === 'function' ? entry : entry.callback;
+  if (entry?.timer) clearTimeout(entry.timer);
+  if (typeof entry !== 'function') {
+    if (entry.sessionToken != null && entry.sessionToken !== state.interactionToken) return;
+    if (Date.now() > entry.expiresAt) {
+      if (entry.skillUseId) interruptSkillUse(state, 'target timeout');
+      return;
+    }
+    if (entry.skillUseId && state._activeSkillUse?.id !== entry.skillUseId) return;
+  }
   try {
     // If the client cancelled (flags=3 or null everything), pass `null`.
     const cancelled = parsed.flags === 3 || (parsed.serial === 0 && parsed.x === 0 && parsed.y === 0 && parsed.graphic === 0);
-    cb(cancelled ? null : parsed);
+    if (!cancelled && typeof entry !== 'function') {
+      const world = state.ctx?.world;
+      const entity = parsed.serial
+        ? (world?.mobiles?.get?.(parsed.serial >>> 0) ?? world?.items?.get?.(parsed.serial >>> 0))
+        : null;
+      if (parsed.serial && !entity) {
+        state.sendSystemMessage?.('That target is no longer available.');
+        if (entry.skillUseId) completeSkillUse(state, 'cancelled');
+        return;
+      }
+      if (entry.maxRange != null) {
+        const tx = entity?.x ?? parsed.x;
+        const ty = entity?.y ?? parsed.y;
+        const distance = Math.max(Math.abs((state.mobile.x | 0) - (tx | 0)), Math.abs((state.mobile.y | 0) - (ty | 0)));
+        if (distance > entry.maxRange) {
+          state.sendSystemMessage?.('That is too far away.');
+          if (entry.skillUseId) completeSkillUse(state, 'cancelled');
+          return;
+        }
+      }
+    }
+    const result = cb(cancelled ? null : parsed);
+    if (entry?.skillUseId) {
+      Promise.resolve(result).then(
+        () => completeSkillUse(state, cancelled ? 'cancelled' : 'completed'),
+        () => completeSkillUse(state, 'cancelled'),
+      );
+    }
   } catch (e) {
+    if (entry?.skillUseId) completeSkillUse(state, 'cancelled');
     console.error('[target] callback threw:', e);
   }
 }
@@ -4447,7 +4709,7 @@ export const targeting = {
   /**
    * @param {import('./net-state.js').NetState} state
    * @param {(picked: {kind:number,id:number,flags:number,serial:number,x:number,y:number,z:number,graphic:number} | null) => void} cb
-   * @param {{kind?:number, flags?:number}} [opts]
+   * @param {{kind?:number, flags?:number, maxRange?:number, timeoutMs?:number}} [opts]
    */
   request(state, cb, opts = {}) {
     // 0xBF 0x2D TargetedSpell macro: client armed a target serial on
@@ -4460,20 +4722,45 @@ export const targeting = {
       const m = world?.mobiles?.get(pre);
       const it = m ? null : world?.items?.get(pre);
       if (m) {
-        cb({ kind: 1, id: 0, flags: opts.flags ?? 0, serial: pre,
+        const result = cb({ kind: 1, id: 0, flags: opts.flags ?? 0, serial: pre,
              x: m.x | 0, y: m.y | 0, z: m.z | 0, graphic: m.body | 0 });
+        if (state._activeSkillUse) Promise.resolve(result).finally(() => completeSkillUse(state));
         return;
       }
       if (it) {
-        cb({ kind: 0, id: 0, flags: opts.flags ?? 0, serial: pre,
+        const result = cb({ kind: 0, id: 0, flags: opts.flags ?? 0, serial: pre,
              x: it.x | 0, y: it.y | 0, z: it.z | 0, graphic: it.itemId | 0 });
+        if (state._activeSkillUse) Promise.resolve(result).finally(() => completeSkillUse(state));
         return;
       }
       // Stale serial — fall through to cursor.
     }
     if (!state.targetCallbacks) state.targetCallbacks = new Map();
+    while (state.targetCallbacks.size >= 16) {
+      const [oldestId, oldest] = state.targetCallbacks.entries().next().value ?? [];
+      if (oldestId == null) break;
+      if (oldest?.timer) clearTimeout(oldest.timer);
+      state.targetCallbacks.delete(oldestId);
+    }
     const id = (state._nextTargetId = (state._nextTargetId ?? 1) + 1);
-    state.targetCallbacks.set(id, cb);
+    const timeoutMs = Math.max(1000, Math.min(SKILL_TARGET_TIMEOUT_MS, opts.timeoutMs ?? SKILL_TARGET_TIMEOUT_MS));
+    const entry = {
+      callback: cb,
+      openedAt: Date.now(),
+      expiresAt: Date.now() + timeoutMs,
+      maxRange: opts.maxRange == null ? null : Math.max(0, opts.maxRange | 0),
+      skillUseId: attachSkillTarget(state, id),
+      sessionToken: state.interactionToken,
+      timer: null,
+    };
+    entry.timer = setTimeout(() => {
+      if (state.targetCallbacks?.get(id) !== entry) return;
+      state.targetCallbacks.delete(id);
+      if (entry.skillUseId) interruptSkillUse(state, 'target timeout');
+      else state.sendSystemMessage?.('Target request timed out.');
+    }, timeoutMs);
+    entry.timer.unref?.();
+    state.targetCallbacks.set(id, entry);
     state.send(targetRequest({ id, kind: opts.kind ?? 0, flags: opts.flags ?? 0 }));
   },
 };
@@ -4482,10 +4769,31 @@ export const targeting = {
 // Gump dispatch.
 // ---------------------------------------------------------------------------
 
+function scheduleGumpExpiry(state) {
+  if (state._gumpExpiryTimer) clearTimeout(state._gumpExpiryTimer);
+  state._gumpExpiryTimer = null;
+  let next = Infinity;
+  for (const entry of state.activeGumps?.values?.() ?? []) {
+    if (entry && typeof entry !== 'function') next = Math.min(next, entry.expiresAt);
+  }
+  if (!Number.isFinite(next)) return;
+  const delay = Math.max(1, next - Date.now());
+  state._gumpExpiryTimer = setTimeout(() => {
+    state._gumpExpiryTimer = null;
+    const removed = pruneActiveGumps(state);
+    if (removed) diagnostics.gumpExpired(removed);
+    scheduleGumpExpiry(state);
+  }, delay);
+  state._gumpExpiryTimer.unref?.();
+}
+
 function handleGumpResponse(state, pkt) {
   let parsed;
   try { parsed = readGumpResponse(pkt); }
-  catch { return; }
+  catch {
+    diagnostics.gumpRejected('malformed');
+    return;
+  }
   // Audit rev.9 — Virtue gump 0x1CD bypasses the activeGumps table
   // because the client opens it locally (no server-pushed layout).
   // We invoke the matching virtue server-side via `invokeVirtue`.
@@ -4493,6 +4801,17 @@ function handleGumpResponse(state, pkt) {
     try {
       const mob = state.mobile;
       if (!mob) return;
+      if ((parsed.serial >>> 0) !== (mob.serial >>> 0)
+        || parsed.switches.length !== 0 || parsed.textEntries.length !== 0) {
+        diagnostics.gumpRejected('virtue-shape');
+        return;
+      }
+      const now = Date.now();
+      if (now - (state._lastVirtueGumpAt ?? 0) < 750) {
+        diagnostics.gumpRejected('virtue-rate');
+        return;
+      }
+      state._lastVirtueGumpAt = now;
       const VIRTUE_KEY = ['', 'honesty', 'compassion', 'valor', 'justice',
                           'sacrifice', 'honor', 'spirituality', 'humility'];
       const key = VIRTUE_KEY[(parsed.buttonId | 0)];
@@ -4511,11 +4830,50 @@ function handleGumpResponse(state, pkt) {
     } catch { /* ignore */ }
     return;
   }
-  const cb = state.activeGumps?.get(parsed.gumpId);
-  if (!cb) return;
+  const entry = state.activeGumps?.get(parsed.gumpId);
+  if (!entry) {
+    diagnostics.gumpRejected('unknown-or-replay');
+    return;
+  }
+  // Support a callback left by a pre-upgrade hot-reload only for the current
+  // process lifetime. New entries always use the validated object below.
+  if (typeof entry === 'function') {
+    state.activeGumps.delete(parsed.gumpId);
+    try { entry(parsed); }
+    catch (e) { diagnostics.gumpCallbackError(); console.error('[gump] callback threw:', e); }
+    return;
+  }
+  if (entry.sessionToken != null && entry.sessionToken !== state.interactionToken) {
+    state.activeGumps.delete(parsed.gumpId);
+    diagnostics.gumpRejected('stale-session');
+    return;
+  }
+  const verdict = validateGumpResponse(entry, parsed);
+  if (!verdict.ok) {
+    diagnostics.gumpRejected(verdict.reason);
+    if (verdict.reason === 'expired') {
+      state.activeGumps.delete(parsed.gumpId);
+      diagnostics.gumpExpired();
+      scheduleGumpExpiry(state);
+    }
+    return;
+  }
+  // Consume before invoking user code, so a synchronous or re-entrant replay
+  // cannot execute the callback twice.
+  entry.consumed = true;
   state.activeGumps.delete(parsed.gumpId);
-  try { cb(parsed); }
-  catch (e) { console.error('[gump] callback threw:', e); }
+  diagnostics.gumpResponse(Date.now() - entry.openedAt);
+  scheduleGumpExpiry(state);
+  try {
+    const result = entry.callback(parsed);
+    Promise.resolve(result).catch((e) => {
+      diagnostics.gumpCallbackError();
+      console.error('[gump] async callback rejected:', e);
+    });
+  } catch (e) {
+    diagnostics.gumpCallbackError();
+    console.error('[gump] callback threw:', e);
+  }
 }
 
 /**
@@ -4526,28 +4884,76 @@ export const gumps = {
    * Send a gump to the client. Returns the chosen gumpId.
    *
    * @param {import('./net-state.js').NetState} state
-   * @param {{layout:string, texts?:string[], x?:number, y?:number, gumpId?:number}} gump
+   * @param {{layout:string, texts?:string[], x?:number, y?:number, gumpId?:number, serial?:number, lifetimeMs?:number}} gump
    * @param {GumpCallback} [cb]
    */
   send(state, gump, cb) {
     if (!state.activeGumps) state.activeGumps = new Map();
-    const gumpId = gump.gumpId ?? (state._nextGumpId = (state._nextGumpId ?? 1) + 1);
-    if (cb) state.activeGumps.set(gumpId, cb);
-    const layout = gump.layout;
-    const texts = gump.texts ?? [];
-    const builder = layout.length > PACKED_GUMP_THRESHOLD ? displayGumpPacked : displayGump;
-    state.send(builder({
-      serial: state.mobile?.serial ?? 0,
+    const definition = validateGumpDefinition(gump);
+    const estimatedBytes = definition.metadata.bytes
+      + definition.texts.reduce((sum, text) => sum + text.length * 2 + 2, 0);
+    const heavyRate = allowHeavyGump(state, estimatedBytes);
+    if (!heavyRate.ok) {
+      diagnostics.gumpRejected('heavy-rate');
+      return 0;
+    }
+    const gumpId = (definition.gumpId ?? (state._nextGumpId = (state._nextGumpId ?? 1) + 1)) >>> 0;
+    const serial = (definition.serial ?? state.mobile?.serial ?? 0) >>> 0;
+    const expired = pruneActiveGumps(state);
+    if (expired) diagnostics.gumpExpired(expired);
+
+    // Bound connection-local interaction state. If the client keeps opening
+    // dialogs without replying, evict the oldest one deterministically.
+    while (state.activeGumps.size >= GUMP_LIMITS.activePerConnection) {
+      let oldestId = null;
+      let oldestAt = Infinity;
+      for (const [id, active] of state.activeGumps) {
+        const at = typeof active === 'function' ? 0 : active.openedAt;
+        if (at < oldestAt) { oldestAt = at; oldestId = id; }
+      }
+      if (oldestId == null) break;
+      state.activeGumps.delete(oldestId);
+      state.send(closeGump(oldestId));
+      diagnostics.gumpExpired();
+    }
+
+    const refreshed = state.activeGumps.has(gumpId);
+    if (cb) {
+      state.activeGumps.set(gumpId, makeActiveGumpEntry({
+        serial, gumpId, callback: cb, metadata: definition.metadata,
+        sessionToken: state.interactionToken,
+        lifetimeMs: definition.lifetimeMs,
+      }));
+      scheduleGumpExpiry(state);
+    } else if (refreshed) {
+      state.activeGumps.delete(gumpId);
+      scheduleGumpExpiry(state);
+    }
+    diagnostics.gumpOpened(refreshed);
+
+    const builder = estimatedBytes > PACKED_GUMP_THRESHOLD ? displayGumpPacked : displayGump;
+    const packet = builder({
+      serial,
       gumpId,
-      x: gump.x ?? 100,
-      y: gump.y ?? 100,
-      layout,
-      texts,
-    }));
+      x: definition.x ?? 100,
+      y: definition.y ?? 100,
+      layout: definition.layout,
+      texts: definition.texts,
+    });
+    if (packet.length > 0xffff) {
+      state.activeGumps.delete(gumpId);
+      scheduleGumpExpiry(state);
+      throw new RangeError('encoded gump packet exceeds UO u16 packet length');
+    }
+    state.send(packet);
     return gumpId;
   },
   close(state, gumpId) {
-    if (state.activeGumps?.has(gumpId)) state.activeGumps.delete(gumpId);
+    const existed = state.activeGumps?.delete(gumpId >>> 0) ?? false;
+    if (state._gumpExpiryTimer) scheduleGumpExpiry(state);
+    state.send(closeGump(gumpId >>> 0));
+    if (existed) diagnostics.gumpClosed();
+    return existed;
   },
 };
 
@@ -4634,7 +5040,15 @@ function handleWearItem(state, pkt) {
   // below put an equipped spellbook back into the backpack. Prefer the
   // runtime/template declaration whenever one exists and use the packet only
   // for legacy emulator items which do not carry metadata.
-  const templateLayer = Number(item.template ? getTemplate(item.template)?.equipLayer : 0) | 0;
+  const namedTemplate = item.template ? getTemplate(item.template) : null;
+  // Legacy saves and raw admin-created items may predate the `template`
+  // / `equipLayer` fields. Resolve by graphic as a final authoritative
+  // server fallback. Several variants can share one graphic (robe and
+  // gm-robe), but their canonical equip layer is the same, so this is
+  // deterministic and prevents a client-supplied stale layer=1 from
+  // displacing the spellbook.
+  const graphicTemplate = getTemplateByItemId(item.itemId);
+  const templateLayer = Number(namedTemplate?.equipLayer ?? graphicTemplate?.equipLayer ?? 0) | 0;
   const runtimeLayer = Number(item.equipLayer) | 0;
   const declaredLayer = runtimeLayer > 0 ? runtimeLayer : templateLayer;
   const spellbookLayer = item.spellbook ? 1 : 0;
@@ -4680,6 +5094,7 @@ function handleWearItem(state, pkt) {
     // removeEntity may also reach the owner, so publish the new container
     // placement after it to make the final client state deterministic.
     moveToPackAndPush(popped);
+    nudgeItemProperties(state, popped);
   }
   setItemParent(world, item, mob.serial);
   item.layer = targetLayer;
@@ -4691,6 +5106,7 @@ function handleWearItem(state, pkt) {
   // change — the script can't gate paperdoll display.
   dispatchItemEvent(world, item, 'onEquip', mob);
   syncMobileEquipmentIndex(world, mob);
+  nudgeItemProperties(state, item);
   // FAZA FM: when the equipped item is a weapon, copy its combat
   // descriptor onto the mob so combat-formulas / ranged-arrow consume
   // / slayer matrix pick it up. Layer 1 (right hand) is the primary
@@ -4927,6 +5343,9 @@ export const contextMenus = {
    * @param {(state: import('./net-state.js').NetState, serial:number) => (ContextEntry[]|null)} fn
    */
   setProvider(ctx, fn) { ctx.contextMenuProvider = fn; },
+
+  /** Invoke exactly the same use logic as a client 0x06 double-click. */
+  use(state, serial) { handleUseSerial(state, serial >>> 0); },
 };
 
 // ---------------------------------------------------------------------------
@@ -4943,6 +5362,7 @@ export const contextMenus = {
  * @typedef {Object} VendorConfig
  * @property {number} vendorSerial
  * @property {() => BuyEntry[]} listStock
+ * @property {() => {itemId:number, price:number}[]} [listSellable]
  * @property {(state: import('./net-state.js').NetState, picks: {serial:number, amount:number}[]) => void} [onBuy]
  * @property {(state: import('./net-state.js').NetState, picks: {serial:number, amount:number}[]) => void} [onSell]
  */
@@ -4986,6 +5406,53 @@ export const mobileDragDrop = {
 
 /** @type {Map<number, VendorConfig>} */
 const vendorRegistry = new Map();
+const vendorPriceHistory = new Map();
+const VENDOR_SESSION_TTL_MS = 30_000;
+const VENDOR_USE_RANGE = 3;
+const VENDOR_MAX_LINES = 100;
+
+function vendorInRange(state, serial) {
+  const actor = state.mobile;
+  const vendor = state.ctx.world.mobiles.get(serial >>> 0);
+  return !!(actor && vendor && actor.map === vendor.map && !actor.dead && !vendor.dead
+    && Math.max(Math.abs(actor.x - vendor.x), Math.abs(actor.y - vendor.y)) <= VENDOR_USE_RANGE);
+}
+
+function startVendorSession(state, serial, kind, entries) {
+  state._vendorSession = {
+    vendorSerial: serial >>> 0,
+    kind,
+    openedAt: Date.now(),
+    entries: new Map(entries.map((entry) => [entry.serial >>> 0, Object.freeze({ ...entry })])),
+  };
+}
+
+function validateVendorReply(state, serial, kind, items) {
+  const session = state._vendorSession;
+  state._vendorSession = null; // replies are single-use, including rejected ones
+  if (!session || session.vendorSerial !== (serial >>> 0) || session.kind !== kind) return null;
+  if (Date.now() - session.openedAt > VENDOR_SESSION_TTL_MS || !vendorInRange(state, serial)) return null;
+  if (!Array.isArray(items) || items.length > VENDOR_MAX_LINES) return null;
+  const seen = new Set();
+  const accepted = [];
+  for (const pick of items) {
+    const key = pick.serial >>> 0;
+    const offered = session.entries.get(key);
+    if (!offered || seen.has(key) || !Number.isInteger(pick.amount) || pick.amount < 1) return null;
+    if (pick.amount > Math.max(1, Number(offered.amount) || 1)) return null;
+    seen.add(key);
+    accepted.push({ serial: key, amount: pick.amount, offered });
+  }
+  if (kind === 'buy') {
+    let addedWeight = 0;
+    for (const { amount, offered } of accepted) {
+      const def = getTemplateByItemId?.(offered.itemId);
+      addedWeight += Math.max(0, Number(def?.weight) || 0) * amount;
+    }
+    if (!canCarry(state.ctx.world, state.mobile, addedWeight)) return null;
+  }
+  return accepted;
+}
 
 export const vendors = {
   /** @param {VendorConfig} cfg */
@@ -4997,18 +5464,38 @@ export const vendors = {
    */
   openBuy(state, serial) {
     const cfg = vendorRegistry.get(serial);
-    if (!cfg) return false;
-    const stock = cfg.listStock();
+    if (!cfg || !vendorInRange(state, serial)) return false;
+    const stock = cfg.listStock().filter((e) => Number(e.amount) > 0
+      && Number.isFinite(e.price) && e.price >= 0).slice(0, 255);
+    startVendorSession(state, serial, 'buy', stock);
+    if (state.supportsNodeUO?.(NodeUOCapability.VendorInsights)) {
+      const previous = vendorPriceHistory.get(serial >>> 0) ?? new Map();
+      const entries = stock.map((entry) => ({
+        serial: entry.serial >>> 0,
+        itemId: entry.itemId | 0,
+        price: entry.price | 0,
+        previousPrice: previous.get(entry.itemId | 0) ?? null,
+        available: Number.isFinite(entry.amount) ? entry.amount | 0 : null,
+      }));
+      vendorPriceHistory.set(serial >>> 0, new Map(stock.map((entry) => [entry.itemId | 0, entry.price | 0])));
+      state.send(extNodeUOVendorInsights({
+        requestId: ((state._vendorInsightRequestId = ((state._vendorInsightRequestId ?? 0) + 1) >>> 0)),
+        payload: { vendorSerial: serial >>> 0, entries },
+      }));
+    }
+    // Standard vendor flow sends the display container first, then 0x74.
+    // This lets ClassicUO/browser clients pair each price/name row with the
+    // stock serial/art before constructing the shop window.
+    state.send(containerContents(serial, stock.map((e, i) => ({
+      serial: e.serial, itemId: e.itemId, hue: e.hue,
+      amount: Number.isFinite(e.amount) ? Math.min(0xffff, e.amount) : 999,
+      gridX: (i % 8) * 18, gridY: Math.floor(i / 8) * 18,
+      gridLocation: i,
+    }))));
     state.send(openBuyWindow({
       vendorSerial: serial,
       entries: stock.map((e) => ({ price: e.price, description: e.description })),
     }));
-    // Also send a container-style content packet so the client can render the icons.
-    state.send(containerContents(serial, stock.map((e, i) => ({
-      serial: e.serial, itemId: e.itemId, hue: e.hue,
-      amount: e.amount, gridX: (i % 8) * 18, gridY: Math.floor(i / 8) * 18,
-      gridLocation: i,
-    }))));
     return true;
   },
 
@@ -5034,11 +5521,15 @@ export const vendors = {
       }
     }
     if (!backpackSerial) return false;
+    if (!vendorInRange(state, serial)) return false;
     const stock = cfg.listStock();
     const priceByItemId = new Map();
-    for (const s of stock) {
+    const sellable = cfg.listSellable?.() ?? stock.map((s) => ({
+      itemId: s.itemId, price: Math.max(1, Math.floor(s.price / 2)),
+    }));
+    for (const s of sellable) {
       const prior = priceByItemId.get(s.itemId) ?? 0;
-      if (s.price > prior) priceByItemId.set(s.itemId, s.price);
+      if (Number.isFinite(s.price) && s.price > prior) priceByItemId.set(s.itemId, s.price);
     }
     /** @type {{serial:number, itemId:number, hue:number, amount:number, price:number, name:string}[]} */
     const entries = [];
@@ -5047,8 +5538,8 @@ export const vendors = {
       ? Array.from(packIdx, (s) => world.items.get(s)).filter(Boolean)
       : Array.from(world.items.values()).filter((it) => it.parent === backpackSerial);
     for (const it of itemIter) {
-      const base = priceByItemId.get(it.itemId);
-      const price = base ? Math.max(1, Math.floor(base / 2)) : 1;
+      const price = priceByItemId.get(it.itemId);
+      if (!price || it.insured || it.blessed || it.movable === false) continue;
       entries.push({
         serial: it.serial >>> 0,
         itemId: it.itemId, hue: it.hue ?? 0,
@@ -5057,6 +5548,7 @@ export const vendors = {
       });
     }
     if (entries.length === 0) return false;
+    startVendorSession(state, serial, 'sell', entries);
     state.send(vendorSellList({ vendorSerial: serial, entries }));
     return true;
   },
@@ -5070,7 +5562,9 @@ function handleBuyRequest(state, pkt) {
   const cfg = vendorRegistry.get(parsed.vendorSerial);
   if (!cfg) return;
   if (parsed.flag !== 0x02) return;              // cancelled
-  try { cfg.onBuy?.(state, parsed.items); }
+  const items = validateVendorReply(state, parsed.vendorSerial, 'buy', parsed.items);
+  if (!items) return;
+  try { cfg.onBuy?.(state, items.map(({ serial, amount }) => ({ serial, amount }))); }
   catch (e) { console.error('[vendor] onBuy threw:', e); }
 }
 
@@ -5081,7 +5575,9 @@ function handleSellReply(state, pkt) {
   catch { return; }
   const cfg = vendorRegistry.get(parsed.vendorSerial);
   if (!cfg) return;
-  try { cfg.onSell?.(state, parsed.items); }
+  const items = validateVendorReply(state, parsed.vendorSerial, 'sell', parsed.items);
+  if (!items) return;
+  try { cfg.onSell?.(state, items.map(({ serial, amount }) => ({ serial, amount }))); }
   catch (e) { console.error('[vendor] onSell threw:', e); }
 }
 
@@ -5762,7 +6258,7 @@ export const combat = {
         x: attacker.x, y: attacker.y, z: attacker.z,
         direction: attacker.direction, hue: attacker.hue,
         flags: attacker.flags, notoriety: attacker.notoriety,
-        equipment: [],
+        equipment: equipmentFor(world, attacker),
       });
       for (const other of nearbyClients(world, attacker, attacker)) {
         other.client.send(reveal);
@@ -5816,6 +6312,9 @@ export const combat = {
     if (mob.hp > 0 && mob.mountedFrom) {
       const threshold = Math.max(1, Math.floor((mob.hpMax ?? 50) * 0.2));
       if (mob.hp <= threshold) forceDamageDismount(world, mob);
+    }
+    if (mob.client?._activeSkillUse?.interruptOnDamage) {
+      interruptSkillUse(mob.client, 'damage');
     }
     // ServUO Spell.Disturb on damage — interrupt the cast bar with a
     // half-mana refund (handled by disturbCast). Without this, casters
@@ -5952,7 +6451,11 @@ export const combat = {
     const decay = (item) => {
       if (!item || item.durability == null) return;
       item.durability = (item.durability | 0) - 1;
-      if (item.durability > 0) return;
+      if (item.durability > 0) {
+        const owner = world.mobiles.get(item.parent >>> 0);
+        if (owner?.client) nudgeItemProperties(owner.client, item);
+        return;
+      }
       // Shatter — broadcast removal + system message to the wearer.
       const owner = world.mobiles.get(item.parent >>> 0);
       const rm = removeEntity(item.serial);
@@ -6169,7 +6672,7 @@ export const combat = {
           serial: mob.serial, current: mob.stam, max: mob.stamMax ?? 50,
         }));
       }
-      state.nextSwingAt = now + swingDelayMs(mob);
+      state.nextSwingAt = now + swingDelayMs(mob, mob._weapon?.speed ?? 30);
       // BUGFIX #128 (FAZA HN): every weapon swung the Attack1H frame
       // (0x09) — even bows. ServUO uses 0x12 (ShootBow) / 0x13
       // (ShootCrossbow). Pick the right animation from the wielded
@@ -6624,6 +7127,55 @@ function handleGuildMessage(state, pkt) {
 
 /** @type {Map<number, TradeSession>} */
 const tradeByContainer = new Map();
+let nextTradeRequestId = 0;
+
+function sendTradeAudit(session, status, extra = {}) {
+  for (const state of [session.a, session.b]) {
+    if (!state.supportsNodeUO?.(NodeUOCapability.TradeAudit)) continue;
+    state.send(extNodeUOTradeAudit({
+      requestId: session.requestId,
+      payload: { transactionId: session.transactionId, status, ...extra },
+    }));
+  }
+}
+
+function stagedWeight(world, serials) {
+  let total = 0;
+  for (const serial of serials) {
+    const item = world.items.get(serial >>> 0);
+    if (!item) continue;
+    total += pileWeight(item);
+    if (item.gumpId) total += totalContainerWeight(world, item.serial);
+  }
+  return total;
+}
+
+function validateTradeCommit(session) {
+  if (!session?.active) return { ok: false, reason: 'inactive' };
+  const { a, b } = session;
+  if (!a.mobile || !b.mobile || a._closed || b._closed) return { ok: false, reason: 'offline' };
+  if ((a.mobile.hp ?? 1) <= 0 || (b.mobile.hp ?? 1) <= 0 || a.mobile.dead || b.mobile.dead) {
+    return { ok: false, reason: 'dead' };
+  }
+  if ((a.mobile.map | 0) !== (b.mobile.map | 0)
+    || Math.max(Math.abs((a.mobile.x | 0) - (b.mobile.x | 0)), Math.abs((a.mobile.y | 0) - (b.mobile.y | 0))) > 3) {
+    return { ok: false, reason: 'range' };
+  }
+  const world = a.ctx.world;
+  const seen = new Set();
+  for (const [serials, parent] of [[session.itemsA, session.containerA], [session.itemsB, session.containerB]]) {
+    for (const serial of serials) {
+      const item = world.items.get(serial >>> 0);
+      if (!item || (item.parent >>> 0) !== (parent >>> 0) || seen.has(serial >>> 0)) {
+        return { ok: false, reason: 'ownership' };
+      }
+      seen.add(serial >>> 0);
+    }
+  }
+  if (!canCarry(world, b.mobile, stagedWeight(world, session.itemsA))) return { ok: false, reason: 'capacity-b' };
+  if (!canCarry(world, a.mobile, stagedWeight(world, session.itemsB))) return { ok: false, reason: 'capacity-a' };
+  return { ok: true };
+}
 
 function handleTradeCommand(state, pkt) {
   let cmd;
@@ -6667,6 +7219,23 @@ export const trade = {
    */
   open(a, b) {
     if (!a.mobile || !b.mobile) return null;
+    const existing = findTradeSession(a, b);
+    if (existing?.active) return existing;
+    const now = Date.now();
+    a._tradeOpenTimes = (a._tradeOpenTimes ?? []).filter((at) => now - at < 10_000);
+    if (a._tradeOpenTimes.length >= 3) {
+      a.sendSystemMessage?.('You are opening trade windows too quickly.');
+      diagnostics.recordAudit('trade.rate-limit', {
+        actor: a.accountName, target: b.accountName ?? b.mobile.name, detail: 'more than 3 opens/10s', ok: false,
+      });
+      return null;
+    }
+    if ((a.mobile.map | 0) !== (b.mobile.map | 0)
+      || Math.max(Math.abs((a.mobile.x | 0) - (b.mobile.x | 0)), Math.abs((a.mobile.y | 0) - (b.mobile.y | 0))) > 3) {
+      a.sendSystemMessage?.('You are too far away to trade.');
+      return null;
+    }
+    a._tradeOpenTimes.push(now);
     const world = a.ctx.world;
     const containerA = world.serial.allocItem();
     const containerB = world.serial.allocItem();
@@ -6674,6 +7243,10 @@ export const trade = {
       containerA, containerB, a, b,
       acceptedA: false, acceptedB: false,
       itemsA: new Set(), itemsB: new Set(),
+      active: true,
+      requestId: (++nextTradeRequestId) >>> 0,
+      transactionId: `${now.toString(36)}-${nextTradeRequestId.toString(36)}`,
+      openedAt: now,
     };
     tradeByContainer.set(containerA, session);
     tradeByContainer.set(containerB, session);
@@ -6712,9 +7285,18 @@ export const trade = {
     b.send(containerContents(containerA, []));
     b.send(displayContainer(containerB, TRADE_GUMP));
     b.send(containerContents(containerB, []));
+    diagnostics.recordAudit('trade.open', {
+      actor: a.accountName ?? a.mobile.name,
+      target: b.accountName ?? b.mobile.name,
+      detail: `tx=${session.transactionId}`,
+    });
+    sendTradeAudit(session, 'open');
     return session;
   },
   cancel(session) {
+    if (!session?.active) return false;
+    session.active = false;
+    const counts = { a: session.itemsA.size, b: session.itemsB.size };
     tradeByContainer.delete(session.containerA);
     tradeByContainer.delete(session.containerB);
     for (const s of [session.a, session.b]) {
@@ -6726,12 +7308,41 @@ export const trade = {
     returnTradeItems(session.b, session.itemsB);
     session.a.send(tradeClose(session.containerA));
     session.b.send(tradeClose(session.containerB));
+    diagnostics.recordAudit('trade.cancel', {
+      actor: session.a.accountName ?? session.a.mobile?.name,
+      target: session.b.accountName ?? session.b.mobile?.name,
+      detail: `tx=${session.transactionId}; a=${counts.a}; b=${counts.b}`,
+    });
+    sendTradeAudit(session, 'cancelled');
+    return true;
   },
   commit(session) {
+    const tx = runtimeGovernor.transactions.begin('trade', {
+      correlationId: session.transactionId,
+      a: session.a?.mobile?.serial >>> 0, b: session.b?.mobile?.serial >>> 0,
+    });
+    const verdict = validateTradeCommit(session);
+    if (!verdict.ok) {
+      session.a?.sendSystemMessage?.(`Trade cancelled (${verdict.reason}).`);
+      session.b?.sendSystemMessage?.(`Trade cancelled (${verdict.reason}).`);
+      diagnostics.recordAudit('trade.reject', {
+        actor: session.a?.accountName ?? session.a?.mobile?.name,
+        target: session.b?.accountName ?? session.b?.mobile?.name,
+        detail: `tx=${session.transactionId}; reason=${verdict.reason}`,
+        ok: false,
+      });
+      trade.cancel(session);
+      runtimeGovernor.transactions.rollback(tx, verdict.reason);
+      return false;
+    }
     // Swap: A's items go to B; B's items go to A.
     const world = session.a.ctx.world;
+    const counts = { a: session.itemsA.size, b: session.itemsB.size };
+    for (const serial of session.itemsA) runtimeGovernor.transactions.item(tx, serial, 'transfer', { from: 'a', to: 'b' });
+    for (const serial of session.itemsB) runtimeGovernor.transactions.item(tx, serial, 'transfer', { from: 'b', to: 'a' });
     transferTradeItems(world, session.itemsA, session.b);
     transferTradeItems(world, session.itemsB, session.a);
+    session.active = false;
     tradeByContainer.delete(session.containerA);
     tradeByContainer.delete(session.containerB);
     for (const s of [session.a, session.b]) {
@@ -6742,6 +7353,14 @@ export const trade = {
     session.b.send(tradeClose(session.containerB));
     session.a.sendSystemMessage?.('Trade complete.');
     session.b.sendSystemMessage?.('Trade complete.');
+    diagnostics.recordAudit('trade.commit', {
+      actor: session.a.accountName ?? session.a.mobile?.name,
+      target: session.b.accountName ?? session.b.mobile?.name,
+      detail: `tx=${session.transactionId}; a-items=${counts.a}; b-items=${counts.b}`,
+    });
+    sendTradeAudit(session, 'committed', { itemCounts: counts });
+    runtimeGovernor.transactions.commit(tx);
+    return true;
   },
 };
 
@@ -6844,12 +7463,16 @@ function bounceHeldToFeet(state, item) {
   setItemParent(state.ctx.world, item, null);
   item.x = state.mobile.x; item.y = state.mobile.y; item.z = state.mobile.z;
   item.map = state.mobile.map;
+  item.layer = 0;
+  item.gridX = 0; item.gridY = 0; item.gridLocation = 0;
+  state.ctx.world.sectors?.moveItem?.(item);
   state.heldItem = null;
   state.send(worldItemSA({
     serial: item.serial, itemId: item.itemId, amount: item.amount,
     x: item.x, y: item.y, z: item.z, hue: item.hue,
     flags: (item.movable ?? true) ? 0x20 : 0x00,
   }));
+  nudgeItemProperties(state, item);
 }
 
 /**

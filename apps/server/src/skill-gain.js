@@ -18,6 +18,22 @@ const SKILL_CAP_TOTAL  = 720;     // OSI default 700.0 → we round up
 const SKILL_CAP_SINGLE_DEFAULT = 100;  // base ceiling — power-scrolls raise it
 const SKILL_CAP_SINGLE_MAX = 120;      // hard limit even with a +20 scroll
 const BASE_GAIN_CHANCE = 0.50;    // peak chance at the sweet spot
+const gainTelemetry = new Map();
+const lastGainAt = new WeakMap();
+
+function gainMetric(skillId) {
+  const id = skillId | 0;
+  const metric = gainTelemetry.get(id) ?? {
+    skillId: id, attempts: 0, gains: 0, capped: 0, totalCapped: 0,
+    failedRolls: 0, tooEasyOrHard: 0, anomalies: 0, lastGainAt: 0,
+  };
+  gainTelemetry.set(id, metric);
+  return metric;
+}
+
+export function skillGainSnapshot() {
+  return [...gainTelemetry.values()].map((entry) => ({ ...entry }));
+}
 
 /**
  * Per-skill ceiling for `mob`, honouring power-scroll consumption.
@@ -91,6 +107,8 @@ function totalSkills(mob) {
  * @returns {number | null}
  */
 export function tryGain(mob, skillId, difficulty, rng = Math.random) {
+  const metric = gainMetric(skillId);
+  metric.attempts++;
   if (!mob) return null;
   if (typeof rng === 'number') {
     const min = Number(difficulty) || 0;
@@ -101,12 +119,12 @@ export function tryGain(mob, skillId, difficulty, rng = Math.random) {
   if (!mob.skills) mob.skills = {};
   const cur = effectiveSkill(mob, skillId);
   const cap = skillCapFor(mob, skillId);
-  if (cur >= cap) return null;
+  if (cur >= cap) { metric.capped++; return null; }
   // ServUO soft total cap — at the ceiling, attempt to decay a skill
   // marked `lock = 'down'` to make room. Only if no decay-eligible
   // skill exists do we fall through to the hard-cap behaviour.
   if (totalSkills(mob) >= SKILL_CAP_TOTAL) {
-    if (!tryDecay(mob, skillId)) return null;
+    if (!tryDecay(mob, skillId)) { metric.totalCapped++; return null; }
   }
   let chance = gainChance(cur, difficulty, cap);
   // Power Hour — `mob._powerHourUntil` set by consuming a Power Hour
@@ -115,12 +133,18 @@ export function tryGain(mob, skillId, difficulty, rng = Math.random) {
   if ((mob._powerHourUntil ?? 0) > Date.now()) {
     chance = Math.min(1, chance * 1.5);
   }
-  if (chance <= 0) return null;
-  if (rng() >= chance) return null;
+  if (chance <= 0) { metric.tooEasyOrHard++; return null; }
+  if (rng() >= chance) { metric.failedRolls++; return null; }
   // Persist on the numeric key — effectiveSkill reads either form, but
   // numeric is the canonical storage shape.
   const next = cur + 1;
   mob.skills[skillId] = next;
+  const now = Date.now();
+  const previous = lastGainAt.get(mob) ?? 0;
+  if (previous && now - previous < 100) metric.anomalies++;
+  lastGainAt.set(mob, now);
+  metric.gains++;
+  metric.lastGainAt = now;
   return next;
 }
 

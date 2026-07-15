@@ -1,6 +1,6 @@
 import { broadcastEffect, broadcastSound, clientsNear } from '../../_helpers.js';
-import { checkRecallCast } from '../../rune-helpers.js';
-import { moveMobile } from '../../../_movement.js';
+import { checkRecallCast, travelAllowed } from '../../rune-helpers.js';
+import { findStandingZ, moveMobile } from '../../../_movement.js';
 
 export default {
   name: 'teleport',
@@ -10,7 +10,7 @@ export default {
     if (!picked) return;
     const nx = picked.x & 0xFFFF;
     const ny = picked.y & 0xFFFF;
-    const nz = picked.z | 0;
+    const requestedZ = picked.z | 0;
     // Audit #40 P1 #4 — ServUO `Teleport.cs:67-84` blockers:
     //   1. range ≤ 11 tiles
     //   2. CheckTravel (sigil/criminal/held-cursor — shared helper)
@@ -27,7 +27,15 @@ export default {
     }
     const refuse = checkRecallCast(api, caster, ctx.state);
     if (refuse) { ctx.state.sendSystemMessage(refuse); return; }
-    if (api.world.canSpawnMobile && !api.world.canSpawnMobile(nx, ny, nz, caster.map)) {
+    if (!travelAllowed(api, caster.map, nx, ny)) {
+      ctx.state.sendSystemMessage('A magical force prevents travel to that location.');
+      return;
+    }
+    // Client tile replies often carry the land base z while the legal floor
+    // is a bridge/static above it. ServUO calls GetSurfaceTop before
+    // CanSpawnMobile; use the shared movement resolver for the same snap.
+    const nz = findStandingZ(api, caster.map, nx, ny, requestedZ);
+    if (nz == null) {
       ctx.state.sendSystemMessage('You can not teleport there.');
       return;
     }
@@ -52,7 +60,11 @@ export default {
     broadcastEffect(api, api.world, caster, fx);
     broadcastSound(api, api.world, caster, 0x1FE);
 
-    if (!api.game?.mobile?.teleport?.(caster, { x: nx, y: ny, z: nz })) {
+    if (!api.game?.mobile?.teleport?.(
+      caster,
+      { x: nx, y: ny, z: nz, map: caster.map },
+      { state: ctx.state, refresh: true },
+    )) {
       const preObservers = [...clientsNear(api, api.world, caster, 18, caster)];
       if (api.protocol?.removeEntity) {
         const rm = api.protocol.removeEntity(caster.serial);

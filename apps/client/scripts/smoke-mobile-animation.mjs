@@ -14,6 +14,7 @@ const {
   resolveGroup,
   resolveRenderableGroup,
 } = await import('../src/renderer/mobile-animation.js');
+const { mountInfoForItem } = await import('../src/shared/mount-data.js');
 
 function action(...ids) {
   const actions = {};
@@ -24,7 +25,6 @@ function action(...ids) {
 }
 
 assets.mobilesAtlas = {
-  aliases: {},
   bodies: {
     // Body < 200 but only LOW animal groups exist, a common bodyconv/mobtypes case.
     6: action(0, 2, 5, 8, 9),
@@ -48,9 +48,20 @@ assets.mobilesAtlas = {
       ...action(1, 11),
       actionAliases: { 22: 11, 24: 11, 25: 11 },
     },
+    // Body.def in older clients maps these to ostard/llama compatibility
+    // art, but the extracted Bodyconv/UOP body is complete and canonical.
+    794: action(0, 1, 2, 5, 8),
+    219: action(0, 1, 2, 5, 8),
   },
+  aliases: { 794: { trueBody: 219, hue: 2128 } },
   mobTypes: {
     717: { type: 'MONSTER', flags: 0x10000 },
+  },
+  equipConv: {
+    400: {
+      100: { animBody: 500, gump: 123, hue: 321 },
+      101: { animBody: 501, gump: 124, hue: 322 },
+    },
   },
 };
 assets.prefetchMobileCycle = async () => {};
@@ -74,6 +85,31 @@ assert.equal(
   238,
   'small but valid rat art never switches to a horse-sized fallback',
 );
+assert.equal(
+  assets._mobileFrameMeta(794, 2, 0, 0).realBody,
+  794,
+  'canonical swamp-dragon frames win over obsolete Body.def ostard alias',
+);
+assert.equal(assets.mobileRenderHue(794, 77), 77, 'exact mount art keeps the server hue');
+assets.mobilesAtlas.aliases[238] = { trueBody: 226, hue: 1444 };
+assert.equal(assets.mobileRenderHue(238, 77), 1444, 'a real Body.def replacement overrides hue like CUO');
+delete assets.mobilesAtlas.aliases[238];
+assert.deepEqual(
+  assets.resolveEquipAnim(400, 100, 77),
+  { animBody: 500, hue: 77 },
+  'an item dye wins over the Equipconv default hue',
+);
+assert.deepEqual(
+  assets.resolveEquipAnim(400, 101, 0),
+  { animBody: 501, hue: 322 },
+  'an unhued item inherits the Equipconv default hue',
+);
+assert.deepEqual(
+  mountInfoForItem(0x3EBD),
+  { itemId: 0x3EBD, body: 0x031A, riderOffsetY: 0 },
+  'Layer.Mount swamp-dragon item resolves without relying on corrupt tiledata',
+);
+assert.equal(mountInfoForItem(0x3EB4).riderOffsetY, -9, 'unicorn rider offset mirrors ClassicUO');
 
 const anim = new MobileAnimation();
 anim.setBody(6);
@@ -143,12 +179,14 @@ const gait = new MobileAnimation();
 gait.setAction(Action.Walk);
 gait._frameCount = 6;
 gait.setContext({ moveDurationMs: 400 });
-for (let i = 0; i < 4; i++) gait.tick(0.1);
-assert.equal(gait.frame, 0, 'walk completes one gait cycle per tile interpolation');
+gait.tick(0.09);
+gait.tick(0.09);
+assert.equal(gait.frame, 2, 'walk advances at ClassicUO 80 ms character-frame cadence');
 gait.setAction(Action.Run);
 gait.setContext({ run: true, moveDurationMs: 200 });
 gait._frameCount = 6;
-for (let i = 0; i < 2; i++) gait.tick(0.1);
-assert.equal(gait.frame, 0, 'run completes one gait cycle in half the walk time');
+gait.tick(0.09);
+gait.tick(0.09);
+assert.equal(gait.frame, 4, 'run uses the same 80 ms frame timer instead of racing one cycle per tile');
 
 console.log('[smoke:mobile-animation] ok');

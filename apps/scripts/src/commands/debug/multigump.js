@@ -135,8 +135,10 @@ function buildLayout(entries, page, totalPages, filter) {
     const nameIdx = texts.length - 1;
     texts.push(`${idHex} · ${count} tiles`);
     const metaIdx = texts.length - 1;
-    lines.push(`{ text 30 ${y} 1153 ${nameIdx} }`);
-    lines.push(`{ text 210 ${y} 70 ${metaIdx} }`);
+    const preview = e.tiles.find((tile) => tile?.visible !== false) ?? e.tiles[0];
+    if (preview?.id) lines.push(`{ tilepicfit 8 ${y - 8} ${preview.id | 0} 0 44 32 }`);
+    lines.push(`{ text 58 ${y} 1153 ${nameIdx} }`);
+    lines.push(`{ text 225 ${y} 70 ${metaIdx} }`);
     // Place button — id offset by +1 to skip 0 (which Pixi treats as
     // "no response"). Decoded as buttonId-1 server-side.
     lines.push(`{ button 440 ${y - 2} 4005 4007 1 0 ${1000 + e.id} }`);
@@ -167,7 +169,9 @@ export default function register(api) {
       const id = +k;
       if (!Number.isFinite(id)) continue;
       const hex = id.toString(16);
-      if (filter && !hex.includes(filter) && !String(id).includes(filter)) continue;
+      const displayName = nameForMulti(id).toLowerCase();
+      if (filter && !hex.includes(filter) && !String(id).includes(filter)
+          && !displayName.includes(filter)) continue;
       list.push({ id, tiles: v });
     }
     list.sort((a, b) => a.id - b.id);
@@ -177,7 +181,9 @@ export default function register(api) {
     const slice = list.slice(s.page * PER_PAGE, (s.page + 1) * PER_PAGE);
 
     const { layout, texts } = buildLayout(slice, s.page, totalPages, s.filter);
-    api.gumps.send(state, { layout, texts, x: 80, y: 80 }, (resp) => {
+    api.gumps.send(state, {
+      layout, texts, x: 80, y: 80, gumpId: 0x4D554C54, // 'MULT'
+    }, (resp) => {
       const btn = resp.buttonId | 0;
       if (btn === 0) return;                          // close
       if (btn === 200) {                              // apply filter

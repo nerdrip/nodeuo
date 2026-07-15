@@ -16,7 +16,10 @@ import { acquireSprite, releaseSprite } from '../../renderer/sprite-pool.js';
 import { displayItemIdForAmount } from '../../shared/stack-graphics.js';
 
 export class ItemPic extends Control {
-  constructor(itemId, { hue = 0, width = 0, height = 0, amount = 1 } = {}) {
+  constructor(itemId, {
+    hue = 0, width = 0, height = 0, amount = 1,
+    maxWidth = 0, maxHeight = 0,
+  } = {}) {
     super();
     this.itemId = itemId | 0;
     this.amount = Math.max(1, amount | 0);
@@ -24,14 +27,20 @@ export class ItemPic extends Control {
     this.hue = hue | 0;
     this.width = width;
     this.height = height;
+    // Optional aspect-preserving containment box. Container grids used to
+    // poll this control for at most 20 animation frames and scale its whole
+    // node after the texture arrived. A lazily streamed atlas page can take
+    // longer than that, leaving swords/coins at their natural (sometimes
+    // hundreds-of-pixels) size across the entire desktop. Fit at the exact
+    // moment the texture resolves instead, with no timing race.
+    this.maxWidth = Math.max(0, maxWidth | 0);
+    this.maxHeight = Math.max(0, maxHeight | 0);
     /** @type {Sprite | null} */
     this._sprite = null;
-    this._loadToken = 0;
-    this._disposed = false;
     /** Gray-silver shimmer while the static texture resolves async.
      *  Same helper as GumpPic / Button / ResizePic so every loading
      *  surface in the client reads as one consistent state. */
-    this._shimmer = createShimmer(this.width || 22, this.height || 22);
+    this._shimmer = createShimmer(this.width || this.maxWidth || 22, this.height || this.maxHeight || 22);
     this.node.addChild(this._shimmer.gfx);
     this._mountTexture();
   }
@@ -53,7 +62,7 @@ export class ItemPic extends Control {
     this.amount = nextAmount;
     this._displayItemId = nextDisplayId;
     if (nextDisplayId === oldDisplayId) return;
-    this._loadToken++;
+    this.beginAsyncGeneration();
     if (this._sprite) releaseSprite(this._sprite);
     this._sprite = null;
     if (!this._shimmer) {
@@ -64,16 +73,28 @@ export class ItemPic extends Control {
   }
 
   async _mountTexture() {
-    const token = ++this._loadToken;
-    const tex = await assets.staticTexture(this._displayItemId);
-    if (this._disposed || token !== this._loadToken) return;
-    if (!tex) return; // stay on shimmer — id not in atlas
+    const generation = this.captureAsyncGeneration();
+    const loaded = await assets.staticTexture(this._displayItemId);
+    if (!this.asyncGenerationValid(generation)) return;
+    const tex = loaded ?? assets.placeholderTexture('static', this.maxWidth || this.width || 22, this.maxHeight || this.height || 22);
     this._sprite = acquireSprite(tex);
+    this._sprite._uoMissingAsset = !loaded ? { kind: 'static', id: this._displayItemId } : null;
     this._sprite.position.set(0, 0);
     // Adopt the sprite's natural size when no explicit bounds were
     // given. Container grids typically pass nothing — items come in
     // many sizes (bottle 22×22, sword 60×40, …).
-    if (this.width === 0 && this.height === 0) {
+    if (this.maxWidth > 0 || this.maxHeight > 0) {
+      const boxW = this.maxWidth || tex.width;
+      const boxH = this.maxHeight || tex.height;
+      const fit = Math.min(boxW / Math.max(1, tex.width), boxH / Math.max(1, tex.height), 1);
+      this._sprite.scale.set(fit, fit);
+      this._sprite.position.set(
+        Math.round((boxW - tex.width * fit) / 2),
+        Math.round((boxH - tex.height * fit) / 2),
+      );
+      this.width = boxW;
+      this.height = boxH;
+    } else if (this.width === 0 && this.height === 0) {
       this.width = tex.width; this.height = tex.height;
     } else {
       this._sprite.width  = this.width;
@@ -88,8 +109,6 @@ export class ItemPic extends Control {
   }
 
   dispose() {
-    this._disposed = true;
-    this._loadToken++;
     if (this._sprite) releaseSprite(this._sprite);
     this._sprite = null;
     this._shimmer?.dispose();

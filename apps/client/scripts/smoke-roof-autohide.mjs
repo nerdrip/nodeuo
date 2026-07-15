@@ -101,8 +101,10 @@ for (let y = 51; y <= 53; y++) {
   roofRing.push(roof(50, y), roof(54, y));
 }
 const wholeBuildingBounds = tallStructureBoundsForPlayer(roofRing, 52, 52, 0);
-assert.deepEqual(wholeBuildingBounds, { x0: 50, y0: 50, x1: 54, y1: 54 });
-assert.equal(shouldHideTallEntry(roofRing[0], 52, 52, true, 5, Infinity, wholeBuildingBounds), true);
+assert.equal(wholeBuildingBounds, null, 'open courtyard/street inside a roof bounding box stays outdoors');
+const coveredRingBounds = tallStructureBoundsForPlayer(roofRing, 50, 52, 0);
+assert.deepEqual(coveredRingBounds, { x0: 50, y0: 50, x1: 54, y1: 54 });
+assert.equal(shouldHideTallEntry(roofRing[0], 50, 52, true, 5, Infinity, coveredRingBounds), true);
 
 const britainBankLikeCeiling = [];
 for (let x = 60; x <= 64; x++) {
@@ -130,7 +132,8 @@ renderer._dynamicTalls.set(1, [dynamicMultiRoof]);
 assert.equal(renderer._computeMaxDrawZ(10, 10, 0), 20);
 assert.equal(renderer._computeMaxDrawZ(14, 10, 0), 20);
 assert.equal(renderer._computeMaxDrawZ(12, 10, 0), Infinity);
-assert.equal(renderer._computeMaxDrawZ(31, 31, 0), 20);
+assert.equal(renderer._computeMaxDrawZ(31, 31, 0), Infinity, 'dynamic component bounds alone do not mean cover');
+assert.equal(renderer._computeMaxDrawZ(30, 30, 0), 20);
 assert.equal(renderer._computeMaxDrawZ(62, 62, 0), 20);
 assert.equal(renderer._computeMaxDrawZ(62, 62, 20), Infinity);
 

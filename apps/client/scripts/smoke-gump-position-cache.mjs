@@ -27,7 +27,7 @@ const {
   resetGumpPositionCacheForTests,
 } = await import('../src/ui/gump.js');
 
-store.set('uo.gump-positions', JSON.stringify({ paperdoll: { x: 11, y: 22 } }));
+store.set('uo.gump-positions.v2', JSON.stringify({ paperdoll: { x: 11, y: 22 } }));
 resetGumpPositionCacheForTests();
 getCalls = 0;
 setCalls = 0;

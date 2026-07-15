@@ -128,14 +128,34 @@ export class WorldmapGump extends WindowGump {
     this.add(this._facetCombo);
     // Plot-route toggle button (cycles `_plotMode`).
     this._plotMode = false;
-    this._route = []; // { x, y } tile coords
+    this._route = this._savedRouteForFacet(this._mapFacet); // { x, y } tile coords
     this._plotBtn = new Button({
       normalGumpId: 0x0481, pressedGumpId: 0x0482,
       width: 80, height: 22, label: 'Plot Route', action: ButtonAction.Activate, flat: true,
     });
-    this._plotBtn.setPosition(VIEWPORT_W - 220, 28 + VIEWPORT_H + 2);
+    this._plotBtn.setPosition(VIEWPORT_W - 320, 28 + VIEWPORT_H + 2);
     this._plotBtn.onClick = () => this._togglePlot();
     this.add(this._plotBtn);
+    this._clearRouteBtn = new Button({
+      normalGumpId: 0x0481, pressedGumpId: 0x0482,
+      width: 82, height: 22, label: 'Clear Route', action: ButtonAction.Activate, flat: true,
+    });
+    this._clearRouteBtn.setPosition(VIEWPORT_W - 232, 28 + VIEWPORT_H + 2);
+    this._clearRouteBtn.onClick = () => this._clearRoute();
+    this.add(this._clearRouteBtn);
+    this._centerBtn = new Button({
+      normalGumpId: 0x0481, pressedGumpId: 0x0482,
+      width: 78, height: 22, label: 'My Position', action: ButtonAction.Activate, flat: true,
+    });
+    this._centerBtn.setPosition(VIEWPORT_W - 406, 28 + VIEWPORT_H + 2);
+    this._centerBtn.onClick = () => this._centerOnPlayer();
+    this.add(this._centerBtn);
+    this._helpLabel = new Label('Drag: pan  •  wheel: zoom  •  Plot Route then left-click waypoints', {
+      fontSize: 10, hue: 0x9f967c, stroke: false,
+    });
+    this._helpLabel.setPosition(14, 28 + VIEWPORT_H + 23);
+    this._helpLabel.acceptMouseInput = false;
+    this.add(this._helpLabel);
 
     /** centre of the visible window in *tile* coords */
     this._cx = world.player?.x ?? 1500;
@@ -153,6 +173,8 @@ export class WorldmapGump extends WindowGump {
 
     this._lastRedraw = 0;
     this._lastTerrainKey = '';
+    this._terrainPendingKey = '';
+    this._terrainToken = 0;
     this._staticRadarKey = '';
     this._staticRadarPendingKey = '';
     this._staticRadar = new Map();
@@ -229,6 +251,17 @@ export class WorldmapGump extends WindowGump {
 
   onMouseDown(btn, lx, ly) {
     if (lx < 10 || lx > 10 + VIEWPORT_W || ly < 28 || ly > 28 + VIEWPORT_H) return;
+    // RMB on a gump is reserved by UIManager for the canonical close
+    // gesture, so the former RMB-only waypoint branch was unreachable.
+    // In route mode a left click appends a point; outside it left-drag pans.
+    if (btn === 0 && this._plotMode) {
+      const tx = Math.round(this._cx + (lx - 10 - VIEWPORT_W / 2) / this._zoom);
+      const ty = Math.round(this._cy + (ly - 28 - VIEWPORT_H / 2) / this._zoom);
+      this._route.push({ x: tx, y: ty });
+      this._persistRoute();
+      this._updatePlayerOverlay(true);
+      return;
+    }
     // Audit rev.4 P2 — RMB on the canvas = drop a user marker at the
     // hit tile. Audit rev.9 P2 #6 — when Plot Route mode is active,
     // RMB instead appends a waypoint to the in-flight route.
@@ -256,6 +289,7 @@ export class WorldmapGump extends WindowGump {
     const facet = f | 0;
     if (facet < 0 || facet > 5) return;
     this._mapFacet = facet;
+    this._route = this._savedRouteForFacet(facet);
     await this._ensureFacet(facet);
   }
 
@@ -280,11 +314,40 @@ export class WorldmapGump extends WindowGump {
   _togglePlot() {
     this._plotMode = !this._plotMode;
     if (!this._plotMode) {
-      // Finalise: persist to profile so the next session sees it.
-      try { profile.set?.(`worldmap.routes.${this._mapFacet}`, this._route.slice()); }
-      catch { /* localStorage full / SSR */ }
+      this._persistRoute();
     }
-    this._plotBtn.setLabel?.(this._plotMode ? 'Done Route' : 'Plot Route');
+    this._plotBtn.setLabel?.(this._plotMode ? 'Finish Route' : 'Plot Route');
+    this._helpLabel?.setText?.(this._plotMode
+      ? 'Route mode: left-click waypoints • Finish saves • Clear removes'
+      : 'Drag: pan  •  wheel: zoom  •  Plot Route then left-click waypoints');
+    this._updatePlayerOverlay(true);
+  }
+
+  _savedRouteForFacet(facet) {
+    const saved = profile.get?.(`worldmap.routes.${facet | 0}`);
+    return Array.isArray(saved)
+      ? saved.filter((p) => Number.isFinite(p?.x) && Number.isFinite(p?.y))
+        .map((p) => ({ x: p.x | 0, y: p.y | 0 }))
+      : [];
+  }
+
+  _persistRoute() {
+    try { profile.set?.(`worldmap.routes.${this._mapFacet}`, this._route.slice()); }
+    catch { /* localStorage full / SSR */ }
+  }
+
+  _clearRoute() {
+    this._route = [];
+    this._persistRoute();
+    this._updatePlayerOverlay(true);
+  }
+
+  _centerOnPlayer() {
+    if (!world.player || (world.player.map ?? world.mapId ?? 0) !== this._mapFacet) return;
+    this._cx = world.player.x | 0;
+    this._cy = world.player.y | 0;
+    this._autoPan = true;
+    this._render(true);
     this._updatePlayerOverlay(true);
   }
 
@@ -559,7 +622,8 @@ export class WorldmapGump extends WindowGump {
     if (this._plotMode || this._route?.length) {
       this._drawRoute(this._route, this._plotMode ? 0xffe080 : 0x80c0ff);
     }
-    if (!this._plotMode && Array.isArray(savedRoute) && savedRoute.length) {
+    if (!this._plotMode && this._route.length === 0
+        && Array.isArray(savedRoute) && savedRoute.length) {
       this._drawRoute(savedRoute, 0x80c0ff);
     }
   }
@@ -696,6 +760,12 @@ export class WorldmapGump extends WindowGump {
     this._lastTerrainY0 = y0;
     const w  = Math.ceil(VIEWPORT_W / zoom);
     const h  = Math.ceil(VIEWPORT_H / zoom);
+    const cx0 = Math.floor(x0 / 8), cy0 = Math.floor(y0 / 8);
+    const cx1 = Math.floor((x0 + w - 1) / 8), cy1 = Math.floor((y0 + h - 1) / 8);
+    const terrainKey = `${facet}|${cx0}|${cy0}|${cx1}|${cy1}`;
+    if (!assets.isMapRegionLoaded?.(cx0, cy0, cx1, cy1, facet)) {
+      this._prepareTerrainRegion(terrainKey, facet, cx0, cy0, cx1, cy1);
+    }
 
     const px32 = this._pixelsU32;
     px32.fill(0xff000000); // RGBA little-endian; alpha=0xFF, RGB=0
@@ -751,6 +821,20 @@ export class WorldmapGump extends WindowGump {
     }
     this._ctx.putImageData(this._imgData, 0, 0);
     this._tex.source.update();
+  }
+
+  async _prepareTerrainRegion(key, facet, cx0, cy0, cx1, cy1) {
+    if (this._terrainPendingKey === key) return;
+    this._terrainPendingKey = key;
+    const token = ++this._terrainToken;
+    try {
+      await assets.fetchBlockRegion?.(cx0, cy0, cx1, cy1, facet);
+    } catch { /* a partial radar map is still useful offline */ }
+    if (token !== this._terrainToken || this._terrainPendingKey !== key) return;
+    this._terrainPendingKey = '';
+    if (!assets.isMapRegionLoaded?.(cx0, cy0, cx1, cy1, facet)) return;
+    this._lastTerrainFacet = -1;
+    this._render(true);
   }
 
   async _prepareStaticRadar(key, facet, x0, y0, w, h) {

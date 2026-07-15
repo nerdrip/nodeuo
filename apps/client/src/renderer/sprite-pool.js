@@ -19,17 +19,17 @@
 // land/static, chunk items, mobile renderer in some flows). A standalone
 // module keeps the policy consistent across all of them.
 
-import { Sprite, Texture } from 'pixi.js';
+import { MeshSimple, Sprite, Texture } from 'pixi.js';
 
 const DEFAULT_CAP = 4096;
 const textureDescriptor = Object.getOwnPropertyDescriptor(Sprite.prototype, 'texture');
 
-function retainTexture(texture) {
+export function retainTexture(texture) {
   if (!texture || texture === Texture.EMPTY) return;
   texture._uoLiveSpriteRefs = ((texture._uoLiveSpriteRefs | 0) + 1) >>> 0;
 }
 
-function releaseTexture(texture) {
+export function releaseTexture(texture) {
   if (!texture || texture === Texture.EMPTY) return;
   texture._uoLiveSpriteRefs = Math.max(0, (texture._uoLiveSpriteRefs | 0) - 1);
   if (texture._uoLiveSpriteRefs === 0 && typeof texture._uoDisposeWhenUnused === 'function') {
@@ -176,3 +176,39 @@ export function acquireSprite(texture) { return spritePool.acquire(texture); }
 
 /** Convenience: replace `sp.destroy()` everywhere with `releaseSprite(sp)`. */
 export function releaseSprite(sp) { spritePool.release(sp); }
+
+class LandMeshPool {
+  constructor(cap = 2048) { this._free = []; this._cap = cap; this._active = 0; this._allocs = 0; this._reuses = 0; }
+  acquire(texture, vertices, uvs, indices) {
+    let mesh = this._free.pop();
+    if (!mesh) {
+      mesh = new MeshSimple({ texture, vertices, uvs, indices });
+      mesh._uoLandMeshPool = true; this._allocs++;
+      retainTexture(texture);
+    } else {
+      this._reuses++;
+      releaseTexture(mesh.texture); mesh.texture = texture; retainTexture(texture);
+      const positions = mesh.geometry.getBuffer('aPosition'); positions.data = vertices; positions.update();
+      const uv = mesh.geometry.getBuffer('aUV'); uv.data = uvs; uv.update();
+    }
+    mesh.visible = true; mesh.alpha = 1; mesh.tint = 0xffffff; mesh.filters = null;
+    mesh.position.set(0, 0); mesh.scale.set(1, 1); mesh.rotation = 0;
+    mesh._uoLandMeshActive = true; this._active++;
+    return mesh;
+  }
+  release(mesh) {
+    if (!mesh?._uoLandMeshPool || !mesh._uoLandMeshActive || mesh.destroyed) return false;
+    mesh._uoLandMeshActive = false; this._active = Math.max(0, this._active - 1);
+    if (mesh.parent) { try { mesh.parent.removeChild(mesh); } catch {} }
+    releaseTexture(mesh.texture); mesh.texture = Texture.EMPTY; mesh.visible = false; mesh.filters = null;
+    if (this._free.length >= this._cap) { try { mesh.destroy(); } catch {} } else this._free.push(mesh);
+    return true;
+  }
+  stats() { return { free: this._free.length, active: this._active, cap: this._cap, allocs: this._allocs, reuses: this._reuses }; }
+  destroyAll() { for (const mesh of this._free) try { mesh.destroy(); } catch {} this._free.length = 0; this._active = 0; }
+}
+
+export const landMeshPool = new LandMeshPool();
+export { LandMeshPool };
+export function acquireLandMesh(texture, vertices, uvs, indices) { return landMeshPool.acquire(texture, vertices, uvs, indices); }
+export function releaseLandMesh(mesh) { return landMeshPool.release(mesh); }

@@ -79,7 +79,8 @@ for (const entry of _CAST_ENTRIES) {
     // now. Mirror onto BOTH names so every caller path (cast.js +
     // server registry) sees a consistent flag.
     needsTarget: mod.needsTarget ?? row.requiresTarget ?? false,
-    targetKind:  mod.targetKind ?? row.targetKind,
+    targetKind:  mod.targetKind ?? row.targetKind
+      ?? ((mod.needsTarget ?? row.requiresTarget ?? false) ? 'object' : undefined),
     // reagents come from JSON post-strip; per-spell files no longer
     // declare them. Keep mod.reagents as fallback for any file the
     // strip pass missed.
@@ -146,10 +147,10 @@ function _buildScriptApi(rootApi) {
   };
 }
 
-function _buildScriptCtx(caster) {
+function _buildScriptCtx(caster, target = null) {
   const sysMsg = (line) => caster.client?.sendSystemMessage?.(line);
   const state = caster.client ?? { sendSystemMessage: sysMsg };
-  return { sender: caster, state };
+  return { sender: caster, state, target };
 }
 
 /** Default export consumed by ScriptRuntime — registers every spell into
@@ -207,7 +208,7 @@ export default function register(rootApi) {
               },
             },
           };
-          spell.cast(callApi, _buildScriptCtx(ctx.caster), ctx.target);
+          spell.cast(callApi, _buildScriptCtx(ctx.caster, ctx.target), ctx.target);
         } catch (e) {
           rootApi.log?.(`spell ${spell.name} effect threw: ${e?.message ?? e}`);
           if (globalThis.process?.env?.DEBUG_SPELL_THROW) console.error(`[spell ${spell.name}]`, e);

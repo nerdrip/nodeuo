@@ -53,6 +53,16 @@ describe('frameIncoming', () => {
     expect(() => frameIncoming(new Uint8Array([0xFF, 0x00, 0x00]))).toThrow();
   });
 
+  it('honours a packet budget and leaves the remaining coalesced bytes intact', () => {
+    const buf = new Uint8Array([0x73, 1, 0x73, 2, 0x73, 3]);
+    const first = frameIncoming(buf, { maxPackets: 2 });
+    expect(first).toMatchObject({ consumed: 4, limited: true });
+    expect(first.packets.map((p) => p[1])).toEqual([1, 2]);
+    const second = frameIncoming(buf.subarray(first.consumed), { maxPackets: 2 });
+    expect(second).toMatchObject({ consumed: 2, limited: false });
+    expect(second.packets[0][1]).toBe(3);
+  });
+
   it('exposes the valid packet prefix when a malformed tail follows it', () => {
     const buf = new Uint8Array([
       0x02, 0x07, 0x40, 0x2b, 0xfb, 0x96, 0x02,

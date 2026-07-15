@@ -42,7 +42,7 @@ export function simulateCombat(attackerMob, defenderMob, { trials = 5000, seed =
     hits++; total += damage; samples.push(damage);
   }
   samples.sort((a, b) => a - b);
-  const delayMs = swingDelayMs(cloneCombatant(attackerMob), attackerMob?._weapon?.speed ?? 3);
+  const delayMs = swingDelayMs(cloneCombatant(attackerMob), attackerMob?._weapon?.speed ?? 30);
   const averagePerSwing = total / count;
   const dps = averagePerSwing / (delayMs / 1000);
   const hp = Math.max(1, defenderMob.hpMax ?? defenderMob.hp ?? 1);

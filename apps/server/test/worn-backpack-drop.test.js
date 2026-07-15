@@ -69,9 +69,9 @@ describe('worn backpack drop without explicit open', () => {
     const handlers = buildHandlers();
     handlers[0x07](state, pickup(item.serial));
     expect(state.heldItem).toBe(item);
-    handlers[0x08](state, drop(item.serial, 105, 105, 5));
+    handlers[0x08](state, drop(item.serial, 102, 102, 0));
     expect(item.parent).toBeNull();
-    expect(item.x).toBe(105);
+    expect(item.x).toBe(102);
   });
 
   it('splits a stack on partial lift and merges it back on drop', () => {

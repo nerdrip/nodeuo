@@ -9,6 +9,7 @@ globalThis.localStorage ??= {
 const { assets } = await import('../src/assets/asset-manager.js');
 const { world } = await import('../src/world/world.js');
 const { pathfind, pathfindAsync, pathfindStats } = await import('../src/world/pathfinder.js');
+const { isLocallyBlocked } = await import('../src/world/walkability.js');
 const { readFileSync } = await import('node:fs');
 
 function assert(condition, message) {
@@ -56,6 +57,34 @@ try {
 
   dirs = await pathfindAsync({ x: 0, y: 0, z: 0, map: 1 }, 2, 0);
   assert(Array.isArray(dirs), 'async pathfinder fallback should resolve');
+
+  // Canonical stair-top regression (Trinsic 1873,2803): the source body is
+  // one z-unit inside a low wall skirt, but the destination floor is flush
+  // with its top. Clearance must be tested at destination standing-Z.
+  world.reset();
+  const lowWallId = 0x01B1;
+  const upperFloorId = 0x04C7;
+  assets.tiledata = { statics: [] };
+  assets.tiledata.statics[lowWallId] = { flags: 0x00000040, height: 3 };
+  assets.tiledata.statics[upperFloorId] = { flags: 0x00000200, height: 0 };
+  assets.staticsAt = (cx, cy) => (cx === 0 && cy === 0 ? [
+    { id: lowWallId, x: 1, y: 0, z: 30 },
+    { id: upperFloorId, x: 1, y: 0, z: 33 },
+  ] : []);
+  assert(
+    !isLocallyBlocked(1, 0, 32, 1),
+    'low wall skirt below an upper stair landing must not block the step',
+  );
+  dirs = pathfind({ x: 0, y: 0, z: 32, map: 1 }, 1, 0);
+  assert(dirs?.[0] === 2, `upper stair landing should path east directly, got ${dirs}`);
+
+  const stairMob = world.ensureMobile(0x40000022);
+  Object.assign(stairMob, { x: 1873, y: 2803, z: 32 });
+  stairMob.beginMoveStep(0, -1, 5, 400, 1000, false);
+  assert(
+    stairMob.moveSortStartRow === stairMob.moveSortEndRow + 1,
+    'stair elevation must not be misread as an extra isometric row',
+  );
 
   const pathfinderSource = readFileSync(new URL('../src/world/pathfinder.js', import.meta.url), 'utf8');
   const workerSource = readFileSync(new URL('../src/world/pathfinder-worker.js', import.meta.url), 'utf8');

@@ -9,6 +9,7 @@
 import { Application, Container } from 'pixi.js';
 import { Time, tickClock } from './time.js';
 import { bus } from './event-bus.js';
+import { clientRuntimeProfile } from '../shared/runtime-governor.js';
 
 const LONG_TASK_THRESHOLD_MS = 50;
 const LONG_TASK_HISTORY_SIZE = 32;
@@ -26,11 +27,11 @@ export const clientPerfStats = {
   maxLongTaskMs: 0,
   longTaskHead: 0,
   longTaskHistory: Array.from({ length: LONG_TASK_HISTORY_SIZE }, () => ({
-    at: 0, ms: 0, frameMs: 0, lagMs: 0,
+    at: 0, ms: 0, frameMs: 0, lagMs: 0, subsystem: 'unknown',
   })),
 };
 
-export function recordClientLongTask(ms, now = performance.now(), frameMs = ms, lagMs = 0) {
+export function recordClientLongTask(ms, now = performance.now(), frameMs = ms, lagMs = 0, subsystem = 'frame') {
   const value = Math.max(0, Number(ms) || 0);
   const idx = clientPerfStats.longTaskHead % LONG_TASK_HISTORY_SIZE;
   const entry = clientPerfStats.longTaskHistory[idx];
@@ -38,6 +39,7 @@ export function recordClientLongTask(ms, now = performance.now(), frameMs = ms, 
   entry.ms = value;
   entry.frameMs = Math.max(0, Number(frameMs) || 0);
   entry.lagMs = Math.max(0, Number(lagMs) || 0);
+  entry.subsystem = String(subsystem || 'frame');
   clientPerfStats.longTaskHead = (clientPerfStats.longTaskHead + 1) >>> 0;
   clientPerfStats.longTaskCount++;
   clientPerfStats.lastLongTaskMs = value;
@@ -78,7 +80,9 @@ export class GameController {
       // UltimaBatcher2D paints at native resolution; >1 caused our
       // 44×22 diamond sprites to bleed at chunk seams.
       resolution: 1,
-      backgroundColor: 0x143a5a,  // ocean blue
+      // The full browser surface is UI chrome; the actual ocean/world
+      // backdrop is painted only inside Camera's masked viewport.
+      backgroundColor: 0x070b10,
       // WebGL2 preferred — Pixi v8's WebGPU backend uses a single
       // global UniformBufferBatch capped at ~256KB which overflows on
       // dense scenes ("UniformBufferBatch: ubo batch got too big"
@@ -156,7 +160,13 @@ export class GameController {
       if (document.hidden) {
         this._fpsCapBeforeHide = this.app.ticker.maxFPS || 0;
         this.app.ticker.maxFPS = 1;
+        clearTimeout(this._inactiveTrimTimer);
+        this._inactiveTrimTimer = setTimeout(() => {
+          if (document.hidden) bus.emit('assets:trim-inactive');
+        }, clientRuntimeProfile.inactiveTrimMs);
       } else {
+        clearTimeout(this._inactiveTrimTimer);
+        this._inactiveTrimTimer = null;
         this.app.ticker.maxFPS = this._fpsCapBeforeHide;
       }
     };
@@ -167,6 +177,7 @@ export class GameController {
     // would have leaked when (rare) GameController instances were
     // recreated (e.g. tests). Keep the reference so destroy() can detach.
     this._onResize = () => {
+      bus.emit('ui:viewport-resized', { width: window.innerWidth, height: window.innerHeight });
       this.scene?.resize(window.innerWidth, window.innerHeight);
     };
     window.addEventListener('resize', this._onResize);
@@ -177,6 +188,7 @@ export class GameController {
         const h = Math.round(rect?.height ?? 0);
         if (w <= 0 || h <= 0 || (w === this._observedW && h === this._observedH)) return;
         this._observedW = w; this._observedH = h;
+        bus.emit('ui:viewport-resized', { width: w, height: h });
         this.scene?.resize(window.innerWidth, window.innerHeight);
       });
       this._resizeObserver.observe(this.mountPoint);
@@ -256,6 +268,8 @@ export class GameController {
         recordClientLongTask(frameMs, now, frameMs, lag);
       }
     }
+    clearTimeout(this._inactiveTrimTimer);
+    this._inactiveTrimTimer = null;
     this._lastTickAt = now;
     tickClock(now);
     // Frame heartbeat for managers/UI that need a per-frame timer (e.g.
@@ -269,5 +283,10 @@ export class GameController {
     clientPerfStats.updateMs = drawStart - updateStart;
     clientPerfStats.drawMs = done - drawStart;
     clientPerfStats.tickMs = done - now;
+    if (clientPerfStats.tickMs >= LONG_TASK_THRESHOLD_MS) {
+      const subsystem = clientPerfStats.updateMs >= clientPerfStats.drawMs ? 'scene.update' : 'scene.draw';
+      const latest = clientPerfStats.longTaskHistory[(clientPerfStats.longTaskHead - 1 + LONG_TASK_HISTORY_SIZE) % LONG_TASK_HISTORY_SIZE];
+      if (latest?.at === now) latest.subsystem = subsystem;
+    }
   }
 }

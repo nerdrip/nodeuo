@@ -34,6 +34,17 @@ export default function register(api) {
         state.sendSystemMessage(`Usage: [cast ${Object.keys(SPELLS).join('|')}`);
         return;
       }
+      // Live server path: delegate to the exact dispatcher used by spellbook
+      // clicks and action-bar macros. The old command carried a second cast
+      // engine (different FC/FCR, costs, words and target order), which is why
+      // `[cast fireball` behaved differently from clicking Fireball. Keep the
+      // legacy body below only for isolated script tests that intentionally
+      // provide no server handler bag.
+      const sharedDispatch = api.ctx?.handlers?.dispatchCast;
+      if (typeof sharedDispatch === 'function' && Number.isFinite(spell.id)) {
+        sharedDispatch(state, spell.id);
+        return;
+      }
       // FAZA AI — Chivalry uses Tithing Points instead of mana. Each
       // chiv spell carries a `tithe` cost (default 5); when the school
       // is 'chivalry' we consume from `caster.tithingPoints`. Other
@@ -164,7 +175,8 @@ export default function register(api) {
       api.targeting.request(state, (picked) => {
         if (!picked) { state.sendSystemMessage('Spell fizzled.'); return; }
         if (isLocation) { spell.cast(api, ctx, picked); return; }
-        const target = mobileBySerial(api, picked.serial >>> 0);
+        const target = mobileBySerial(api, picked.serial >>> 0)
+          ?? itemBySerial(api, picked.serial >>> 0);
         if (!target) { state.sendSystemMessage('Invalid target.'); return; }
         spell.cast(api, ctx, target);
       }, { kind: isLocation ? 1 : 0 });

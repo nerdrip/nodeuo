@@ -27,12 +27,26 @@ import {
   buildPlayCharacter, buildClientVersion, buildSystemInfo,
   buildCreateCharacter, buildDeleteCharacter, buildPing,
 } from '../net/outgoing.js';
-import { GameScene } from './game-scene.js';
-import { profile } from '../managers/profile-manager.js';
 import { assets } from '../assets/asset-manager.js';
 import { SKILL_NAMES_BY_ID } from '../shared/skill-ids.js';
 
 const LS_PREFIX = 'uo.login.';
+let loginProfileCache;
+
+// Login only needs four scalar preferences. Importing the full in-game
+// ProfileManager here pulled its large defaults, layout migration and gump
+// state machinery into the cold login graph. Read the same persisted global
+// document directly and let ProfileManager perform its normal full migration
+// when the world bundle is prepared.
+function loginProfileSetting(path, fallback) {
+  if (loginProfileCache === undefined) {
+    try { loginProfileCache = JSON.parse(localStorage.getItem('uo.profile') || '{}'); }
+    catch { loginProfileCache = {}; }
+  }
+  let value = loginProfileCache;
+  for (const part of String(path).split('.')) value = value?.[part];
+  return value ?? fallback;
+}
 const ADVANCED_PROFESSION_ID = 0;
 const CREATE_SKILL_COUNT = 4;
 const CREATE_STAT_TOTAL = 90;
@@ -42,6 +56,7 @@ const CREATE_SKILL_TOTALS = new Set([100, 120]);
 export const LoginSteps = Object.freeze({
   Main:                  'Main',
   Connecting:            'Connecting',
+  Reconnecting:          'Reconnecting',
   VerifyingAccount:      'VerifyingAccount',
   ServerSelection:       'ServerSelection',
   LoginInToServer:       'LoginInToServer',
@@ -404,12 +419,29 @@ export class LoginScene extends Scene {
     this._creationPage = 0;
     this._previewImageCache = new Map();
     this._previewPaintToken = 0;
+    this._reconnectTryCounter = 0;
+    this._reconnectTimer = null;
+    this._reconnectTicker = null;
+    this._reconnectCancelled = false;
   }
 
   // --------------------------------------------------------------------------
   // Scene lifecycle
 
   async load() {
+    // The login backdrop is deliberately low-motion and does not benefit from
+    // driving Pixi at 60-240 Hz.  Keep the account flow responsive while
+    // avoiding a permanently hot GPU on the screen where users can idle for
+    // the longest time.  Preserve a stricter user cap and restore the exact
+    // game cap when the world scene takes over.
+    this._tickerMaxFpsBeforeLogin = this.gc.app.ticker.maxFPS || 0;
+    if (!this._tickerMaxFpsBeforeLogin || this._tickerMaxFpsBeforeLogin > 30) {
+      this.gc.app.ticker.maxFPS = 30;
+    }
+
+    // Re-read preferences after a logout; the Options gump may have changed
+    // reconnect behaviour while the previous world scene was active.
+    loginProfileCache = undefined;
     this._backdrop = new LoginBackdrop(this.gc.ui);
     this._mountBg();
 
@@ -437,11 +469,16 @@ export class LoginScene extends Scene {
 
   unload() {
     this._stopServerPingProbe();
+    this._cancelReconnect({ returnToMain: false });
     for (const u of this._unsubs) u();
     this._unsubs.length = 0;
     this._panel?.remove(); this._panel = null;
     this._bg?.remove();    this._bg = null;
     this._backdrop?.destroy(); this._backdrop = null;
+    if (this._tickerMaxFpsBeforeLogin != null) {
+      this.gc.app.ticker.maxFPS = this._tickerMaxFpsBeforeLogin;
+      this._tickerMaxFpsBeforeLogin = null;
+    }
   }
 
   resize() { /* DOM panels centered via CSS */ }
@@ -460,6 +497,7 @@ export class LoginScene extends Scene {
     switch (step) {
       case LoginSteps.Main:                  this._renderMain(); break;
       case LoginSteps.Connecting:            this._renderLoading('Connecting to server'); break;
+      case LoginSteps.Reconnecting:          this._renderReconnect(payload); break;
       case LoginSteps.VerifyingAccount:      this._renderLoading('Verifying account'); break;
       case LoginSteps.ServerSelection:       this._renderServerSelection(); break;
       case LoginSteps.LoginInToServer:       this._renderLoading('Logging in to server'); break;
@@ -603,14 +641,14 @@ export class LoginScene extends Scene {
     if (el) el.textContent = text ?? '';
   }
 
-  async _doConnect() {
-    if (!this._panel) return;
-    const host = this._panel.querySelector('#m-host').value.trim();
-    const port = Number(this._panel.querySelector('#m-port').value.trim());
-    const account = this._panel.querySelector('#m-account').value.trim();
-    const password = this._panel.querySelector('#m-password').value;
-    const mode = this._panel.querySelector('#m-mode')?.value ?? 'ws';
-    const bridgeUrl = this._panel.querySelector('#m-bridge')?.value?.trim()
+  async _doConnect(cached = null) {
+    if (!cached && !this._panel) return;
+    const host = cached?.host ?? this._panel.querySelector('#m-host').value.trim();
+    const port = Number(cached?.port ?? this._panel.querySelector('#m-port').value.trim());
+    const account = cached?.account ?? this._panel.querySelector('#m-account').value.trim();
+    const password = cached?.password ?? this._panel.querySelector('#m-password').value;
+    const mode = cached?.mode ?? this._panel.querySelector('#m-mode')?.value ?? 'ws';
+    const bridgeUrl = cached?.bridgeUrl ?? this._panel.querySelector('#m-bridge')?.value?.trim()
                    ?? 'ws://127.0.0.1:2595/bridge';
     if (!host || !port || !account) {
       this._setMainMsg('please fill server, port and account');
@@ -636,9 +674,16 @@ export class LoginScene extends Scene {
     try {
       await net.connect(url);
     } catch (e) {
+      if (cached && !this._reconnectCancelled) {
+        this._scheduleReconnect({ immediateFailure: e.message });
+        return;
+      }
       this._showPopup(`Connection failed: ${e.message}`, () => this._setStep(LoginSteps.Main));
       return;
     }
+    this._clearReconnectTimers();
+    this._reconnectTryCounter = 0;
+    this._reconnectCancelled = false;
     this._setStep(LoginSteps.VerifyingAccount);
     net.send(buildLoginSeed(0x7F000001));
     net.send(buildAccountLogin(account, password));
@@ -941,6 +986,7 @@ export class LoginScene extends Scene {
       console.log(`[login] PlayCharacter slot=${slot} name='${c?.name ?? ''}' | char list: ${allNames}`);
     }
     this._setStep(LoginSteps.EnteringBritania);
+    void this._prepareWorld();
     net.send(buildPlayCharacter(c?.name ?? '', slot));
   }
 
@@ -948,6 +994,7 @@ export class LoginScene extends Scene {
   // Step: CharacterCreation — 4 sub-pages
 
   _beginCreation() {
+    void assets.initCharacterCreation?.();
     this._creation = {
       name: '',
       sex: 0, race: 0,
@@ -1075,6 +1122,8 @@ export class LoginScene extends Scene {
    *  the in-world sprite uses the real palette downstream. */
   async _renderCcPreview(target) {
     if (!target) return;
+    await assets.initCharacterCreation?.();
+    if (!target.isConnected) return;
     const c = this._creation;
     const isFemale = c.sex === 1;
     const bodyGumpId = isFemale ? 0x000D : 0x000C;
@@ -1517,6 +1566,7 @@ export class LoginScene extends Scene {
     const c = this._creation;
     c.city = cityIndex;
     this._setStep(LoginSteps.CharacterCreationDone);
+    void this._prepareWorld();
     net.send(buildCreateCharacter({
       name: c.name, sex: c.sex, race: c.race, profession: c.profession,
       str: c.str, dex: c.dex, int: c.int,
@@ -1599,46 +1649,61 @@ export class LoginScene extends Scene {
 
   _onSocketClosed() {
     if (this._step === LoginSteps.Main) return;
-    if (this._step === LoginSteps.PopUpMessage) return;
-    // Audit #46 P2 — auto-reconnect (CUO `LoginScene.cs:139-163`).
-    // When `login.autoReconnect` profile flag is on, retry up to
-    // `reconnectMaxTries` × `reconnectIntervalMs` ms before giving
-    // up; surface countdown in a popup so the user sees progress.
-    const enabled = profile?.get?.('login.autoReconnect') !== false;
+    if (this._step === LoginSteps.PopUpMessage || this._reconnectCancelled) return;
+    const enabled = loginProfileSetting('login.autoReconnect', true) !== false;
     if (!enabled) {
       this._showPopup('Connection lost.', () => this._setStep(LoginSteps.Main));
       return;
     }
-    const intervalMs = (profile?.get?.('login.reconnectIntervalMs') | 0) || 5000;
-    const maxTries   = (profile?.get?.('login.reconnectMaxTries')   | 0) || 12;
+    this._scheduleReconnect();
+  }
+
+  _clearReconnectTimers() {
+    clearTimeout(this._reconnectTimer);
+    clearInterval(this._reconnectTicker);
+    this._reconnectTimer = null;
+    this._reconnectTicker = null;
+  }
+
+  _cancelReconnect({ returnToMain = true } = {}) {
+    this._reconnectCancelled = true;
+    this._clearReconnectTimers();
+    this._reconnectTryCounter = 0;
+    if (returnToMain && this._step !== LoginSteps.Main) this._setStep(LoginSteps.Main);
+  }
+
+  _scheduleReconnect({ immediateFailure = '' } = {}) {
+    const intervalMs = (loginProfileSetting('login.reconnectIntervalMs', 5000) | 0) || 5000;
+    const maxTries   = (loginProfileSetting('login.reconnectMaxTries', 12) | 0) || 12;
     this._reconnectTryCounter = (this._reconnectTryCounter | 0) + 1;
     if (this._reconnectTryCounter > maxTries) {
+      this._clearReconnectTimers();
       this._reconnectTryCounter = 0;
       this._showPopup('Connection lost (max retries reached).', () => this._setStep(LoginSteps.Main));
       return;
     }
-    this._showPopup(
-      `Reconnecting (try ${this._reconnectTryCounter}/${maxTries})…`,
-      () => {/* no-op — auto-dismissed by timer */},
-    );
-    if (this._reconnectTimer) clearTimeout(this._reconnectTimer);
+    this._reconnectCancelled = false;
+    this._clearReconnectTimers();
+    this._setStep(LoginSteps.Main);
+    this._setStep(LoginSteps.Reconnecting, {
+      attempt: this._reconnectTryCounter,
+      maxTries,
+      waitMs: intervalMs,
+      error: immediateFailure,
+    });
     this._reconnectTimer = setTimeout(() => {
       this._reconnectTimer = null;
-      // Re-issue the original login attempt. _doConnect reads from the
-      // DOM panel which has already been ripped down by _setStep, so we
-      // rebuild and immediately resubmit the login form with cached
-      // credentials.
-      try {
-        this._setStep(LoginSteps.Main);
-        // Once the Main panel is mounted, prefill + auto-submit.
-        setTimeout(() => {
-          try {
-            if (this._account) this._panel?.querySelector('#m-account')?.setAttribute('value', this._account);
-            if (this._host)    this._panel?.querySelector('#m-host')?.setAttribute('value', this._host);
-            this._doConnect?.();
-          } catch { /* ignore */ }
-        }, 50);
-      } catch { /* ignore */ }
+      clearInterval(this._reconnectTicker);
+      this._reconnectTicker = null;
+      if (this._reconnectCancelled) return;
+      this._doConnect({
+        host: this._host,
+        port: this._port,
+        account: this._account,
+        password: this._password,
+        mode: this._mode,
+        bridgeUrl: this._bridgeUrl,
+      });
     }, intervalMs);
   }
 
@@ -1647,7 +1712,7 @@ export class LoginScene extends Scene {
    *  the Main panel and submit immediately on scene mount. Called once
    *  from _load() after the initial _setStep(Main). */
   _tryAutoLogin() {
-    if (!profile?.get?.('login.autoLogin')) return false;
+    if (!loginProfileSetting('login.autoLogin', false)) return false;
     const acc = localStorage.getItem(LS_PREFIX + 'account');
     if (!acc) return false;
     // Wait one tick so the Main panel is fully mounted, then submit.
@@ -1656,7 +1721,21 @@ export class LoginScene extends Scene {
   }
 
   async _onLoginConfirm() {
+    // Keep the several-hundred-kilobyte world renderer out of the login and
+    // character-creation payload. Vite now emits GameScene (and its renderer
+    // graph) as a separate async chunk that is fetched only after the server
+    // has accepted a character. This materially improves cold login without
+    // changing the UO network flow.
+    const { GameScene } = await this._prepareWorld();
     await this.gc.setScene(new GameScene(this.gc));
+  }
+
+  _prepareWorld() {
+    this._gameSceneModulePromise ??= Promise.all([
+      this.gc.prepareWorld?.(),
+      import('./game-scene.js'),
+    ]).then(([, gameSceneModule]) => gameSceneModule);
+    return this._gameSceneModulePromise;
   }
 
   _goBackToMain() {
@@ -1756,6 +1835,35 @@ export class LoginScene extends Scene {
       @media (prefers-reduced-motion:reduce){.uo-login-orb,.uo-login-surface,.uo-loading-card .uo-spinner::before,.uo-loading-card .uo-spinner i,.uo-loading-track span{animation:none!important}}
     `;
     document.head?.appendChild?.(style);
+  }
+
+  _renderReconnect({ attempt = 1, maxTries = 12, waitMs = 5000, error = '' } = {}) {
+    this._mountPanel(`
+      <section class="uo-loading-card uo-reconnect-card" role="status" aria-live="polite">
+        <div class="uo-brand-seal uo-brand-seal--small" aria-hidden="true"><span>UO</span></div>
+        <div class="uo-eyebrow">CONNECTION RECOVERY</div>
+        <h2>Reconnecting</h2>
+        <p id="uo-reconnect-copy">Attempt ${attempt} of ${maxTries}</p>
+        ${error ? `<small class="uo-reconnect-error">${esc(error)}</small>` : ''}
+        <div class="uo-loading-track uo-reconnect-track"><span id="uo-reconnect-progress"></span></div>
+        <button id="uo-reconnect-cancel" class="uo-button uo-button--quiet">Cancel reconnect</button>
+      </section>
+    `);
+    this._injectStyles();
+    this._panel.querySelector('#uo-reconnect-cancel')?.addEventListener('click', () => {
+      this._cancelReconnect({ returnToMain: true });
+    });
+    const started = performance.now();
+    const update = () => {
+      const ratio = Math.min(1, (performance.now() - started) / Math.max(1, waitMs));
+      const bar = this._panel?.querySelector('#uo-reconnect-progress');
+      const copy = this._panel?.querySelector('#uo-reconnect-copy');
+      if (bar) bar.style.width = `${Math.round(ratio * 100)}%`;
+      if (copy) copy.textContent = `Attempt ${attempt} of ${maxTries} · retry in ${Math.max(0, Math.ceil((waitMs - (performance.now() - started)) / 1000))}s`;
+    };
+    update();
+    clearInterval(this._reconnectTicker);
+    this._reconnectTicker = setInterval(update, 100);
   }
 }
 

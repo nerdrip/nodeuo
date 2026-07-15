@@ -24,6 +24,10 @@ import { buildChangeSkillLock, buildStatusRequest, buildUseSkill } from '../../n
 import { world } from '../../world/world.js';
 import { skillClientIndexHasAction, skillNameFromClientIndex } from '../../shared/skill-ids.js';
 import { calculateVirtualWindow } from '../../shared/virtual-list.js';
+import {
+  beginSkillShortcutDrag, dropSpellShortcutOnActionBar,
+} from './spell-shortcut-drag.js';
+import { uiManagerInstance } from '../ui-manager-singleton.js';
 
 const SORT_MODES = ['alpha', 'value', 'cap'];
 const SORT_LABEL = {
@@ -72,7 +76,7 @@ function resetPooledLabel(label, text, hue) {
 class SortChip extends Control {
   constructor(onClick) {
     super();
-    this.width = 64; this.height = 18;
+    this.width = 96; this.height = 20;
     this.acceptMouseInput = true;
     this._lbl = new Label(`Sort: ${SORT_LABEL.alpha}`, { fontSize: 11, hue: 0xfff0c0, stroke: true });
     this._lbl.acceptMouseInput = false;
@@ -89,7 +93,7 @@ export class SkillGumpAdvanced extends WindowGump {
   constructor() {
     super({
       title: 'Skills (Advanced)',
-      width: 360, height: 400, x: 100, y: 90,
+      width: 470, height: 490, x: 100, y: 90,
       backgroundId: 0x0A28,
     });
     /** @type {Map<number, {value:number, base:number, lock:number, cap:number}>} */
@@ -99,11 +103,13 @@ export class SkillGumpAdvanced extends WindowGump {
     this._rowLabelPool = [];
     this._rowIds = [];
     this._rowHeight = SKILL_ROW_H;
+    this._selectedIndex = 0;
+    this.keyboardFocusable = true;
 
     // Search box. TextInput emits onChange, so filtering stays immediate
     // without a background polling timer.
     this._search = new TextInput({
-      width: 180, height: 18, placeholder: 'Search skills…',
+      width: 236, height: 22, placeholder: 'Search skills…', fontSize: 12,
     });
     this._search.onChange = (txt) => {
       this._query = String(txt ?? '').trim();
@@ -119,12 +125,30 @@ export class SkillGumpAdvanced extends WindowGump {
       this._sortChip.setMode(this._sort);
       this._redraw();
     });
-    this.addContent(this._sortChip, 200, 30);
+    this.addContent(this._sortChip, 264, 29);
+
+    this._summary = new Label('0 skills · Total 0.0', {
+      fontSize: 11, hue: 0xbcae8d, maxWidth: 410,
+    });
+    this.addContent(this._summary, 10, 56);
+
+    this._viewChip = new SortChip(() => {
+      this._rowHeight = this._rowHeight === SKILL_ROW_H ? 22 : SKILL_ROW_H;
+      this._viewChip._lbl.setText(this._rowHeight === SKILL_ROW_H ? 'Compact' : 'Comfort');
+      this._redraw();
+    });
+    this._viewChip._lbl.setText('Compact');
+    this.addContent(this._viewChip, 360, 29);
+
+    this._detail = new Label('Select a skill to see base, cap and lock state.', {
+      fontSize: 11, hue: 0xc7b995, maxWidth: 410, wordWrap: true,
+    });
+    this.addContent(this._detail, 10, 448);
 
     // Scrollable list.
-    this._scroll = new ScrollArea({ width: 340, height: 340 });
+    this._scroll = new ScrollArea({ width: 420, height: 370 });
     this._scroll.onScroll = () => this._redraw();
-    this.addContent(this._scroll, 10, 52);
+    this.addContent(this._scroll, 10, 76);
     this._inner = new Container();
     this._scroll.addContent(this._inner);
 
@@ -242,26 +266,57 @@ export class SkillGumpAdvanced extends WindowGump {
       const isUsable = skillClientIndexHasAction(id);
       const crystal = isUsable ? '◆ ' : '  ';
       const lbl = this._acquireRowLabel(
-        `${crystal}${name.padEnd(20, ' ')} ${(s.value / 10).toFixed(1).padStart(5)}  / ${(s.cap / 10).toFixed(1).padStart(5)}  ${lockChar}`,
+        `${crystal}${name.padEnd(24, ' ')} ${(s.value / 10).toFixed(1).padStart(5)}  / ${(s.cap / 10).toFixed(1).padStart(5)}  ${lockChar}`,
         isUsable ? 0xc0d8ff : 0xb8b0a0,
       );
       lbl.node.position.set(2, y);
-      // Click the lock char to cycle up/down/locked. CUO uses 3 buttons;
-      // a single cycler keeps the row compact.
+      // Primary click invokes active skills. Right-click changes the lock;
+      // this mirrors the standard panel and avoids changing caps when the
+      // player merely tries to use Anatomy, Hiding, etc.
       lbl.node.eventMode = 'static';
       lbl.node.cursor = 'pointer';
-      lbl.node.on('pointerdown', (ev) => {
+      lbl.node.on('pointertap', (ev) => {
+        ev.stopPropagation?.();
+        this._selectedIndex = i;
+        this._updateDetail(id, s);
+        if (!isUsable) return;
+        try { net.send(buildUseSkill(id + 1)); } catch { /* socket */ }
+      });
+      lbl.node.on('rightdown', (ev) => {
         ev.stopPropagation?.();
         const next = ((s.lock | 0) + 1) % 3;
+        const cur = this._skills.get(id);
+        if (cur) this._skills.set(id, { ...cur, lock: next });
         try { net.send(buildChangeSkillLock(id, next)); } catch { /* socket */ }
+        this._redraw();
       });
-      if (isUsable) {
-        // Right-click name -> invoke skill (0x12 type 0x24).
-        lbl.node.on('rightdown', (ev) => {
-          ev.stopPropagation?.();
-          try { net.send(buildUseSkill(id + 1)); } catch { /* socket */ }
-        });
-      }
+      lbl.node.on('pointerdown', (ev) => {
+        const native = ev.nativeEvent ?? ev.data?.originalEvent ?? ev;
+        const startX = native?.clientX ?? 0;
+        const startY = native?.clientY ?? 0;
+        let dragging = false;
+        const onMove = (move) => {
+          const dx = move.clientX - startX;
+          const dy = move.clientY - startY;
+          if (!dragging && dx * dx + dy * dy > 25) {
+            dragging = beginSkillShortcutDrag({ id: id + 1, name });
+          }
+        };
+        const onUp = (up) => {
+          window.removeEventListener('pointermove', onMove);
+          window.removeEventListener('pointerup', onUp);
+          if (!dragging) return;
+          const ui = uiManagerInstance.get();
+          let control = ui?.pickAtScreen?.(up.clientX, up.clientY)?.control;
+          while (control && !Number.isInteger(control.actionBarSlotIndex)) control = control.parent;
+          if (control) dropSpellShortcutOnActionBar(control.actionBarSlotIndex);
+          else bus.emit('ui:physical-drag-finished', {
+            claimed: false, x: up.clientX, y: up.clientY,
+          });
+        };
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp);
+      });
       y += rowH;
     }
 
@@ -273,6 +328,36 @@ export class SkillGumpAdvanced extends WindowGump {
       empty.node.position.set(2, 4);
     }
     this._scroll.setContentHeight(rows.length === 0 ? 20 : rows.length * rowH);
+    let total = 0;
+    for (const s of this._skills.values()) total += Number(s.value) || 0;
+    this._summary.setText(`${rows.length}/${this._skills.size} skills · Total ${(total / 10).toFixed(1)} · LMB use · RMB lock`);
     this._finishLabelFrame();
+  }
+
+  _updateDetail(id, skill) {
+    const lock = ['raising', 'lowering', 'locked'][skill?.lock | 0] ?? 'unknown';
+    this._detail.setText(
+      `${skillNameText(id)} · current ${((skill?.value ?? 0) / 10).toFixed(1)} · ` +
+      `base ${((skill?.base ?? skill?.value ?? 0) / 10).toFixed(1)} · ` +
+      `cap ${((skill?.cap ?? 0) / 10).toFixed(1)} · ${lock}`,
+    );
+  }
+
+  onKeyDown(event) {
+    if (!this._rowIds.length) return;
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const delta = event.key === 'ArrowDown' ? 1 : -1;
+      this._selectedIndex = Math.max(0, Math.min(this._rowIds.length - 1, this._selectedIndex + delta));
+      const id = this._rowIds[this._selectedIndex];
+      this._scroll.scrollTo(Math.max(0, this._selectedIndex * this._rowHeight - this._scroll.height / 2));
+      this._updateDetail(id, this._skills.get(id));
+    } else if (event.key === 'Enter') {
+      const id = this._rowIds[this._selectedIndex];
+      if (skillClientIndexHasAction(id)) {
+        event.preventDefault();
+        try { net.send(buildUseSkill(id + 1)); } catch { /* socket */ }
+      }
+    }
   }
 }

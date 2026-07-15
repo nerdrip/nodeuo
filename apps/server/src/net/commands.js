@@ -34,6 +34,7 @@
 // and silently became open to every account. Add the alias instead of
 // rewriting every command for the short form.
 import { recordAudit } from '../systems/operational-diagnostics.js';
+import { commandRegistryAudit, fuzzySuggestions } from '../systems/runtime-governor.js';
 
 // Shared, non-enumerable-by-convention metadata used by the script runtime to
 // identify command owners in collision diagnostics without exposing an
@@ -64,6 +65,9 @@ export class CommandRegistry {
     this._aliasesByCanonical = new Map();
     this.usage = new Map();
     this.unknownCount = 0;
+    this._searchDirty = true;
+    this._searchIndex = new Map();
+    this._searchNames = new Set();
   }
 
   /** @param {CommandDef} cmd */
@@ -86,6 +90,7 @@ export class CommandRegistry {
       return false;
     }
     this.commands.set(key, canonical);
+    this._searchDirty = true;
 
     const aliases = new Set();
     for (const rawAlias of cmd.aliases ?? []) {
@@ -112,12 +117,30 @@ export class CommandRegistry {
     if (!entry) return false;
     if (entry.aliasOf) {
       this.commands.delete(key);
+      this._searchDirty = true;
       this._aliasesByCanonical.get(entry.aliasOf)?.delete(key);
       return true;
     }
     for (const alias of this._aliasesByCanonical.get(key) ?? []) this.commands.delete(alias);
     this._aliasesByCanonical.delete(key);
-    return this.commands.delete(key);
+    const removed = this.commands.delete(key);
+    if (removed) this._searchDirty = true;
+    return removed;
+  }
+
+  _ensureSearchIndex() {
+    if (!this._searchDirty) return;
+    this._searchIndex.clear(); this._searchNames.clear();
+    for (const command of this.commands.values()) {
+      if (command.aliasOf || command.hidden === true) continue;
+      const name = command.name.toLowerCase(); this._searchNames.add(name);
+      const padded = `  ${name} `;
+      for (let i = 0; i <= padded.length - 3; i++) {
+        const gram = padded.slice(i, i + 3); const set = this._searchIndex.get(gram) ?? new Set();
+        set.add(name); this._searchIndex.set(gram, set);
+      }
+    }
+    this._searchDirty = false;
   }
 
   /** Canonical, visible command definitions for UI catalogues/audits. */
@@ -143,6 +166,30 @@ export class CommandRegistry {
     };
   }
 
+  diagnostics() {
+    this._ensureSearchIndex();
+    const audit = commandRegistryAudit(this.list({ includeHidden: true }));
+    const unused = this.list({ includeHidden: true })
+      .filter((command) => !this.usage.has(command.name))
+      .map((command) => command.name).sort();
+    const aliasGroups = [...this._aliasesByCanonical].map(([name, aliases]) => ({ name, aliases: [...aliases].sort() }));
+    return { ...audit, unused, unreachable: this.collisions.map((entry) => entry.name),
+      collisions: this.collisions.length, aliases: this.commands.size - this.list({ includeHidden: true }).length,
+      aliasGroups, searchIndex: { names: this._searchNames.size, grams: this._searchIndex.size } };
+  }
+
+  suggest(input, access = 'Player', limit = 5) {
+    this._ensureSearchIndex();
+    const query = String(input).toLowerCase(); const padded = `  ${query} `; const scored = new Map();
+    for (let i = 0; i <= padded.length - 3; i++) for (const name of this._searchIndex.get(padded.slice(i, i + 3)) ?? []) scored.set(name, (scored.get(name) ?? 0) + 1);
+    let candidates = [...scored].sort((a, b) => b[1] - a[1]).slice(0, 64).map(([name]) => name);
+    // Very short typos have no trigram overlap; use the bounded first-letter
+    // bucket instead of scanning all command definitions.
+    if (!candidates.length) candidates = [...(this._searchIndex.get(`  ${query[0] ?? ''}`) ?? [])].slice(0, 64);
+    const names = candidates.filter((name) => hasAccess(access, this.commands.get(name)?.access ?? 'Admin'));
+    return fuzzySuggestions(input, names, limit).filter((row) => row.score <= Math.max(2, String(input).length / 2));
+  }
+
   /**
    * Parse a command line ("add torch 3") and dispatch to the handler.
    * Returns true if the command existed. Enforces per-command access level.
@@ -155,7 +202,13 @@ export class CommandRegistry {
     if (parts.length === 0) return false;
     const name = parts[0].toLowerCase();
     const cmd = this.commands.get(name);
-    if (!cmd) { this.unknownCount++; return false; }
+    if (!cmd) {
+      this.unknownCount++;
+      const actual = ctx.state?.account?.accessLevel ?? 'Player';
+      const suggestions = this.suggest(name, actual, 3);
+      if (suggestions.length) ctx.state?.sendSystemMessage?.(`Unknown command [${name}. Did you mean [${suggestions[0].name}?`);
+      return false;
+    }
     const canonicalName = cmd.aliasOf ?? name;
     const stat = this.usage.get(canonicalName) ?? {
       calls: 0, completed: 0, denied: 0, errors: 0, totalMs: 0, maxMs: 0, lastUsedAt: 0,

@@ -828,7 +828,11 @@ class MacroManager {
     this.registerRunner('toggle-show-stats',   () => bus.emit('macro:toggle-show-stats'));
 
     // ---- Mounting / pet -------------------------------------------
-    this.registerRunner('mount-dismount',      () => net.send(buildTextCommand(0x12, 'AnimalLore'))); // placeholder pet UI
+    // NodeUO exposes mount toggling as a normal speech command while classic
+    // emulator compatibility remains untouched.  The old placeholder sent an
+    // Animal Lore skill request, so the macro could mount neither way and,
+    // most visibly, could never dismount an already mounted player.
+    this.registerRunner('mount-dismount',      () => net.send(buildUnicodeSpeech('[mount')));
     this.registerRunner('toggle-fly', () => {
       // CUO `MacroType.ToggleGargoyleFly` — flip the local prediction
       // (server still confirms via 0xBF subop 0x32), then emit the

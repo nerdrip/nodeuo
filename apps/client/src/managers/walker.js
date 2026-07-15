@@ -304,3 +304,4 @@ export const walker = new Walker();
 // first 2 keypresses after relog get rate-limited as "stale in-flight
 // steps from the previous session". Listen for net:close to clear.
 bus.on?.('net:close', () => walker.reset());
+bus.on?.('net:session-reset', () => walker.reset());

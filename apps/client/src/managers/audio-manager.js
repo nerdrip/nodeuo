@@ -34,6 +34,8 @@ class AudioManager {
     this._sfx = null;
     /** @type {GainNode | null} music gain */
     this._music = null;
+    /** @type {GainNode | null} UI feedback gain */
+    this._ui = null;
     /** @type {{count:number,entries:Record<number,{offset:number,size:number,name:string}>} | null} */
     this._index = null;
     /** @type {{count:number,entries:Record<number,{file:string,loop:boolean,name:string}>} | null} */
@@ -76,6 +78,7 @@ class AudioManager {
     // `{ id, x, y, map }`; we attenuate by distance from the player so
     // a faraway forge clang is quieter than one next to you.
     bus.on('audio:sfx-at', ({ id, x, y, map }) => this.playAt(id, x, y, map));
+    bus.on('audio:ui', ({ id, volume = 1 } = {}) => this.playUi(id, volume));
     // Footstep SFX — mobile-renderer fires this on every step.
     bus.on('mob:footstep', ({ terrain, x, y, map }) => this._onFootstep(terrain, x, y, map));
     // Ambient loops — region-tracker emits when a player crosses into a
@@ -121,14 +124,16 @@ class AudioManager {
       document.addEventListener('visibilitychange', () => {
         if (!this.ctx) return;
         try {
-          if (document.hidden) {
+          const muteOnBlur = profile.get('audio.muteOnBlur') !== false
+            && profile.get('audio.reproduceSoundsInBackground') !== true;
+          if (document.hidden && muteOnBlur) {
             this.ctx.suspend?.();
             this._musicEl?.pause?.();
             // Client audit #4 E1 — also pause the region ambient loop
             // so cave / cathedral hum doesn't keep playing while the
             // tab is hidden.
             this._ambientEl?.pause?.();
-          } else {
+          } else if (!document.hidden) {
             this.ctx.resume?.();
             if (this._musicEl && !this._musicEl.ended) {
               this._musicEl.play?.().catch(() => { /* gesture lost */ });
@@ -151,6 +156,7 @@ class AudioManager {
       this._master = this.ctx.createGain();
       this._sfx    = this.ctx.createGain();
       this._music  = this.ctx.createGain();
+      this._ui     = this.ctx.createGain();
       // Procedural reverb send — the SFX bus splits into a dry path
       // (full volume) and a wet path that runs through a ConvolverNode
       // whose impulse response is synthesised at runtime (no IR mp3
@@ -167,6 +173,7 @@ class AudioManager {
       } catch { /* convolver unsupported (older Safari) — dry only */ }
       this._sfx.connect(this._master);
       this._music.connect(this._master);
+      this._ui.connect(this._master);
       this._master.connect(this.ctx.destination);
       this._refreshGains();
     } catch (e) {
@@ -208,6 +215,7 @@ class AudioManager {
     this._master.gain.value = profile.get('audio.master') ?? 0.6;
     this._sfx   .gain.value = profile.get('audio.sfx')    ?? 0.7;
     this._music .gain.value = profile.get('audio.music')  ?? 0.4;
+    if (this._ui) this._ui.gain.value = profile.get('audio.ui') ?? 0.65;
     if (this._musicEl) {
       this._musicEl.volume = (profile.get('audio.master') ?? 0.6)
                            * (profile.get('audio.music')  ?? 0.4);
@@ -309,6 +317,22 @@ class AudioManager {
     } else {
       src.connect(this._sfx);
     }
+    src.start();
+  }
+
+  /** Play interface feedback on its own gain bus. This deliberately uses
+   * the canonical UO sound table, so third-party shards need no extension. */
+  async playUi(id, volume = 1) {
+    await this._ensureInitialized();
+    if (!this.ctx || !this._index || !this._ui) return;
+    const buffer = await this._loadBuffer(id);
+    if (!buffer) return;
+    const src = this.ctx.createBufferSource();
+    const gain = this.ctx.createGain();
+    src.buffer = buffer;
+    gain.gain.value = Math.max(0, Math.min(1, Number(volume) || 0));
+    src.connect(gain);
+    gain.connect(this._ui);
     src.start();
   }
 

@@ -7,6 +7,7 @@
 // casting from the shadows, being detected) calls reveal().
 
 import { nearbyClients } from './_spatial.js';
+import { equipmentForMobile } from './_equipment.js';
 
 const FLAG_HIDDEN = 0x80;
 
@@ -50,7 +51,7 @@ export function reveal(api, mob) {
       serial: mob.serial, body: mob.body, x: mob.x, y: mob.y, z: mob.z,
       direction: mob.direction, hue: mob.hue, flags: mob.flags,
       notoriety: mob.notoriety,
-      equipment: [],
+      equipment: equipmentForMobile(api, mob),
     }));
   }
   if (mob.client) {

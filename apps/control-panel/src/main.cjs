@@ -6,9 +6,9 @@
 // events. Stopping a service kills the whole process tree on Windows
 // so a parent `cmd /c pnpm ...` doesn't orphan its node child.
 
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain } = require('electron');
 const path = require('node:path');
-const { spawn } = require('node:child_process');
+const { spawn, spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 
 // Repo root = three dirs above this file (apps/control-panel/src/main.cjs).
@@ -126,16 +126,9 @@ const SERVICES = {
     cmd: 'node', args: ['packages/extractor/extract.js', '--src', DEFAULTS.UO_SRC, '--out', 'apps/client/public/assets'],
     env: { UO_SRC: DEFAULTS.UO_SRC },
     ports: [],                                 // no listener
-    info: `One-shot UO mul/uop -> apps/client/public/assets. Source: ${DEFAULTS.UO_SRC}. Tick "+ KTX2" to run Basis/KTX2 compression after extraction.`,
-    oneShot: true,
-  },
-  'ktx2': {
-    group: 'assets',
-    label: 'Compress KTX2',
-    cmd: 'node', args: ['packages/extractor/ktx2.js', '--out', 'apps/client/public/assets'],
-    env: {},
-    ports: [],
-    info: 'One-shot PNG atlas -> KTX2/Basis conversion for existing extracted atlases. Requires Khronos toktx in PATH or KTX2_TOKTX in Settings.',
+    exclusiveGroup: 'assets-write',
+    requiresUoSource: ['anim.mul', 'anim.idx', 'Bodyconv.def', 'Body.def', 'mobtypes.txt'],
+    info: `One-shot selectable UO mul/uop -> apps/client/public/assets. Open Scope to choose any of 23 asset steps, the animation-only preset, optional ServUO data and KTX2. Source: ${DEFAULTS.UO_SRC}.`,
     oneShot: true,
   },
   'ktx2-tool-install': {
@@ -267,8 +260,7 @@ ipcMain.handle('list-services', () => {
 });
 
 ipcMain.handle('start-service', (_e, { id, envOverride, options }) => {
-  startService(id, envOverride || {}, options || {});
-  return { ok: true };
+  return startService(id, envOverride || {}, options || {});
 });
 
 ipcMain.handle('stop-service', (_e, { id }) => {
@@ -292,12 +284,30 @@ ipcMain.handle('open-url', (_e, { url }) => {
   return { ok: true };
 });
 
+ipcMain.handle('choose-directory', async (_e, { defaultPath } = {}) => {
+  const result = await dialog.showOpenDialog(mainWin, {
+    title: 'Select Ultima Online Classic folder',
+    defaultPath: defaultPath || DEFAULTS.UO_SRC,
+    properties: ['openDirectory'],
+  });
+  return { ok: !result.canceled, path: result.filePaths?.[0] ?? null };
+});
+
 // ---- service spawn ---------------------------------------------------------
 
 function startService(id, envOverride, options = {}) {
   const s = SERVICES[id];
-  if (!s) return;
-  if (running.has(id)) return;
+  if (!s) return { ok: false, error: `Unknown service: ${id}` };
+  if (running.has(id)) return { ok: false, error: `${s.label} is already running.` };
+
+  if (s.exclusiveGroup) {
+    for (const otherId of running.keys()) {
+      if (SERVICES[otherId]?.exclusiveGroup !== s.exclusiveGroup) continue;
+      const error = `Cannot start ${s.label}: ${SERVICES[otherId].label} is still writing the asset directory.`;
+      emitLog(id, `[launcher] ${error}\n`, true);
+      return { ok: false, error };
+    }
+  }
 
   // Co-start dependencies: services that declare `coStart: ['admin', …]`
   // pull their friends up first. Marcin: "odpalenie klienta ma odpalać
@@ -370,6 +380,68 @@ function startService(id, envOverride, options = {}) {
   }
 
   const env = { ...process.env, ...(s.env || {}), ...envOverride };
+  if (Array.isArray(s.requiresUoSource)) {
+    const onlyArgIndex = Array.isArray(options.extraArgs)
+      ? options.extraArgs.indexOf('--only')
+      : -1;
+    const selectedSteps = onlyArgIndex >= 0
+      ? String(options.extraArgs[onlyArgIndex + 1] ?? '').split(',').map((step) => step.trim()).filter(Boolean)
+      : null;
+    const isServUOStep = (step) => step === 'decoration'
+      || step === 'xmlspawner'
+      || step.startsWith('servuo-');
+    // The checkbox UI can run a narrow asset subset or only the in-repo
+    // ServUO refresh. UO_SRC is needed only when at least one selected step
+    // actually reads retail client files; KTX2 works on existing output.
+    const needsUoSource = selectedSteps == null
+      || selectedSteps.some((step) => step !== 'ktx2' && !isServUOStep(step));
+    const needsAnimationConfig = selectedSteps == null || selectedSteps.includes('anim');
+    if (!needsUoSource) {
+      emitLog(id, '[launcher] extraction preflight — selected steps do not read UO_SRC.\n');
+    }
+    const source = String(env.UO_SRC ?? '').trim();
+    let sourceNames = null;
+    if (needsUoSource && source && fs.existsSync(source)) {
+      try { sourceNames = new Set(fs.readdirSync(source).map((name) => name.toLowerCase())); }
+      catch { sourceNames = null; }
+    }
+    const requiredFiles = needsAnimationConfig ? s.requiresUoSource : [];
+    const missing = !needsUoSource
+      ? []
+      : !sourceNames
+        ? [...requiredFiles]
+        : requiredFiles.filter((name) => !sourceNames.has(name.toLowerCase()));
+    if (needsUoSource && (!sourceNames || missing.length)) {
+      const error = !source || !fs.existsSync(source)
+        ? `UO_SRC does not exist: ${source || '(empty)'}`
+        : `UO_SRC is incomplete; missing: ${missing.join(', ')}`;
+      emitLog(id, `[launcher] extraction preflight failed — ${error}\n`, true);
+      return { ok: false, error };
+    }
+    if (needsUoSource) emitLog(id, `[launcher] extraction preflight OK — ${source}\n`);
+    if (needsAnimationConfig && ![...(sourceNames ?? [])].some((name) => /^animationframe.*\.uop$/i.test(name))) {
+      emitLog(id, '[launcher] warning: no AnimationFrame*.uop files; modern bodies may have only legacy fallback art.\n', true);
+    }
+    if (needsAnimationConfig && !sourceNames?.has('animationsequence.uop')) {
+      emitLog(id, '[launcher] warning: AnimationSequence.uop is absent; modern action remaps will use identity groups.\n', true);
+    }
+  }
+  const extraArgs = Array.isArray(options.extraArgs) ? options.extraArgs : [];
+  const onlyIndex = extraArgs.indexOf('--only');
+  const onlySteps = onlyIndex >= 0
+    ? String(extraArgs[onlyIndex + 1] ?? '').split(',').map((step) => step.trim())
+    : [];
+  const wantsKtx2 = id === 'extract'
+    && (extraArgs.includes('--ktx2') || onlySteps.includes('ktx2'));
+  if (wantsKtx2) {
+    const toktx = findToktxFast(env.KTX2_TOKTX, env);
+    if (!toktx) {
+      const error = 'KTX2 is selected, but toktx is unavailable. Use TOOLS -> Install KTX2 Tool, configure KTX2_TOKTX, or untick KTX2.';
+      emitLog(id, `[launcher] ${error}\n`, true);
+      return { ok: false, error };
+    }
+    emitLog(id, `[launcher] KTX2 tool preflight OK — ${toktx}\n`);
+  }
   // Args may carry tokens we want to substitute from the resolved env
   // (extractor's --src argument, mainly). Replace any literal default
   // path with the merged value so a UO_SRC override actually changes
@@ -378,11 +450,10 @@ function startService(id, envOverride, options = {}) {
     if (a === DEFAULTS.UO_SRC && env.UO_SRC) return env.UO_SRC;
     return a;
   });
-  // Audit rev.4 — `options.extraArgs` lets the renderer append CLI
-  // flags per-launch. Currently used by the Extract "+ ServUO"
-  // checkbox to add `--include-servuo` so the extractor also
-  // refreshes apps/scripts/src/data/*.json. Generic plumbing — any
-  // service can opt into per-click args without changing main.cjs.
+  // `options.extraArgs` carries the explicit checkbox scope (`--only`),
+  // optional KTX2 post-processing and future per-launch flags. The renderer
+  // sends an explicit list even for a full pass, so the visible selection is
+  // always the source of truth for what the extractor will touch.
   if (Array.isArray(options.extraArgs) && options.extraArgs.length) {
     args = [...args, ...options.extraArgs];
     emitLog(id, `[launcher] extraArgs from renderer: [${options.extraArgs.join(', ')}]`);
@@ -426,9 +497,72 @@ function startService(id, envOverride, options = {}) {
       mainWin.webContents.send('service:state', { id, running: false });
     }
   });
+  proc.on('error', (error) => {
+    emitLog(id, `[launcher] spawn failed: ${error.message}\n`, true);
+    running.delete(id);
+    if (mainWin && !mainWin.isDestroyed()) {
+      mainWin.webContents.send('service:state', { id, running: false });
+    }
+  });
   if (mainWin && !mainWin.isDestroyed()) {
     mainWin.webContents.send('service:state', { id, running: true });
   }
+  return { ok: true, pid: proc.pid };
+}
+
+/**
+ * Fast launcher-side KTX2 preflight. The extractor's comprehensive lookup is
+ * useful as a CLI diagnostic, but recursively scanning Program Files from a
+ * synchronous Electron IPC handler can freeze the whole window for a minute.
+ * The panel only checks explicit config, PATH and its own installer directory.
+ */
+function findToktxFast(preferred, env) {
+  const configured = String(preferred ?? '').trim();
+  const candidates = [];
+  if (configured) candidates.push(configured);
+  // These are the same installation roots used by ktx2-tool.js, but each is
+  // already narrowed to a KTX-specific directory. Searching inside them is
+  // fast and recognises the normal Khronos installer location without the
+  // minute-long freeze caused by scanning all of Program Files.
+  const roots = [
+    path.join(REPO_ROOT, 'tools', 'ktx-software'),
+    env.ProgramFiles && path.join(env.ProgramFiles, 'KTX-Software'),
+    env.ProgramFiles && path.join(env.ProgramFiles, 'Khronos Group', 'KTX-Software'),
+    env['ProgramFiles(x86)'] && path.join(env['ProgramFiles(x86)'], 'KTX-Software'),
+    env.LOCALAPPDATA && path.join(env.LOCALAPPDATA, 'Programs', 'KTX-Software'),
+  ].filter(Boolean);
+  for (const root of roots) {
+    const found = findFileLimited(root, 'toktx.exe', 5);
+    if (found) candidates.push(found);
+  }
+  candidates.push('toktx');
+  for (const command of [...new Set(candidates)]) {
+    if ((/[\\/]/.test(command) || /\.exe$/i.test(command)) && !fs.existsSync(command)) continue;
+    const check = spawnSync(command, ['--version'], {
+      cwd: REPO_ROOT,
+      env,
+      encoding: 'utf8',
+      windowsHide: true,
+      timeout: 2500,
+    });
+    if (!check.error && check.status === 0) return command;
+  }
+  return null;
+}
+
+function findFileLimited(root, fileName, depth) {
+  if (depth < 0 || !fs.existsSync(root)) return null;
+  let entries;
+  try { entries = fs.readdirSync(root, { withFileTypes: true }); }
+  catch { return null; }
+  const direct = entries.find((entry) => entry.isFile() && entry.name.toLowerCase() === fileName.toLowerCase());
+  if (direct) return path.join(root, direct.name);
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const nested = findFileLimited(path.join(root, entry.name), fileName, depth - 1);
+    if (nested) return nested;
+  }
+  return null;
 }
 
 function stopService(id) {

@@ -11,10 +11,14 @@
 // needed (button click), the gump dispatches via uiManager.serverGumpResponder.
 
 import { Control } from './control.js';
+import { profile } from '../managers/profile-manager.js';
 
 let _nextLocalSerial = 0xC0000000 >>> 0;
 
-const POS_STORAGE_KEY = 'uo.gump-positions';
+// v2 accompanies the centered workspace. Positions saved against the old
+// top-left 680x480 game window routinely restore under the chat strip or far
+// outside the new side rails, so they are intentionally not migrated.
+const POS_STORAGE_KEY = 'uo.gump-positions.v2';
 
 let _positionCache = null;
 let _positionCacheLoaded = false;
@@ -98,7 +102,9 @@ export class Gump extends Control {
    *  layout. Position is saved by `UIManager` on drag-end, not on every
    *  setPosition call (constructors otherwise overwrite the memo). */
   restorePosition() {
-    const v = readGumpPosition(this.positionKey);
+    const saved = profile.loadGumpState?.(this.positionKey);
+    const v = saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)
+      ? saved : readGumpPosition(this.positionKey);
     if (!v) return;
     // Clamp to current window bounds so a position saved from a larger
     // monitor (or one where the user dragged the gump mostly off-screen)
@@ -128,7 +134,13 @@ export class Gump extends Control {
   /** Manager calls this on drag-end. Subclasses can override for custom
    *  logic (e.g., paperdoll: also save the matching status-bar position). */
   persistPosition() {
-    if (this.positionKey) writeGumpPosition(this.positionKey, this.x, this.y);
+    if (this.positionKey) {
+      writeGumpPosition(this.positionKey, this.x, this.y);
+      profile.saveGumpState?.(this.positionKey, {
+        x: this.x, y: this.y, width: this.width, height: this.height,
+        page: this.activePage | 0,
+      });
+    }
   }
 
   /** Close (remove) self via the manager. */

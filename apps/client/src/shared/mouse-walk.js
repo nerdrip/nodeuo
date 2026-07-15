@@ -1,15 +1,15 @@
-import { TILE_HALF_W } from './iso.js';
-
 /** Hysteretic walk/run selection for held-RMB movement. The wider enter
  * threshold and narrower exit threshold prevent cadence flapping when the
  * cursor hovers around the run boundary. */
 export function resolveMouseRunState(distanceSq, wasRunning = false, shift = false) {
-  // Keep a useful walking band around the avatar. The old ~59 px run
-  // threshold was inside the character sprite on a scaled UI, so normal RMB
-  // steering was practically always classified as running. Far cursor = run;
-  // Shift remains the explicit immediate-run override.
-  const enter = TILE_HALF_W * 4.5;
-  const exit = TILE_HALF_W * 3.5;
+  // ClassicUO `GameSceneInputHandler.MoveCharacterByMouseInput` switches to
+  // running at a 190 px radius from the viewport/player centre.  Our previous
+  // ~99 px threshold made an ordinary steering gesture select Run almost all
+  // the time, even though the wire cadence was still correctly throttled.
+  // Keep a small hysteresis band around the canonical boundary so hand jitter
+  // does not alternate Walk/Run every frame.
+  const enter = 190;
+  const exit = 170;
   let autoRun = !!wasRunning;
   if (autoRun) {
     if (distanceSq < exit * exit) autoRun = false;

@@ -50,8 +50,8 @@ class InfoCell extends Control {
       this._vLabel.setText(text);
     }
   }
-  onClick(e) {
-    if (e?.button !== 2) return;
+  onClick(button) {
+    if (button !== 2) return;
     // Right click → remove from configured items.
     const items = infoBar.getItems().filter((it) => it.var !== this.item.var);
     infoBar.setItems(items);

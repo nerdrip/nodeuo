@@ -96,7 +96,8 @@ export class DayNightCycle {
     this._lastLevel = level;
     const bytes = overallLightLevel(level);
     for (const m of this.world.mobiles.values()) {
-      if (m.client) m.client.send(bytes);
+      if (m.client?.sendCosmetic) m.client.sendCosmetic(bytes, 'world-light');
+      else if (m.client) m.client.send(bytes);
     }
   }
 
