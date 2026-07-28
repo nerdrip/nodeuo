@@ -17,6 +17,7 @@
 // Doesn't reach into Pixi at all — pure DOM mounted via `gc.domMount`.
 
 import { bus } from '../core/event-bus.js';
+import { world } from '../world/world.js';
 import { calculateVirtualWindow } from '../shared/virtual-list.js';
 
 const COLLAPSE_KEY = 'uo.cmdPanel.collapsed';
@@ -68,16 +69,15 @@ export class CommandPanel {
     try { this._collapsed = localStorage.getItem(COLLAPSE_KEY) === '1'; } catch { /* ignore */ }
     this._buildDom();
     this._unsubs = [];
-    this._unsubs.push(bus.on('shard:commands', (data) => {
-      this._access = data?.accessLevel || 'Player';
-      this._commands = Array.isArray(data?.commands) ? data.commands.map(normalizeCommand) : [];
-      this._commandsRev++;
-      this._render();
-    }));
+    this._unsubs.push(bus.on('shard:commands', (data) => this._applyCatalogue(data)));
+    // The shard can push this before GameScene mounts. Hydrate immediately
+    // from the session snapshot instead of showing a false Player catalogue.
+    if (world.commandCatalogue) this._applyCatalogue(world.commandCatalogue);
     // Repaint on net reset so a relog cleanly drops the previous
     // catalogue before the new one arrives.
     this._unsubs.push(bus.on('net:close', () => {
       this._commands = [];
+      this._access = 'Player';
       this._commandsRev++;
       this._render();
     }));
@@ -102,7 +102,7 @@ export class CommandPanel {
       box-shadow: -10px 12px 28px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255,255,255,0.06);
       backdrop-filter: blur(5px);
       font-family: 'Consolas', monospace; color: #fff0c0; font-size: 12px;
-      transition: width 0.18s ease;
+      transition: width 0.18s ease, height 0.18s ease, border-radius 0.18s ease;
       user-select: none;
       overflow: hidden;
     `;
@@ -110,7 +110,7 @@ export class CommandPanel {
       <div id="uo-cmd-head" style="display:flex;align-items:center;padding:8px 10px;border-bottom:1px solid rgba(226,180,92,.22);cursor:pointer;background:linear-gradient(180deg,rgba(57,48,32,.82),rgba(16,17,20,.72))">
         <span style="flex:1;font-weight:bold;letter-spacing:0.5px">Commands</span>
         <span id="uo-cmd-access" class="uo-pill" style="font-size:10px;padding:2px 7px;border-radius:999px;background:rgba(255,208,112,.12);border:1px solid rgba(255,208,112,.28);color:#ffd070;margin-right:6px">Player</span>
-        <span id="uo-cmd-collapse" style="font-size:14px;line-height:1;width:18px;text-align:center">▶</span>
+        <span id="uo-cmd-collapse" aria-hidden="true" style="display:grid;place-items:center;font-size:14px;line-height:1;width:18px;height:18px;text-align:center">▶</span>
       </div>
       <div id="uo-cmd-body" style="display:flex;flex-direction:column;height:calc(100% - 36px);min-height:0">
         <input id="uo-cmd-filter" type="text" placeholder="filter…"
@@ -151,21 +151,53 @@ export class CommandPanel {
     this._applyCollapsed();
   }
 
+  _applyCatalogue(data) {
+    this._access = String(data?.accessLevel || 'Player');
+    this._commands = Array.isArray(data?.commands) ? data.commands.map(normalizeCommand) : [];
+    this._commandsRev++;
+    this._lastRenderKey = '';
+    if (this._collapsed && this._head) this._head.title = `Open commands (${this._access})`;
+    this._render();
+  }
+
   _applyCollapsed() {
     if (!this._el) return;
     if (this._collapsed) {
-      this._el.style.width = '38px';
+      this._el.classList.add('is-collapsed');
+      this._el.style.width = '44px';
+      this._el.style.height = '44px';
       this._el.style.bottom = 'auto';
+      this._el.style.borderRadius = '10px';
+      this._head.style.height = '42px';
+      this._head.style.boxSizing = 'border-box';
+      this._head.style.padding = '0';
+      this._head.style.justifyContent = 'center';
+      this._head.style.borderBottom = '0';
+      this._head.title = `Open commands (${this._access})`;
       this._body.style.display = 'none';
-      this._collapse_el.textContent = '◀';
+      this._collapse_el.textContent = '⌘';
+      this._collapse_el.style.width = '42px';
+      this._collapse_el.style.height = '42px';
+      this._collapse_el.style.fontSize = '18px';
       // Reduce header to just the icon when minimised.
       this._title_el.style.display = 'none';
       this._access_el.style.display = 'none';
     } else {
+      this._el.classList.remove('is-collapsed');
       this._el.style.width = '300px';
+      this._el.style.height = '';
       this._el.style.bottom = 'calc(50vh + 4px)';
+      this._el.style.borderRadius = '8px';
+      this._head.style.height = '';
+      this._head.style.padding = '8px 10px';
+      this._head.style.justifyContent = '';
+      this._head.style.borderBottom = '1px solid rgba(226,180,92,.22)';
+      this._head.title = 'Collapse commands';
       this._body.style.display = 'flex';
       this._collapse_el.textContent = '▶';
+      this._collapse_el.style.width = '18px';
+      this._collapse_el.style.height = '18px';
+      this._collapse_el.style.fontSize = '14px';
       this._title_el.style.display = '';
       this._access_el.style.display = '';
     }

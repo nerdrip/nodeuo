@@ -37,6 +37,9 @@ export const worldBosses = {
 
   /** Walk all bosses and (re)spawn those due. */
   tick(world) {
+    // A maintenance `[wipeworld` closes this gate until CreateWorld has
+    // completed. Autonomous boss timers must not dirty the clean slate.
+    if (world?._createWorldDone === false) return;
     const now = Date.now();
     for (const [id, b] of _bosses) {
       if (b.lastInstance && world.mobiles.has(b.lastInstance.serial)) continue;

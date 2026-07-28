@@ -21,7 +21,7 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import sharp from 'sharp';
+import sharp from './safe-sharp.js';
 
 const FONT_COUNT  = 10;
 const GLYPH_COUNT = 224;          // 0x20..0xFF

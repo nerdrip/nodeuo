@@ -45,6 +45,7 @@ import { ResizePic } from './controls/resize-pic.js';
 import { ItemPic } from './controls/item-pic.js';
 import { StaticPic } from './controls/static-pic.js';
 import { MobilePic } from './controls/mobile-pic.js';
+import { MultiPic } from './controls/multi-pic.js';
 import { CroppedText } from './controls/cropped-text.js';
 import { HtmlControl } from './controls/html-control.js';
 import { CheckerTrans } from './controls/checker-trans.js';
@@ -233,6 +234,17 @@ export function parseGumpLayout({ layout, textLines, serverSerial, gumpSerial, x
           const x = +t[1], y = +t[2], body = +t[3], hue = +t[4] || 0;
           const direction = +t[5] || 0, width = +t[6] || 52, height = +t[7] || 52;
           const c = new MobilePic(body, { hue, direction, width, height });
+          c.setPosition(x, y); c.page = currentPage;
+          g.add(c); break;
+        }
+        // NodeUO extension used by the visual multi catalogue:
+        //   multipic x y multiId width height
+        // Classic clients ignore the unknown verb and keep the textual
+        // picker fully usable; our web client shows the complete footprint.
+        case 'multipic': {
+          const x = +t[1], y = +t[2], multiId = +t[3];
+          const width = +t[4] || 64, height = +t[5] || 48;
+          const c = new MultiPic(multiId, { width, height });
           c.setPosition(x, y); c.page = currentPage;
           g.add(c); break;
         }
@@ -553,11 +565,27 @@ export function parseGumpLayout({ layout, textLines, serverSerial, gumpSerial, x
   return g;
 }
 
-/** Reduce a UO 16-bit hue index to a vague RGB approximation for placeholders. */
+/** Resolve a UO 16-bit hue index to the bright end of its real hues.mul
+ *  palette. Text controls use a solid colour (rather than the 32-step item
+ *  shader), matching ClassicUO's convention of sampling the final palette
+ *  colour. The previous hash-based placeholder turned standard hues such as
+ *  1152/1153 into low-contrast pink, making server gumps unreadable. */
 function paletteHueToRgb(hue) {
   if (hue <= 0) return 0xfff0c0;
-  // The real hue lookup needs hues.mul; here we just generate a deterministic
-  // tint from the hue id so different gumps stay visually distinct.
-  const h = (hue * 0x9E3779B1) >>> 0;
-  return ((h & 0x7f) + 0x80) << 16 | (((h >>> 7) & 0x7f) + 0x80) << 8 | (((h >>> 14) & 0x7f) + 0x80);
+  if ((hue | 0) === 0x7fff) return 0xffffff;
+  const index = ((hue | 0) & 0x3fff) - 1;
+  const entry = assets.huesMeta?.hues?.[index];
+  const color16 = entry?.tableEnd || entry?.tableStart;
+  if (Number.isFinite(color16) && color16 > 0) {
+    const r5 = (color16 >>> 10) & 0x1f;
+    const g5 = (color16 >>> 5) & 0x1f;
+    const b5 = color16 & 0x1f;
+    const r = (r5 << 3) | (r5 >>> 2);
+    const g = (g5 << 3) | (g5 >>> 2);
+    const b = (b5 << 3) | (b5 >>> 2);
+    return (r << 16) | (g << 8) | b;
+  }
+  // Asset-light tests and third-party shards may omit hues.json. Preserve a
+  // readable neutral rather than inventing a random colour.
+  return 0xfff0c0;
 }

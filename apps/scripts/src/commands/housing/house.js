@@ -1,12 +1,30 @@
 import { allMobiles, nearbyClients } from '../../_spatial.js';
-import { itemBySerial, mobileBySerial } from '../../_entities.js';
+import { itemBySerial } from '../../_entities.js';
 import { createItem, destroyItemBySerial } from '../../_items.js';
+import { destroyMultiByBrand, spawnHousedeedIntoPack } from './placemulti.js';
+import { openHouseManagement, syncRegistryHouseToMulti } from './multi-house-bridge.js';
 
-// `[house` admin/player command — manages housing.
-//
-//   [house place <w> <h>      Drop a new house centred on the player.
-//                              Default size 7x7. Limited to one per player
-//                              for now; further claims are rejected.
+function selectedHouse(api, state, mob, requestedId = null) {
+  if (requestedId != null) {
+    const id = Number(requestedId) | 0;
+    const requested = api.houses.get?.(id);
+    // An id sent by the rich gump is accepted only for the house that this
+    // connection actually opened. This makes destructive actions precise
+    // without allowing arbitrary remote `[house remove <id>` calls.
+    if (!requested || requested.map !== (mob.map ?? 1) || (state?._activeHouseId | 0) !== id) return null;
+    return requested;
+  }
+  const underfoot = api.houses.houseAt(mob.x, mob.y, mob.map);
+  if (underfoot) return underfoot;
+  const active = api.houses.get?.(state?._activeHouseId);
+  if (!active || active.map !== (mob.map ?? 1)) return null;
+  const sx = active.sign?.x ?? active.x1;
+  const sy = active.sign?.y ?? active.y1;
+  return Math.max(Math.abs((mob.x | 0) - sx), Math.abs((mob.y | 0) - sy)) <= 4 ? active : null;
+}
+
+// `[house` is the single player-facing housing command. Physical placement
+// is intentionally deed/multi-driven; this command manages an existing home.
 //   [house remove              Delete the house you're standing inside.
 //                              Owner only.
 //   [house info                Show ownership + lockdown count for the
@@ -31,11 +49,21 @@ export default function register(api) {
 
   api.commands.register({
     name: 'house',
-    help: '[house <place|remove|info|lock|release|friend|ban>',
+    help: '[house [gump|customize|info|lock|release|friend|coowner|ban|secure|transfer|remove]',
     access: 'Player',
     run(ctx) {
-      const sub = String(ctx.args[0] ?? '').toLowerCase();
+      let sub = String(ctx.args[0] ?? '').toLowerCase();
       const mob = ctx.sender;
+
+      if (!sub) sub = 'gump';
+
+      // Houses are physical multis placed through deeds/the GM multi
+      // browser. The old rectangle generator remains below only for save
+      // compatibility but is intentionally unreachable from player chat.
+      if (sub === 'place') {
+        ctx.state.sendSystemMessage('Use a house deed to place a canonical house foundation.');
+        return;
+      }
 
       if (sub === 'place') {
         if (api.houses.housesOf(mob.serial).length > 0) {
@@ -138,17 +166,32 @@ export default function register(api) {
       }
 
       if (sub === 'remove') {
-        const house = api.houses.houseAt(mob.x, mob.y, mob.map);
-        if (!house) { ctx.state.sendSystemMessage('You are not inside a house.'); return; }
+        const requestedId = ctx.args[1] == null ? null : ctx.args[1];
+        const house = selectedHouse(api, ctx.state, mob, requestedId);
+        if (!house) { ctx.state.sendSystemMessage('Open the house sign while standing nearby, then try again.'); return; }
         if (api.houses.roleOf(house, mob.serial) !== 'owner') {
           ctx.state.sendSystemMessage('Only the owner may remove a house.');
+          return;
+        }
+        // Return the exact placement deed before mutating the structure. If
+        // the backpack cannot receive it, leave the house completely intact.
+        const deed = spawnHousedeedIntoPack(
+          api, ctx.state, mob, house.multiId,
+          `deed to ${house.sign?.title ?? `house #${house.id}`}`,
+        );
+        if (!deed) {
+          ctx.state.sendSystemMessage('Demolition cancelled: the placement deed could not be returned to your backpack.');
           return;
         }
         // Despawn every wall / floor / door spawned at place time. We send
         // 0x1D RemoveEntity to nearby clients first so the tiles disappear
         // immediately instead of waiting for a chunk re-stream.
-        if (house.spawnedItems?.length) {
-          for (const serial of house.spawnedItems) {
+        if (house.multiInstance != null) {
+          destroyMultiByBrand(api, house.multiId, house.map, house.multiInstance);
+        }
+        const looseItems = [...(house.spawnedItems ?? []), ...(house.customItemSerials ?? [])];
+        if (looseItems.length) {
+          for (const serial of looseItems) {
             const item = itemBySerial(api, serial);
             if (!item) continue;
             const rm = api.protocol?.removeEntity?.(serial);
@@ -158,12 +201,13 @@ export default function register(api) {
           }
         }
         api.houses.remove(house.id);
-        ctx.state.sendSystemMessage(`House #${house.id} removed.`);
+        ctx.state._activeHouseId = null;
+        ctx.state.sendSystemMessage(`House #${house.id} demolished. Its placement deed is in your backpack.`);
         return;
       }
 
       if (sub === 'info') {
-        const house = api.houses.houseAt(mob.x, mob.y, mob.map);
+        const house = selectedHouse(api, ctx.state, mob);
         if (!house) { ctx.state.sendSystemMessage('You are not inside a house.'); return; }
         ctx.state.sendSystemMessage(
           `House #${house.id} owner=${house.ownerName} (${house.x1},${house.y1})-(${house.x2},${house.y2}) ` +
@@ -173,30 +217,47 @@ export default function register(api) {
       }
 
       if (sub === 'gump') {
-        const house = api.houses.houseAt(mob.x, mob.y, mob.map);
+        const house = selectedHouse(api, ctx.state, mob);
         if (!house) { ctx.state.sendSystemMessage('You are not inside a house.'); return; }
-        const nameOf = (s) => {
-          const m = mobileBySerial(api, s | 0);
-          return (m?.name ?? `#${(s | 0).toString(16)}`).replace(/[|;]/g, '_');
-        };
-        const toCsv = (set) => Array.from(set ?? []).map(nameOf).join(',');
-        const cap = api.houses.capsForHouse?.(house)
-                 ?? { lockdowns: 0, secures: 0 };
-        const payload = [
-          house.id,
-          house.ownerName.replace(/[|;]/g, '_'),
-          `${house.lockdowns.size}/${cap.lockdowns ?? 0}`,
-          `${(house.secures?.size ?? 0)}/${cap.secures ?? 0}`,
-          toCsv(house.friends),
-          toCsv(house.coowners),
-          toCsv(house.bans),
-        ].join('|');
-        ctx.state.sendSystemMessage?.(`@@OPEN_HOUSE_GUMP@@${payload}`);
+        if (!openHouseManagement(api, ctx.state, mob, house)) {
+          ctx.state.sendSystemMessage(`House #${house.id}: owner ${house.ownerName}, access ${api.houses.roleOf(house, mob.serial)}.`);
+        }
+        return;
+      }
+
+      if (sub === 'customize' || sub === 'design') {
+        const house = selectedHouse(api, ctx.state, mob);
+        if (!house) { ctx.state.sendSystemMessage('Stand by your house sign first.'); return; }
+        if (api.houses.roleOf(house, mob.serial) !== 'owner') {
+          ctx.state.sendSystemMessage('Only the owner may customize this house.'); return;
+        }
+        if (!house.customizable) {
+          ctx.state.sendSystemMessage('This is a classic house. Only customizable foundations can enter design mode.'); return;
+        }
+        if (!api.houses.beginEditing(house, mob)) {
+          ctx.state.sendSystemMessage('Could not start house customization.'); return;
+        }
+        ctx.state._activeHouseId = house.id;
+        const serial = house.multiSerial ?? house.id;
+        ctx.state.sendSystemMessage?.(`@@OPEN_HOUSE_CUSTOM@@${serial}`);
+        return;
+      }
+
+      if (sub === 'rename') {
+        const house = selectedHouse(api, ctx.state, mob);
+        if (!house || api.houses.roleOf(house, mob.serial) !== 'owner') {
+          ctx.state.sendSystemMessage('Only the owner may rename this house.'); return;
+        }
+        const title = ctx.args.slice(1).join(' ').trim().replace(/[|\r\n]/g, ' ').slice(0, 60);
+        if (!title) { ctx.state.sendSystemMessage('Usage: [house rename <name>'); return; }
+        house.sign = { ...(house.sign ?? {}), title };
+        syncRegistryHouseToMulti(api, house);
+        ctx.state.sendSystemMessage(`House renamed to "${title}".`);
         return;
       }
 
       if (sub === 'lock') {
-        const house = api.houses.houseAt(mob.x, mob.y, mob.map);
+        const house = selectedHouse(api, ctx.state, mob);
         if (!house || !api.houses.canLockDown(house, mob)) {
           ctx.state.sendSystemMessage('You cannot lock anything down here.');
           return;
@@ -206,14 +267,16 @@ export default function register(api) {
         api.targeting.request(ctx.state, (picked) => {
           if (!picked?.serial) return;
           house.lockdowns.add(picked.serial >>> 0);
+          syncRegistryHouseToMulti(api, house);
           ctx.state.sendSystemMessage(`Locked down. (Total: ${house.lockdowns.size})`);
         }, { kind: 0 });
         return;
       }
 
       if (sub === 'release') {
-        const house = api.houses.houseAt(mob.x, mob.y, mob.map);
-        if (!house || !api.houses.canLockDown(house, mob)) {
+        const house = selectedHouse(api, ctx.state, mob);
+        const releaseRole = house ? api.houses.roleOf(house, mob.serial) : 'visitor';
+        if (!house || (releaseRole !== 'owner' && releaseRole !== 'coowner')) {
           ctx.state.sendSystemMessage('You cannot release lockdowns here.');
           return;
         }
@@ -222,15 +285,20 @@ export default function register(api) {
         api.targeting.request(ctx.state, (picked) => {
           if (!picked?.serial) return;
           house.lockdowns.delete(picked.serial >>> 0);
+          syncRegistryHouseToMulti(api, house);
           ctx.state.sendSystemMessage(`Released. (Total: ${house.lockdowns.size})`);
         }, { kind: 0 });
         return;
       }
 
       if (sub === 'friend' || sub === 'ban' || sub === 'coowner' || sub === 'unfriend' || sub === 'unban' || sub === 'uncoowner') {
-        const house = api.houses.houseAt(mob.x, mob.y, mob.map);
-        if (!house || api.houses.roleOf(house, mob.serial) !== 'owner') {
-          ctx.state.sendSystemMessage('Only the owner may modify the access list.');
+        const house = selectedHouse(api, ctx.state, mob);
+        const accessRole = house ? api.houses.roleOf(house, mob.serial) : 'visitor';
+        const coownerAction = sub === 'coowner' || sub === 'uncoowner';
+        if (!house || (accessRole !== 'owner' && (accessRole !== 'coowner' || coownerAction))) {
+          ctx.state.sendSystemMessage(coownerAction
+            ? 'Only the owner may modify co-owners.'
+            : 'Only the owner or a co-owner may modify this access list.');
           return;
         }
         const name = String(ctx.args[1] ?? '').toLowerCase();
@@ -268,16 +336,19 @@ export default function register(api) {
             ctx.state.sendSystemMessage(`${target.name} is no longer banned.`);
             break;
         }
+        syncRegistryHouseToMulti(api, house);
         return;
       }
 
       if (sub === 'secure' || sub === 'unsecure') {
-        const house = api.houses.houseAt(mob.x, mob.y, mob.map);
+        const house = selectedHouse(api, ctx.state, mob);
         // Bug-hunt #7 B2: was checking canLockDown (lockdown cap) instead
         // of canSecure (secure cap). Players could secure unlimited
         // containers up to the lockdown ceiling. ServUO secure ceiling is
         // a separate, much smaller cap (4 on small foundation).
-        if (!house || !api.houses.canSecure?.(house, mob)) {
+        const secureRole = house ? api.houses.roleOf(house, mob.serial) : 'visitor';
+        const mayManage = secureRole === 'owner' || secureRole === 'coowner';
+        if (!house || !mayManage || (sub === 'secure' && !api.houses.canSecure?.(house, mob))) {
           ctx.state.sendSystemMessage('You cannot manage secures here.');
           return;
         }
@@ -303,6 +374,7 @@ export default function register(api) {
             house.lockdowns?.delete?.(picked.serial >>> 0);
             ctx.state.sendSystemMessage(`Unsecured. (Total: ${house.secures.size})`);
           }
+          syncRegistryHouseToMulti(api, house);
         }, { kind: 0 });
         return;
       }
@@ -312,7 +384,7 @@ export default function register(api) {
         // named recipient. ServUO requires the owner to be standing
         // inside the house; we follow that to make ownership intent
         // unambiguous.
-        const house = api.houses.houseAt(mob.x, mob.y, mob.map);
+        const house = selectedHouse(api, ctx.state, mob);
         if (!house) { ctx.state.sendSystemMessage('You must be inside the house to transfer it.'); return; }
         if (api.houses.roleOf(house, mob.serial) !== 'owner') {
           ctx.state.sendSystemMessage('Only the owner may transfer this house.');
@@ -347,7 +419,7 @@ export default function register(api) {
       }
 
       if (sub === 'acl' || sub === 'access') {
-        const house = api.houses.houseAt(mob.x, mob.y, mob.map);
+        const house = selectedHouse(api, ctx.state, mob);
         if (!house) { ctx.state.sendSystemMessage('You are not in a house.'); return; }
         const fmt = (set) => [...set].slice(0, 8).map((s) => `0x${s.toString(16)}`).join(', ') || '(none)';
         ctx.state.sendSystemMessage(`House owner: 0x${(house.ownerSerial >>> 0).toString(16)}`);
@@ -359,7 +431,7 @@ export default function register(api) {
       }
 
       ctx.state.sendSystemMessage(
-        'Usage: [house <place|remove|info|lock|release|friend|unfriend|coowner|uncoowner|ban|unban|secure|unsecure|transfer|acl>',
+        'Usage: [house <gump|customize|rename|remove|info|lock|release|friend|unfriend|coowner|uncoowner|ban|unban|secure|unsecure|transfer|acl>',
       );
     },
   });

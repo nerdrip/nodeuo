@@ -157,6 +157,62 @@ export class Spawner {
     }
   }
 
+  /**
+   * Forget all live spawn instances but retain the group definitions.
+   *
+   * This is the reset `[wipeworld` needs: the explicit world-population
+   * gate keeps the groups dormant, while a later `[createworld` can resume
+   * the complete script-owned catalogue without restarting the server.
+   * Deleting the definitions here used to permanently lose non-XML groups
+   * (fauna, dungeon and default wilderness spawns) for the current process.
+   *
+   * @param {{now?:number}} options
+   * @returns {{groupsReset:number, trackedMobilesForgotten:number}}
+   */
+  resetRuntime({ now = Date.now() } = {}) {
+    let trackedMobilesForgotten = 0;
+    for (const group of this.groups.values()) {
+      trackedMobilesForgotten += group.spawnedSerials?.size ?? 0;
+      group.spawnedSerials ??= new Set();
+      group.spawnedSerials.clear();
+      const lo = Math.max(0, Number(group.respawnMs?.[0]) || 0);
+      const hi = Math.max(lo, Number(group.respawnMs?.[1]) || lo);
+      group.nextSpawnAt = now + lo
+        + Math.floor(Math.random() * Math.max(1, hi - lo + 1));
+    }
+    this._tickCursor = 0;
+    // Older WipeWorld builds cleared `groups` without clearing these maps.
+    // Rebuild when necessary so the surviving definitions are authoritative.
+    this.validateIndex({ repair: true });
+    return { groupsReset: this.groups.size, trackedMobilesForgotten };
+  }
+
+  /**
+   * Remove every runtime spawn definition and all of its secondary index
+   * entries.  Calling `groups.clear()` directly only empties the canonical
+   * Map; `_groupsBySector`, `_sectorsByGroup` and `_globalGroups` would keep
+   * stale ids and make a later CreateWorld operate on a half-reset registry.
+   *
+   * @param {{despawn?: boolean}} options
+   * @returns {{groupsRemoved:number, trackedMobilesRemoved:number}}
+   */
+  reset({ despawn = true } = {}) {
+    const groupsRemoved = this.groups.size;
+    let trackedMobilesRemoved = 0;
+    if (despawn) {
+      for (const group of this.groups.values()) {
+        trackedMobilesRemoved += group.spawnedSerials?.size ?? 0;
+      }
+      this.clearAll();
+    }
+    this.groups.clear();
+    this._groupsBySector.clear();
+    this._sectorsByGroup.clear();
+    this._globalGroups.clear();
+    this._tickCursor = 0;
+    return { groupsRemoved, trackedMobilesRemoved };
+  }
+
   tick(now = Date.now()) {
     const tickStarted = performance.now();
     // Don't tick spawner until `[createworld` has finished. Bug-hunt #3

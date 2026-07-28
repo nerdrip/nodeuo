@@ -17,7 +17,7 @@
 import { open } from 'node:fs/promises';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import sharp from 'sharp';
+import sharp from './safe-sharp.js';
 
 const GROUP_SIZE  = 708;    // bytes
 const ENTRY_SIZE  = 88;     // bytes

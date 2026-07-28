@@ -104,6 +104,12 @@ export default [
       'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       'no-constant-condition': ['error', { checkLoops: false }],
       'no-empty': ['error', { allowEmptyCatch: true }],
+      // ESLint 10 added this rule to eslint:recommended. The codebase has
+      // intentional cursor increments/destructuring assignments where the
+      // assigned value is discarded after advancing parser state. Preserve
+      // the established lint contract; genuine dead bindings remain covered
+      // by no-unused-vars.
+      'no-useless-assignment': 'off',
       // Several protocol and terminal helpers intentionally match ASCII
       // control ranges; treating those regexes as lint failures obscures
       // real runtime problems.

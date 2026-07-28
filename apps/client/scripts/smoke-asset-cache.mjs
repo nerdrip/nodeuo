@@ -132,7 +132,11 @@ try {
   assert.ok(assets.assetPreloadStats.batches >= 3, 'preload should be split across idle batches');
   assert.ok(assets.assetPreloadStats.maxBatchSize <= 2, 'preload should respect per-idle page budget');
 
-  const assetSource = readFileSync(new URL('../src/assets/asset-manager.js', import.meta.url), 'utf8');
+  const assetSource = [
+    '../src/assets/asset-manager.js',
+    '../src/assets/asset-fetch.js',
+    '../src/assets/asset-initialization.js',
+  ].map((file) => readFileSync(new URL(file, import.meta.url), 'utf8')).join('\n');
   const workerSource = readFileSync(new URL('../src/assets/worker-json.js', import.meta.url), 'utf8');
   for (const needle of [
     'const HEAVY_MANIFESTS = new Set',

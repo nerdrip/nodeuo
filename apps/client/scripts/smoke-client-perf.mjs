@@ -23,7 +23,10 @@ assert.ok(mobileRenderer.includes('let sortDirty = false'), 'MobileRenderer shou
 assert.ok(mobileRenderer.includes('sortDirty = true'), 'MobileRenderer should mark sort dirtiness on add/zIndex changes');
 assert.ok(!mobileRenderer.includes('let dirty = false'), 'MobileRenderer should not use a generic dirty flag for sort scheduling');
 
-const tileRenderer = readFileSync(new URL('../src/renderer/tile-renderer.js', import.meta.url), 'utf8');
+const tileRenderer = [
+  '../src/renderer/tile-renderer.js',
+  '../src/renderer/chunk-visual.js',
+].map((file) => readFileSync(new URL(file, import.meta.url), 'utf8')).join('\n');
 assert.ok(tileRenderer.includes('MAX_ADD_CHILD_BATCH'), 'TileRenderer should batch chunk sprite mounts');
 assert.ok(tileRenderer.includes('_addChunkSprites'), 'TileRenderer should centralize chunk sprite mounting');
 assert.ok(tileRenderer.includes('sprites.sort((a, b) => _zIndexOf(a) - _zIndexOf(b))'), 'Chunk sprites should be locally z-sorted before mounting');

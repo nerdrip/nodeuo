@@ -28,7 +28,13 @@ import {
   buildCreateCharacter, buildDeleteCharacter, buildPing,
 } from '../net/outgoing.js';
 import { assets } from '../assets/asset-manager.js';
-import { SKILL_NAMES_BY_ID } from '../shared/skill-ids.js';
+import { world } from '../world/world.js';
+import {
+  ADVANCED_PROFESSION_ID, CLOTHING_HUES, CREATE_SKILL_COUNT, CREATE_SKILL_TOTALS, CREATE_STAT_TOTAL,
+  ELF_SKIN_VALUES, MAX_CHAR_SLOTS, PROFESSIONS, _loadCustomProfessions, creationBeardStyles, creationHairHues,
+  creationHairStyles, creationSkinHues, creationSkillOptionsForRace, normalizeCreationAppearance,
+  normalizeCreationSkills, validateCreationName,
+} from './login-character-creation.js';
 
 const LS_PREFIX = 'uo.login.';
 let loginProfileCache;
@@ -47,10 +53,6 @@ function loginProfileSetting(path, fallback) {
   for (const part of String(path).split('.')) value = value?.[part];
   return value ?? fallback;
 }
-const ADVANCED_PROFESSION_ID = 0;
-const CREATE_SKILL_COUNT = 4;
-const CREATE_STAT_TOTAL = 90;
-const CREATE_SKILL_TOTALS = new Set([100, 120]);
 
 /** CUO `LoginSteps` enum. */
 export const LoginSteps = Object.freeze({
@@ -67,318 +69,6 @@ export const LoginSteps = Object.freeze({
   PopUpMessage:          'PopUpMessage',
 });
 
-/** ServUO Professions.cs presets — [str, dex, int, ...skills(id, val)]. */
-// Audit rev.4 P2 — profession presets. Curated defaults below are the
-// canonical 8 classes; custom shards can ship `assets/professions.json`
-// extracted from Prof.txt to override and expand this list. The merge
-// happens via `_loadCustomProfessions()` after asset init.
-let PROFESSIONS = [
-  { id: 1, name: 'Warrior',     desc: 'Anatomy + Healing + Swords + Tactics',
-    str: 45, dex: 35, int: 10,
-    skills: [{ id: 2, val: 30 }, { id: 18, val: 30 }, { id: 41, val: 30 }, { id: 28, val: 30 }] },
-  { id: 2, name: 'Mage',        desc: 'Eval + Wrestling + Magery + Meditation',
-    str: 25, dex: 20, int: 45,
-    skills: [{ id: 17, val: 30 }, { id: 44, val: 30 }, { id: 26, val: 30 }, { id: 47, val: 30 }] },
-  { id: 3, name: 'Blacksmith',  desc: 'Mining + Arms Lore + Smithing + Tinkering',
-    str: 60, dex: 15, int: 15,
-    skills: [{ id: 46, val: 30 }, { id: 5, val: 30 }, { id: 8, val: 30 }, { id: 38, val: 30 }] },
-  { id: 4, name: 'Necromancer', desc: 'Necromancy + Spirit Speak + Swords + Meditation',
-    str: 25, dex: 20, int: 45,
-    skills: [{ id: 50, val: 30 }, { id: 33, val: 30 }, { id: 41, val: 30 }, { id: 47, val: 30 }] },
-  { id: 5, name: 'Paladin',     desc: 'Chivalry + Swords + Focus + Tactics',
-    str: 45, dex: 20, int: 25,
-    skills: [{ id: 52, val: 30 }, { id: 41, val: 30 }, { id: 51, val: 30 }, { id: 28, val: 30 }] },
-  { id: 6, name: 'Samurai',     desc: 'Bushido + Swords + Anatomy + Healing',
-    str: 40, dex: 30, int: 20,
-    skills: [{ id: 53, val: 30 }, { id: 41, val: 30 }, { id: 2, val: 30 }, { id: 18, val: 30 }] },
-  { id: 7, name: 'Ninja',       desc: 'Ninjitsu + Hiding + Fencing + Stealth',
-    str: 40, dex: 30, int: 20,
-    skills: [{ id: 54, val: 30 }, { id: 22, val: 30 }, { id: 43, val: 30 }, { id: 48, val: 30 }] },
-  { id: 0, name: 'Advanced',    desc: 'Pick your own stats and skills',
-    str: 60, dex: 15, int: 15,
-    skills: [{ id: 41, val: 30 }, { id: 28, val: 30 }, { id: 18, val: 30 }, { id: 26, val: 30 }] },
-];
-
-/** Audit rev.4 P2 — merge `assets.professions` (from Prof.txt extractor)
- *  with the curated defaults above. Custom shards can ship extra classes
- *  via the extractor without touching this file. Called lazily from the
- *  Profession-selection page render so the import is cheap. */
-function _loadCustomProfessions(assets) {
-  const pro = assets?.professions?.byId;
-  if (!pro || typeof pro !== 'object') return;
-  const customs = [];
-  let nextId = Math.max(...PROFESSIONS.map((p) => p.id)) + 1;
-  for (const key of Object.keys(pro)) {
-    const p = pro[key];
-    // Skip categories (they group children, not directly choosable).
-    if (p.isCategory) continue;
-    // Skip if a curated default already covers this name (case-insensitive).
-    if (PROFESSIONS.some((cp) => cp.name.toLowerCase() === key.toLowerCase())) continue;
-    let str = 60, dex = 15, int = 15;
-    for (const [sid, val] of p.stats ?? []) {
-      if (sid === 0) str = val;
-      if (sid === 1) dex = val;
-      if (sid === 2) int = val;
-    }
-    const skills = normalizeCreationSkills((p.skills ?? [])
-      .slice(0, CREATE_SKILL_COUNT)
-      .map(([sid, val]) => ({ id: sid, val })));
-    customs.push({
-      id: nextId++,
-      name: key,
-      desc: p.gumpName || `Custom shard profession`,
-      str, dex, int, skills,
-    });
-  }
-  if (customs.length) PROFESSIONS = [...PROFESSIONS.slice(0, -1), ...customs, PROFESSIONS[PROFESSIONS.length - 1]];
-}
-
-const SKILL_OPTIONS = Object.entries(SKILL_NAMES_BY_ID)
-  .map(([id, name]) => [Number.parseInt(id, 10), name])
-  .sort((a, b) => a[0] - b[0]);
-
-const DEFAULT_CREATION_SKILLS = Object.freeze([
-  { id: 41, val: 30 },
-  { id: 28, val: 30 },
-  { id: 18, val: 30 },
-  { id: 26, val: 30 },
-]);
-
-function normalizeCreationSkills(skills = []) {
-  const out = [];
-  const seen = new Set();
-  const push = (skill) => {
-    const id = skill?.id | 0;
-    if (id < 1 || id > 58 || seen.has(id) || out.length >= CREATE_SKILL_COUNT) return;
-    seen.add(id);
-    out.push({ id, val: clamp(skill?.val ?? skill?.value ?? 0, 0, 50) });
-  };
-  for (const skill of skills) push(skill);
-  for (const skill of DEFAULT_CREATION_SKILLS) push(skill);
-  return out.slice(0, CREATE_SKILL_COUNT);
-}
-
-function creationSkillOptionsForRace(race) {
-  const isGargoyle = (race | 0) === 2;
-  return SKILL_OPTIONS.filter(([id]) => {
-    if (id === 48 || id === 49 || id === 55) return false; // Stealth / Remove Trap / Spellweaving
-    if (isGargoyle && id === 32) return false;             // Archery
-    if (!isGargoyle && id === 58) return false;            // Throwing
-    return true;
-  });
-}
-
-function validateCreationName(name) {
-  const value = String(name ?? '');
-  if (value !== value.trim()) return 'Name cannot start or end with whitespace.';
-  if (value.length < 2 || value.length > 16) return 'Name must be 2-16 characters.';
-  let separators = 0;
-  let prevSeparator = false;
-  for (let i = 0; i < value.length; i++) {
-    const ch = value[i];
-    const isLetter = /[A-Za-z]/.test(ch);
-    const isSeparator = ch === ' ' || ch === '-' || ch === '.' || ch === "'";
-    if (!isLetter && !isSeparator) return 'Name can use letters plus one space, dash, period or quote.';
-    if (isSeparator) {
-      if (i === 0 || i === value.length - 1 || prevSeparator) return 'Name separator must be between letters.';
-      separators++;
-      if (separators > 1) return 'Name can use only one separator.';
-    }
-    prevSeparator = isSeparator;
-  }
-  return '';
-}
-
-const HUMAN_SKIN_HUES = [
-  { hue: 0x83EA, label: 'Pale' },
-  { hue: 0x83EB, label: 'Light' },
-  { hue: 0x83F0, label: 'Tan' },
-  { hue: 0x83F2, label: 'Olive' },
-  { hue: 0x83F5, label: 'Brown' },
-  { hue: 0x83F7, label: 'Bronze' },
-  { hue: 0x83FA, label: 'Dark' },
-  { hue: 0x83FD, label: 'Ebony' },
-];
-
-const ELF_SKIN_VALUES = [
-  0x4DE, 0x76C, 0x835, 0x430, 0x24D, 0x24E, 0x24F, 0x0BF,
-  0x4A7, 0x361, 0x375, 0x367, 0x3E8, 0x3DE, 0x353, 0x903,
-  0x76D, 0x384, 0x579, 0x3E9, 0x374, 0x389, 0x385, 0x376,
-  0x53F, 0x381, 0x382, 0x383, 0x76B, 0x3E5, 0x51D, 0x3E6,
-];
-
-const SKIN_HUES_BY_RACE = [
-  HUMAN_SKIN_HUES,
-  ELF_SKIN_VALUES.map((h, i) => ({ hue: h | 0x8000, label: `Elf ${i + 1}` })),
-  Array.from({ length: 25 }, (_, i) => ({ hue: (1755 + i) | 0x8000, label: `Stone ${i + 1}` })),
-];
-
-const CLOTHING_HUES = [
-  { hue: 1102, label: 'Black' },
-  { hue: 1108, label: 'Dark Brown' },
-  { hue: 1144, label: 'Brown' },
-  { hue: 1147, label: 'Auburn' },
-  { hue: 1148, label: 'Blond' },
-  { hue: 1153, label: 'Light Blond' },
-  { hue: 1158, label: 'Red' },
-  { hue: 1163, label: 'Crimson' },
-  { hue: 1175, label: 'Grey' },
-  { hue: 1185, label: 'Silver' },
-  { hue: 1190, label: 'White' },
-];
-
-const HUMAN_HAIR_HUES = CLOTHING_HUES.filter((h) => h.hue >= 1102 && h.hue <= 1149);
-const ELF_HAIR_HUE_VALUES = [
-  0x034, 0x035, 0x036, 0x037, 0x038, 0x039, 0x058, 0x08E,
-  0x08F, 0x090, 0x091, 0x092, 0x101, 0x159, 0x15A, 0x15B,
-  0x15C, 0x15D, 0x15E, 0x128, 0x12F, 0x1BD, 0x1E4, 0x1F3,
-  0x207, 0x211, 0x239, 0x251, 0x26C, 0x2C3, 0x2C9, 0x31D,
-  0x31E, 0x31F, 0x320, 0x321, 0x322, 0x323, 0x324, 0x325,
-  0x326, 0x369, 0x386, 0x387, 0x388, 0x389, 0x38A, 0x59D,
-  0x6B8, 0x725, 0x853,
-];
-const GARGOYLE_HAIR_HUE_VALUES = [
-  0x709, 0x70B, 0x70D, 0x70F, 0x711, 0x763,
-  0x765, 0x768, 0x76B, 0x6F3, 0x6F1, 0x6EF,
-  0x6E4, 0x6E2, 0x6E0,
-];
-
-const HAIR_HUES_BY_RACE = [
-  HUMAN_HAIR_HUES,
-  ELF_HAIR_HUE_VALUES.map((h) => ({ hue: h, label: `Hue ${h.toString(16).toUpperCase().padStart(3, '0')}` })),
-  GARGOYLE_HAIR_HUE_VALUES.map((h) => ({ hue: h, label: `Horn ${h.toString(16).toUpperCase().padStart(3, '0')}` })),
-];
-
-const HUMAN_HAIR_STYLES = [
-  { id: 0x0000, label: 'Bald' },
-  { id: 0x203B, label: 'Short' },
-  { id: 0x203C, label: 'Long' },
-  { id: 0x203D, label: 'Pony tail' },
-  { id: 0x2044, label: 'Mohawk' },
-  { id: 0x2045, label: 'Pageboy' },
-  { id: 0x2047, label: 'Afro' },
-  { id: 0x2048, label: 'Receding' },
-  { id: 0x2049, label: 'Pigtails' },
-  { id: 0x204A, label: 'Krisna' },
-  { id: 0x2046, label: 'Buns' },
-];
-const ELF_HAIR_STYLES = [
-  { id: 0x0000, label: 'Bald' },
-  { id: 0x2FBF, label: 'Mid-long' },
-  { id: 0x2FC0, label: 'Long feather' },
-  { id: 0x2FC1, label: 'Short' },
-  { id: 0x2FC2, label: 'Mullet' },
-  { id: 0x2FCC, label: 'Flower' },
-  { id: 0x2FCD, label: 'Long' },
-  { id: 0x2FCE, label: 'Knob' },
-  { id: 0x2FCF, label: 'Braided' },
-  { id: 0x2FD0, label: 'Bun' },
-  { id: 0x2FD1, label: 'Spiked' },
-];
-const GARGOYLE_HAIR_STYLES_M = [
-  { id: 0x0000, label: 'None' },
-  { id: 0x4258, label: 'Plain' },
-  { id: 0x4259, label: 'Sweptback' },
-  { id: 0x425A, label: 'Long' },
-  { id: 0x425B, label: 'Medium' },
-  { id: 0x425C, label: 'Bun' },
-  { id: 0x425D, label: 'Topknot' },
-  { id: 0x425E, label: 'Crowned' },
-  { id: 0x425F, label: 'Ridge' },
-];
-const GARGOYLE_HAIR_STYLES_F = [
-  { id: 0x0000, label: 'None' },
-  { id: 0x4261, label: 'Short horns' },
-  { id: 0x4262, label: 'Long horns' },
-  { id: 0x4273, label: 'Curved' },
-  { id: 0x4274, label: 'Twisted' },
-  { id: 0x4275, label: 'Tall' },
-  { id: 0x42B0, label: 'Crown' },
-  { id: 0x42B1, label: 'Swept crown' },
-  { id: 0x42AA, label: 'Frill' },
-  { id: 0x42AB, label: 'Tall frill' },
-];
-const HUMAN_BEARD_STYLES = [
-  { id: 0x0000, label: 'None' },
-  { id: 0x203E, label: 'Mustache' },
-  { id: 0x203F, label: 'Short beard' },
-  { id: 0x2040, label: 'Goatee' },
-  { id: 0x2041, label: 'Long beard' },
-  { id: 0x204B, label: 'Mustache and beard' },
-  { id: 0x204C, label: 'Full beard' },
-  { id: 0x204D, label: 'Vandyke' },
-];
-const GARGOYLE_BEARD_STYLES = [
-  { id: 0x0000, label: 'None' },
-  { id: 0x42AD, label: 'Jaw horns' },
-  { id: 0x42AE, label: 'Hooked jaw' },
-  { id: 0x42AF, label: 'Long jaw' },
-  { id: 0x42B0, label: 'Crest jaw' },
-];
-
-function creationRaceIndex(race) {
-  return Math.max(0, Math.min(2, race | 0));
-}
-
-function creationSkinHues(race) {
-  return SKIN_HUES_BY_RACE[creationRaceIndex(race)] ?? SKIN_HUES_BY_RACE[0];
-}
-
-function creationHairHues(race) {
-  return HAIR_HUES_BY_RACE[creationRaceIndex(race)] ?? HAIR_HUES_BY_RACE[0];
-}
-
-function creationHairStyles(race, sex) {
-  const r = creationRaceIndex(race);
-  const female = (sex | 0) === 1;
-  if (r === 1) {
-    return ELF_HAIR_STYLES.filter((s) => {
-      if (female) return s.id !== 0x2FBF && s.id !== 0x2FCD;
-      return s.id !== 0x2FCC && s.id !== 0x2FD0;
-    });
-  }
-  if (r === 2) return female ? GARGOYLE_HAIR_STYLES_F : GARGOYLE_HAIR_STYLES_M;
-  return HUMAN_HAIR_STYLES.filter((s) => {
-    if (female) return s.id !== 0x2048;
-    return s.id !== 0x2046;
-  });
-}
-
-function creationBeardStyles(race, sex) {
-  if ((sex | 0) === 1) return [{ id: 0, label: 'None' }];
-  const r = creationRaceIndex(race);
-  if (r === 1) return [{ id: 0, label: 'None' }];
-  if (r === 2) return GARGOYLE_BEARD_STYLES;
-  return HUMAN_BEARD_STYLES;
-}
-
-function normalizeCreationAppearance(c) {
-  if (!c) return c;
-  c.race = creationRaceIndex(c.race);
-  c.sex = c.sex === 1 ? 1 : 0;
-  const skin = creationSkinHues(c.race);
-  if (!skin.some((h) => h.hue === c.skinHue)) c.skinHue = skin[Math.min(2, skin.length - 1)]?.hue ?? 0x83EA;
-  const hairStyles = creationHairStyles(c.race, c.sex);
-  if (!hairStyles.some((s) => s.id === c.hairId)) c.hairId = hairStyles[1]?.id ?? hairStyles[0]?.id ?? 0;
-  const hairHues = creationHairHues(c.race);
-  if (!hairHues.some((h) => h.hue === c.hairHue)) c.hairHue = hairHues[1]?.hue ?? hairHues[0]?.hue ?? 0;
-  const beardStyles = creationBeardStyles(c.race, c.sex);
-  if (!beardStyles.some((s) => s.id === c.beardId)) c.beardId = 0;
-  if (beardStyles.length <= 1) c.beardId = 0;
-  c.beardHue = c.hairHue;
-  return c;
-}
-
-// Max slots displayed in the character picker. ServUO supports 5, 6, or
-// 7 depending on the account's `CharacterSlot` flags (see flags 0x80
-// SixthCharacterSlot / 0x40 SeventhCharacterSlot in 0xA9 char list).
-// 7 covers every modern ServUO config — extra empty slots just render as
-// "— Empty Slot —" placeholders which is harmless. The earlier cap of 5
-// hid characters at slot index ≥ 5, and clicking a "below the fold"
-// character was impossible — _doPlay would always send slot 0..4 and
-// ServUO rejected with "Invalid Character Selection" because account[0]
-// was actually empty.
-const MAX_CHAR_SLOTS = 7;
 
 export class LoginScene extends Scene {
   constructor(gc) {
@@ -450,6 +140,7 @@ export class LoginScene extends Scene {
     this._sub('login:relay',        (info) => this._onRelay(info));
     this._sub('login:char-list',    (info) => this._onCharList(info));
     this._sub('world:login-confirm',()     => this._onLoginConfirm());
+    this._sub('world:bootstrap-progress', (info) => this._onWorldBootstrapProgress(info));
     this._sub('net:close',          ()     => this._onSocketClosed());
     this._sub('net:ping',           (info) => this._onServerPing(info));
 
@@ -468,6 +159,7 @@ export class LoginScene extends Scene {
   }
 
   unload() {
+    this._stopLoadingHeartbeat();
     this._stopServerPingProbe();
     this._cancelReconnect({ returnToMain: false });
     for (const u of this._unsubs) u();
@@ -492,6 +184,7 @@ export class LoginScene extends Scene {
     if (this._step === LoginSteps.ServerSelection && step !== LoginSteps.ServerSelection) {
       this._stopServerPingProbe();
     }
+    this._stopLoadingHeartbeat();
     this._step = step;
     this._panel?.remove(); this._panel = null;
     switch (step) {
@@ -1582,6 +1275,20 @@ export class LoginScene extends Scene {
   // Step: Loading screens
 
   _renderLoading(label) {
+    const initialProgress = ({
+      [LoginSteps.Connecting]: 0.12,
+      [LoginSteps.VerifyingAccount]: 0.32,
+      [LoginSteps.LoginInToServer]: 0.54,
+      [LoginSteps.CharacterCreationDone]: 0.58,
+      [LoginSteps.EnteringBritania]: 0.08,
+    })[this._step] ?? 0.1;
+    const initialDetail = ({
+      [LoginSteps.Connecting]: 'Opening a secure shard connection',
+      [LoginSteps.VerifyingAccount]: 'Checking account credentials',
+      [LoginSteps.LoginInToServer]: 'Requesting character roster',
+      [LoginSteps.CharacterCreationDone]: 'Creating your character',
+      [LoginSteps.EnteringBritania]: 'Preparing world resources',
+    })[this._step] ?? 'Preparing the next stage';
     this._mountPanel(`
       <section class="uo-loading-card">
         <div class="uo-brand-seal uo-brand-seal--small" aria-hidden="true"><span>UO</span></div>
@@ -1589,10 +1296,64 @@ export class LoginScene extends Scene {
         <div class="uo-eyebrow">WORLD GATEWAY</div>
         <h2>${esc(label)}</h2>
         <p>Please wait while the next gate opens.</p>
-        <div class="uo-loading-track"><span></span></div>
+        <div class="uo-loading-status">
+          <span id="uo-loading-detail">${esc(initialDetail)}</span>
+          <b id="uo-loading-percent">${Math.round(initialProgress * 100)}%</b>
+        </div>
+        <div class="uo-loading-track" id="uo-loading-track" role="progressbar"
+             aria-label="${esc(label)}" aria-valuemin="0" aria-valuemax="100"
+             aria-valuenow="${Math.round(initialProgress * 100)}">
+          <span id="uo-loading-progress"></span>
+        </div>
+        <div class="uo-loading-heartbeat" aria-live="polite">
+          <i></i><span id="uo-loading-elapsed">Gateway active · 0s</span>
+        </div>
       </section>
     `);
     this._injectStyles();
+    this._setLoadingProgress(initialProgress, initialDetail);
+    this._startLoadingHeartbeat();
+  }
+
+  _setLoadingProgress(progress, detail = null) {
+    if (!this._panel?.classList?.contains('uo-loading-card') && !this._panel?.querySelector?.('#uo-loading-track')) return;
+    const p = Math.max(0, Math.min(1, Number(progress) || 0));
+    // Never visually move backwards when two parallel preload jobs report in
+    // a different order. New loading panels reset `_loadingProgress` below.
+    this._loadingProgress = Math.max(Number(this._loadingProgress) || 0, p);
+    const pct = Math.round(this._loadingProgress * 100);
+    const fill = this._panel.querySelector('#uo-loading-progress');
+    const track = this._panel.querySelector('#uo-loading-track');
+    const percent = this._panel.querySelector('#uo-loading-percent');
+    const detailEl = this._panel.querySelector('#uo-loading-detail');
+    if (fill) fill.style.setProperty('--uo-loading-progress', String(this._loadingProgress));
+    if (track) track.setAttribute('aria-valuenow', String(pct));
+    if (percent) percent.textContent = `${pct}%`;
+    if (detail && detailEl) detailEl.textContent = String(detail);
+  }
+
+  _startLoadingHeartbeat() {
+    if (this._loadingHeartbeat) clearInterval(this._loadingHeartbeat);
+    this._loadingHeartbeat = null;
+    this._loadingStartedAt = performance.now();
+    this._loadingHeartbeat = setInterval(() => {
+      const elapsed = Math.max(0, Math.floor((performance.now() - this._loadingStartedAt) / 1000));
+      const node = this._panel?.querySelector?.('#uo-loading-elapsed');
+      if (node) node.textContent = `Gateway active · ${elapsed}s`;
+    }, 500);
+  }
+
+  _stopLoadingHeartbeat() {
+    if (this._loadingHeartbeat) clearInterval(this._loadingHeartbeat);
+    this._loadingHeartbeat = null;
+    this._loadingStartedAt = 0;
+    this._loadingProgress = 0;
+  }
+
+  _onWorldBootstrapProgress(info) {
+    if (this._step !== LoginSteps.EnteringBritania) return;
+    const p = Math.max(0, Math.min(1, Number(info?.progress) || 0));
+    this._setLoadingProgress(0.1 + p * 0.56, info?.label || 'Preparing world resources');
   }
 
   // --------------------------------------------------------------------------
@@ -1726,8 +1487,80 @@ export class LoginScene extends Scene {
     // graph) as a separate async chunk that is fetched only after the server
     // has accepted a character. This materially improves cold login without
     // changing the UO network flow.
+    this._setLoadingProgress(0.68, 'Shard accepted · warming nearby terrain');
     const { GameScene } = await this._prepareWorld();
+    try {
+      await this._warmInitialTerrain();
+    } catch (error) {
+      // Streaming can recover inside GameScene, so a corrupt optional static
+      // block must not strand the user on the gateway forever.
+      console.warn('[login] initial terrain warm-up failed', error?.message ?? error);
+    }
+    this._setLoadingProgress(1, 'Britannia is ready');
+    // Allow the completed bar to paint once before the DOM scene is swapped.
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     await this.gc.setScene(new GameScene(this.gc));
+  }
+
+  /** Warm the 5×5 chunk neighbourhood centred on the confirmed player.
+   *  Range requests are coalesced by AssetManager, so this is normally five
+   *  compact terrain/static reads rather than fifty individual HTTP calls.
+   *  Land atlas pages are resolved before GameScene mounts, eliminating the
+   *  large blue diamonds around the avatar on a cold cache. */
+  async _warmInitialTerrain() {
+    const p = world.player;
+    const meta = assets.mapMeta;
+    if (!p || !meta?.blocksWide || !meta?.blocksTall) return;
+    const centerCx = Math.floor((p.x | 0) / 8);
+    const centerCy = Math.floor((p.y | 0) / 8);
+    const radius = 2;
+    const coords = [];
+    for (let cx = centerCx - radius; cx <= centerCx + radius; cx++) {
+      for (let cy = centerCy - radius; cy <= centerCy + radius; cy++) {
+        if (cx < 0 || cy < 0 || cx >= meta.blocksWide || cy >= meta.blocksTall) continue;
+        coords.push([cx, cy]);
+      }
+    }
+    if (!coords.length) return;
+
+    let settled = 0;
+    const ioTotal = coords.length * 2;
+    const markIo = () => {
+      settled++;
+      this._setLoadingProgress(
+        0.70 + 0.16 * (settled / ioTotal),
+        `Streaming nearby world · ${settled}/${ioTotal}`,
+      );
+    };
+    const ioJobs = [];
+    for (const [cx, cy] of coords) {
+      ioJobs.push(assets.fetchBlock(cx, cy, world.mapId).finally(markIo));
+      ioJobs.push(assets.fetchStatics(cx, cy, world.mapId).finally(markIo));
+    }
+    await Promise.allSettled(ioJobs);
+
+    // Prime only unique land graphics. A typical city neighbourhood uses a
+    // few dozen IDs, all sharing a handful of atlas pages; statics continue
+    // asynchronously after opaque terrain is present.
+    const landIds = new Set();
+    for (const [cx, cy] of coords) {
+      for (let dy = 0; dy < 8; dy++) {
+        for (let dx = 0; dx < 8; dx++) {
+          const tile = assets.landAt(cx * 8 + dx, cy * 8 + dy, world.mapId);
+          if (tile) landIds.add(tile.id | 0);
+        }
+      }
+    }
+    const ids = [...landIds];
+    if (!ids.length) return;
+    let texturesReady = 0;
+    await Promise.allSettled(ids.map((id) => assets.landTexture(id).finally(() => {
+      texturesReady++;
+      this._setLoadingProgress(
+        0.86 + 0.12 * (texturesReady / ids.length),
+        `Preparing terrain art · ${texturesReady}/${ids.length}`,
+      );
+    })));
   }
 
   _prepareWorld() {
@@ -1827,12 +1660,12 @@ export class LoginScene extends Scene {
       .uo-choice-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;max-height:none;overflow:visible}.uo-prof-row{min-height:78px}.uo-prof-mark{width:42px;height:42px;display:grid;place-items:center;border-radius:9px;background:linear-gradient(145deg,#32251a,#17130f);border:1px solid rgba(216,175,98,.2);color:#d4ad6c;font:20px Georgia,serif}.uo-prof-copy{min-width:0;flex:1}.uo-prof-desc{margin-top:5px;color:#777c7f;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.uo-choice-check{width:21px;height:21px;display:grid;place-items:center;border:1px solid #3e4244;border-radius:50%;color:transparent;font-size:10px}.selected>.uo-choice-check{background:#9a6435;border-color:#c99252;color:#fff1d2}
       .uo-trade-layout{display:grid;grid-template-columns:1fr 1.22fr;gap:15px;align-content:start}.uo-build-card{padding:18px;border:1px solid rgba(216,175,98,.14);border-radius:11px;background:rgba(0,0,0,.16)}.uo-section-heading{display:flex;gap:12px;align-items:flex-start;margin-bottom:16px}.uo-section-heading>span{width:25px;height:25px;display:grid;place-items:center;border-radius:50%;background:rgba(216,175,98,.1);color:var(--uo-gold);font-size:9px}.uo-section-heading h3{margin:1px 0 4px;color:#e3ddd0;font-size:13px}.uo-section-heading p{margin:0;color:#71777b;font-size:10px}.uo-stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.uo-stat-grid label{padding:12px;border:1px solid rgba(216,175,98,.12);border-radius:8px;text-align:center}.uo-stat-grid label>span{display:block;color:#d7b577;font-size:11px;font-weight:750;letter-spacing:1px}.uo-stat-grid label>small{display:block;margin:3px 0 8px;color:#646b70;font-size:9px}.uo-stat-grid input{text-align:center;font-weight:700}.uo-skill-list{display:flex;flex-direction:column;gap:7px}.uo-skill-row{display:grid;grid-template-columns:24px minmax(0,1fr) 64px 13px;align-items:center;gap:7px}.uo-skill-index{color:#5f6468;font:10px ui-monospace,monospace}.uo-skill-row input{padding:0;text-align:center}.uo-skill-percent{color:#656b6e;font-size:10px}.uo-total-meter{grid-column:1/-1;display:flex;gap:10px}.uo-total-meter span{flex:1;padding:9px 12px;border:1px solid rgba(216,175,98,.13);border-radius:7px;color:#94816b;font-size:10px}.uo-total-meter span b{color:#d39668}.uo-total-meter span.ok{border-color:rgba(103,173,128,.3);color:#7da98c}.uo-total-meter span.ok b{color:#91c3a2}.uo-trade-layout .uo-status-line{grid-column:1/-1;margin:0}
       .uo-city-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;overflow:visible}.uo-city-row{min-height:94px;align-items:flex-start}.uo-city-pin{width:38px;height:38px;display:grid;place-items:center;border:1px solid rgba(216,175,98,.2);border-radius:50%;color:var(--uo-gold);background:rgba(216,175,98,.05);font-size:18px}.uo-city-copy{min-width:0;flex:1}.uo-city-area{margin:4px 0 6px;color:#aa8c61;font-size:9px;text-transform:uppercase;letter-spacing:1px}.uo-city-lore{color:#73797d;font-size:10px;line-height:1.45}
-      .uo-loading-card,.uo-dialog-card{width:min(440px,calc(100vw - 36px));padding:40px;text-align:center}.uo-loading-card .uo-brand-seal{margin:0 auto 28px}.uo-loading-card .uo-spinner{position:relative;width:58px;height:58px;margin:0 auto 25px;border:1px solid rgba(216,175,98,.16);border-radius:50%}.uo-loading-card .uo-spinner::before,.uo-loading-card .uo-spinner i{content:"";position:absolute;inset:5px;border-top:2px solid var(--uo-gold);border-radius:50%;animation:uo-spin 1.1s linear infinite}.uo-loading-card .uo-spinner i{inset:13px;border-top-color:#7f5a32;animation-direction:reverse;animation-duration:1.8s}.uo-loading-track{height:2px;margin-top:28px;background:#242426;overflow:hidden}.uo-loading-track span{display:block;width:38%;height:100%;background:linear-gradient(90deg,transparent,var(--uo-gold),transparent);animation:uo-loading 1.5s ease-in-out infinite}.uo-dialog-card .uo-dialog-icon{width:50px;height:50px;display:grid;place-items:center;margin:0 auto 20px;border:1px solid rgba(216,175,98,.35);border-radius:50%;color:var(--uo-gold);font:24px Georgia,serif}.uo-dialog-message{margin:18px 0 8px;white-space:pre-line;color:#bab5aa;font-size:13px;line-height:1.65}.uo-dialog-card .uo-actions{justify-content:center}.uo-dialog-card .uo-button--quiet{margin-right:0!important}
-      @keyframes uo-spin{to{transform:rotate(360deg)}}@keyframes uo-loading{from{transform:translateX(-110%)}to{transform:translateX(270%)}}
+      .uo-loading-card,.uo-dialog-card{width:min(440px,calc(100vw - 36px));padding:40px;text-align:center}.uo-loading-card .uo-brand-seal{margin:0 auto 28px}.uo-loading-card .uo-spinner{position:relative;width:58px;height:58px;margin:0 auto 25px;border:1px solid rgba(216,175,98,.16);border-radius:50%}.uo-loading-card .uo-spinner::before,.uo-loading-card .uo-spinner i{content:"";position:absolute;inset:5px;border-top:2px solid var(--uo-gold);border-radius:50%;animation:uo-spin 1.1s linear infinite}.uo-loading-card .uo-spinner i{inset:13px;border-top-color:#7f5a32;animation-direction:reverse;animation-duration:1.8s}.uo-loading-status{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:27px;color:#7f858a;font:600 10px/1.3 Inter,ui-sans-serif,sans-serif;letter-spacing:.04em}.uo-loading-status span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}.uo-loading-status b{color:#d7b474;font:700 11px/1 ui-monospace,monospace}.uo-loading-track{position:relative;height:6px;margin-top:9px;overflow:hidden;border:1px solid rgba(216,175,98,.12);border-radius:999px;background:#17191c;box-shadow:inset 0 1px 3px rgba(0,0,0,.65)}.uo-loading-track span{display:block;height:100%}#uo-loading-progress{position:relative;width:100%;overflow:hidden;transform:scaleX(var(--uo-loading-progress,0));transform-origin:left center;background:linear-gradient(90deg,#80552d,#d5a85f 72%,#f1d59b);box-shadow:0 0 12px rgba(216,175,98,.28);transition:transform .24s cubic-bezier(.2,.8,.2,1)}#uo-loading-progress::after{content:"";position:absolute;inset:0;width:42%;background:linear-gradient(90deg,transparent,rgba(255,249,224,.7),transparent);animation:uo-progress-shine 1.25s ease-in-out infinite}.uo-loading-heartbeat{display:flex;align-items:center;justify-content:center;gap:7px;margin-top:12px;color:#5f666b;font:550 9px/1 Inter,ui-sans-serif,sans-serif;letter-spacing:.08em;text-transform:uppercase}.uo-loading-heartbeat i{width:5px;height:5px;border-radius:50%;background:#8bb999;box-shadow:0 0 0 0 rgba(139,185,153,.45);animation:uo-heartbeat 1.4s ease-out infinite}.uo-reconnect-track span{width:0;background:linear-gradient(90deg,#80552d,#d5a85f);transition:width .1s linear}.uo-dialog-card .uo-dialog-icon{width:50px;height:50px;display:grid;place-items:center;margin:0 auto 20px;border:1px solid rgba(216,175,98,.35);border-radius:50%;color:var(--uo-gold);font:24px Georgia,serif}.uo-dialog-message{margin:18px 0 8px;white-space:pre-line;color:#bab5aa;font-size:13px;line-height:1.65}.uo-dialog-card .uo-actions{justify-content:center}.uo-dialog-card .uo-button--quiet{margin-right:0!important}
+      @keyframes uo-spin{to{transform:rotate(360deg)}}@keyframes uo-progress-shine{from{transform:translateX(-130%)}to{transform:translateX(340%)}}@keyframes uo-heartbeat{0%{box-shadow:0 0 0 0 rgba(139,185,153,.45)}70%,100%{box-shadow:0 0 0 7px rgba(139,185,153,0)}}
 
       @media (max-width:820px){.uo-panel.uo-login-surface{width:calc(100vw - 24px);max-height:calc(100vh - 24px)}.uo-login-frame{height:calc(100vh - 24px);grid-template-columns:1fr;overflow:auto}.uo-login-aside{min-height:190px;padding:28px 30px;justify-content:flex-end;border-right:0;border-bottom:1px solid var(--uo-line)}.uo-login-aside h1{font-size:34px;margin:8px 0}.uo-login-aside p,.uo-aside-status,.uo-roster-count{display:none}.uo-brand-seal{position:absolute;right:28px;top:28px;width:52px;height:52px;margin:0}.uo-login-content{padding:30px}.uo-screen-heading{margin-bottom:22px}.uo-login-frame--creation{height:calc(100vh - 24px)}.uo-creation-header{display:block;padding:19px 22px}.uo-creation-brand{min-width:0}.uo-creation-brand .uo-brand-seal{display:none}.uo-creation-progress{margin-top:17px}.uo-creation-progress li small{display:none}.uo-creation-content{padding:20px 22px}.uo-appearance-layout{grid-template-columns:1fr;overflow:auto}.uo-character-preview{min-height:330px}.uo-choice-grid,.uo-city-grid,.uo-trade-layout{grid-template-columns:1fr}.uo-creation-actions{padding:14px 22px}.uo-trade-layout .uo-total-meter{grid-column:1}.uo-actions--roster{flex-wrap:wrap}.uo-actions--roster button{flex:1}.uo-actions--roster .uo-button--quiet{flex-basis:100%}}
       @media (max-width:520px){.uo-login-content{padding:24px 20px}.uo-screen-heading h2{font-size:29px}.uo-form-grid,.uo-settings-grid{grid-template-columns:1fr}.uo-field--host,.uo-field--port{grid-column:1}.uo-actions{gap:7px}.uo-login-surface button.uo-button{min-width:0;flex:1;padding:0 11px}.uo-login-surface button.primary{min-width:0}.uo-appearance-grid,.uo-segment-row{grid-template-columns:1fr}.uo-stat-grid{grid-template-columns:1fr}.uo-total-meter{flex-direction:column}.uo-creation-brand p{display:none}.uo-prof-desc{white-space:normal}.uo-login-runes{display:none}}
-      @media (prefers-reduced-motion:reduce){.uo-login-orb,.uo-login-surface,.uo-loading-card .uo-spinner::before,.uo-loading-card .uo-spinner i,.uo-loading-track span{animation:none!important}}
+      @media (prefers-reduced-motion:reduce){.uo-login-orb,.uo-login-surface,.uo-loading-card .uo-spinner::before,.uo-loading-card .uo-spinner i,#uo-loading-progress::after,.uo-loading-heartbeat i{animation:none!important}}
     `;
     document.head?.appendChild?.(style);
   }

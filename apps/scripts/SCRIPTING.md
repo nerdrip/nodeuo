@@ -75,3 +75,17 @@ api.lifecycle.command(spec);
 
 Full rules, item lifecycle examples, persistence notes, doors/house data,
 lights, spells, skills, and checklists are in `../../docs/server-scripting.md`.
+
+## Gump Authoring
+
+The visual/server/client gump model is documented in:
+
+```text
+../../docs/scripting/gumps.md
+```
+
+Use a stable `definitionId` for every first-party `api.gumps.send` call. Server
+JSON overrides live in `data/config/gumps.json` and
+`data/config/server-gump-catalog.json`; local client overrides live in
+`apps/client/public/client-gumps.json`. These layers preserve the standard UO
+protocol and fall back to the code-authored layout when an override is absent.

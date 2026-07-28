@@ -4,6 +4,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { loadScripts } from '../src/scripts.js';
 
+// A full-suite run imports 170+ test modules concurrently on Windows. Dynamic
+// ESM compilation can briefly exceed Vitest's 5 s default even though each
+// audit completes in milliseconds when isolated.
+const AUDIT_TIMEOUT_MS = 15_000;
+
 function makeScriptDir(source) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uo-script-audit-'));
   fs.writeFileSync(path.join(dir, 'missing-api.js'), source);
@@ -30,7 +35,7 @@ describe('script API audit', () => {
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
-  });
+  }, AUDIT_TIMEOUT_MS);
 
   it('fails startup when script audit is enabled and a core script silently skips', async () => {
     const dir = makeScriptDir(`
@@ -46,7 +51,7 @@ describe('script API audit', () => {
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
-  });
+  }, AUDIT_TIMEOUT_MS);
 
   it('records missing nested API capabilities read by scripts', async () => {
     const dir = makeScriptDir(`
@@ -70,7 +75,7 @@ describe('script API audit', () => {
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
-  });
+  }, AUDIT_TIMEOUT_MS);
 
   it('audits frozen capabilities and Map registries without changing their runtime brand', async () => {
     const dir = makeScriptDir(`
@@ -97,5 +102,5 @@ describe('script API audit', () => {
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
-  });
+  }, AUDIT_TIMEOUT_MS);
 });

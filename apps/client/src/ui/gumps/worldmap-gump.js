@@ -20,7 +20,7 @@ import { bus } from '../../core/event-bus.js';
 
 const VIEWPORT_W = 600;
 const VIEWPORT_H = 400;
-const FOOTER_H = 58;
+const FOOTER_H = 104;
 const WM_PROFILE_KEYS = Object.freeze({
   showCoordinates: 'worldmap.showCoordinates',
   showParty: 'worldmap.showParty',
@@ -51,7 +51,10 @@ export class WorldmapGump extends WindowGump {
       .roundRect(8, 26, VIEWPORT_W + 4, VIEWPORT_H + 4, 4)
       .stroke({ width: 2, color: 0x6e5520, alpha: 0.85 })
       .roundRect(9, 27, VIEWPORT_W + 2, VIEWPORT_H + 2, 3)
-      .stroke({ width: 1, color: 0xc8a060, alpha: 0.6 });
+      .stroke({ width: 1, color: 0xc8a060, alpha: 0.6 })
+      .roundRect(9, 434, VIEWPORT_W + 2, 64, 4)
+      .fill({ color: 0x11161d, alpha: 0.92 })
+      .stroke({ width: 1, color: 0x8a672e, alpha: 0.8 });
     this.node.addChild(this._parchmentFrame);
 
     // Prefer OffscreenCanvas where available (Chrome / Edge / Safari):
@@ -97,8 +100,10 @@ export class WorldmapGump extends WindowGump {
     this.node.addChild(this._overlay);
 
     // Coordinate read-out at the bottom of the panel.
-    this._coordLabel = new Label('(0, 0) z=1', { fontSize: 11, hue: 0xc0b890, stroke: false });
-    this._coordLabel.setPosition(14, 28 + VIEWPORT_H + 4);
+    this._coordLabel = new Label('(0, 0) · zoom 1×', {
+      fontSize: 12, hue: 0xf4e7c5, stroke: true, fontWeight: 600,
+    });
+    this._coordLabel.setPosition(14, 28 + VIEWPORT_H + 7);
     this._coordLabel.acceptMouseInput = false;
     this.add(this._coordLabel);
 
@@ -120,7 +125,7 @@ export class WorldmapGump extends WindowGump {
       value: FACET_NAMES[this._mapFacet] ?? FACET_NAMES[0],
       onChange: (label) => this._setFacet(FACET_NAMES.indexOf(label)),
     });
-    this._facetCombo.setPosition(VIEWPORT_W - 120, 28 + VIEWPORT_H + 2);
+    this._facetCombo.setPosition(VIEWPORT_W - 120, 28 + VIEWPORT_H + 30);
     // Must use Control.add — bare `node.addChild` only attaches the Pixi
     // node and skips the Control children array, so UIManager.pickAt
     // never finds the combobox/button (clicks fell through to the gump
@@ -131,29 +136,29 @@ export class WorldmapGump extends WindowGump {
     this._route = this._savedRouteForFacet(this._mapFacet); // { x, y } tile coords
     this._plotBtn = new Button({
       normalGumpId: 0x0481, pressedGumpId: 0x0482,
-      width: 80, height: 22, label: 'Plot Route', action: ButtonAction.Activate, flat: true,
+      width: 112, height: 26, label: 'Start route', action: ButtonAction.Activate, flat: true,
     });
-    this._plotBtn.setPosition(VIEWPORT_W - 320, 28 + VIEWPORT_H + 2);
+    this._plotBtn.setPosition(122, 28 + VIEWPORT_H + 28);
     this._plotBtn.onClick = () => this._togglePlot();
     this.add(this._plotBtn);
     this._clearRouteBtn = new Button({
       normalGumpId: 0x0481, pressedGumpId: 0x0482,
-      width: 82, height: 22, label: 'Clear Route', action: ButtonAction.Activate, flat: true,
+      width: 82, height: 26, label: 'Clear', action: ButtonAction.Activate, flat: true,
     });
-    this._clearRouteBtn.setPosition(VIEWPORT_W - 232, 28 + VIEWPORT_H + 2);
+    this._clearRouteBtn.setPosition(240, 28 + VIEWPORT_H + 28);
     this._clearRouteBtn.onClick = () => this._clearRoute();
     this.add(this._clearRouteBtn);
     this._centerBtn = new Button({
       normalGumpId: 0x0481, pressedGumpId: 0x0482,
-      width: 78, height: 22, label: 'My Position', action: ButtonAction.Activate, flat: true,
+      width: 102, height: 26, label: 'Follow me', action: ButtonAction.Activate, flat: true,
     });
-    this._centerBtn.setPosition(VIEWPORT_W - 406, 28 + VIEWPORT_H + 2);
+    this._centerBtn.setPosition(14, 28 + VIEWPORT_H + 28);
     this._centerBtn.onClick = () => this._centerOnPlayer();
     this.add(this._centerBtn);
-    this._helpLabel = new Label('Drag: pan  •  wheel: zoom  •  Plot Route then left-click waypoints', {
-      fontSize: 10, hue: 0x9f967c, stroke: false,
+    this._helpLabel = new Label('Explore: drag to pan · wheel to zoom · routes are visual guides (no auto-walk)', {
+      fontSize: 11, hue: 0xc9bea3, stroke: true,
     });
-    this._helpLabel.setPosition(14, 28 + VIEWPORT_H + 23);
+    this._helpLabel.setPosition(14, 28 + VIEWPORT_H + 58);
     this._helpLabel.acceptMouseInput = false;
     this.add(this._helpLabel);
 
@@ -316,10 +321,10 @@ export class WorldmapGump extends WindowGump {
     if (!this._plotMode) {
       this._persistRoute();
     }
-    this._plotBtn.setLabel?.(this._plotMode ? 'Finish Route' : 'Plot Route');
+    this._plotBtn.setLabel?.(this._plotMode ? 'Save route' : 'Start route');
     this._helpLabel?.setText?.(this._plotMode
-      ? 'Route mode: left-click waypoints • Finish saves • Clear removes'
-      : 'Drag: pan  •  wheel: zoom  •  Plot Route then left-click waypoints');
+      ? 'Route editing: left-click waypoints · Save route finishes · Clear removes all points'
+      : 'Explore: drag to pan · wheel to zoom · routes are visual guides (no auto-walk)');
     this._updatePlayerOverlay(true);
   }
 
@@ -411,7 +416,9 @@ export class WorldmapGump extends WindowGump {
 
   _updatePlayerOverlay(repaintOverlay = true) {
     if (!world.player) { this._playerDot.visible = false; return; }
-    this._playerDot.visible = true;
+    const playerFacet = (world.player.map ?? world.mapId ?? 0) | 0;
+    const sameFacet = playerFacet === (this._mapFacet | 0);
+    this._playerDot.visible = sameFacet;
     const dx = (world.player.x - this._cx) * this._zoom;
     const dy = (world.player.y - this._cy) * this._zoom;
     this._playerDot.position.set(10 + VIEWPORT_W / 2 + dx, 28 + VIEWPORT_H / 2 + dy);
@@ -419,7 +426,9 @@ export class WorldmapGump extends WindowGump {
     // Coord read-out under the canvas.
     const cx = (this._cx | 0), cy = (this._cy | 0);
     this._coordLabel.node.visible = this._showCoordinates;
-    const coordText = `(${cx}, ${cy}) z=${this._zoom}  player=(${world.player.x | 0},${world.player.y | 0})`;
+    const coordText = this._facetReady
+      ? `Center ${cx}, ${cy} · zoom ${this._zoom}× · ${sameFacet ? `you ${world.player.x | 0}, ${world.player.y | 0}` : `you are on ${this._facetName(playerFacet)}`}`
+      : `Loading ${this._facetName(this._mapFacet)} map…`;
     if (this._coordText !== coordText) {
       this._coordText = coordText;
       this._coordLabel.setText?.(coordText);

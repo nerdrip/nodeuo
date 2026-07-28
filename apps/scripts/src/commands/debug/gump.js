@@ -14,6 +14,7 @@ export default function (api) {
       const state = ctx.state;
       if (!state) return;
       gumps.send(state, {
+        definitionId: 'server:commands-debug-gump:send-1',
         x: 100, y: 100,
         layout:
           '{ page 0 }' +

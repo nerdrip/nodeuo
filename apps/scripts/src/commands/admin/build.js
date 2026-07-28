@@ -236,6 +236,7 @@ export default function register(api) {
     }
     parts.push(`{ button ${W - 30} 8 4017 4018 1 0 0 }`);  // close
     api.gumps.send(ctx.state, {
+      definitionId: 'server:commands-admin-build:render-build-menu',
       x: 80, y: 60,
       layout: parts.join(''),
       texts,

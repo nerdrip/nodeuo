@@ -7,6 +7,7 @@
 import { dispatchItemEvent } from './item-scripts.js';
 import { staticWeightFor } from './movement.js';
 import {
+  getItemByDefinition as contentItemByDefinition,
   getItemByTag as contentItemByTag,
   itemVariants,
 } from '../content/items/index.js';
@@ -27,7 +28,9 @@ export function setTemplateByItemIdResolver(fn) {
 /**
  * @typedef {Object} Item
  * @property {number} serial
- * @property {number} itemId     graphic id from art.mul
+ * @property {string} [definitionId] stable gameplay/content identity
+ * @property {number} artId      graphic id from art.mul / UO wire id
+ * @property {number} itemId     compatibility alias of artId
  * @property {number} hue
  * @property {number} amount
  * @property {number} x
@@ -47,17 +50,34 @@ export function setTemplateByItemIdResolver(fn) {
 
 /**
  * @param {import('./world.js').World} world
- * @param {Partial<Item> & {x:number, y:number, z:number, itemId:number}} data
+ * @param {Partial<Item> & {x:number, y:number, z:number, itemId?:number, artId?:number, definitionId?:string}} data
  * @returns {Item}
  */
 export function createItem(world, data) {
   const contentDef = resolveContentDefinition(data);
   const serial = world.serial.allocItem();
-  const itemId = data.itemId ?? contentDef?.id;
+  const artId = Number(
+    data.artId
+      ?? data.itemId
+      ?? contentDef?.artId
+      ?? contentDef?.itemId
+      ?? (typeof contentDef?.id === 'number' ? contentDef.id : undefined),
+  );
+  if (!Number.isInteger(artId) || artId < 0 || artId > 0xFFFF) {
+    throw new Error(`createItem: missing valid artId for ${data.definitionId ?? data.tagId ?? data.name ?? '<unnamed item>'}`);
+  }
+  const definitionId = String(
+    data.definitionId
+      ?? (typeof data.id === 'string' ? data.id : null)
+      ?? contentDef?.definitionId
+      ?? '',
+  ).trim() || undefined;
   /** @type {Item} */
   const item = {
     serial,
-    itemId,
+    ...(definitionId ? { definitionId } : {}),
+    artId,
+    itemId: artId,
     hue: data.hue ?? contentDef?.hue ?? 0,
     amount: data.amount ?? 1,
     x: data.x, y: data.y, z: data.z,
@@ -101,7 +121,7 @@ export function createItem(world, data) {
     'setId', 'setPieces', 'setAttributes', 'setResist', 'setSelfRepair',
     'equipLayer', 'slot', 'clothing', 'spellbook',
     'spellFocusing', 'spellCastTargetSerial', 'spellCastCount', 'spellId',
-    'powerScroll', 'treasureMap', 'seed',
+    'powerScroll', 'statScroll', 'treasureMap', 'seed',
     'container', 'capacity', 'maxWeight', 'lootTable', 'autoFillLoot', 'cleanupAddonType',
     'contentType', 'fillableType', 'fillableContentType', 'fillableMaxSpawnCount',
     'fillableSpawnThreshold', 'fillableNextRespawnAt', 'fillableNextCheckAt', 'fillableTotalTraps',
@@ -163,7 +183,9 @@ export function createItem(world, data) {
     'boat', 'boatPlank', 'boatKey', 'boatDeed',
     'cannon', '_mountSerial', '_mountDx', '_mountDy',
     '_deedMulti', '_deedOffset', '_contestHouse', '_previewHouse',
-    '_multi', '_multiAcl', '_multiOwner', '_multiName',
+    '_multi', '_multiInstance', '_multiAnchor', '_multiHouseId', 'multiId',
+    '_multiAcl', '_multiOwner', '_multiName',
+    '_customHouseId',
     'miniHouseType', 'isRewardItem', 'rewardItem',
     'isDecoration', 'height',
     'door', 'solid', 'sign', 'teleporter', 'destination', 'spawner', 'xmlSpawner', 'areaEffect', 'fieldSpell',
@@ -185,7 +207,7 @@ export function createItem(world, data) {
     item.script = contentDef.script;
   } else {
     try {
-      const inferred = _templateByItemId?.(data.itemId | 0);
+      const inferred = _templateByItemId?.(artId);
       if (inferred?.script) item.script = inferred.script;
     } catch { /* templates module unavailable in tests */ }
   }
@@ -222,6 +244,15 @@ export function createItem(world, data) {
 
 function resolveContentDefinition(data = {}) {
   if (data.contentDef && typeof data.contentDef === 'object') return data.contentDef;
+  const definitionId = data.definitionId ?? (typeof data.id === 'string' ? data.id : null);
+  if (definitionId) {
+    try {
+      const byDefinition = contentItemByDefinition?.(definitionId);
+      if (byDefinition) return byDefinition;
+    } catch {
+      // Content registry can be absent in minimal test harnesses.
+    }
+  }
   const tag = data.tagId ?? data.contentTag ?? data.itemTag;
   if (tag) {
     try {
@@ -231,9 +262,10 @@ function resolveContentDefinition(data = {}) {
       // Content registry can be absent in minimal test harnesses.
     }
   }
-  if (data.itemId == null) return null;
+  const artId = data.artId ?? data.itemId;
+  if (artId == null) return null;
   try {
-    const variants = itemVariants?.(data.itemId | 0) ?? [];
+    const variants = itemVariants?.(artId | 0) ?? [];
     if (data.name) {
       const want = String(data.name).trim().toLowerCase();
       const exact = variants.find((def) => (

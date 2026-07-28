@@ -19,6 +19,7 @@ import { profile } from '../managers/profile-manager.js';
 import { uiManagerInstance } from './ui-manager-singleton.js';
 import { Graphics } from 'pixi.js';
 import { auditGumpQuality } from './ui-quality.js';
+import { clientGumpDefinitions } from '../managers/client-gump-definitions.js';
 
 // Audit #46 P2 — convenience accessor used by show-modal helpers
 // (showMessageBox, showRaceChange, showChatChooseName). Acts as a
@@ -236,6 +237,12 @@ export class UIManager {
     // Constructors have finished adding their synchronous controls at this
     // point. Grow local WindowGumps for accidental child overflow so labels
     // and buttons remain inside their chrome on every DPI/font setup.
+    // Optional local JSON overrides are applied here — after construction,
+    // before fit/position restore. Standard server gumps are not present in
+    // the client catalogue and therefore stay byte-for-byte protocol driven.
+    try { clientGumpDefinitions.apply(gump); } catch (error) {
+      console.warn('[client-gumps] definition apply failed:', error?.message ?? error);
+    }
     try { gump.fitContentBounds?.(); } catch { /* best-effort */ }
     try { gump.restorePosition?.(); } catch { /* best-effort */ }
     try {

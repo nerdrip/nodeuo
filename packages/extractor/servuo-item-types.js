@@ -1,4 +1,4 @@
-// ServUO type-name → itemId extractor.
+// ServUO item-definition extractor.
 //
 // Walks `templates/ServUO/Scripts/Items/` recursively. For every
 // `public class X : Y` we grab:
@@ -6,8 +6,12 @@
 //   - or `ItemID = 0xZZZZ` set in a constructor body
 //   - or `Hue = N` in the same constructor (optional)
 //
-// Output: `apps/scripts/src/data/item-types.json`
-//   { "BlackPearl": { "itemId": 3990, "hue": 0, "base": "BaseReagent" }, … }
+// Output: `apps/scripts/src/data/config/item-types.json`
+//   { "BlackPearl": {
+//       "definitionId":"BlackPearl", "artId":3990,
+//       "name":"Black Pearl", "hue":0, "script":null,
+//       "base":"BaseReagent", "source":".../BlackPearl.cs"
+//   }, … }
 //
 // The runtime uses this to bridge the ServUO-side type strings that
 // vendor/recipes/quests/artifacts expose (e.g. "BlackPearl") to
@@ -19,18 +23,19 @@
 // catalog by name.
 
 import { readFileSync, writeFileSync, readdirSync, statSync, existsSync, mkdirSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { join, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..', '..');
 const ITEMS_DIR = join(ROOT, 'templates', 'ServUO', 'Scripts', 'Items');
-const OUT = join(ROOT, 'apps', 'scripts', 'src', 'data', 'item-types.json');
+const OUT = join(ROOT, 'apps', 'scripts', 'src', 'data', 'config', 'item-types.json');
 
 const RX_CLASS = /public\s+class\s+([A-Za-z0-9_]+)\s*(?::\s*([A-Za-z0-9_<>,\s]+?))?\s*[({,]/;
 const RX_BASE_CALL = /:\s*base\s*\(\s*(0x[0-9A-Fa-f]+|\d+)/;          // : base(0xZZZZ, …)
 const RX_ITEMID_SET = /(?:^|;)\s*ItemID\s*=\s*(0x[0-9A-Fa-f]+|\d+)/;
 const RX_HUE_SET = /(?:^|;)\s*Hue\s*=\s*(0x[0-9A-Fa-f]+|\d+)/;
+const RX_NAME_SET = /(?:this\.)?Name\s*=\s*"([^"]+)"/;
 
 function num(s) { return /^0x/i.test(s) ? parseInt(s, 16) : parseInt(s, 10); }
 
@@ -85,10 +90,18 @@ function extractClass(seg) {
   }
   const hueM = body.match(RX_HUE_SET);
   if (hueM) hue = num(hueM[1]);
+  const nameM = body.match(RX_NAME_SET);
 
   if (itemId === null) return null;
   if (!Number.isFinite(itemId) || itemId < 0 || itemId > 0xFFFF) return null;
-  return { itemId, hue: hue ?? 0 };
+  return { artId: itemId, hue: hue ?? 0, name: nameM?.[1] ?? null };
+}
+
+function humanName(className) {
+  return String(className)
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+    .trim();
 }
 
 function run() {
@@ -96,7 +109,7 @@ function run() {
     console.error(`[servuo-item-types] missing ${ITEMS_DIR}`);
     process.exit(1);
   }
-  /** @type {Record<string, { itemId:number, hue:number, base?:string }>} */
+  /** @type {Record<string, object>} */
   const out = {};
   let scanned = 0;
   let withId = 0;
@@ -115,13 +128,21 @@ function run() {
         collisions++;
         continue;
       }
-      out[className] = { itemId: r.itemId, hue: r.hue, base: baseName ?? undefined };
+      out[className] = {
+        definitionId: className,
+        artId: r.artId,
+        name: r.name ?? humanName(className),
+        hue: r.hue,
+        script: null,
+        base: baseName ?? undefined,
+        source: relative(ROOT, f).replaceAll('\\', '/'),
+      };
     }
   }
   mkdirSync(dirname(OUT), { recursive: true });
   writeFileSync(OUT, JSON.stringify(out, null, 2));
   console.log(`[servuo-item-types] scanned ${scanned} files, ${withId} classes with itemId, ${collisions} collisions`);
-  console.log(`[servuo-item-types] wrote ${Object.keys(out).length} type→itemId mappings to ${OUT}`);
+  console.log(`[servuo-item-types] wrote ${Object.keys(out).length} item definitions to ${OUT}`);
 }
 
 run();

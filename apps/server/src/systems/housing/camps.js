@@ -74,6 +74,7 @@ function _spawnChest(world, camp, def) {
 
 /** Periodic restock — runs every 5 minutes per camp. */
 export function tick(world, spawner, now = Date.now()) {
+  if (world?._createWorldDone === false) return;
   for (const camp of _camps.values()) {
     if (now - camp.lastRestock < 5 * 60 * 1000) continue;
     const def = _camp_defs[camp.kind];
@@ -110,3 +111,12 @@ export function despawnCamp(world, campId) {
 }
 
 export function listCamps() { return [..._camps.values()]; }
+
+/** Forget camp runtime records after a full world wipe. Their entities are
+ * removed by the canonical world sweep; retaining these rows would make the
+ * restock timer resurrect old camp NPCs after the next CreateWorld. */
+export function reset() {
+  const campsRemoved = _camps.size;
+  _camps.clear();
+  return { campsRemoved };
+}

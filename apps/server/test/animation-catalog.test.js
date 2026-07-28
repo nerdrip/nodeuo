@@ -39,7 +39,9 @@ describe('mobile animation catalog', () => {
 
   it('uses explicit same-family fallbacks and keeps a valid original when an alias target is absent', () => {
     expect(animationBodySnapshot(52)).toMatchObject({ ok: true, resolved: 51, resolvedVia: 'fallback' });
-    expect(animationBodySnapshot(307)).toMatchObject({ ok: true, resolved: 307, resolvedVia: 'broken-alias-direct' });
+    // Re-extracted modern clients contain body 307 directly. Exact source is
+    // preferable to the historical Body.def alias that mapped it to gorilla.
+    expect(animationBodySnapshot(307)).toMatchObject({ ok: true, resolved: 307, resolvedVia: 'exact-source' });
   });
 
   it('keeps canonical Bodyconv mount art instead of obsolete Body.def aliases', () => {

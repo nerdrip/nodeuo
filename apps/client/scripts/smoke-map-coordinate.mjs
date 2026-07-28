@@ -21,6 +21,7 @@ const paths = {
   staticAtlas: `${root}static-atlas.json`,
   texmapAtlas: `${root}texmap-atlas.json`,
   renderer: fileURLToPath(new URL('../src/renderer/tile-renderer.js', import.meta.url)),
+  chunkVisual: fileURLToPath(new URL('../src/renderer/chunk-visual.js', import.meta.url)),
 };
 
 for (const path of Object.values(paths)) assert.ok(existsSync(path), `missing map QA asset: ${path}`);
@@ -92,10 +93,9 @@ for (let cy = cy0; cy <= cy1; cy++) {
 assert.ok([0x03e9, 0x03ea, 0x03eb, 0x03ec].includes(landAt(CENTER_X, CENTER_Y).id));
 assert.ok(seenStaticIds.has(0x05ce) && seenStaticIds.has(0x05cf) && seenStaticIds.has(0x05d0));
 
-// Trinsic cliff regression from the 2026-07-12/13 screenshots. This area has
-// legitimate 35-Z corner jumps. They must remain stretched when a texmap is
-// available; flattening them exposes the blue scene background between the
-// z=-15 water and z=20 bank.
+// Trinsic/New Haven cliff regression. Abrupt 30-60 Z transitions are vertical
+// faces, not ordinary slopes; stretching a single diamond across them creates
+// screen-sized blue/brown polygons. Gentle hills still use the mesh path.
 let trinsicMaxCornerDelta = 0;
 for (let y = 2861 - 20; y <= 2861 + 20; y++) {
   for (let x = 1914 - 20; x <= 1914 + 20; x++) {
@@ -105,10 +105,26 @@ for (let y = 2861 - 20; y <= 2861 + 20; y++) {
   }
 }
 assert.ok(trinsicMaxCornerDelta >= 30, 'Trinsic cliff fixture lost its characteristic Z jump');
-const rendererSource = readFileSync(paths.renderer, 'utf8');
-assert.ok(rendererSource.includes('const stretched = cornersDiffer && hasTexmap;'));
-assert.ok(!rendererSource.includes('MAX_LAND_STRETCH_DELTA'), 'large authored cliffs must not be flattened');
+const rendererSource = [paths.renderer, paths.chunkVisual]
+  .map((path) => readFileSync(path, 'utf8')).join('\n');
+assert.ok(rendererSource.includes('cornerDelta <= MAX_VISUAL_LAND_SLOPE'));
+assert.ok(rendererSource.includes('export const MAX_VISUAL_LAND_SLOPE = 12'));
 assert.ok(rendererSource.includes('return makeStretchedTexmap(tmTex'));
 assert.ok(texmapAtlas?.tiles && Object.keys(texmapAtlas.tiles).length > 0, 'texmap atlas must be available');
 
-console.log(`[smoke:map-coordinate] ok facet=${FACET} center=${CENTER_X},${CENTER_Y} land=${landCount} statics=${staticCount} pages=${landPages.size}+${staticPages.size} trinsicDelta=${trinsicMaxCornerDelta}`);
+// Britain Farmlands regression from the 2026-07-15 screenshot. Native
+// texmaps 3..6 form a blue/noisy strip across this otherwise green rolling
+// field. The renderer must retain the slope geometry but map art.mul onto
+// gentle, non-wet slopes instead of flattening the authored Z values.
+const britainCorners = [
+  landAt(1278, 1791), landAt(1279, 1791),
+  landAt(1278, 1792), landAt(1279, 1792),
+];
+const britainDelta = Math.max(...britainCorners.map((t) => t.z))
+  - Math.min(...britainCorners.map((t) => t.z));
+assert.ok(britainDelta > 0 && britainDelta <= 8, 'Britain rolling-slope fixture changed');
+assert.ok(rendererSource.includes('return makeStretchedLandArt(artTex'));
+assert.ok(rendererSource.includes('function buildSmoothLandMesh('));
+assert.ok(rendererSource.includes("mesh._uoLandTextureMode = 'texmap'"));
+
+console.log(`[smoke:map-coordinate] ok facet=${FACET} center=${CENTER_X},${CENTER_Y} land=${landCount} statics=${staticCount} pages=${landPages.size}+${staticPages.size} trinsicDelta=${trinsicMaxCornerDelta} britainDelta=${britainDelta}`);

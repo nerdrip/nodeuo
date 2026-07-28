@@ -301,6 +301,60 @@ export default function register(api) {
 `api.lifecycle.command(spec)` makes registration ownership clearer and cleans up
 on reload.
 
+## Gumps
+
+`api.gumps.send(state, definition, callback)` sends a standard Ultima Online
+gump and returns its numeric instance ID. Always give first-party gumps a stable
+`definitionId`; Content Studio uses it to associate source-authored layouts with
+safe JSON overrides.
+
+```js
+api.gumps.send(ctx.state, {
+  definitionId: 'server:examples:name-prompt',
+  x: 100,
+  y: 100,
+  layout: [
+    '{ page 0 }',
+    '{ resizepic 0 0 5054 300 140 }',
+    '{ text 30 20 1153 0 }',
+    '{ textentry 30 55 240 20 1152 1 1 }',
+    '{ button 30 100 4023 4024 1 0 1 }',
+  ].join(''),
+  texts: ['Name:', ''],
+}, (response) => {
+  if (response.buttonId !== 1) return;
+  const name = response.textEntries.find((entry) => entry.entryId === 1)?.text;
+  ctx.state.sendSystemMessage(`Hello ${name ?? 'traveller'}.`);
+});
+```
+
+The response shape is:
+
+```js
+{ serial, gumpId, buttonId, switches, textEntries }
+```
+
+NodeUO validates buttons, switches, text-entry IDs, packet limits, expiry and
+single-use callback semantics before invoking script code. Scripts must still
+validate text content and repeat authorization checks before changing state.
+
+There are three authoring sources:
+
+| Source | Responsibility |
+| --- | --- |
+| `data/config/gumps.json` | fully data-driven server gumps |
+| `data/config/server-gump-catalog.json` | JSON overrides for source-linked server gumps |
+| `apps/client/public/client-gumps.json` | local browser-client frame, behavior, and control overrides |
+
+Source-linked overrides are deliberately disabled until `enabled: true`. If a
+client JSON definition is missing or invalid, the client keeps the complete
+code-authored JS gump. A client connected to another emulator continues to
+render normal protocol gumps; these JSON files do not alter the UO protocol.
+
+The complete control schema, placeholder rules, Content Studio workflow and
+compatibility model are documented in
+[`docs/scripting/gumps.md`](scripting/gumps.md).
+
 ## Item Templates
 
 Keep data-driven items in:

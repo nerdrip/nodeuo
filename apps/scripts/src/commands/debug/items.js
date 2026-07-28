@@ -205,6 +205,7 @@ export default function register(api) {
     // x=60,y=60 each click — the gump appeared to "jump".
     const STABLE_ID = 0x49544D53;     // 'ITMS'
     gumps.send(state, {
+      definitionId: 'server:commands-debug-items:open-catalogue',
       x: 60, y: 60, gumpId: STABLE_ID, layout: parts.join(''), texts,
     }, (resp) => {
       const b = resp.buttonId;

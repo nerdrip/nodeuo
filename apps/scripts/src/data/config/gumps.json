@@ -1,0 +1,110 @@
+[
+  {
+    "definitionId": "race-change",
+    "name": "Race Change",
+    "width": 280,
+    "height": 200,
+    "x": 100,
+    "y": 100,
+    "controls": [
+      { "type": "panel", "x": 0, "y": 0, "width": 280, "height": 200, "artId": 5054 },
+      { "type": "label", "x": 20, "y": 14, "width": 180, "height": 20, "hue": 1153, "text": "Change Race" },
+      { "type": "button", "x": 30, "y": 50, "width": 24, "height": 24, "normalId": 9720, "pressedId": 9721, "buttonId": 1 },
+      { "type": "label", "x": 60, "y": 52, "width": 100, "height": 20, "hue": 1149, "text": "Human" },
+      { "type": "button", "x": 30, "y": 80, "width": 24, "height": 24, "normalId": 9720, "pressedId": 9721, "buttonId": 2 },
+      { "type": "label", "x": 60, "y": 82, "width": 100, "height": 20, "hue": 1149, "text": "Elf" },
+      { "type": "button", "x": 30, "y": 110, "width": 24, "height": 24, "normalId": 9720, "pressedId": 9721, "buttonId": 3 },
+      { "type": "label", "x": 60, "y": 112, "width": 100, "height": 20, "hue": 1149, "text": "Gargoyle" },
+      { "type": "button", "x": 30, "y": 165, "width": 30, "height": 24, "normalId": 4017, "pressedId": 4018, "buttonId": 0 }
+    ]
+  },
+  {
+    "definitionId": "bulk-order",
+    "name": "Bulk Order Deed",
+    "width": 400,
+    "height": 280,
+    "x": 120,
+    "y": 90,
+    "controls": [
+      { "type": "panel", "x": 0, "y": 0, "width": 400, "height": 280, "artId": 5054 },
+      { "type": "label", "x": 20, "y": 14, "width": 340, "height": 20, "hue": 1153, "text": "BOD: {{kind}}" },
+      { "type": "label", "x": 20, "y": 40, "width": 330, "height": 20, "hue": 1149, "text": "Amount: {{amount}}" },
+      { "type": "label", "x": 20, "y": 62, "width": 330, "height": 20, "hue": 1149, "text": "Progress: {{collected}}/{{amount}}" },
+      { "type": "label", "x": 20, "y": 84, "width": 330, "height": 20, "hue": 1149, "text": "Material: {{material}}" },
+      { "type": "label", "x": 20, "y": 106, "width": 330, "height": 20, "hue": 1149, "text": "{{quality}}" },
+      { "type": "button", "x": 20, "y": 240, "width": 30, "height": 24, "normalId": 4023, "pressedId": 4024, "buttonId": 1 },
+      { "type": "label", "x": 55, "y": 242, "width": 60, "height": 20, "hue": 1149, "text": "Hand in" },
+      { "type": "button", "x": 125, "y": 240, "width": 30, "height": 24, "normalId": 4011, "pressedId": 4012, "buttonId": 2 },
+      { "type": "label", "x": 160, "y": 242, "width": 70, "height": 20, "hue": 1149, "text": "Combine" },
+      { "type": "button", "x": 340, "y": 240, "width": 30, "height": 24, "normalId": 4017, "pressedId": 4018, "buttonId": 0 }
+    ]
+  },
+  {
+    "definitionId": "house-secure-info",
+    "name": "House Secure Info",
+    "width": 320,
+    "height": 200,
+    "x": 120,
+    "y": 100,
+    "controls": [
+      { "type": "panel", "x": 0, "y": 0, "width": 320, "height": 200, "artId": 5054 },
+      { "type": "label", "x": 20, "y": 14, "width": 260, "height": 20, "hue": 1153, "text": "House Info" },
+      { "type": "label", "x": 20, "y": 40, "width": 270, "height": 20, "hue": 1149, "text": "Owner: {{ownerName}}" },
+      { "type": "label", "x": 20, "y": 62, "width": 270, "height": 20, "hue": 1149, "text": "Lockdowns: {{lockdownCount}}/{{lockdownMax}}" },
+      { "type": "label", "x": 20, "y": 84, "width": 270, "height": 20, "hue": 1149, "text": "Secures: {{secureCount}}/{{secureMax}}" },
+      { "type": "label", "x": 20, "y": 106, "width": 270, "height": 20, "hue": 1149, "text": "Co-owners: {{coOwnerCount}}" },
+      { "type": "button", "x": 30, "y": 165, "width": 30, "height": 24, "normalId": 4017, "pressedId": 4018, "buttonId": 0 }
+    ]
+  },
+  {
+    "definitionId": "help-categories",
+    "name": "Help Categories",
+    "width": 380,
+    "height": 360,
+    "x": 100,
+    "y": 70,
+    "controls": [
+      { "type": "panel", "x": 0, "y": 0, "width": 380, "height": 360, "artId": 5054 },
+      { "type": "label", "x": 20, "y": 14, "width": 330, "height": 20, "hue": 1153, "text": "Page a GM — pick category:" },
+      { "type": "radio", "x": 25, "y": 50, "width": 20, "height": 20, "uncheckedId": 9720, "checkedId": 9721, "checked": true, "switchId": 100 },
+      { "type": "label", "x": 55, "y": 52, "width": 290, "height": 20, "hue": 1149, "text": "I am stuck" },
+      { "type": "radio", "x": 25, "y": 78, "width": 20, "height": 20, "uncheckedId": 9720, "checkedId": 9721, "switchId": 101 },
+      { "type": "label", "x": 55, "y": 80, "width": 290, "height": 20, "hue": 1149, "text": "There is a bug in the game" },
+      { "type": "radio", "x": 25, "y": 106, "width": 20, "height": 20, "uncheckedId": 9720, "checkedId": 9721, "switchId": 102 },
+      { "type": "label", "x": 55, "y": 108, "width": 290, "height": 20, "hue": 1149, "text": "My account is in trouble" },
+      { "type": "radio", "x": 25, "y": 134, "width": 20, "height": 20, "uncheckedId": 9720, "checkedId": 9721, "switchId": 103 },
+      { "type": "label", "x": 55, "y": 136, "width": 290, "height": 20, "hue": 1149, "text": "Other" },
+      { "type": "radio", "x": 25, "y": 162, "width": 20, "height": 20, "uncheckedId": 9720, "checkedId": 9721, "switchId": 104 },
+      { "type": "label", "x": 55, "y": 164, "width": 290, "height": 20, "hue": 1149, "text": "I have a vendor / shop problem" },
+      { "type": "radio", "x": 25, "y": 190, "width": 20, "height": 20, "uncheckedId": 9720, "checkedId": 9721, "switchId": 105 },
+      { "type": "label", "x": 55, "y": 192, "width": 290, "height": 20, "hue": 1149, "text": "I want to report a bug" },
+      { "type": "radio", "x": 25, "y": 218, "width": 20, "height": 20, "uncheckedId": 9720, "checkedId": 9721, "switchId": 106 },
+      { "type": "label", "x": 55, "y": 220, "width": 290, "height": 20, "hue": 1149, "text": "I am being harassed" },
+      { "type": "radio", "x": 25, "y": 246, "width": 20, "height": 20, "uncheckedId": 9720, "checkedId": 9721, "switchId": 107 },
+      { "type": "label", "x": 55, "y": 248, "width": 290, "height": 20, "hue": 1149, "text": "I have a suggestion" },
+      { "type": "radio", "x": 25, "y": 274, "width": 20, "height": 20, "uncheckedId": 9720, "checkedId": 9721, "switchId": 108 },
+      { "type": "label", "x": 55, "y": 276, "width": 290, "height": 20, "hue": 1149, "text": "Other request" },
+      { "type": "button", "x": 30, "y": 320, "width": 30, "height": 24, "normalId": 4023, "pressedId": 4024, "buttonId": 1 },
+      { "type": "label", "x": 65, "y": 322, "width": 80, "height": 20, "hue": 1149, "text": "Submit" },
+      { "type": "button", "x": 230, "y": 320, "width": 30, "height": 24, "normalId": 4017, "pressedId": 4018, "buttonId": 0 }
+    ]
+  },
+  {
+    "definitionId": "raffle",
+    "name": "House Raffle",
+    "width": 340,
+    "height": 260,
+    "x": 110,
+    "y": 100,
+    "controls": [
+      { "type": "panel", "x": 0, "y": 0, "width": 340, "height": 260, "artId": 5054 },
+      { "type": "label", "x": 20, "y": 14, "width": 280, "height": 20, "hue": 1153, "text": "Raffle" },
+      { "type": "label", "x": 20, "y": 40, "width": 290, "height": 20, "hue": 1149, "text": "Prize: {{prize}}" },
+      { "type": "label", "x": 20, "y": 62, "width": 290, "height": 20, "hue": 1149, "text": "Ends in: {{remainingHours}}h" },
+      { "type": "label", "x": 20, "y": 84, "width": 290, "height": 20, "hue": 1149, "text": "Cost: {{entryCost}}gp" },
+      { "type": "button", "x": 30, "y": 200, "width": 30, "height": 24, "normalId": 4023, "pressedId": 4024, "buttonId": 1 },
+      { "type": "label", "x": 70, "y": 202, "width": 90, "height": 20, "hue": 1149, "text": "Enter" },
+      { "type": "button", "x": 240, "y": 200, "width": 30, "height": 24, "normalId": 4017, "pressedId": 4018, "buttonId": 0 }
+    ]
+  }
+]

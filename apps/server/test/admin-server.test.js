@@ -28,6 +28,47 @@ describe('admin HTTP session authorization', () => {
     expect(response.headers.get('permissions-policy')).toContain('camera=()');
   });
 
+  it('allows authenticated workbenches to be framed only by the same admin origin', async () => {
+    const account = { username: 'admin', accessLevel: 'Admin', banned: false, characters: [] };
+    const accounts = {
+      accounts: new Map([['admin', account]]),
+      authenticate: (username, password) => username === 'admin' && password === 'secret'
+        ? { ok: true, account } : { ok: false, reason: 'bad credentials' },
+    };
+    const server = startAdminServer({
+      port: 0, host: '127.0.0.1', accounts,
+      sharedCtx: { world: { mobiles: new Map(), items: new Map() } },
+      scriptsDir: process.cwd(), saveDir: process.cwd(),
+    });
+    servers.push(server);
+    if (!server.listening) await new Promise((resolve) => server.once('listening', resolve));
+    const base = `http://127.0.0.1:${server.address().port}`;
+    const login = await fetch(`${base}/api/auth/login`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ username: 'admin', password: 'secret' }),
+    });
+    const cookie = login.headers.get('set-cookie').split(';', 1)[0];
+
+    for (const path of ['/data-editor', '/editor']) {
+      const response = await fetch(`${base}${path}`, { headers: { cookie } });
+      expect(response.status).toBe(200);
+      expect(response.headers.get('x-frame-options')).toBe('SAMEORIGIN');
+      expect(response.headers.get('content-security-policy')).toContain("frame-ancestors 'self'");
+      expect(response.headers.get('content-security-policy')).toContain("frame-src 'self'");
+    }
+    const studio = await fetch(`${base}/studio`, { headers: { cookie } });
+    expect(studio.status).toBe(200);
+    expect(studio.headers.get('x-frame-options')).toBe('DENY');
+    expect(studio.headers.get('content-security-policy')).toContain("frame-ancestors 'none'");
+    const docs = await fetch(`${base}/docs`, { headers: { cookie } });
+    expect(docs.status).toBe(200);
+    expect(docs.headers.get('x-frame-options')).toBe('DENY');
+    expect(docs.headers.get('content-security-policy')).toContain("frame-ancestors 'none'");
+    const shell = await fetch(`${base}/`, { headers: { cookie } });
+    expect(shell.headers.get('x-frame-options')).toBe('DENY');
+    expect(shell.headers.get('content-security-policy')).toContain("frame-ancestors 'none'");
+  });
+
   it('invalidates an account-backed session immediately after demotion', async () => {
     const account = {
       username: 'admin', accessLevel: 'Admin', banned: false, characters: [],

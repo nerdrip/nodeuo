@@ -32,6 +32,7 @@ const LOGIN_FILE = path.join(HERE, 'login.html');
 const EDITOR_FILE = path.join(HERE, 'editor.html');
 const DATA_EDITOR_FILE = path.join(HERE, 'data-editor.html');
 const STUDIO_FILE = path.join(HERE, 'studio.html');
+const DOCS_FILE = path.join(HERE, 'docs.html');
 const ADMIN_ASSETS_DIR = HERE;
 // Public extractor output (atlases, tiledata, map blocks). Served as
 // read-only static so the iso editor in /editor can reuse the same art
@@ -51,6 +52,10 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000;       // 8 h
 const _loginBuckets = new Map();
 const ACCESS_RANK = Object.freeze({ Player: 0, Counselor: 1, Counsellor: 1, Seer: 2, GameMaster: 3, GM: 3, Admin: 4 });
 const FRESH_AUTH_MS = 5 * 60 * 1000;
+const EMBEDDABLE_ADMIN_PATHS = new Set([
+  '/editor', '/editor.html',
+  '/data-editor', '/data-editor.html',
+]);
 
 function accessRank(level) { return ACCESS_RANK[String(level)] ?? 0; }
 function requiredRank(method, pathname) {
@@ -90,8 +95,19 @@ function etagForText(jsonText) {
 
 function applySecurityHeaders(req, res) {
   const wsOrigin = req.headers.host ? `ws://${req.headers.host} wss://${req.headers.host}` : 'ws: wss:';
+  let pathname = '';
+  try { pathname = new URL(req.url || '/', 'http://admin.local').pathname; }
+  catch { pathname = ''; }
+  // The map and data workbenches are deliberately embedded by the
+  // same-origin admin shell. DENY/'none' made Chrome replace every iframe
+  // with its grey blocked-page icon even though opening the exact URL in a
+  // new tab worked. Content Studio is intentionally a top-level route: its
+  // dense three-column workspace benefits from the full viewport and no
+  // longer depends on iframe policy. Keep every other page non-frameable and
+  // never allow a foreign origin to embed an editor.
+  const sameOriginWorkbench = req.method === 'GET' && EMBEDDABLE_ADMIN_PATHS.has(pathname);
   res.setHeader('x-content-type-options', 'nosniff');
-  res.setHeader('x-frame-options', 'DENY');
+  res.setHeader('x-frame-options', sameOriginWorkbench ? 'SAMEORIGIN' : 'DENY');
   res.setHeader('referrer-policy', 'no-referrer');
   res.setHeader('cross-origin-opener-policy', 'same-origin');
   res.setHeader('permissions-policy', 'camera=(), microphone=(), geolocation=(), payment=()');
@@ -102,7 +118,8 @@ function applySecurityHeaders(req, res) {
     "default-src 'self'",
     "base-uri 'none'",
     "object-src 'none'",
-    "frame-ancestors 'none'",
+    `frame-ancestors ${sameOriginWorkbench ? "'self'" : "'none'"}`,
+    "frame-src 'self'",
     "form-action 'self'",
     "img-src 'self' data: blob:",
     "font-src 'self' data:",
@@ -149,16 +166,19 @@ export function startAdminServer(opts) {
   const envUser = opts.user ?? process.env.UO_ADMIN_USER ?? 'admin';
   const envPass = opts.pass ?? process.env.UO_ADMIN_PASS ?? '';
   const accountsApi = opts.accounts;
-  // The panel is made of a few self-contained files. Reading them
-  // synchronously on every navigation blocks the shard's event loop, so keep
-  // a process-local immutable snapshot and let validators avoid re-sending it.
-  // Development changes are picked up on the normal server restart.
+  // The panel is made of a few self-contained files. Production keeps an
+  // immutable in-process snapshot. Development revalidates mtime so HTML/CSS
+  // fixes appear after refresh instead of requiring a shard restart; these
+  // stat calls happen only on admin navigation/static requests, never in the
+  // game tick or renderer hot path.
   const staticCache = new Map();
+  const revalidateStaticFiles = process.env.NODE_ENV !== 'production';
   function cachedStatic(file) {
     let entry = staticCache.get(file);
-    if (!entry) {
+    const mtimeMs = revalidateStaticFiles ? fs.statSync(file).mtimeMs : 0;
+    if (!entry || (revalidateStaticFiles && entry.mtimeMs !== mtimeMs)) {
       const body = fs.readFileSync(file);
-      entry = { body, etag: etagForText(body), length: body.length };
+      entry = { body, etag: etagForText(body), length: body.length, mtimeMs };
       staticCache.set(file, entry);
     }
     return entry;
@@ -321,11 +341,19 @@ export function startAdminServer(opts) {
         return;
       }
 
+      if (req.method === 'GET' && (req.url === '/docs' || req.url === '/docs.html' || req.url?.startsWith('/docs?'))) {
+        if (!readSession(req)) { res.writeHead(302, { location: '/login' }); res.end(); return; }
+        try {
+          sendCachedStatic(req, res, DOCS_FILE, 'text/html; charset=utf-8');
+        } catch { res.writeHead(500); res.end('docs.html missing'); }
+        return;
+      }
+
       // Shared admin design-system/runtime. Use an explicit allowlist because
       // the same directory also contains private server-side modules.
       if (req.method === 'GET' && req.url?.startsWith('/admin-assets/')) {
         const name = decodeURIComponent(new URL(req.url, 'http://x').pathname.replace('/admin-assets/', ''));
-        if (!new Set(['admin.css', 'admin-core.js', 'map-worker.js']).has(name)) {
+        if (!new Set(['admin.css', 'admin-core.js', 'map-worker.js', 'studio-workbenches.js']).has(name)) {
           res.writeHead(404); res.end('not found'); return;
         }
         if (name !== 'admin.css' && !readSession(req)) {

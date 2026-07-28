@@ -73,4 +73,27 @@ describe('Spawner', () => {
     expect(group.spawnedSerials.size).toBe(1);
     expect(world.mobiles.get([...group.spawnedSerials][0])).toMatchObject({ homeRange: 10, roaming: 'home' });
   });
+
+  it('atomically resets definitions, tracked mobs and every lookup index', () => {
+    const world = new World();
+    const spawner = new Spawner(world, (w, kind, pos) => w.createMobile({ name: kind, ...pos }));
+    const group = spawner.add({
+      id: 'wipe-me', map: 1, rect: { x1: 16, y1: 16, x2: 20, y2: 20 },
+      maxCount: 1, respawnMs: [0, 0], kinds: ['rat'],
+    });
+    group.nextSpawnAt = 0;
+    spawner.tick();
+    const spawned = [...group.spawnedSerials][0];
+
+    const result = spawner.reset();
+
+    expect(result).toEqual({ groupsRemoved: 1, trackedMobilesRemoved: 1 });
+    expect(world.mobiles.has(spawned)).toBe(false);
+    expect(spawner.groups.size).toBe(0);
+    expect(spawner._groupsBySector.size).toBe(0);
+    expect(spawner._sectorsByGroup.size).toBe(0);
+    expect(spawner._globalGroups.size).toBe(0);
+    expect([...spawner.groupsNear(1, 18, 18, 4)]).toEqual([]);
+    expect(spawner.validateIndex()).toMatchObject({ ok: true, missing: [], orphaned: [] });
+  });
 });

@@ -22,7 +22,7 @@
 
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import sharp from 'sharp';
+import sharp from './safe-sharp.js';
 
 const MAX_UNIFONT = 20;
 const GLYPH_COUNT = 0x10000;

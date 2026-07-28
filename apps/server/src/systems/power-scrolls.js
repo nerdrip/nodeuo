@@ -215,7 +215,9 @@ export function consumeScroll(mob, item) {
   // an oddly-timed save) can't double-apply it.
   if (item?._consumed) return false;
   if (item?.powerScroll) {
-    const ok = applySkillScroll(mob, item.powerScroll.skillId, item.powerScroll.cap);
+    const effect = describeScrollEffect(mob, item);
+    if (!effect || effect.kind !== 'skill') return false;
+    const ok = applySkillScroll(mob, effect.skillId, effect.target);
     if (ok) item._consumed = true;
     return ok;
   }
@@ -225,6 +227,32 @@ export function consumeScroll(mob, item) {
     return ok;
   }
   return false;
+}
+
+/** Normalise both scroll payloads used by the shard:
+ * - modern/ServUO-shaped `{ skillId, cap: 110 }` (absolute target)
+ * - legacy champion `{ skillId, amount: 5 }` (increase from current cap).
+ * Scrolls of Transcendence deliberately do not match this cap path. */
+export function describeScrollEffect(mob, item) {
+  if (item?.powerScroll && item.powerScroll.transcendence !== true) {
+    const ps = item.powerScroll;
+    const skillId = Number(ps.skillId);
+    if (!Number.isInteger(skillId) || skillId <= 0) return null;
+    const current = mob?.skillCaps?.[skillId] || 100;
+    let target = Number(ps.cap);
+    if (!Number.isFinite(target) && Number.isFinite(Number(ps.amount))) {
+      target = Math.min(120, current + Number(ps.amount));
+    }
+    if (![105, 110, 115, 120].includes(target)) return null;
+    return { kind: 'skill', skillId, current, target };
+  }
+  if (item?.statScroll) {
+    const increment = Number(item.statScroll.increment) | 0;
+    if (![5, 10, 15, 20, 25].includes(increment)) return null;
+    const current = mob?.statCap || 225;
+    return { kind: 'stat', increment, current, target: 225 + increment };
+  }
+  return null;
 }
 
 /**

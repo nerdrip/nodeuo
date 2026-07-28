@@ -19,7 +19,7 @@
 
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import sharp from 'sharp';
+import sharp from './safe-sharp.js';
 import { openUopIndexed, readEntryContent } from './uop.js';
 
 const TILE_W = 44;

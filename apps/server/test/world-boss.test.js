@@ -53,6 +53,21 @@ describe('world-boss', () => {
     expect(calls).toBe(1);
   });
 
+  it('stays dormant while wipeworld has closed the population gate', () => {
+    const world = { mobiles: new Map(), _createWorldDone: false };
+    let calls = 0;
+    worldBosses.register({
+      id: 'wipe-paused-boss', respawnMs: 1000,
+      spawn() { calls++; return { serial: 300 }; },
+    });
+
+    worldBosses.tick(world);
+
+    expect(calls).toBe(0);
+    expect(world.mobiles.size).toBe(0);
+    worldBosses.unregister('wipe-paused-boss');
+  });
+
   it('serialize / loadSnapshot round-trip', () => {
     worldBosses.register({ id: 'test-boss', respawnMs: 1000, spawn: () => null });
     worldBosses.recordKill('test-boss');

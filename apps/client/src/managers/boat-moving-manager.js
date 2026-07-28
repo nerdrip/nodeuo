@@ -70,11 +70,28 @@ const BOAT_FACING_MULTI = new Map([
 ]);
 
 function multiForFacing(currentId, facing) {
-  const tuple = BOAT_FACING_MULTI.get(currentId | 0);
-  if (!tuple) return currentId;
-  // facing encoded as 0/2/4/6 in UO direction byte; map to N/E/S/W index.
+  if (currentId == null) return currentId;
+  const id = currentId | 0;
+  // Canonical ServUO MultiData ids are grouped N/E/S/W in four-entry
+  // blocks. Classic and High Seas boats occupy 0x00..0x4B. The legacy
+  // table above contains static-art ids used by an older NodeUO build;
+  // translate those once so persisted sessions repair themselves.
+  let base;
+  if (id >= 0 && id <= 0x4B) {
+    base = id & ~3;
+  } else {
+    const legacy = BOAT_FACING_MULTI.get(id);
+    const oldNorth = legacy?.[0];
+    base = oldNorth === 0x3E96 ? 0x00
+      : oldNorth === 0x3E89 ? 0x08
+        : oldNorth === 0x3E92 ? 0x10
+          : oldNorth === 0x3E84 ? 0x18
+            : null;
+  }
+  if (base == null) return currentId;
   const idx = ((facing | 0) >>> 1) & 3;
-  return tuple[idx];
+  const candidate = base + idx;
+  return assets.multiTiles?.(candidate)?.length ? candidate : currentId;
 }
 
 /** Per-multiId AABB cache. Computed lazily from `multi.json` tile

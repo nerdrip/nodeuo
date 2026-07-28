@@ -283,7 +283,8 @@ class Item {
     this.parent = 0;
     /** when set, this Item is the origin of a multi (house/boat) and
      *  `multiId` indexes into `assets.multis`. */
-    this.multiId = 0;
+    // 0 is the canonical north-facing small-boat multi, not "missing".
+    this.multiId = null;
   }
 }
 
@@ -303,6 +304,12 @@ export class World {
     this.season = 1;
     this.playerIndoors = false;
     this.lastRegionKind = null;
+    /** Latest NodeUO command catalogue pushed during capability negotiation.
+     *  The packet can arrive while LoginScene is still active, before the
+     *  in-world command/debug panels subscribe to the event bus. Keeping the
+     *  session-scoped snapshot here makes that early packet sticky without
+     *  changing the Ultima Online wire protocol. */
+    this.commandCatalogue = null;
     /** Ctrl+Q toggle — when true, walls fade near the player so the
      *  avatar isn't hidden behind tall structures. CUO `Constants.cs`
      *  GAME_OPTIONS_CIRCLE_OF_TRANSPARENCY. */
@@ -415,6 +422,7 @@ export class World {
       season: 1,
       playerIndoors: false,
       lastRegionKind: null,
+      commandCatalogue: null,
       mobiles: new Map(),
       items: new Map(),
       _equipIndex: new Map(),

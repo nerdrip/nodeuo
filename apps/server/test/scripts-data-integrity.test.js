@@ -28,20 +28,22 @@ const questRewardItems = JSON.parse(
 );
 
 describe('content data integrity', () => {
-  it('every item has a unique name and valid itemId', () => {
-    const names = new Set();
+  it('every item has a unique definitionId and valid artId', () => {
+    const definitionIds = new Set();
     for (const it of items) {
+      expect(typeof it.definitionId).toBe('string');
       expect(typeof it.name).toBe('string');
-      expect(names.has(it.name)).toBe(false);
-      names.add(it.name);
-      expect(Number.isInteger(it.itemId)).toBe(true);
-      expect(it.itemId).toBeGreaterThan(0);
-      expect(it.itemId).toBeLessThan(0x10000);
+      expect(definitionIds.has(it.definitionId)).toBe(false);
+      definitionIds.add(it.definitionId);
+      expect(Number.isInteger(it.artId)).toBe(true);
+      expect(it.artId).toBeGreaterThan(0);
+      expect(it.artId).toBeLessThan(0x10000);
+      expect(Object.hasOwn(it, 'itemId')).toBe(false);
     }
   });
 
   it('every loot table entry references an existing item template', () => {
-    const itemNames = new Set(items.map((i) => i.name));
+    const itemNames = new Set(items.map((i) => i.definitionId));
     const tableNames = new Set(lootTables.map((t) => t.name));
     for (const table of lootTables) {
       expect(Array.isArray(table.entries)).toBe(true);

@@ -274,7 +274,7 @@ const oldMultiTiles = assets.multiTiles;
 assets.multiTiles = () => [{ x: 0, y: 0 }, { x: 1, y: 1 }];
 try {
   const boat = world.ensureItem(0x40001000);
-  Object.assign(boat, { serial: 0x40001000, x: 100, y: 100, z: 0, map: 1, parent: 0, multiId: 0x3E96 });
+  Object.assign(boat, { serial: 0x40001000, x: 100, y: 100, z: 0, map: 1, parent: 0, multiId: 0x00 });
   const rider = world.ensureMobile(0x40002000);
   Object.assign(rider, { serial: 0x40002000, x: 100, y: 100, z: 0, map: 1 });
   boatMovingManager._lerps.clear();
@@ -299,7 +299,7 @@ try {
   assert.equal(boat.offsetX, 0, 'boat offset should clear after lerp');
   assert.equal(rider.offsetX, 0, 'passenger offset should clear after lerp');
   assert.equal(rider.x, 101, 'passenger logical x should move with boat');
-  assert.equal(boat.multiId, 0x3E98, 'boat multi id should swap to east facing at lerp end');
+  assert.equal(boat.multiId, 0x01, 'boat multi id should swap to canonical east-facing small-boat id');
 } finally {
   assets.multiTiles = oldMultiTiles;
   boatMovingManager._lerps.clear();

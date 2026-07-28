@@ -28,7 +28,7 @@
 import { open } from 'node:fs/promises';
 import { writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import sharp from 'sharp';
+import sharp from './safe-sharp.js';
 
 const ATLAS_W = 2048;
 const ATLAS_H = 2048;

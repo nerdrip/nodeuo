@@ -67,6 +67,7 @@ const { GumpPicTiled } = await import('../src/ui/controls/gump-pic-tiled.js');
 const { ItemPic } = await import('../src/ui/controls/item-pic.js');
 const { StaticPic } = await import('../src/ui/controls/static-pic.js');
 const { MobilePic } = await import('../src/ui/controls/mobile-pic.js');
+const { MultiPic } = await import('../src/ui/controls/multi-pic.js');
 const { CroppedText } = await import('../src/ui/controls/cropped-text.js');
 const { HtmlControl } = await import('../src/ui/controls/html-control.js');
 const { CheckerTrans } = await import('../src/ui/controls/checker-trans.js');
@@ -178,6 +179,7 @@ const gump = parseGumpLayout({
     '{ tilepichue 12 13 4011 44 }',
     '{ tilepicfit 70 12 4012 55 48 42 }',
     '{ mobilepic 130 12 200 0 0 52 52 }',
+    '{ multipic 190 12 100 64 48 }',
     '{ croppedtext 0 25 30 14 33 0 }',
     '{ htmlgump 40 80 90 34 1 1 1 }',
     '{ checkertrans 0 0 20 20 }',
@@ -225,6 +227,11 @@ const mobilePic = gump.children.find((control) => control instanceof MobilePic);
 assert(mobilePic, 'mobilepic should create a web-client mobile preview');
 assert(mobilePic.body === 200 && mobilePic.width === 52 && mobilePic.height === 52,
   'mobilepic should preserve body and bounds');
+
+const multiPic = gump.children.find((control) => control instanceof MultiPic);
+assert(multiPic, 'multipic should create a complete multi preview control');
+assert(multiPic.multiId === 100 && multiPic.width === 64 && multiPic.height === 48,
+  'multipic should preserve the multi id and containment bounds');
 
 const cropped = gump.children.find((control) => control instanceof CroppedText);
 assert(cropped, 'croppedtext should create CroppedText');

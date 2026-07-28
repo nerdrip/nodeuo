@@ -232,7 +232,7 @@ function openCreateWorldGump(api, state, enabledMask) {
   lines.push(`{ button 260 ${btnY} 4017 4018 1 0 0 }`);
   texts.push('Cancel');
   lines.push(`{ text 290 ${btnY + 4} 1153 ${texts.length - 1} }`);
-  api.gumps.send(state, { x: 80, y: 80, layout: lines.join(''), texts }, (resp) => {
+  api.gumps.send(state, { definitionId: 'server:commands-admin-createworld:open-create-world-gump', x: 80, y: 80, layout: lines.join(''), texts }, (resp) => {
     const btn = resp.buttonId | 0;
     if (btn === 0) return;                  // cancel
     if (btn >= 100 && btn < 100 + STAGES.length) {

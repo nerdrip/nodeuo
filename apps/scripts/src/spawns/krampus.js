@@ -32,6 +32,7 @@ export default function register(api) {
   // Spawn tick.
   const poll = () => {
     try {
+      if (api.world._createWorldDone === false) return;
       if (!krampus.shouldSpawn()) return;
       const boss = krampus.spawnKrampus(api.world, {
         spawnFactory: api.ctx?.spawnFactory ?? api.spawnFactory,

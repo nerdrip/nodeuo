@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { HouseRegistry } from '../src/systems/housing/houses.js';
+import { World } from '../src/world/world.js';
 
 function makeOwner(serial = 1) { return { serial, name: 'Owner' }; }
 
@@ -67,5 +68,26 @@ describe('house customization (per-tile)', () => {
     reg.addCustomItem(h, 'item', 0x06A6, 2, 2);
     reg.clearCustomTiles(h);
     expect(h.editing.tiles.length).toBe(0);
+  });
+
+  it('materializes committed custom tiles into the live world', () => {
+    const world = new World();
+    const observer = world.createMobile({ name: 'Observer', x: 2, y: 2, z: 0, map: 1 });
+    const delivered = [];
+    observer.client = { sendItem: (item) => delivered.push(item.serial), sendRemove() {} };
+    const reg = new HouseRegistry().attachWorld(world);
+    const owner = makeOwner(1);
+    const h = reg.place(owner, { x1: 0, y1: 0, x2: 5, y2: 5, z: 10, customizable: true });
+    reg.beginEditing(h, owner);
+    reg.addCustomItem(h, 'wall', 0x06A5, 2, 2, 17);
+
+    expect(reg.commitCustom(h)).toBe(true);
+    expect(h.customItemSerials).toHaveLength(1);
+    const item = world.items.get(h.customItemSerials[0]);
+    expect(item).toMatchObject({
+      itemId: 0x06A5, x: 2, y: 2, z: 17, movable: false,
+      _customHouseId: h.id,
+    });
+    expect(delivered).toContain(item.serial);
   });
 });

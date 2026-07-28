@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import sharp from 'sharp';
+import sharp from './safe-sharp.js';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));

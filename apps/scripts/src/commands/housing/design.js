@@ -25,6 +25,7 @@ export default function register(api) {
 
   api.commands.register({
     name: 'design',
+    hidden: true,
     help: '[design start|floor|replace|paint|move|rotate|clear|backup|restore|commit|revert',
     access: 'Player',
     run(ctx) {

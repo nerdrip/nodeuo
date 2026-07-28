@@ -100,29 +100,30 @@ function itemCarriedBy(world, itemSerial, mobSerial) {
 // each mount and stamps `cannon._mountSerial = boat.serial` so the
 // cannons travel with the boat in `_tickBoat()`.
 export const BOAT_HULLS = Object.freeze({
-  small:    { graphic: 0x3E5C, hpMax: 1000, armor: 0.05, speedMultiplier: 1.15, plankCount: 1, label: 'small ship' },
-  medium:   { graphic: 0x3E5E, hpMax: 1500, armor: 0.10, speedMultiplier: 1.05, plankCount: 2, label: 'medium ship' },
-  large:    { graphic: 0x3E60, hpMax: 2000, armor: 0.15, speedMultiplier: 0.95, plankCount: 2, label: 'large ship' },
-  galleon:  { graphic: 0x3E62, hpMax: 3000, armor: 0.20, speedMultiplier: 0.90, plankCount: 2, label: 'galleon' },
+  // Canonical ServUO BaseMulti ids, not static-art component ids.
+  small:    { multiBase: 0x00, hpMax: 1000, armor: 0.05, speedMultiplier: 1.15, plankCount: 1, label: 'small ship' },
+  medium:   { multiBase: 0x08, hpMax: 1500, armor: 0.10, speedMultiplier: 1.05, plankCount: 2, label: 'medium ship' },
+  large:    { multiBase: 0x10, hpMax: 2000, armor: 0.15, speedMultiplier: 0.95, plankCount: 2, label: 'large ship' },
+  galleon:  { multiBase: 0x40, hpMax: 3000, armor: 0.20, speedMultiplier: 0.90, plankCount: 2, label: 'galleon' },
   // SA Galleons. graphic ids match ServUO Multis/Boats/BaseGalleon.cs
   // (each hull mounts 6 cannons broadside — 3 per side — except Orc
   // which crowds the deck with 8 light cannons). Speed +0 vs galleon.
   britannian: {
-    graphic: 0x4002, hpMax: 4000, armor: 0.28, speedMultiplier: 0.82, plankCount: 2, label: 'Britannian ship of the line',
+    multiBase: 0x40, hpMax: 4000, armor: 0.28, speedMultiplier: 0.82, plankCount: 2, label: 'Britannian ship of the line',
     cannonMounts: [
       { dx: -1, dy: -2, kind: 'medium' }, { dx: -1, dy: 0, kind: 'medium' }, { dx: -1, dy: 2, kind: 'medium' },
       { dx:  1, dy: -2, kind: 'medium' }, { dx:  1, dy: 0, kind: 'medium' }, { dx:  1, dy: 2, kind: 'medium' },
     ],
   },
   tokuno: {
-    graphic: 0x4006, hpMax: 3500, armor: 0.18, speedMultiplier: 1.00, plankCount: 2, label: 'Tokuno galleon',
+    multiBase: 0x30, hpMax: 3500, armor: 0.18, speedMultiplier: 1.00, plankCount: 2, label: 'Tokuno galleon',
     cannonMounts: [
       { dx: -1, dy: -1, kind: 'light' }, { dx: -1, dy: 0, kind: 'medium' }, { dx: -1, dy: 1, kind: 'light' },
       { dx:  1, dy: -1, kind: 'light' }, { dx:  1, dy: 0, kind: 'medium' }, { dx:  1, dy: 1, kind: 'light' },
     ],
   },
   orc: {
-    graphic: 0x4008, hpMax: 3200, armor: 0.12, speedMultiplier: 1.08, plankCount: 2, label: 'Orc galleon',
+    multiBase: 0x18, hpMax: 3200, armor: 0.12, speedMultiplier: 1.08, plankCount: 2, label: 'Orc galleon',
     cannonMounts: [
       { dx: -2, dy: -1, kind: 'light' }, { dx: -1, dy: -1, kind: 'light' },
       { dx: -2, dy:  1, kind: 'light' }, { dx: -1, dy:  1, kind: 'light' },
@@ -131,7 +132,7 @@ export const BOAT_HULLS = Object.freeze({
     ],
   },
   gargish: {
-    graphic: 0x400A, hpMax: 4500, armor: 0.32, speedMultiplier: 0.78, plankCount: 2, label: 'Gargish galleon',
+    multiBase: 0x24, hpMax: 4500, armor: 0.32, speedMultiplier: 0.78, plankCount: 2, label: 'Gargish galleon',
     cannonMounts: [
       { dx: -1, dy: -2, kind: 'heavy'  }, { dx: -1, dy: 1, kind: 'heavy' },
       { dx:  1, dy: -2, kind: 'heavy'  }, { dx:  1, dy: 1, kind: 'heavy' },
@@ -143,6 +144,11 @@ export const BOAT_HULLS = Object.freeze({
 function hullForBoat(boat) {
   const key = String(boat?.boat?.hullKind ?? boat?.boat?.hull ?? 'small').toLowerCase();
   return { key: BOAT_HULLS[key] ? key : 'small', def: BOAT_HULLS[key] ?? BOAT_HULLS.small };
+}
+
+function multiIdForFacing(hull, facing) {
+  const index = Math.max(0, FACINGS.indexOf(facing));
+  return (hull.multiBase | 0) + index;
 }
 
 function normalizeBoatState(boat) {
@@ -157,6 +163,10 @@ function normalizeBoatState(boat) {
   b.cannons ??= [];
   b.planks ??= [];
   b.riders = b.riders instanceof Set ? b.riders : new Set(b.riders ?? []);
+  const multiId = multiIdForFacing(def, b.facing ?? 'N');
+  boat.multiId = multiId;
+  boat.itemId = multiId;
+  boat.artId = multiId;
   return { b, key, def };
 }
 
@@ -207,8 +217,9 @@ export function placeGalleon(api, opts) {
   const hull = BOAT_HULLS[opts.kind];
   if (!hull) throw new Error(`unknown galleon kind: ${opts.kind}`);
   const facing = opts.facing ?? 'N';
+  const multiId = multiIdForFacing(hull, facing);
   const boat = createWorldItem(api, {
-    itemId: hull.graphic, name: opts.name ?? hull.label,
+    itemId: multiId, multiId, name: opts.name ?? hull.label,
     x: opts.x | 0, y: opts.y | 0, z: opts.z | 0, map: opts.map | 0,
     boat: {
       facing, riders: new Set(), planks: [], sailState: 'stop', anchored: true,
@@ -355,9 +366,13 @@ export function startBoatSystem(api) {
 
   const broadcastBoatPos = (boat) => {
     if (!api.protocol?.worldItemSA) return;
+    // Hulls are real type-2 multis; planks/cannons moved by the same helper
+    // are ordinary items and must remain type 0.
+    const isMulti = boat?.boat != null || boat?.multiId != null;
     const wi = api.protocol.worldItemSA({
-      serial: boat.serial, itemId: boat.itemId, hue: boat.hue,
+      serial: boat.serial, itemId: isMulti ? (boat.multiId ?? boat.itemId) : boat.itemId, hue: boat.hue,
       amount: 1, x: boat.x, y: boat.y, z: boat.z,
+      dataType: isMulti ? 2 : 0,
     });
     for (const m of nearbyClientIter(boat.map, boat.x, boat.y, 18)) {
       m.client.send(wi);
@@ -419,6 +434,10 @@ export function startBoatSystem(api) {
     if (!b || nextIndex < 0) return false;
     if (oldIndex < 0 || oldIndex === nextIndex) {
       b.facing = facing;
+      const { def } = hullForBoat(boat);
+      boat.multiId = multiIdForFacing(def, facing);
+      boat.itemId = boat.multiId;
+      boat.artId = boat.multiId;
       return true;
     }
     const turns = (nextIndex - oldIndex + 4) % 4;
@@ -451,6 +470,10 @@ export function startBoatSystem(api) {
       }
     }
     b.facing = facing;
+    const { def } = hullForBoat(boat);
+    boat.multiId = multiIdForFacing(def, facing);
+    boat.itemId = boat.multiId;
+    boat.artId = boat.multiId;
     broadcastBoatPos(boat);
     return true;
   };
@@ -496,10 +519,18 @@ export function startBoatSystem(api) {
   // world.items just to find ~10 boats. With the index that drops to
   // ~10 iterations.
   function ensureBoatIndex() {
-    if (api.world._boats instanceof Set) return api.world._boats;
-    const s = new Set();
-    for (const it of api.world.items.values()) if (it.boat) s.add(it.serial);
+    if (api.world._boatIndexReady && api.world._boats instanceof Set) return api.world._boats;
+    const s = api.world._boats instanceof Set ? api.world._boats : new Set();
+    // The Set can exist before the system starts (a new boat was placed)
+    // while restored boats are not indexed yet. Reconcile once and also
+    // migrate legacy static-art hull graphics to canonical BaseMulti ids.
+    for (const it of api.world.items.values()) {
+      if (!it.boat) continue;
+      normalizeBoatState(it);
+      s.add(it.serial);
+    }
     api.world._boats = s;
+    api.world._boatIndexReady = true;
     return s;
   }
   const tick = () => {
@@ -526,6 +557,7 @@ export function startBoatSystem(api) {
     }
   };
 
+  ensureBoatIndex();
   const timer = setInterval(tick, TICK_MS);
   timer.unref?.();
 
@@ -565,7 +597,9 @@ export function startBoatSystem(api) {
     applyHull(boat, hullKey = 'small') {
       const hull = BOAT_HULLS[hullKey];
       if (!boat?.boat || !hull) return false;
-      boat.itemId = hull.graphic;
+      boat.multiId = multiIdForFacing(hull, boat.boat?.facing ?? 'N');
+      boat.itemId = boat.multiId;
+      boat.artId = boat.multiId;
       boat.boat.hull = hullKey;
       boat.boat.hullKind = hullKey;
       boat.boat.boatHpMax = hull.hpMax;

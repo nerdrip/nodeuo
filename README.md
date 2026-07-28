@@ -87,7 +87,7 @@ saves/
 
 ## Requirements
 
-- Node.js `>=20.11`
+- Node.js `>=22.23` (Node `24.18.0` LTS recommended; pinned in `.nvmrc` / `.node-version`)
 - pnpm `9.12.0` through Corepack or a global install
 - Windows `.bat` launchers or Linux/macOS `.sh` launchers
 - A local Ultima Online Classic installation for asset extraction
@@ -259,6 +259,11 @@ The canonical guide for the current API is:
 docs/server-scripting.md
 ```
 
+When the shard is running, the same guides are available as a searchable,
+responsive workbench under **Admin → Docs** (`http://localhost:2596/docs`).
+The page also exposes the gump model, configuration taxonomy, examples and a
+live inventory of the active scripts package.
+
 The old pattern of scanning `world.items` or `world.mobiles` directly is an
 exception. New code should use:
 
@@ -339,6 +344,9 @@ asset pipeline.
 | `CODE_OF_CONDUCT.md` | behavior rules for the public project |
 | `docs/README.md` | repository documentation index |
 | `docs/server-scripting.md` | current server scripting rules |
+| `docs/scripting/gumps.md` | server/client gumps and JSON authoring |
+| `docs/scripting/configuration.md` | config identity and data publishing |
+| Admin `/docs` | searchable Scriptbook rendered from the canonical Markdown files |
 | `tools/README.md` | launchers, Control Panel, bridge, and environment variables |
 | `apps/server/src/content/ARCHITECTURE.md` | engine vs scripts split |
 | `apps/server/src/systems/README.md` | systems layer overview |

@@ -311,6 +311,7 @@ export function openTurnInGump(gumps, state, mob, questId) {
   const def = getQuest(questId);
   if (!def) return false;
   const gump = buildTurnInGump(def, q);
+  gump.definitionId = 'server-engine:systems-quests-mlquests:open-turn-in-gump';
   gumps.send(state, gump, (resp) => {
     if (resp.buttonId !== 1) return; // declined
     let chosenKey = null;

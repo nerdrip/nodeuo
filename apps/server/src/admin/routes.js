@@ -11,14 +11,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { spawn } from 'node:child_process';
-import { composePaperdoll } from './paperdoll.js';
-import { scheduleRefreshSurroundings } from '../net/handlers.js';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { composePaperdoll, extractGumpTile } from './paperdoll.js';
 import { landProvider } from '../world/land-provider.js';
-import { tileDataTable, resolveStandingZ } from '../world/movement.js';
 import { invalidateLosCache } from '../world/los.js';
-import { destroyItem } from '../world/items.js';
-import { extMapTileEdit, NODEUO_CAPABILITIES_CURRENT, NodeUOCapability } from '@uo/protocol';
-import { AI_GRAPH_NODE_TYPES } from '../world/ai-graphs.js';
+import { NODEUO_CAPABILITIES_CURRENT, NodeUOCapability } from '@uo/protocol';
 import { simulateCombat } from '../systems/combat-simulator.js';
 import { animationBodySnapshot, animationFramePng, validateMonsterAnimations } from './animation-catalog.js';
 import { staticArtPng, staticArtStatus } from './static-art.js';
@@ -29,6 +26,12 @@ import {
 import * as operational from '../systems/operational-diagnostics.js';
 import { CURRENT_SNAPSHOT_VERSION, migrateSnapshot, planSnapshotMigration } from '../world/persistence-migrations.js';
 import { buildServerQualityReport, runtimeGovernor } from '../systems/runtime-governor.js';
+import { registerEntityRoutes } from './entity-routes.js';
+import { registerWorldEditRoutes } from './world-edit-routes.js';
+import {
+  flattenScriptTree, getLogTail, parseSerial, safeJoin, validateStudioDraft, walkScriptTree,
+} from './route-helpers.js';
+export { pushLogLine } from './route-helpers.js';
 
 export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, persistence, accounts }) {
   const world = sharedCtx?.world;
@@ -115,6 +118,11 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
 
   const routes = [];
   const repoRoot = path.resolve(scriptsDir, '../../..');
+  // Documentation belongs to the checked-out engine, not to the mutable
+  // scriptsDir supplied to fixtures or an external content pack. Resolving it
+  // from this module keeps /docs stable while still allowing the live content
+  // inventory below to describe the active scripts directory.
+  const sourceRepoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
   const featureFile = path.join(saveDir, 'admin-feature-flags.json');
   const alertFile = path.join(saveDir, 'admin-alert-thresholds.json');
   const preferencesFile = path.join(saveDir, 'admin-preferences.json');
@@ -126,6 +134,76 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
   const testJobs = new Map();
   const adminClientMetrics = new Map();
   let testJobSequence = 0;
+  const clientAssetsDir = path.join(repoRoot, 'apps/client/public/assets');
+  const studioAssetCatalogCache = new Map();
+
+  function readClientAssetJson(name) {
+    const file = path.join(clientAssetsDir, name);
+    return JSON.parse(fs.readFileSync(file, 'utf8'));
+  }
+
+  function uoColorCss(value) {
+    const color = Number(value) & 0x7fff;
+    const channel = (bits) => Math.round(((color >>> bits) & 31) * 255 / 31).toString(16).padStart(2, '0');
+    return `#${channel(10)}${channel(5)}${channel(0)}`;
+  }
+
+  // Lazily materialized because atlas manifests are large and must not slow
+  // normal shard startup.  The picker requests only one bounded page.
+  function studioAssetCatalog(kind) {
+    if (studioAssetCatalogCache.has(kind)) return studioAssetCatalogCache.get(kind);
+    let entries = [];
+    if (kind === 'item') {
+      const atlas = readClientAssetJson('static-atlas.json');
+      let tiledata = {};
+      try { tiledata = readClientAssetJson('tiledata.json'); } catch { /* optional */ }
+      const seen = new Set();
+      entries = Object.entries(atlas.tiles ?? {}).map(([globalId, tile]) => {
+        const numeric = Number(globalId);
+        const id = numeric >= 0x4000 ? numeric - 0x4000 : numeric;
+        if (id < 0 || id > 0xffff || seen.has(id)) return null;
+        seen.add(id);
+        const name = String(tiledata.statics?.[id]?.name ?? '').trim();
+        return { id, name: name || `Item 0x${id.toString(16).padStart(4, '0')}`, width: tile.w, height: tile.h,
+          preview: `/api/studio/art/${id}` };
+      }).filter(Boolean);
+    } else if (kind === 'gump') {
+      const atlas = readClientAssetJson('gump-atlas.json');
+      entries = Object.entries(atlas.tiles ?? {}).map(([id, tile]) => ({
+        id: Number(id), name: `Gump 0x${Number(id).toString(16).padStart(4, '0')}`,
+        width: tile.w, height: tile.h, preview: `/api/studio/gump-art/${Number(id)}`,
+      }));
+    } else if (kind === 'body') {
+      const atlas = readClientAssetJson('mobiles-atlas.json');
+      const names = new Map();
+      for (const relative of ['config/monsters.json', 'config/npcs.json']) {
+        try {
+          const rows = JSON.parse(fs.readFileSync(path.join(scriptsDir, 'data', relative), 'utf8'));
+          for (const row of (Array.isArray(rows) ? rows : [])) {
+            const body = Number(row?.body);
+            if (!Number.isFinite(body)) continue;
+            const label = String(row.name ?? row.kind ?? '').trim();
+            if (label && !names.has(body)) names.set(body, label);
+          }
+        } catch { /* optional authoring data */ }
+      }
+      entries = Object.keys(atlas.bodies ?? {}).map((id) => {
+        const body = Number(id);
+        const type = atlas.mobTypes?.[id]?.type;
+        return { id: body, name: names.get(body) ?? `${type ? `${type.toLowerCase()} ` : ''}body 0x${body.toString(16)}`,
+          preview: `/api/studio/body-art/${body}` };
+      });
+    } else if (kind === 'hue') {
+      const source = readClientAssetJson('hues.json');
+      entries = [{ id: 0, name: 'No hue / natural color', color: '#ffffff' }, ...(source.hues ?? []).map((hue, index) => ({
+        id: index + 1, name: String(hue.name ?? '').trim() || `Hue ${index + 1}`,
+        color: uoColorCss(hue.tableEnd ?? hue.tableStart ?? 0),
+      }))];
+    }
+    entries.sort((a, b) => a.id - b.id);
+    studioAssetCatalogCache.set(kind, entries);
+    return entries;
+  }
 
   // ---- Unified content studio ------------------------------------------
   // One metadata catalogue powers dedicated visual editors without copying
@@ -147,17 +225,77 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
     { id:'books', label:'Books, BOD & collections', icon:'📚', files:['world/books-extended.json','world/books.servuo.generated.json','world/anniversary-tiers.json'], preview:'book', tags:['book','bod','collection','achievement'] },
     { id:'environment', label:'Weather, seasons & events', icon:'🌦️', files:['world/seasonal-events.json','world/camps.json','world/revamped-dungeons.json'], preview:'environment', tags:['weather','season','day','night','calendar','scheduler'] },
     { id:'world', label:'Regions & world design', icon:'🗺️', files:['world/decorations.json','world/decoratives.json','world/xmlspawners.json'], preview:'world', tags:['region','geometry','guards','music','spawner'] },
-    { id:'gumps', label:'Gumps & layouts', icon:'🪟', files:['config/servuo-p2-admin-parity.json'], preview:'gump', tags:['layout','overflow','dialog','client-preview'] },
-    { id:'commands', label:'Commands & ACL', icon:'⌨️', files:['config/servuo-p2-admin-parity.json'], preview:'command', tags:['acl','alias','help','duplicate'] },
+    { id:'gumps', label:'Gumps & layouts', icon:'🪟', files:['config/gumps.json','config/server-gump-catalog.json','@client/client-gumps.json'], preview:'gump', tags:['layout','drag','resize','overflow','dialog','client-preview','server-source','json'] },
     { id:'create', label:'Create catalogue', icon:'➕', files:['config/items.json','config/monsters.json','config/housedata.json'], preview:'create', tags:['item','mobile','mount','multi','favorite','recent'] },
   ];
+
+  const scriptingDocPages = [
+    { id:'start', title:'Start', icon:'start', kicker:'model i pierwszy skrypt', source:'docs/scripting/getting-started.md' },
+    { id:'api', title:'Server API', icon:'api', kicker:'pełny przewodnik API', source:'docs/server-scripting.md' },
+    { id:'gumps', title:'Gumpy', icon:'gumps', kicker:'serwer, klient i JSON', source:'docs/scripting/gumps.md' },
+    { id:'config', title:'Konfiguracje', icon:'config', kicker:'tożsamość i publikowanie', source:'docs/scripting/configuration.md' },
+    { id:'examples', title:'Przykłady', icon:'examples', kicker:'gotowe wzorce', source:'docs/scripting/examples.md' },
+    { id:'data', title:'Katalog danych', icon:'data', kicker:'pełna taksonomia plików', source:'apps/scripts/src/data/README.md' },
+  ];
+
+  const countFiles = (root, extension) => {
+    let total = 0;
+    const pending = [root];
+    while (pending.length) {
+      const current = pending.pop();
+      let entries;
+      try { entries = fs.readdirSync(current, { withFileTypes: true }); }
+      catch { continue; }
+      for (const entry of entries) {
+        const full = path.join(current, entry.name);
+        if (entry.isDirectory()) pending.push(full);
+        else if (!extension || entry.name.endsWith(extension)) total++;
+      }
+    }
+    return total;
+  };
+
+  routes.push({
+    method: 'GET', path: '/api/docs/scripting',
+    run: () => {
+      const pages = scriptingDocPages.map((page) => {
+        const full = path.join(sourceRepoRoot, ...page.source.split('/'));
+        try {
+          const stat = fs.statSync(full);
+          return { ...page, updatedAt: stat.mtimeMs, content: fs.readFileSync(full, 'utf8') };
+        } catch {
+          return { ...page, updatedAt: 0, content: `# ${page.title}\n\nDokument \`${page.source}\` nie jest dostępny w tej instalacji.` };
+        }
+      });
+      const readArrayLength = (full) => {
+        try { const value = JSON.parse(fs.readFileSync(full, 'utf8')); return Array.isArray(value) ? value.length : 0; }
+        catch { return 0; }
+      };
+      const clientGumps = readArrayLength(path.join(sourceRepoRoot, 'apps/client/public/client-gumps.json'));
+      const serverGumps = readArrayLength(path.join(scriptsDir, 'data/config/gumps.json'))
+        + readArrayLength(path.join(scriptsDir, 'data/config/server-gump-catalog.json'));
+      return {
+        version: 1,
+        generatedAt: Date.now(),
+        pages,
+        inventory: {
+          scripts: countFiles(scriptsDir, '.js'),
+          configs: countFiles(path.join(scriptsDir, 'data/config'), '.json'),
+          clientGumps,
+          serverGumps,
+        },
+      };
+    },
+  });
 
   routes.push({
     method: 'GET', path: '/api/studio/catalog',
     run: () => ({
       domains: studioDomains.map((domain) => ({
         ...domain,
-        files: domain.files.filter((rel) => fs.existsSync(path.join(scriptsDir, 'data', rel))),
+        files: domain.files.filter((rel) => rel === '@client/client-gumps.json'
+          ? fs.existsSync(path.join(repoRoot, 'apps/client/public/client-gumps.json'))
+          : fs.existsSync(path.join(scriptsDir, 'data', rel))),
       })),
       capabilities: {
         drafts: true, optimisticConcurrency: true, diffPreview: true,
@@ -204,6 +342,23 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
     },
   });
   routes.push({
+    method: 'GET', path: '/api/studio/asset-catalog',
+    run: ({ query }) => {
+      const kind = String(query?.get?.('kind') ?? '').toLowerCase();
+      if (!['item', 'gump', 'body', 'hue'].includes(kind)) return { error: 'kind must be item, gump, body, or hue' };
+      const offset = queryInt(query, 'offset', 0, 0, 1_000_000);
+      const limit = queryInt(query, 'limit', 96, 1, 200);
+      const q = String(query?.get?.('q') ?? '').trim().toLowerCase();
+      const numeric = q ? Number.parseInt(q.replace(/^0x/, ''), /^0x/.test(q) ? 16 : 10) : Number.NaN;
+      const all = studioAssetCatalog(kind);
+      const filtered = q ? all.filter((entry) => entry.id === numeric
+        || String(entry.name ?? '').toLowerCase().includes(q)
+        || `0x${entry.id.toString(16)}`.includes(q)) : all;
+      return { kind, offset, limit, total: filtered.length, entries: filtered.slice(offset, offset + limit) };
+    },
+  });
+
+  routes.push({
     method: 'GET', path: '/api/studio/art/:itemId',
     run: async ({ params, res }) => {
       const itemId = parseSerial(params.itemId);
@@ -217,6 +372,136 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
       res.end(png);
       return undefined;
     },
+  });
+
+  routes.push({
+    method: 'GET', path: '/api/studio/body-art/:body',
+    run: async ({ params, res }) => {
+      const body = parseSerial(params.body);
+      const snapshot = animationBodySnapshot(body);
+      const action = snapshot.resolvedActions?.idle ?? snapshot.actions?.[0]?.action;
+      const actionInfo = snapshot.actions?.find?.((entry) => entry.action === action) ?? snapshot.actions?.[0];
+      const direction = actionInfo?.directions?.find?.((entry) => entry.frames > 0)?.direction ?? 0;
+      const png = Number.isFinite(action) ? await animationFramePng(body, action, direction, 0) : null;
+      if (!png) {
+        res.writeHead(404, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ error: `mobile body ${body} has no renderable frame` }));
+        return undefined;
+      }
+      res.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'public, max-age=3600' });
+      res.end(png);
+      return undefined;
+    },
+  });
+
+  routes.push({
+    method: 'GET', path: '/api/studio/gump-art/:gumpId',
+    run: async ({ params, res }) => {
+      const gumpId = parseSerial(params.gumpId);
+      const png = await extractGumpTile(gumpId);
+      if (!png) {
+        res.writeHead(404, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ error: `gump art ${gumpId} not found` }));
+        return undefined;
+      }
+      res.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'public, max-age=86400' });
+      res.end(png);
+      return undefined;
+    },
+  });
+
+  let studioScriptCatalogCache = null;
+  routes.push({
+    method: 'GET', path: '/api/studio/script-catalog',
+    run: () => {
+      if (studioScriptCatalogCache?.expiresAt > Date.now()) return studioScriptCatalogCache.value;
+      const files = flattenScriptTree(walkScriptTree(scriptsDir));
+      const aiLive = new Set(sharedCtx?.ai?.behaviors?.keys?.() ?? []);
+      const itemLive = new Map((sharedCtx?.systems?.itemScripts?.all?.() ?? [])
+        .map((script) => [String(script.name), script]));
+      const ai = new Map();
+      const items = new Map();
+      const spells = new Map();
+      for (const entry of files) {
+        if (!/\.(?:js|mjs)$/i.test(entry.path)) continue;
+        let source = '';
+        try { source = fs.readFileSync(path.join(scriptsDir, entry.path), 'utf8'); } catch { continue; }
+        if (/^npcs\/ai\//i.test(entry.path)) {
+          const names = new Set();
+          for (const match of source.matchAll(/registerBehavior\s*\(\s*\{[\s\S]{0,240}?name\s*:\s*['"`]([^'"`]+)['"`]/g)) names.add(match[1]);
+          for (const match of source.matchAll(/registerCasterBehavior\s*\([\s\S]{0,180}?name\s*:\s*['"`]([^'"`]+)['"`]/g)) names.add(match[1]);
+          if (!names.size && !entry.name.startsWith('_')) names.add(entry.name.replace(/-ai\.(?:js|mjs)$/i, '').replace(/\.(?:js|mjs)$/i, ''));
+          for (const name of names) ai.set(name, { name, path: entry.path, live: aiLive.has(name) });
+        }
+        if (/^items\//i.test(entry.path)) {
+          for (const name of itemLive.keys()) {
+            const quoted = [`'${name}'`, `"${name}"`, `\`${name}\``];
+            if (quoted.some((needle) => source.includes(needle)) && !items.has(name)) {
+              const script = itemLive.get(name);
+              items.set(name, {
+                name, path: entry.path, live: true,
+                hooks: Object.keys(script).filter((key) => /^on[A-Z]/.test(key) && typeof script[key] === 'function'),
+                hasTick: !!script.hasTick,
+              });
+            }
+          }
+        }
+        if (/^spells\//i.test(entry.path) && !/(?:^|\/)_(?:helpers?|summon-helpers|field-helpers)\.(?:js|mjs)$/i.test(entry.path)
+            && !/(?:^|\/)index\.(?:js|mjs)$/i.test(entry.path)) {
+          const reference = entry.path.replace(/^spells\//i, '');
+          const declared = source.match(/export\s+default\s*\{[\s\S]{0,500}?\bname\s*:\s*['"`]([^'"`]+)['"`]/)?.[1];
+          const fallback = path.basename(entry.path).replace(/\.(?:js|mjs)$/i, '').replaceAll('-', ' ');
+          const parts = reference.split('/');
+          const school = parts.length > 1 ? parts[0] : 'shared';
+          const hooks = [...source.matchAll(/^\s*(cast|validate|check|on\w+)\s*\(/gm)].map((match) => match[1]);
+          if (declared || hooks.includes('cast')) spells.set(entry.path, {
+            name: declared || fallback,
+            path: entry.path,
+            reference,
+            school,
+            live: true,
+            hooks,
+          });
+        }
+      }
+      for (const name of aiLive) if (!ai.has(name)) ai.set(name, { name, path: null, live: true });
+      for (const [name, script] of itemLive) if (!items.has(name)) items.set(name, {
+        name, path: null, live: true,
+        hooks: Object.keys(script).filter((key) => /^on[A-Z]/.test(key) && typeof script[key] === 'function'),
+        hasTick: !!script.hasTick,
+      });
+      const value = {
+        ai: [...ai.values()].sort((a, b) => a.name.localeCompare(b.name)),
+        items: [...items.values()].sort((a, b) => a.name.localeCompare(b.name)),
+        spells: [...spells.values()].sort((a, b) => a.school.localeCompare(b.school) || a.name.localeCompare(b.name)),
+        files: files.filter((entry) => /\.(?:js|mjs)$/i.test(entry.path)),
+        clientGumps: (() => {
+          const dir = path.join(repoRoot, 'apps/client/src/ui/gumps');
+          try {
+            return fs.readdirSync(dir, { withFileTypes: true })
+              .filter((entry) => entry.isFile() && entry.name.endsWith('.js'))
+              .map((entry) => {
+                const source = fs.readFileSync(path.join(dir, entry.name), 'utf8');
+                const classes = [...source.matchAll(/export\s+class\s+(\w+)\s+extends\s+(\w+)/g)]
+                  .map((match) => ({ name: match[1], extends: match[2] }));
+                const type = source.match(/get\s+type\s*\(\)\s*\{\s*return\s+['"`]([^'"`]+)/)?.[1] ?? null;
+                return { path: entry.name, name: entry.name.replace(/-gump\.js$/i, '').replaceAll('-', ' '), classes, type };
+              })
+              .sort((a, b) => a.name.localeCompare(b.name));
+          } catch { return []; }
+        })(),
+      };
+      studioScriptCatalogCache = { expiresAt: Date.now() + 5000, value };
+      return value;
+    },
+  });
+
+  routes.push({
+    method: 'POST', path: '/api/studio/validate',
+    run: ({ body }) => validateStudioDraft(String(body?.domain ?? ''), body?.data, {
+      aiNames: new Set(sharedCtx?.ai?.behaviors?.keys?.() ?? []),
+      itemScripts: new Set((sharedCtx?.systems?.itemScripts?.all?.() ?? []).map((script) => String(script.name))),
+    }),
   });
 
   routes.push({
@@ -902,1218 +1187,15 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
   //  data/ subtree (no parent-dir escape). After write we optionally
   //  trigger scripts:reload so the change goes live.
   // -------------------------------------------------------------------
-  const DATA_ROOT = path.resolve(scriptsDir, 'data');
-  function _confineToData(rel) {
-    const full = path.resolve(DATA_ROOT, rel);
-    if (!full.startsWith(DATA_ROOT + path.sep) && full !== DATA_ROOT) {
-      throw new Error('path escapes data/ subtree');
-    }
-    return full;
-  }
-  function _walkData(dir, prefix = '') {
-    const out = [];
-    if (!fs.existsSync(dir)) return out;
-    for (const name of fs.readdirSync(dir).sort()) {
-      const full = path.join(dir, name);
-      const rel  = prefix ? `${prefix}/${name}` : name;
-      const st   = fs.statSync(full);
-      if (st.isDirectory()) {
-        out.push(..._walkData(full, rel));
-      } else if (st.isFile() && (name.endsWith('.json') || name.endsWith('.js'))) {
-        out.push({ rel, size: st.size, mtime: st.mtime.toISOString() });
-      }
-    }
-    return out;
-  }
-
-  routes.push({
-    method: 'GET', path: '/api/data/files',
-    run: async () => ({ root: 'apps/scripts/src/data', files: _walkData(DATA_ROOT) }),
+  registerWorldEditRoutes(routes, {
+    scriptsDir, saveDir, scriptRuntime, world, mapProvider, sharedCtx, queryInt, registerUndoableMutation,
   });
 
-  routes.push({
-    method: 'GET', path: '/api/data/file',
-    run: async ({ query }) => {
-      // `query` is a URLSearchParams — use .get(), not direct prop access.
-      const rel = String(query.get('rel') ?? '').trim();
-      if (!rel) return { error: 'rel param required' };
-      try {
-        const full = _confineToData(rel);
-        if (!fs.existsSync(full)) return { error: 'not found' };
-        return { rel, content: fs.readFileSync(full, 'utf8') };
-      } catch (e) { return { error: e.message }; }
-    },
+
+  registerEntityRoutes(routes, {
+    accounts, world, sharedCtx, adminCharacters, queryInt,
   });
 
-  routes.push({
-    method: 'POST', path: '/api/data/file',
-    run: async ({ body }) => {
-      const rel = String(body?.rel || '').trim();
-      const content = body?.content;
-      if (!rel) return { error: 'body.rel required' };
-      if (typeof content !== 'string') return { error: 'body.content (string) required' };
-      try {
-        const full = _confineToData(rel);
-        // JSON files: validate before writing — refusing a save with a
-        // bad payload protects the live world from a typo that would
-        // break the loader on next reload.
-        if (rel.endsWith('.json')) {
-          try { JSON.parse(content); }
-          catch (e) { return { error: `invalid JSON: ${e.message}` }; }
-        }
-        fs.mkdirSync(path.dirname(full), { recursive: true });
-        fs.writeFileSync(full, content);
-        // Auto-reload all scripts when body.reload is true. The
-        // hot-watch in scriptRuntime ONLY fires on .js files (file
-        // watcher), so JSON edits need an explicit kick.
-        let reloaded = null;
-        if (body?.reload && scriptRuntime?.load) {
-          const t0 = Date.now();
-          await scriptRuntime.load({ reason: `admin-data:${rel}`, emitEvent: true });
-          reloaded = { ms: Date.now() - t0, loaded: scriptRuntime.loaded?.length ?? 0 };
-        }
-        return { ok: true, bytes: content.length, reloaded };
-      } catch (e) { return { error: e.message }; }
-    },
-  });
-
-  routes.push({
-    method: 'DELETE', path: '/api/data/file',
-    run: async ({ query }) => {
-      const rel = String(query.get('rel') ?? '').trim();
-      if (!rel) return { error: 'rel param required' };
-      try {
-        const full = _confineToData(rel);
-        if (!fs.existsSync(full)) return { error: 'not found' };
-        fs.unlinkSync(full);
-        return { ok: true };
-      } catch (e) { return { error: e.message }; }
-    },
-  });
-
-  // ---- World locations list (used by admin Iso editor "Go to…" picker) --
-  // Mirrors the `[go` LOCATIONS catalogue so the iso editor can centre
-  // the canvas on any canonical landmark / town / dungeon / shrine.
-  // Cached at module load — the catalogue is static.
-  let _locationsCache = null;
-  routes.push({
-    method: 'GET', path: '/api/locations',
-    run: async () => {
-      if (_locationsCache) return _locationsCache;
-      try {
-        const mod = await import('../../../scripts/src/commands/go.js');
-        const reg = mod.LOCATIONS_REGISTRY ?? mod._LOCATIONS_FOR_TEST ?? {};
-        const out = [];
-        for (const [key, loc] of Object.entries(reg)) {
-          if (!loc || !Number.isFinite(loc.x)) continue;
-          out.push({
-            key,
-            label: loc.label ?? key,
-            x: loc.x | 0, y: loc.y | 0, z: loc.z | 0,
-            map: loc.map | 0,
-          });
-        }
-        out.sort((a, b) => a.label.localeCompare(b.label));
-        _locationsCache = { locations: out };
-        return _locationsCache;
-      } catch (e) {
-        return { error: `failed to load locations: ${e.message}`, locations: [] };
-      }
-    },
-  });
-
-  // ---- Map editor (admin canvas paint tool) -----------------------------
-  // Read a rectangular slice of the land map. Capped to 64×64 tiles per
-  // request to keep payloads small (~24 KB). Returns the merged view —
-  // overlay edits already applied.
-  routes.push({
-    method: 'GET', path: '/api/map/slice',
-    run: ({ query }) => {
-      const facet = queryInt(query, 'facet', 1, 0, 5);
-      const x0 = queryInt(query, 'x', 1495, 0, 0xffff);
-      const y0 = queryInt(query, 'y', 1625, 0, 0xffff);
-      const w = queryInt(query, 'w', 32, 1, 64);
-      const h = queryInt(query, 'h', 32, 1, 64);
-      const tiles = new Array(w * h);
-      for (let dy = 0; dy < h; dy++) {
-        for (let dx = 0; dx < w; dx++) {
-          const t = mapProvider.landAt(facet, x0 + dx, y0 + dy);
-          tiles[dy * w + dx] = t ? [t.tileId, t.z] : [0, 0];
-        }
-      }
-      return { facet, x: x0, y: y0, w, h, tiles, edits: mapProvider.editCount() };
-    },
-  });
-
-  // Apply a batch of tile edits. Body: { facet, edits: [{x,y,tileId,z}] }.
-  routes.push({
-    method: 'POST', path: '/api/map/edit',
-    run: ({ body }) => {
-      const facet = Number(body?.facet ?? 1);
-      const edits = Array.isArray(body?.edits) ? body.edits : [];
-      if (!edits.length) return { error: 'no edits' };
-      if (edits.length > 4096) return { error: 'too many edits in one batch (max 4096)' };
-      let applied = 0;
-      // Compute a bounding box of edited tiles so the live-broadcast
-      // pass below only re-syncs players actually within range of any
-      // change (cheap proxy: refreshSurroundings re-streams the
-      // player's full visible chunks).
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-      const validEdits = [];
-      for (const e of edits) {
-        if (!Number.isFinite(e?.x) || !Number.isFinite(e?.y) || !Number.isFinite(e?.tileId)) continue;
-        if (e.x < 0 || e.y < 0 || e.x > 0xffff || e.y > 0xffff) continue;
-        const normalized = { x: e.x | 0, y: e.y | 0, tileId: e.tileId & 0x3fff, z: Math.max(-128, Math.min(127, e.z | 0)) };
-        mapProvider.setLandTile(facet, normalized.x, normalized.y, normalized.tileId, normalized.z);
-        validEdits.push(normalized);
-        if (e.x < minX) minX = e.x; if (e.x > maxX) maxX = e.x;
-        if (e.y < minY) minY = e.y; if (e.y > maxY) maxY = e.y;
-        applied++;
-      }
-      // Persist immediately so a server crash doesn't lose the edit
-      // session's work. Cheap (sparse JSON) — typically <1ms.
-      if (!validEdits.length) return { error: 'no valid edits' };
-      const r = mapProvider.saveEditsSync(path.join(saveDir, 'map-edits.json'));
-      // LOS cache invalidation — any tile that just changed Z may have
-      // become walkable / unwalkable, so cached LOS answers from the
-      // last 100 ms are no longer trustworthy. Cheap clear (drops 4096
-      // entries max).
-      try { invalidateLosCache(); } catch { /* advisory */ }
-      // Live tile-push — every connected player on the same facet
-      // within ~32 tiles of the edit bounding box gets a 0xBF 0x6E
-      // MapTileEdit packet so their local landAt overlay updates and
-      // chunk visuals re-mount. No relog / [resync needed any more.
-      let broadcast = 0;
-      if (applied > 0) {
-        const pkt = extMapTileEdit(facet, validEdits);
-        const cx = (minX + maxX) >> 1;
-        const cy = (minY + maxY) >> 1;
-        for (const m of (world?.mobiles?.values?.() ?? [])) {
-          if (!m.client) continue;
-          if (!m.client.supportsNodeUO?.(NodeUOCapability.WorldEditing)) continue;
-          if (m.map !== facet) continue;
-          if (Math.abs(m.x - cx) > 32 || Math.abs(m.y - cy) > 32) continue;
-          try { m.client.send(pkt); broadcast++; }
-          catch { /* socket transient */ }
-        }
-      }
-      return { ok: true, applied, totalEdits: mapProvider.editCount(), broadcast, persist: r };
-    },
-  });
-
-  // Wipe all overlay edits + delete the persisted file.
-  routes.push({
-    method: 'POST', path: '/api/map/reset',
-    run: () => {
-      const all = [...mapProvider.iterEdits()];
-      for (const e of all) mapProvider.clearLandTile(e.facet, e.x, e.y);
-      try { fs.unlinkSync(path.join(saveDir, 'map-edits.json')); } catch { /* missing */ }
-      try { invalidateLosCache(); } catch { /* advisory */ }
-      // Restore the original land tiles in connected web clients too. Split
-      // large overlays into protocol-safe chunks and only send a chunk to
-      // players close enough to see its bounding box.
-      let broadcast = 0;
-      const byFacet = new Map();
-      for (const e of all) {
-        const list = byFacet.get(e.facet) ?? [];
-        const original = mapProvider.landAt(e.facet, e.x, e.y);
-        list.push({ x: e.x, y: e.y, tileId: original?.tileId ?? 0, z: original?.z ?? 0 });
-        byFacet.set(e.facet, list);
-      }
-      for (const [facet, edits] of byFacet) {
-        for (let start = 0; start < edits.length; start += 4096) {
-          const chunk = edits.slice(start, start + 4096);
-          const minX = Math.min(...chunk.map((e) => e.x));
-          const maxX = Math.max(...chunk.map((e) => e.x));
-          const minY = Math.min(...chunk.map((e) => e.y));
-          const maxY = Math.max(...chunk.map((e) => e.y));
-          const pkt = extMapTileEdit(facet, chunk);
-          for (const mob of (world?.mobiles?.values?.() ?? [])) {
-            if (!mob.client || mob.map !== facet) continue;
-            if (!mob.client.supportsNodeUO?.(NodeUOCapability.WorldEditing)) continue;
-            if (mob.x < minX - 32 || mob.x > maxX + 32 || mob.y < minY - 32 || mob.y > maxY + 32) continue;
-            try { mob.client.send(pkt); broadcast++; } catch { /* socket race */ }
-          }
-        }
-      }
-      return { ok: true, cleared: all.length, broadcast };
-    },
-  });
-  routes.push({
-    method: 'POST', path: '/api/scripts/dry-run',
-    run: async ({ body }) => scriptRuntime?.dryRunOne
-      ? scriptRuntime.dryRunOne(String(body?.path ?? ''))
-      : { ok: false, error: 'dry-run unavailable on runtime' },
-  });
-
-  // Tiledata search — pagination + substring match on the static or
-  // land tile name. Used by the editor palette browser to let admins
-  // discover any 0xNNNN graphic without memorising ids. Cap at 200
-  // matches per call so a one-letter query doesn't ship a 4 MB
-  // payload. `kind` filters: 'static' (default), 'land', or 'all'.
-  routes.push({
-    method: 'GET', path: '/api/tiles/search',
-    run: ({ query }) => {
-      const q = String(query.get('q') ?? '').trim().toLowerCase();
-      const kind = query.get('kind') ?? 'static';
-      const limit = queryInt(query, 'limit', 80, 1, 200);
-      const offset = queryInt(query, 'offset', 0, 0, 100_000);
-      const category = String(query.get('category') ?? 'all').trim().toLowerCase();
-      const td = tileDataTable();
-      const matches = [];
-      let total = 0;
-      // tiledata.statics is indexed by GLOBAL art id (LAND_COUNT + local).
-      // Callers (palette, /api/statics/place, runtime item.itemId) all use
-      // LOCAL static ids. Subtract LAND_COUNT when emitting so the wire
-      // contract stays LOCAL-only and the editor's atlas lookup adds the
-      // offset itself when fetching sprites.
-      const LAND_COUNT = (td.land?.length ?? 16384) | 0;
-      const categoryOf = (name, type) => {
-        if (type === 'land') return 'terrain';
-        const n = String(name ?? '').toLowerCase();
-        if (/door|gate|portcullis/.test(n)) return 'doors';
-        if (/chair|table|bench|bed|throne|stool|desk|bookcase|bookshelf|armoire|dresser/.test(n)) return 'furniture';
-        if (/candle|lamp|lantern|torch|brazier|candelabra|fireplace|hearth/.test(n)) return 'lighting';
-        if (/tree|plant|flower|grass|rock|boulder|bush|shrub|vine|mushroom|log|stump/.test(n)) return 'nature';
-        if (/wall|floor|roof|column|pillar|stair|window|arch|railing|fence|brick|stone|plaster/.test(n)) return 'architecture';
-        if (/chest|crate|barrel|box|bag|basket|container|cabinet/.test(n)) return 'containers';
-        if (/sign|banner|flag|tapestry|painting|portrait/.test(n)) return 'signs';
-        return 'misc';
-      };
-      const trySource = (arr, type) => {
-        const idShift = type === 'static' ? LAND_COUNT : 0;
-        for (let i = 0; i < arr.length; i++) {
-          const e = arr[i];
-          if (!e) continue;
-          const name = String(e.name ?? '').toLowerCase();
-          if (!name) continue;
-          if (name === 'nodraw') continue;
-          const outId = i - idShift;
-          if (outId < 0) continue;
-          const tileCategory = categoryOf(e.name, type);
-          if (category !== 'all' && type === 'static' && tileCategory !== category) continue;
-          let queryMatches = q === '';
-          if (/^0x[0-9a-f]+$/i.test(q)) {
-            // Accept either local (matches outId) or global (matches i)
-            // hex queries so power users can paste either.
-            const want = parseInt(q, 16);
-            queryMatches = outId === want || i === want;
-          } else if (/^\d+$/.test(q)) {
-            const want = parseInt(q, 10);
-            queryMatches = outId === want || i === want;
-          } else if (q) {
-            queryMatches = name.includes(q);
-          }
-          if (!queryMatches) continue;
-          if (total >= offset && matches.length < limit) {
-            matches.push({ type, id: outId, name: e.name, height: e.height | 0,
-              layer: e.layer | 0, category: tileCategory });
-          }
-          total++;
-        }
-      };
-      if (kind === 'land' || kind === 'all') trySource(td.land ?? [], 'land');
-      if (kind === 'static' || kind === 'all') trySource(td.statics ?? [], 'static');
-      return { q, kind, category, offset, limit, count: matches.length,
-        total, hasMore: offset + matches.length < total, matches };
-    },
-  });
-
-  // Read-only overlay dump for the client. Returns every overlay edit
-  // for one facet (or all facets if 'facet' query is omitted). The
-  // browser client fetches this at boot + on facet change so its
-  // local landAt() can apply the same overrides the server uses for
-  // walkability — without this, paint strokes from the admin Map
-  // Editor showed only on the canvas, not in-game.
-  routes.push({
-    method: 'GET', path: '/api/map/overlay',
-    run: ({ query }) => {
-      const wantFacet = query.has('facet') ? Number(query.get('facet')) : null;
-      const out = [];
-      for (const e of mapProvider.iterEdits()) {
-        if (wantFacet != null && e.facet !== wantFacet) continue;
-        out.push(e);
-      }
-      return { facet: wantFacet, edits: out };
-    },
-  });
-
-  // ---- Static editor (canvas-based item placement) ---------------------
-  // Returns every static at every tile in a rectangle. Different from
-  // /api/map/slice (which only returns land tile id/z) — this includes
-  // ground items + statics from the on-disk map AND from runtime
-  // world.items (admin-placed builds, doorgen, etc.).
-  routes.push({
-    method: 'GET', path: '/api/statics/slice',
-    run: ({ query }) => {
-      const facet = queryInt(query, 'facet', 1, 0, 5);
-      const x0 = queryInt(query, 'x', 1495, 0, 0xffff);
-      const y0 = queryInt(query, 'y', 1625, 0, 0xffff);
-      const w = queryInt(query, 'w', 32, 1, 64);
-      const h = queryInt(query, 'h', 32, 1, 64);
-      // Map of `${dx}|${dy}` → array of {tileId, z, hue, source} where
-      // source is 'static' (from chunk static layer, fixed) or 'item'
-      // (from world.items, mutable via [del / build).
-      const cells = {};
-      const stackFor = (wx, wy) => {
-        const key = `${wx - x0}|${wy - y0}`;
-        return (cells[key] ??= []);
-      };
-      // Decode baked map statics once per 8x8 block. The previous nested
-      // tile loop called staticsAt() 4096 times for a 64x64 view and each
-      // call rescanned its block's complete variable-length record list.
-      if (typeof mapProvider.staticsInRect === 'function') {
-        for (const s of mapProvider.staticsInRect(facet, x0, y0, w, h)) {
-          stackFor(s.x, s.y).push({ tileId: s.tileId, z: s.z, hue: s.hue, source: 'static' });
-        }
-      } else {
-        for (let dy = 0; dy < h; dy++) for (let dx = 0; dx < w; dx++) {
-          for (const s of mapProvider.staticsAt(facet, x0 + dx, y0 + dy)) {
-            stackFor(x0 + dx, y0 + dy).push({ tileId: s.tileId, z: s.z, hue: s.hue, source: 'static' });
-          }
-        }
-      }
-
-      // Runtime items: query all overlapping sector buckets once, then
-      // filter into cells. Keep the single-tile fallback for lightweight
-      // test fixtures that expose only itemSerialsAt().
-      const sectorsReady = world?.sectors
-        && (world.items.size === 0 || world.sectors.itemsIndexed?.() > 0);
-      const pushRuntime = (it) => {
-        if (!it || it.parent != null || (it.map ?? 1) !== facet) return;
-        if (it.x < x0 || it.x >= x0 + w || it.y < y0 || it.y >= y0 + h) return;
-        stackFor(it.x, it.y).push({
-          tileId: it.itemId, z: it.z, hue: it.hue ?? 0,
-          source: (it.house != null || it.boat != null || it.multiId != null || it.addon != null || it.addonName != null) ? 'multi' : 'item',
-          serial: '0x' + (it.serial >>> 0).toString(16),
-        });
-      };
-      if (sectorsReady && world.sectors.itemSerialsNear) {
-        const cx = x0 + ((w - 1) >> 1), cy = y0 + ((h - 1) >> 1);
-        const range = Math.ceil(Math.max(w, h) / 2) + 8;
-        for (const serial of world.sectors.itemSerialsNear(facet, cx, cy, range)) {
-          pushRuntime(world.items.get(serial));
-        }
-      } else if (sectorsReady && world.sectors.itemSerialsAt) {
-        const seen = new Set();
-        for (let dy = 0; dy < h; dy++) for (let dx = 0; dx < w; dx++) {
-          for (const serial of world.sectors.itemSerialsAt(facet, x0 + dx, y0 + dy)) {
-            if (seen.has(serial)) continue;
-            seen.add(serial); pushRuntime(world.items.get(serial));
-          }
-        }
-      } else {
-        for (const it of (world?.items?.values?.() ?? [])) pushRuntime(it);
-      }
-      return { facet, x: x0, y: y0, w, h, cells };
-    },
-  });
-
-  // Place a single static at the given tile. Spawned as a runtime item
-  // (movable:false, isDecoration:true) so it round-trips through saves
-  // and `[del` removes it. Returns the new item's serial.
-  routes.push({
-    method: 'POST', path: '/api/statics/place',
-    run: ({ body }) => {
-      const facet = Number(body?.facet ?? 1);
-      const x = Number(body?.x ?? 0) | 0;
-      const y = Number(body?.y ?? 0) | 0;
-      const z = Number(body?.z ?? 0) | 0;
-      const itemId = Number(body?.itemId ?? 0) | 0;
-      const hue = Number(body?.hue ?? 0) & 0xffff;
-      const td = tileDataTable();
-      const staticCount = Math.max(0, (td.statics?.length ?? 0) - (td.land?.length ?? 0));
-      if (!itemId || itemId < 1 || itemId >= staticCount) {
-        return { error: `bad itemId 0x${itemId.toString(16)} (valid local static range: 0x1..0x${Math.max(0, staticCount - 1).toString(16)})` };
-      }
-      const items = sharedCtx?.items ?? null;
-      const createItem = items?.createItem;
-      if (!createItem) return { error: 'items.createItem unavailable' };
-      const it = createItem(world, { itemId, hue, x, y, z, map: facet, movable: false });
-      it.isDecoration = true;
-      it.script = 'static';
-      // Newly-placed static may block (or pass) LOS — drop the cache
-      // so spells / archery checks pick up the change immediately.
-      try { invalidateLosCache(); } catch { /* advisory */ }
-      // Broadcast worldItemSA to nearby players.
-      const wi = sharedCtx?.protocol?.worldItemSA?.({
-        serial: it.serial, itemId: it.itemId, hue: it.hue, amount: 1,
-        x: it.x, y: it.y, z: it.z, flags: 0x00,
-      });
-      if (wi) {
-        for (const m of (world?.mobiles?.values?.() ?? [])) {
-          if (!m.client || m.map !== facet) continue;
-          if (Math.abs(m.x - x) > 18 || Math.abs(m.y - y) > 18) continue;
-          m.client.send(wi);
-        }
-      }
-      return { ok: true, serial: '0x' + (it.serial >>> 0).toString(16) };
-    },
-  });
-
-  // Export a rectangular slice as a "multi" prefab — save the runtime
-  // items at every tile in the rect to a named JSON file. Reuse via
-  // /api/statics/import-prefab to drop a copy at a new location.
-  routes.push({
-    method: 'POST', path: '/api/statics/save-prefab',
-    run: ({ body }) => {
-      const facet = Number(body?.facet ?? 1);
-      const x0 = Number(body?.x0) | 0, y0 = Number(body?.y0) | 0;
-      const x1 = Number(body?.x1) | 0, y1 = Number(body?.y1) | 0;
-      const name = String(body?.name ?? '').replace(/[^a-z0-9_-]/gi, '_').slice(0, 64);
-      if (!name) return { error: 'name required (alphanumeric)' };
-      // Snap to ascending bounds — operator can pass corners in any order.
-      const lx = Math.min(x0, x1), hx = Math.max(x0, x1);
-      const ly = Math.min(y0, y1), hy = Math.max(y0, y1);
-      const includeFixed = !!body?.includeFixed;
-      const tiles = [];
-      // Runtime items in range — relative offsets so prefab is portable.
-      for (const it of (world?.items?.values?.() ?? [])) {
-        if (it.parent != null) continue;
-        if ((it.map ?? 1) !== facet) continue;
-        if (it.x < lx || it.x > hx || it.y < ly || it.y > hy) continue;
-        tiles.push({
-          dx: it.x - lx, dy: it.y - ly, z: it.z | 0,
-          itemId: it.itemId | 0, hue: it.hue | 0, source: 'item',
-        });
-      }
-      if (includeFixed) {
-        for (let y = ly; y <= hy; y++) {
-          for (let x = lx; x <= hx; x++) {
-            for (const s of mapProvider.staticsAt(facet, x, y)) {
-              tiles.push({
-                dx: x - lx, dy: y - ly, z: s.z | 0,
-                itemId: s.tileId | 0, hue: s.hue | 0, source: 'static',
-              });
-            }
-          }
-        }
-      }
-      const prefab = {
-        name, sizeX: hx - lx + 1, sizeY: hy - ly + 1,
-        savedAt: new Date().toISOString(),
-        sourceFacet: facet, sourceX: lx, sourceY: ly,
-        tiles,
-      };
-      const dir = path.join(saveDir, 'prefabs');
-      try { fs.mkdirSync(dir, { recursive: true }); } catch { /* exists */ }
-      const file = path.join(dir, `${name}.json`);
-      try { fs.writeFileSync(file, JSON.stringify(prefab, null, 2)); }
-      catch (e) { return { error: e.message }; }
-      return { ok: true, name, file: `prefabs/${name}.json`, tileCount: tiles.length, sizeX: prefab.sizeX, sizeY: prefab.sizeY };
-    },
-  });
-
-  // List saved prefabs.
-  routes.push({
-    method: 'GET', path: '/api/statics/prefabs',
-    run: () => {
-      const dir = path.join(saveDir, 'prefabs');
-      if (!fs.existsSync(dir)) return { prefabs: [] };
-      const out = [];
-      for (const f of fs.readdirSync(dir)) {
-        if (!f.endsWith('.json')) continue;
-        try {
-          const meta = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
-          out.push({
-            name: meta.name, file: `prefabs/${f}`, sizeX: meta.sizeX, sizeY: meta.sizeY,
-            tileCount: meta.tiles?.length ?? 0, savedAt: meta.savedAt,
-          });
-        } catch { /* skip corrupt */ }
-      }
-      return { prefabs: out };
-    },
-  });
-
-  // Stamp a saved prefab at (x, y) on the given facet. Items are
-  // recreated as runtime items (not the original serials).
-  routes.push({
-    method: 'POST', path: '/api/statics/import-prefab',
-    run: ({ body }) => {
-      const name = String(body?.name ?? '').replace(/[^a-z0-9_-]/gi, '_');
-      const facet = Number(body?.facet ?? 1);
-      const baseX = Number(body?.x) | 0;
-      const baseY = Number(body?.y) | 0;
-      const file = path.join(saveDir, 'prefabs', `${name}.json`);
-      if (!fs.existsSync(file)) return { error: `prefab '${name}' not found` };
-      let prefab;
-      try { prefab = JSON.parse(fs.readFileSync(file, 'utf8')); }
-      catch (e) { return { error: e.message }; }
-      const items = sharedCtx?.items?.createItem;
-      if (!items) return { error: 'items.createItem unavailable' };
-      let placed = 0;
-      const newItems = [];
-      for (const t of prefab.tiles ?? []) {
-        if (t.source === 'static') continue;  // can't recreate fixed map statics
-        try {
-          const it = items(world, {
-            itemId: t.itemId, hue: t.hue,
-            x: baseX + t.dx, y: baseY + t.dy, z: t.z,
-            map: facet, movable: false,
-          });
-          it.isDecoration = true; it.script = 'static';
-          newItems.push(it);
-          placed++;
-        } catch { /* per-tile failures don't block batch */ }
-      }
-      // Broadcast every new item to nearby players in one pass.
-      const wiBuilder = sharedCtx?.protocol?.worldItemSA;
-      if (wiBuilder) {
-        for (const m of (world?.mobiles?.values?.() ?? [])) {
-          if (!m.client || m.map !== facet) continue;
-          if (Math.abs(m.x - baseX) > 32 || Math.abs(m.y - baseY) > 32) continue;
-          for (const it of newItems) {
-            if (Math.abs(m.x - it.x) > 18 || Math.abs(m.y - it.y) > 18) continue;
-            m.client.send(wiBuilder({
-              serial: it.serial, itemId: it.itemId, hue: it.hue, amount: 1,
-              x: it.x, y: it.y, z: it.z, flags: 0x00,
-            }));
-          }
-        }
-      }
-      return { ok: true, name, placed, total: prefab.tiles?.length ?? 0 };
-    },
-  });
-
-  // Remove a single placed static by serial.
-  routes.push({
-    method: 'POST', path: '/api/statics/remove',
-    run: ({ body }) => {
-      const serial = parseSerial(body?.serial);
-      if (!serial) return { error: 'serial required' };
-      const it = world?.items?.get?.(serial);
-      if (!it) return { error: 'item not found' };
-      const x = it.x, y = it.y, facet = it.map;
-      const items = sharedCtx?.items ?? null;
-      try { items?.destroyItem?.(world, serial); }
-      catch (e) { return { error: e.message }; }
-      const rm = sharedCtx?.protocol?.removeEntity?.(serial);
-      if (rm) {
-        for (const m of (world?.mobiles?.values?.() ?? [])) {
-          if (!m.client || m.map !== facet) continue;
-          if (Math.abs(m.x - x) > 18 || Math.abs(m.y - y) > 18) continue;
-          m.client.send(rm);
-        }
-      }
-      return { ok: true };
-    },
-  });
-
-  // Atomic editor commit. The old UI fired one HTTP request per tile, which
-  // was slow and could leave half a brush stroke applied after a disconnect.
-  // Validate the complete command first, stage all additions, and only then
-  // perform deterministic removals. A failed create rolls every staged item
-  // back before returning an error.
-  routes.push({
-    method: 'POST', path: '/api/statics/batch',
-    run: ({ body, session }) => {
-      const facet = Number(body?.facet ?? 1) | 0;
-      const additions = Array.isArray(body?.additions) ? body.additions : [];
-      const removals = [...new Set(Array.isArray(body?.removals) ? body.removals.map(parseSerial).filter(Boolean) : [])];
-      if (!additions.length && !removals.length) return { error: 'empty batch' };
-      if (additions.length + removals.length > 4096) return { error: 'batch exceeds 4096 mutations' };
-      if (facet < 0 || facet > 5) return { error: 'invalid facet' };
-      const td = tileDataTable();
-      const staticCount = Math.max(0, (td.statics?.length ?? 0) - (td.land?.length ?? 0));
-      const normalized = [];
-      for (const row of additions) {
-        const itemId = Number(row?.itemId) | 0;
-        const x = Number(row?.x), y = Number(row?.y), z = Number(row?.z ?? 0);
-        if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)
-            || x < 0 || x > 0xffff || y < 0 || y > 0xffff
-            || itemId < 1 || itemId >= staticCount) return { error: 'invalid addition in batch' };
-        normalized.push({ itemId, x: x | 0, y: y | 0,
-          z: Math.max(-128, Math.min(127, z | 0)), hue: Number(row?.hue ?? 0) & 0xffff });
-      }
-      const removalSnapshots = [];
-      for (const serial of removals) {
-        const item = world.items.get(serial);
-        if (!item || item.parent != null) return { error: `removal item 0x${serial.toString(16)} not found on ground` };
-        removalSnapshots.push({ serial: item.serial, itemId: item.itemId, hue: item.hue ?? 0,
-          amount: item.amount ?? 1, map: item.map, x: item.x, y: item.y, z: item.z,
-          name: item.name, movable: item.movable, parent: null, gumpId: item.gumpId ?? 0,
-          gridX: item.gridX ?? 0, gridY: item.gridY ?? 0, gridLocation: item.gridLocation ?? 0,
-          layer: item.layer ?? 0, template: item.template, isDecoration: !!item.isDecoration,
-          script: item.script });
-      }
-      const create = sharedCtx?.items?.createItem;
-      const destroy = sharedCtx?.items?.destroyItem;
-      if (!create || !destroy) return { error: 'item mutation API unavailable' };
-      const created = [];
-      try {
-        for (const row of normalized) {
-          const item = create(world, { ...row, map: facet, movable: false });
-          item.isDecoration = true; item.script = 'static';
-          world.syncSpatialItem?.(item);
-          created.push(item);
-        }
-      } catch (error) {
-        for (const item of created) { try { destroy(world, item.serial); } catch {} }
-        return { error: `batch rolled back: ${error?.message ?? error}`, rolledBack: created.length };
-      }
-      for (const serial of removals) destroy(world, serial);
-      try { invalidateLosCache(); } catch { /* advisory */ }
-      // One surrounding refresh per affected client, instead of N packets per
-      // tile. Standard clients receive the normal UO item/remove packets.
-      const touched = [...created, ...removalSnapshots];
-      const removePackets = new Map(removalSnapshots.map((item) => [item.serial,
-        sharedCtx?.protocol?.removeEntity?.(item.serial) ?? null]));
-      for (const mobile of world.onlineMobiles?.() ?? []) {
-        if ((mobile.map | 0) !== facet || !mobile.client) continue;
-        for (const item of created) {
-          if (Math.max(Math.abs(mobile.x - item.x), Math.abs(mobile.y - item.y)) > 18) continue;
-          try { mobile.client.sendItem?.(item); } catch { /* socket race */ }
-        }
-        for (const item of removalSnapshots) {
-          if (Math.max(Math.abs(mobile.x - item.x), Math.abs(mobile.y - item.y)) > 18) continue;
-          const packet = removePackets.get(item.serial);
-          if (packet) { try { mobile.client.send(packet); } catch { /* socket race */ } }
-        }
-        try { sharedCtx?.refreshSurroundings?.(mobile.client); } catch { /* advisory */ }
-      }
-      const auditUndoId = registerUndoableMutation(session?.account, 'statics.batch', {
-        facet, createdSerials: created.map((item) => item.serial >>> 0),
-        removedSnapshots: removalSnapshots.map(({ serial: _serial, ...snapshot }) => snapshot),
-      });
-      return { ok: true, added: created.length, removed: removals.length, auditUndoId,
-        serials: created.map((item) => `0x${(item.serial >>> 0).toString(16)}`), touched: touched.length };
-    },
-  });
-
-  // ---- Accounts ---------------------------------------------------------
-  routes.push({
-    method: 'GET', path: '/api/accounts',
-    run: () => {
-      const list = [...(accounts?.accounts?.values?.() ?? [])].map((a) => ({
-        username: a.username,
-        accessLevel: a.accessLevel,
-        banned: !!a.banned,
-        created: a.created,
-        lastLogin: a.lastLogin,
-        characters: (a.characters ?? []).filter(Boolean).length,
-      }));
-      return { count: list.length, accounts: list };
-    },
-  });
-
-  routes.push({
-    method: 'GET', path: '/api/accounts/:name',
-    run: ({ params }) => {
-      const acc = accounts?.accounts?.get(params.name.toLowerCase());
-      if (!acc) return { error: 'not found' };
-      const safe = { ...acc };
-      delete safe.hash;
-      // Resolve character serials → mob snapshots so the UI shows live state.
-      const chars = (acc.characters ?? []).map((c) => {
-        if (!c) return null;
-        const mob = world?.mobiles?.get?.(c.mobileSerial >>> 0);
-        return {
-          ...c,
-          live: mob ? snapshotMobile(mob) : null,
-        };
-      });
-      return { ...safe, characters: chars };
-    },
-  });
-
-  routes.push({
-    method: 'PATCH', path: '/api/accounts/:name',
-    run: ({ params, body, session }) => {
-      const acc = accounts?.accounts?.get(params.name.toLowerCase());
-      if (!acc) return { error: 'not found' };
-      // Admin audit #1/#2/#5 — stored XSS via accessLevel class +
-      // privilege escalation. Whitelist the values + refuse self-edit
-      // on accessLevel/banned (no admin can de-Admin themselves or
-      // re-Admin themselves silently).
-      const ALLOWED_LEVELS = new Set(['Player', 'Counselor', 'Seer', 'GameMaster', 'GM', 'Admin']);
-      const isSelf = String(session?.account ?? '').toLowerCase() === params.name.toLowerCase();
-      if (body && 'accessLevel' in body) {
-        if (!ALLOWED_LEVELS.has(body.accessLevel)) {
-          return { error: 'invalid accessLevel' };
-        }
-        if (isSelf) return { error: 'cannot change your own accessLevel' };
-        acc.accessLevel = body.accessLevel;
-      }
-      if (body && 'banned' in body) {
-        if (isSelf && body.banned) return { error: 'cannot ban self' };
-        acc.banned = !!body.banned;
-      }
-      accounts.saveSync();
-      return { ok: true, account: { username: acc.username, accessLevel: acc.accessLevel, banned: !!acc.banned } };
-    },
-  });
-
-  routes.push({
-    method: 'DELETE', path: '/api/accounts/:name',
-    run: ({ params, session }) => {
-      const key = params.name.toLowerCase();
-      if (String(session?.account ?? '').toLowerCase() === key) {
-        return { error: 'cannot delete your own account' };
-      }
-      const ok = accounts?.accounts?.delete(key);
-      if (ok) accounts.saveSync();
-      return { ok: !!ok };
-    },
-  });
-
-  // ---- Mobiles (characters + NPCs) -------------------------------------
-  routes.push({
-    method: 'GET', path: '/api/mobiles',
-    run: ({ query }) => {
-      const filter = (query.get('filter') ?? '').toLowerCase();
-      const onlyPlayers = query.get('players') === '1';
-      const kind = query.get('kind') ?? (onlyPlayers ? 'players' : 'all');
-      const limit = Math.trunc(Math.max(1, Math.min(500, Number(query.get('limit') ?? 200) || 200)));
-      const offset = Math.trunc(Math.max(0, Number(query.get('offset') ?? 0) || 0));
-      let count = 0;
-      const page = [];
-      for (const m of (world?.mobiles?.values?.() ?? [])) {
-        const isPlayer = !!m.client || !!m.isPlayer;
-        const isVendor = !isPlayer && !!m.vendorKind;
-        if (kind === 'players' && !isPlayer) continue;
-        if (kind === 'vendors' && !isVendor) continue;
-        if (kind === 'npcs' && (isPlayer || isVendor)) continue;
-        if (filter && !(m.name ?? '').toLowerCase().includes(filter)
-            && !`0x${(m.serial >>> 0).toString(16)}`.includes(filter)) continue;
-        if (count >= offset && page.length < limit) page.push(snapshotMobile(m));
-        count++;
-      }
-      return {
-        count,
-        offset,
-        limit,
-        mobiles: page,
-      };
-    },
-  });
-
-  routes.push({
-    method: 'GET', path: '/api/mobiles/:serial',
-    run: ({ params }) => {
-      const serial = parseSerial(params.serial);
-      const mob = world?.mobiles?.get?.(serial);
-      if (!mob) return { error: 'not found' };
-      // Pull worn items + backpack contents for the preview pane.
-      // Reverse parent index: ≤10 worn slots + ≤30 pack contents
-      // instead of two full 110k walks per request. Bug-hunt #4 A5.
-      const equipped = [];
-      let backpack = null;
-      const idx = world?._childrenByParent;
-      const wornIter = idx?.get?.(mob.serial)
-        ? Array.from(idx.get(mob.serial), (s) => world.items.get(s)).filter(Boolean)
-        : [...(world?.items?.values?.() ?? [])].filter((it) => it.parent === mob.serial);
-      for (const it of wornIter) {
-        if (it.layer === 21) backpack = it;
-        if ((it.layer ?? 0) > 0) equipped.push({
-          serial: '0x' + (it.serial >>> 0).toString(16),
-          itemId: it.itemId, hue: it.hue, layer: it.layer, name: it.name,
-        });
-      }
-      const packIter = backpack
-        ? (idx?.get?.(backpack.serial)
-            ? Array.from(idx.get(backpack.serial), (s) => world.items.get(s)).filter(Boolean)
-            : [...world.items.values()].filter((it) => it.parent === backpack.serial))
-        : [];
-      const packContents = packIter.map((it) => ({
-        serial: '0x' + (it.serial >>> 0).toString(16),
-        itemId: it.itemId, hue: it.hue, amount: it.amount, name: it.name,
-      }));
-      return {
-        ...snapshotMobile(mob),
-        equipped,
-        backpackContents: packContents,
-      };
-    },
-  });
-
-  routes.push({
-    method: 'POST', path: '/api/mobiles/:serial/teleport',
-    run: ({ params, body }) => {
-      const serial = parseSerial(params.serial);
-      const mob = world?.mobiles?.get?.(serial);
-      if (!mob) return { error: 'not found' };
-      const x = Number(body?.x), y = Number(body?.y), z = Number(body?.z ?? mob.z);
-      if (!Number.isFinite(x) || !Number.isFinite(y)) return { error: 'x,y required' };
-      mob.x = x; mob.y = y; mob.z = z;
-      if (Number.isFinite(body?.map)) mob.map = body.map | 0;
-      world?.sectors?.moveMobile?.(mob);
-      return { ok: true, x: mob.x, y: mob.y, z: mob.z, map: mob.map };
-    },
-  });
-
-  routes.push({
-    method: 'POST', path: '/api/mobiles/:serial/kill',
-    run: ({ params }) => {
-      const serial = parseSerial(params.serial);
-      const mob = world?.mobiles?.get?.(serial);
-      if (!mob) return { error: 'not found' };
-      mob.hp = 0;
-      // Bug-hunt #10 #3 — `combat.damage` only adjusts HP; the death
-      // path (corpse spawn, notoriety, mob.delete) lives in
-      // `corpse.killMobile`. Without this admin "kill" left passive
-      // NPCs frozen at HP=0 forever. Try direct call first; fall back
-      // to the combat path so any in-flight combat tick still wraps
-      // the death via its own damage closure.
-      const killMobile = sharedCtx?.corpse?.killMobile
-                      ?? sharedCtx?.systems?.corpse?.killMobile;
-      if (typeof killMobile === 'function') {
-        try { killMobile(world, mob, null); }
-        catch (e) { console.error('[admin] kill threw:', e); }
-      } else {
-        sharedCtx?.handlers?.combat?.damage?.(world, mob, 9999, null);
-      }
-      return { ok: true };
-    },
-  });
-
-  routes.push({
-    method: 'POST', path: '/api/mobiles/:serial/kick',
-    run: ({ params }) => {
-      const serial = parseSerial(params.serial);
-      const mob = world?.mobiles?.get?.(serial);
-      if (!mob?.client) return { error: 'not online' };
-      try { mob.client.close?.(); } catch { /* ignore */ }
-      return { ok: true };
-    },
-  });
-
-  // ---- Items ------------------------------------------------------------
-  routes.push({
-    method: 'GET', path: '/api/items',
-    run: ({ query }) => {
-      const filter = (query.get('filter') ?? '').toLowerCase();
-      const onGround = query.get('ground') === '1';
-      const limit = Math.trunc(Math.max(1, Math.min(500, Number(query.get('limit') ?? 200) || 200)));
-      const offset = Math.trunc(Math.max(0, Number(query.get('offset') ?? 0) || 0));
-      let count = 0;
-      const page = [];
-      for (const it of (world?.items?.values?.() ?? [])) {
-        if (onGround && it.parent != null) continue;
-        if (filter && !(it.name ?? '').toLowerCase().includes(filter)
-            && !`0x${(it.itemId | 0).toString(16)}`.includes(filter)
-            && !`0x${(it.serial >>> 0).toString(16)}`.includes(filter)) continue;
-        if (count >= offset && page.length < limit) page.push(snapshotItem(it));
-        count++;
-      }
-      return {
-        count,
-        offset,
-        limit,
-        items: page,
-      };
-    },
-  });
-
-  routes.push({
-    method: 'GET', path: '/api/items/:serial',
-    run: ({ params }) => {
-      const serial = parseSerial(params.serial);
-      const it = world?.items?.get?.(serial);
-      if (!it) return { error: 'not found' };
-      return snapshotItem(it);
-    },
-  });
-
-  routes.push({
-    method: 'DELETE', path: '/api/items/:serial',
-    run: ({ params }) => {
-      const serial = parseSerial(params.serial);
-      const it = world?.items?.get?.(serial);
-      if (!it) return { error: 'not found' };
-      // Bug-hunt #10 #2: was a raw `world.items.delete(serial)` which
-      // bypassed reverse-index unlink + sector removal + child orphan
-      // sweep + removeEntity broadcast. Use `destroyItem` so observers
-      // immediately stop seeing the item and persistence stays clean.
-      destroyItem(world, serial);
-      const packet = sharedCtx?.protocol?.removeEntity?.(serial);
-      let broadcast = 0;
-      if (packet) {
-        for (const mob of (world?.mobiles?.values?.() ?? [])) {
-          if (!mob.client) continue;
-          try { mob.client.send(packet); broadcast++; } catch { /* socket race */ }
-        }
-      }
-      return { ok: true, broadcast };
-    },
-  });
-
-  const entityContext = (serial) => {
-    const id = parseSerial(serial), mobile = world?.mobiles?.get?.(id), item = world?.items?.get?.(id);
-    const entity = mobile ?? item;
-    if (!entity) return null;
-    const regions = (sharedCtx?.regions?.all?.() ?? sharedCtx?.regions?.regions ?? []).filter((region) => (region.map | 0) === (entity.map | 0)
-      && (region.rects ?? []).some((rect) => entity.x >= rect.x1 && entity.x <= rect.x2 && entity.y >= rect.y1 && entity.y <= rect.y2))
-      .map((region) => ({ name: region.name, type: region.type, priority: region.priority }));
-    const spawners = [...(sharedCtx?.spawner?.groups?.values?.() ?? [])].filter((group) => (group.map | 0) === (entity.map | 0) && group.rect
-      && entity.x >= group.rect.x1 && entity.x <= group.rect.x2 && entity.y >= group.rect.y1 && entity.y <= group.rect.y2).map((group) => group.id);
-    const ownerSerial = item?.parent ?? mobile?.controlMaster ?? null;
-    const template = entity.template ?? entity.kind ?? entity.servuoClass ?? null;
-    const quickLinks = {
-      owner: ownerSerial ? { type: 'entity', serial: ownerSerial >>> 0 } : null,
-      regions: regions.map((region) => ({ type: 'region', name: region.name })),
-      template: template ? { type: 'template', name: String(template) } : null,
-      spawners: spawners.map((id) => ({ type: 'spawner', id })),
-    };
-    return { type: mobile ? 'mobile' : 'item', entity: mobile ? snapshotMobile(mobile) : snapshotItem(item),
-      regions, spawners, quickLinks };
-  };
-  routes.push({ method: 'GET', path: '/api/live/entity/:serial', run: ({ params }) => entityContext(params.serial) ?? { error: 'entity not found' } });
-  routes.push({
-    method: 'GET', path: '/api/live/entity/:serial/events',
-    run: ({ params, query }) => {
-      const id = parseSerial(params.serial), hex = `0x${id.toString(16)}`.toLowerCase(), decimal = String(id), limit = queryInt(query, 'limit', 200, 1, 2000);
-      const matches = (entry) => { const text = JSON.stringify(entry).toLowerCase(); return text.includes(hex) || text.includes(decimal); };
-      const session = operational.compatibilitySnapshot().sessions.find((entry) => (entry.mobileSerial >>> 0) === id);
-      return { serial: hex, packets: session?.packets?.slice(-limit).reverse() ?? [],
-        structured: operational.structuredSnapshot(2000).filter(matches).slice(0, limit), audit: operational.auditSnapshot(2000).filter(matches).slice(0, limit) };
-    },
-  });
-  routes.push({
-    method: 'GET', path: '/api/live/follow/:serial',
-    run: ({ params }) => {
-      const context = entityContext(params.serial); if (!context) return { error: 'entity not found' };
-      const id = parseSerial(params.serial), session = operational.compatibilitySnapshot().sessions.find((entry) => (entry.mobileSerial >>> 0) === id);
-      return { ...context, observedAt: Date.now(), client: session ?? null };
-    },
-  });
-  routes.push({
-    method: 'POST', path: '/api/live/mutate',
-    run: ({ body }) => {
-      const serial = parseSerial(body?.serial), mobile = world?.mobiles?.get?.(serial), item = world?.items?.get?.(serial), action = String(body?.action ?? '');
-      if (!mobile && !item) return { error: 'entity not found' };
-      if (!['kill', 'delete', 'move', 'hue'].includes(action)) return { error: 'action must be kill, delete, move or hue' };
-      const before = mobile ? snapshotMobile(mobile) : snapshotItem(item);
-      if (action === 'kill') {
-        if (!mobile) return { error: 'kill requires a mobile' };
-        mobile.hp = 0;
-        const killMobile = sharedCtx?.corpse?.killMobile ?? sharedCtx?.systems?.corpse?.killMobile;
-        if (typeof killMobile === 'function') killMobile(world, mobile, null); else world.destroyMobile?.(serial);
-      } else if (action === 'delete') {
-        if (mobile) world.destroyMobile?.(serial); else destroyItem(world, serial);
-      } else if (action === 'move') {
-        const entity = mobile ?? item, x = Number(body?.x), y = Number(body?.y), z = Number(body?.z ?? entity.z), map = Number(body?.map ?? entity.map);
-        if (![x, y, z, map].every(Number.isFinite)) return { error: 'move requires finite x,y,z,map' };
-        entity.x = x | 0; entity.y = y | 0; entity.z = z | 0; entity.map = Math.max(0, Math.min(5, map | 0));
-        if (mobile) world?.sectors?.moveMobile?.(mobile); else world?.sectors?.moveItem?.(item);
-      } else {
-        const hue = Number(body?.hue); if (!Number.isFinite(hue)) return { error: 'hue requires a number' };
-        (mobile ?? item).hue = Math.max(0, Math.min(0xffff, hue | 0));
-      }
-      const afterContext = entityContext(serial);
-      return { ok: true, action, serial: `0x${serial.toString(16)}`, before, after: afterContext?.entity ?? null };
-    },
-  });
-
-  routes.push({
-    method: 'GET', path: '/api/ai/:serial',
-    run: ({ params }) => {
-      const serial = parseSerial(params.serial);
-      const result = sharedCtx?.ai?.inspect?.(serial);
-      return result ?? { error: 'mobile has no attached AI behavior' };
-    },
-  });
-
-  routes.push({
-    method: 'GET', path: '/api/ai/:serial/path',
-    run: ({ params, query }) => {
-      const serial = parseSerial(params.serial);
-      const target = parseSerial(query.get('target') ?? '0');
-      const result = sharedCtx?.ai?.previewPath?.(serial, target);
-      return result ?? { error: 'mobile has no attached AI behavior' };
-    },
-  });
-
-  routes.push({
-    method: 'GET', path: '/api/ai-graphs',
-    run: () => ({ nodeTypes: [...AI_GRAPH_NODE_TYPES], graphs: sharedCtx?.aiGraphs?.list?.() ?? [] }),
-  });
-
-  routes.push({
-    method: 'PUT', path: '/api/ai-graphs/:id',
-    run: ({ params, body }) => sharedCtx?.aiGraphs?.save?.({ ...(body ?? {}), id: params.id })
-      ?? { error: 'AI graph registry unavailable' },
-  });
-
-  routes.push({
-    method: 'DELETE', path: '/api/ai-graphs/:id',
-    run: ({ params }) => ({ ok: !!sharedCtx?.aiGraphs?.delete?.(params.id) }),
-  });
-
-  routes.push({
-    method: 'POST', path: '/api/ai-graphs/:id/attach',
-    run: ({ params, body }) => {
-      const mob = world?.mobiles?.get?.(parseSerial(body?.serial));
-      if (!mob) return { error: 'mobile not found' };
-      return sharedCtx?.aiGraphs?.attach?.(mob, params.id)
-        ? { ok: true, behavior: mob.aiBehavior } : { error: 'graph not found' };
-    },
-  });
-
-  // ---- "Teleport ME" — server picks the admin's character ---------------
-  //
-  // Marcin's request: stop asking the UI for a mobile serial. The admin
-  // is logged in, the server knows their account, look up the
-  // characters there. If exactly one → teleport it. If more → return
-  // 409 + the list so the UI shows a tiny picker modal.
-  routes.push({
-    method: 'POST', path: '/api/me/teleport',
-    run: ({ session, body }) => {
-      const chars = adminCharacters(session?.account, Number(body?.slot));
-      if (!chars.length) return { error: 'no characters on this admin account' };
-      if (chars.length > 1 && body?.slot == null) {
-        return { needsPick: true, characters: chars.map((c) => ({
-          slot: c.slot, name: c.name, mobileSerial: '0x' + (c.mobileSerial >>> 0).toString(16),
-          online: c.online,
-        })) };
-      }
-      const target = chars[0];
-      if (!target.mob) return { error: `character "${target.name}" has no live mobile (offline?)` };
-      // Resolve destination — three modes: explicit (x,y,z,map),
-      // anchor item, anchor spawner. Picked by which body field is set.
-      const mob = target.mob;
-      let dest = null;
-      if (body?.itemSerial) {
-        const it = world?.items?.get?.(parseSerial(body.itemSerial));
-        if (!it) return { error: 'item not found' };
-        let anchor = it; let hops = 0;
-        while (anchor.parent && hops++ < 8) {
-          const p = world?.items?.get?.(anchor.parent)
-                 ?? world?.mobiles?.get?.(anchor.parent);
-          if (!p) break; anchor = p;
-        }
-        dest = { x: anchor.x | 0, y: anchor.y | 0, z: anchor.z | 0, map: anchor.map };
-      } else if (body?.spawnerId) {
-        const g = sharedCtx?.spawner?.groups?.get?.(body.spawnerId);
-        if (!g?.rect) return { error: 'spawner not found' };
-        dest = {
-          x: ((g.rect.x1 + g.rect.x2) / 2) | 0,
-          y: ((g.rect.y1 + g.rect.y2) / 2) | 0,
-          z: 0, map: g.map,
-        };
-      } else if (Number.isFinite(body?.x) && Number.isFinite(body?.y)) {
-        dest = { x: body.x | 0, y: body.y | 0, z: (body.z | 0) || mob.z, map: body.map };
-      } else {
-        return { error: 'pass itemSerial OR spawnerId OR (x,y[,z,map])' };
-      }
-      // Resolve standing Z so the admin doesn't end up at z=0 inside
-      // the foundation of a multi-story building (Britain Bank floor
-      // sits at z=20, etc.). Map editor / Static editor send z:0 by
-      // convention — we substitute the proper standing z here so the
-      // avatar lands ON the visible floor instead of underneath the
-      // map. Skip the substitution when caller passed an explicit
-      // non-zero z (item / spawner anchors carry meaningful z).
-      if ((body?.z | 0) === 0 && (body?.x != null || body?.spawnerId)) {
-        try {
-          const standZ = resolveStandingZ(dest.map ?? mob.map ?? 1, dest.x, dest.y, dest.z);
-          if (Number.isFinite(standZ)) dest.z = standZ;
-        } catch { /* fall back to z=0 */ }
-      }
-      // CRITICAL: just mutating mob.x/y/z server-side leaves the
-      // player's client + every nearby observer staring at the OLD
-      // tile until the next 0x77 broadcast. Mirror what `[go` (the
-      // canonical teleport command) does — remove from pre-observers,
-      // update self, broadcast moving to post-observers.
-      const protocol = sharedCtx?.protocol;
-      const removeEntity = protocol?.removeEntity;
-      const mobileUpdate = protocol?.mobileUpdate;
-      const mobileMoving = protocol?.mobileMoving;
-      const oldMap = mob.map;
-      // Pre-observers: anyone within 18 tiles on the SAME map before
-      // the move. They get a removeEntity packet.
-      const preObservers = [];
-      for (const m of world.mobiles.values()) {
-        if (!m.client || m === mob) continue;
-        if (m.map !== oldMap) continue;
-        if (Math.abs(m.x - mob.x) > 18 || Math.abs(m.y - mob.y) > 18) continue;
-        preObservers.push(m);
-      }
-      if (removeEntity) {
-        const rm = removeEntity(mob.serial);
-        for (const m of preObservers) m.client.send(rm);
-      }
-      mob.x = dest.x & 0xffff;
-      mob.y = dest.y & 0xffff;
-      mob.z = (dest.z | 0);
-      if (Number.isFinite(dest.map)) mob.map = dest.map | 0;
-      world?.sectors?.moveMobile?.(mob);
-      // Self: mobileUpdate so the player's client snaps to the new
-      // position (and re-requests nearby chunks via the normal flow).
-      if (mob.client && mobileUpdate) {
-        mob.client.send(mobileUpdate({
-          serial: mob.serial, body: mob.body, hue: mob.hue ?? 0,
-          flags: mob.flags ?? 0,
-          x: mob.x, y: mob.y, z: mob.z, direction: mob.direction ?? 0,
-        }));
-      }
-      // Post-observers: anyone now within 18 tiles on the new map.
-      if (mobileMoving) {
-        const moving = mobileMoving({
-          serial: mob.serial, body: mob.body,
-          x: mob.x, y: mob.y, z: mob.z,
-          direction: mob.direction ?? 0, hue: mob.hue ?? 0,
-          flags: mob.flags ?? 0, notoriety: mob.notoriety ?? 1,
-        });
-        for (const m of world.mobiles.values()) {
-          if (!m.client || m === mob) continue;
-          if (m.map !== mob.map) continue;
-          if (Math.abs(m.x - mob.x) > 18 || Math.abs(m.y - mob.y) > 18) continue;
-          m.client.send(moving);
-        }
-      }
-      // Push every nearby mob/item back to the teleporter — without this,
-      // they snap to the new tile but see an empty viewport (the spawn
-      // rect's mobs are server-side, but no client packet announces them
-      // until the next 0x77 broadcast). Same code path as 0x22 resync.
-      // The refresh can serialize hundreds of nearby entities. Defer it so
-      // the admin HTTP response and button state are released immediately;
-      // mobileUpdate above already moves the player on the client at once.
-      if (mob.client) setImmediate(() => {
-        try { scheduleRefreshSurroundings(mob.client, { priority: 0 }); }
-        catch (e) { console.error('[admin/teleport] refreshSurroundings:', e.message); }
-      });
-      return {
-        ok: true, character: target.name, mobileSerial: '0x' + (mob.serial >>> 0).toString(16),
-        x: mob.x, y: mob.y, z: mob.z, map: mob.map,
-      };
-    },
-  });
-
-  // Teleport ANY mobile to the location of an item. The item may be on the
-  // ground (uses item.x/y/z) or worn / contained — in those cases we walk
-  // the parent chain to find the eventual ground anchor (the worn-by mobile
-  // or the chest's ground tile). Body: `{ mobileSerial: '0x...' }`.
-  routes.push({
-    method: 'POST', path: '/api/items/:serial/teleport',
-    run: ({ params, body }) => {
-      const itemSerial = parseSerial(params.serial);
-      const mobSerial  = parseSerial(body?.mobileSerial);
-      const it = world?.items?.get?.(itemSerial);
-      if (!it) return { error: 'item not found' };
-      const mob = world?.mobiles?.get?.(mobSerial);
-      if (!mob) return { error: 'mobile not found (pass mobileSerial as 0x... in body)' };
-      // Resolve to a ground tile by walking parent chain. A worn item's
-      // "position" is the wearer's tile; a chest-contained item's
-      // position is the chest's tile (which may itself be worn — keep
-      // walking, max 8 hops to avoid pathological cycles).
-      let anchor = it; let hops = 0;
-      while (anchor.parent && hops++ < 8) {
-        const p = world?.items?.get?.(anchor.parent)
-               ?? world?.mobiles?.get?.(anchor.parent);
-        if (!p) break;
-        anchor = p;
-      }
-      if (!Number.isFinite(anchor?.x) || !Number.isFinite(anchor?.y)) {
-        return { error: 'item has no resolvable ground position' };
-      }
-      mob.x = anchor.x | 0;
-      mob.y = anchor.y | 0;
-      mob.z = anchor.z | 0;
-      if (Number.isFinite(anchor.map)) mob.map = anchor.map | 0;
-      world?.sectors?.moveMobile?.(mob);
-      return { ok: true, x: mob.x, y: mob.y, z: mob.z, map: mob.map,
-               anchorKind: anchor === it ? 'item' : 'parent' };
-    },
-  });
 
   // ---- Scripts (read / edit / create / delete) -------------------------
   routes.push({
@@ -2148,6 +1230,7 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
       if (!abs) return { error: 'bad path' };
       if (!/\.(?:js|mjs)$/i.test(rel)) return { error: 'script path must end in .js or .mjs' };
       if (typeof body?.content !== 'string') return { error: 'content (string) required' };
+      if (Buffer.byteLength(body.content, 'utf8') > 1024 * 1024) return { error: 'script exceeds the 1 MiB editor limit' };
       try {
         fs.mkdirSync(path.dirname(abs), { recursive: true });
         const before = fs.existsSync(abs) ? fs.statSync(abs) : null;
@@ -2155,6 +1238,19 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
         if (before && Number.isFinite(expectedMtime)
             && Math.trunc(before.mtimeMs) !== Math.trunc(expectedMtime)) {
           return { error: 'script changed on disk since it was opened', conflict: true };
+        }
+        // Import a temporary sibling before replacing the source. This checks
+        // ESM syntax and relative imports while the currently running script
+        // and its on-disk source are still untouched. Utility modules without
+        // a default export are valid too, unlike reloadOne's activation check.
+        const validationAbs = path.join(path.dirname(abs), `.${path.basename(abs)}.validate-${process.pid}-${Date.now()}.mjs`);
+        fs.writeFileSync(validationAbs, body.content, 'utf8');
+        try {
+          await import(`${pathToFileURL(validationAbs).href}?validate=${Date.now()}`);
+        } catch (error) {
+          return { error: `validation failed: ${error.message}`, phase: 'validate' };
+        } finally {
+          try { fs.unlinkSync(validationAbs); } catch { /* ignore */ }
         }
         let backup = null;
         if (before) {
@@ -2174,7 +1270,12 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
         let reloaded = null;
         if (body?.reload && scriptRuntime?.reloadOne) {
           const t0 = Date.now();
-          reloaded = { ...(await scriptRuntime.reloadOne(rel)), ms: Date.now() - t0 };
+          const directlyLoaded = scriptRuntime.loaded?.some?.((entry) => path.resolve(entry.file) === path.resolve(abs));
+          if (directlyLoaded) reloaded = { ...(await scriptRuntime.reloadOne(rel)), ms: Date.now() - t0 };
+          else if (scriptRuntime.load) {
+            await scriptRuntime.load({ reason: `admin-script-dependency:${rel}`, emitEvent: true });
+            reloaded = { ok: true, scope: 'all', loaded: scriptRuntime.loaded?.length ?? 0, ms: Date.now() - t0 };
+          }
         }
         return {
           ok: true, path: rel, size: stat.size,
@@ -2234,6 +1335,177 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
         }).filter(Boolean),
       })) : [];
       return { count: list.length, spawners: list };
+    },
+  });
+
+  const clientGumpSourceDir = path.join(repoRoot, 'apps/client/src/ui/gumps');
+  const serverSourceDir = path.join(repoRoot, 'apps/server/src');
+  const clientGumpDefinitionsFile = path.join(repoRoot, 'apps/client/public/client-gumps.json');
+
+  routes.push({
+    method: 'GET', path: '/api/studio/server-source',
+    run: ({ query }) => {
+      const rel = String(query.get('path') ?? '').replace(/^@server\//, '');
+      const abs = safeJoin(serverSourceDir, rel);
+      if (!abs || !/\.(?:js|mjs)$/i.test(rel)) return { error: 'bad server source path' };
+      try {
+        const content = fs.readFileSync(abs, 'utf8');
+        const stat = fs.statSync(abs);
+        return { path: rel, size: stat.size, mtime: Math.trunc(stat.mtimeMs), content };
+      } catch (error) { return { error: error.message }; }
+    },
+  });
+
+  routes.push({
+    method: 'PUT', path: '/api/studio/server-source',
+    run: async ({ query, body }) => {
+      const rel = String(query.get('path') ?? '').replace(/^@server\//, '');
+      const abs = safeJoin(serverSourceDir, rel);
+      if (!abs || !/\.(?:js|mjs)$/i.test(rel)) return { error: 'bad server source path' };
+      if (typeof body?.content !== 'string') return { error: 'content (string) required' };
+      if (Buffer.byteLength(body.content, 'utf8') > 1024 * 1024) return { error: 'source exceeds the 1 MiB editor limit' };
+      let validationAbs = '';
+      try {
+        const before = fs.statSync(abs);
+        const expectedMtime = Number(body?.expectedMtime);
+        if (Number.isFinite(expectedMtime) && Math.trunc(before.mtimeMs) !== Math.trunc(expectedMtime)) return { error: 'server source changed on disk since it was opened', conflict: true };
+        validationAbs = path.join(path.dirname(abs), `.${path.basename(rel)}.validate-${process.pid}-${Date.now()}.mjs`);
+        fs.writeFileSync(validationAbs, body.content, 'utf8');
+        const syntax = await new Promise((resolve) => {
+          const child = spawn(process.execPath, ['--check', validationAbs], { windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] });
+          let errorText = '';
+          child.stderr.on('data', (chunk) => { errorText += chunk; });
+          child.once('error', (error) => resolve({ ok: false, error: error.message }));
+          child.once('close', (code) => resolve({ ok: code === 0, error: errorText.trim() }));
+        });
+        if (!syntax.ok) return { error: `syntax validation failed: ${syntax.error || 'node --check failed'}`, phase: 'validate' };
+        const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const backup = `${abs}.bak.${stamp}`;
+        fs.copyFileSync(abs, backup);
+        const temp = `${abs}.tmp-${process.pid}-${Date.now()}`;
+        fs.writeFileSync(temp, body.content, 'utf8');
+        fs.renameSync(temp, abs);
+        const stat = fs.statSync(abs);
+        return { ok: true, path: rel, size: stat.size, mtime: Math.trunc(stat.mtimeMs), backup: path.basename(backup),
+          reloaded: { ok: true, scope: 'server-engine', detail: 'Engine source saved; restart the Node server to activate it.' } };
+      } catch (error) { return { error: error.message }; }
+      finally { if (validationAbs) try { fs.unlinkSync(validationAbs); } catch { /* already removed */ } }
+    },
+  });
+
+  routes.push({
+    method: 'GET', path: '/api/studio/client-gump-definitions',
+    run: () => {
+      try {
+        const text = fs.readFileSync(clientGumpDefinitionsFile, 'utf8');
+        const data = JSON.parse(text);
+        const stat = fs.statSync(clientGumpDefinitionsFile);
+        return { path: '@client/client-gumps.json', size: stat.size, mtime: Math.trunc(stat.mtimeMs), data };
+      } catch (error) { return { error: `read failed: ${error.message}` }; }
+    },
+  });
+
+  routes.push({
+    method: 'PUT', path: '/api/studio/client-gump-definitions',
+    run: ({ body }) => {
+      const data = body?.data;
+      if (!Array.isArray(data)) return { error: 'client gump definitions must be an array' };
+      if (data.length > 2048) return { error: 'client gump definition limit is 2048' };
+      const ids = new Set();
+      for (let index = 0; index < data.length; index++) {
+        const definition = data[index];
+        if (!definition || typeof definition !== 'object' || Array.isArray(definition)) return { error: `record ${index + 1} must be an object` };
+        const id = String(definition.definitionId ?? '').trim();
+        if (!id) return { error: `record ${index + 1} requires definitionId` };
+        if (ids.has(id)) return { error: `duplicate definitionId '${id}'` };
+        ids.add(id);
+        if (!String(definition.className ?? '').trim() && !String(definition.type ?? '').trim()) return { error: `${id}: className or type is required` };
+        if (definition.scope !== 'client') return { error: `${id}: scope must be 'client'` };
+        if (definition.controlOverrides != null && !Array.isArray(definition.controlOverrides)) return { error: `${id}: controlOverrides must be an array` };
+        if ((definition.controlOverrides?.length ?? 0) > 512) return { error: `${id}: at most 512 control overrides are allowed` };
+      }
+      try {
+        const before = fs.existsSync(clientGumpDefinitionsFile) ? fs.statSync(clientGumpDefinitionsFile) : null;
+        const expectedMtime = Number(body?.expectedMtime);
+        if (before && Number.isFinite(expectedMtime) && Math.trunc(before.mtimeMs) !== Math.trunc(expectedMtime)) {
+          return { error: 'client gump catalogue changed on disk since it was opened', conflict: true,
+            expectedMtime: Math.trunc(expectedMtime), actualMtime: Math.trunc(before.mtimeMs) };
+        }
+        fs.mkdirSync(path.dirname(clientGumpDefinitionsFile), { recursive: true });
+        let backup = null;
+        if (before) {
+          const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+          const backupFile = `${clientGumpDefinitionsFile}.bak.${stamp}`;
+          fs.copyFileSync(clientGumpDefinitionsFile, backupFile);
+          backup = path.basename(backupFile);
+          const prefix = `${path.basename(clientGumpDefinitionsFile)}.bak.`;
+          const backups = fs.readdirSync(path.dirname(clientGumpDefinitionsFile))
+            .filter((name) => name.startsWith(prefix))
+            .map((name) => ({ name, mtime: fs.statSync(path.join(path.dirname(clientGumpDefinitionsFile), name)).mtimeMs }))
+            .sort((a, b) => b.mtime - a.mtime);
+          for (const stale of backups.slice(5)) try { fs.unlinkSync(path.join(path.dirname(clientGumpDefinitionsFile), stale.name)); } catch { /* ignore */ }
+        }
+        const temp = `${clientGumpDefinitionsFile}.tmp-${process.pid}-${Date.now()}`;
+        fs.writeFileSync(temp, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
+        fs.renameSync(temp, clientGumpDefinitionsFile);
+        const stat = fs.statSync(clientGumpDefinitionsFile);
+        return { ok: true, path: '@client/client-gumps.json', size: stat.size, mtime: Math.trunc(stat.mtimeMs), backup,
+          reloaded: { ok: true, scope: 'client-json', detail: 'Newly opened client gumps use the updated local catalogue after refresh/reload.' } };
+      } catch (error) { return { error: `write failed: ${error.message}` }; }
+    },
+  });
+
+  routes.push({
+    method: 'GET', path: '/api/studio/client-gump-source',
+    run: ({ query }) => {
+      const rel = query.get('path') ?? '';
+      const abs = safeJoin(clientGumpSourceDir, rel);
+      if (!abs || !/^[a-z0-9._-]+\.js$/i.test(rel)) return { error: 'bad client gump path' };
+      try {
+        const content = fs.readFileSync(abs, 'utf8');
+        const stat = fs.statSync(abs);
+        return { path: rel, size: stat.size, mtime: Math.trunc(stat.mtimeMs), content };
+      } catch (error) { return { error: error.message }; }
+    },
+  });
+
+  routes.push({
+    method: 'PUT', path: '/api/studio/client-gump-source',
+    run: async ({ query, body }) => {
+      const rel = query.get('path') ?? '';
+      const abs = safeJoin(clientGumpSourceDir, rel);
+      if (!abs || !/^[a-z0-9._-]+\.js$/i.test(rel)) return { error: 'bad client gump path' };
+      if (typeof body?.content !== 'string') return { error: 'content (string) required' };
+      if (Buffer.byteLength(body.content, 'utf8') > 1024 * 1024) return { error: 'source exceeds the 1 MiB editor limit' };
+      let validationAbs = '';
+      try {
+        const before = fs.statSync(abs);
+        const expectedMtime = Number(body?.expectedMtime);
+        if (Number.isFinite(expectedMtime) && Math.trunc(before.mtimeMs) !== Math.trunc(expectedMtime)) {
+          return { error: 'client gump changed on disk since it was opened', conflict: true };
+        }
+        validationAbs = path.join(clientGumpSourceDir, `.${path.basename(rel)}.validate-${process.pid}-${Date.now()}.mjs`);
+        fs.writeFileSync(validationAbs, body.content, 'utf8');
+        const syntax = await new Promise((resolve) => {
+          const child = spawn(process.execPath, ['--check', validationAbs], { windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] });
+          let errorText = '';
+          child.stderr.on('data', (chunk) => { errorText += chunk; });
+          child.once('error', (error) => resolve({ ok: false, error: error.message }));
+          child.once('close', (code) => resolve({ ok: code === 0, error: errorText.trim() }));
+        });
+        if (!syntax.ok) return { error: `syntax validation failed: ${syntax.error || 'node --check failed'}`, phase: 'validate' };
+        const ts = new Date().toISOString().replace(/[:.]/g, '-');
+        const backup = `${abs}.bak.${ts}`;
+        fs.copyFileSync(abs, backup);
+        const temp = `${abs}.tmp-${process.pid}-${Date.now()}`;
+        fs.writeFileSync(temp, body.content, 'utf8');
+        fs.renameSync(temp, abs);
+        const stat = fs.statSync(abs);
+        studioScriptCatalogCache = null;
+        return { ok: true, path: rel, size: stat.size, mtime: Math.trunc(stat.mtimeMs), backup: path.basename(backup),
+          reloaded: { ok: true, scope: 'client', detail: 'Vite reloads the module in development; production requires a client rebuild.' } };
+      } catch (error) { return { error: error.message }; }
+      finally { if (validationAbs) try { fs.unlinkSync(validationAbs); } catch { /* already removed */ } }
     },
   });
 
@@ -2474,6 +1746,7 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
   // `DATA_ROOT` const declared higher up by the legacy textarea-editor
   // routes — duplicating it threw `SyntaxError: Identifier 'DATA_ROOT'
   // already declared` on boot.
+  const DATA_ROOT = path.resolve(scriptsDir, 'data');
   function safeJoinData(rel) {
     if (typeof rel !== 'string' || !rel) return null;
     const norm = rel.replace(/\\/g, '/').replace(/^\/+/, '');
@@ -2615,96 +1888,3 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
 
   return routes;
 }
-
-// ---- snapshot helpers ----------------------------------------------------
-
-function snapshotMobile(mob) {
-  return {
-    serial: '0x' + (mob.serial >>> 0).toString(16),
-    name: mob.name,
-    body: mob.body,
-    hue: mob.hue,
-    x: mob.x, y: mob.y, z: mob.z, map: mob.map,
-    direction: mob.direction,
-    notoriety: mob.notoriety,
-    hp: mob.hp, hpMax: mob.hpMax,
-    mana: mob.mana, manaMax: mob.manaMax,
-    stam: mob.stam, stamMax: mob.stamMax,
-    str: mob.str, dex: mob.dex, int: mob.int,
-    gold: mob.gold,
-    sex: mob.sex,
-    isPlayer: !!mob.isPlayer,
-    online: !!mob.client,
-    accountName: mob.accountName,
-    client: mob.client ? {
-      id: mob.client.id ?? null,
-      version: mob.client.clientVersionString ?? null,
-      transport: mob.client.nodeUOTransport ? 'nodeuo.v1' : 'standard-uo',
-      capabilities: mob.client.nodeUOCapabilities >>> 0,
-      pendingBytes: Number(mob.client.ws?.bufferedAmount ?? mob.client.socket?.writableLength ?? 0) || 0,
-    } : null,
-    // Civic-NPC tag exposed for the admin "Vendors" filter — without
-    // it the UI couldn't tell a banker from a wild orc and the
-    // operator's "where are my shopkeepers" lookup blended into the
-    // monster list.
-    vendorKind: mob.vendorKind ?? null,
-    kind: mob.kind ?? null,
-  };
-}
-
-function snapshotItem(it) {
-  return {
-    serial: '0x' + (it.serial >>> 0).toString(16),
-    itemId: it.itemId, hue: it.hue, amount: it.amount,
-    x: it.x, y: it.y, z: it.z, map: it.map,
-    parent: it.parent ? '0x' + (it.parent >>> 0).toString(16) : null,
-    layer: it.layer,
-    name: it.name,
-    movable: it.movable,
-    gumpId: it.gumpId,
-  };
-}
-
-function parseSerial(s) {
-  if (!s) return 0;
-  if (typeof s === 'string' && (s.startsWith('0x') || s.startsWith('0X'))) return parseInt(s, 16) >>> 0;
-  return Number(s) >>> 0;
-}
-
-function safeJoin(root, rel) {
-  if (!rel) return null;
-  // Reject path traversal.
-  const normalized = path.normalize(rel).replace(/^[/\\]+/, '');
-  if (normalized.includes('..')) return null;
-  const abs = path.join(root, normalized);
-  if (!abs.startsWith(root)) return null;
-  return abs;
-}
-
-function walkScriptTree(dir, base = '') {
-  const out = [];
-  let entries;
-  try { entries = fs.readdirSync(dir, { withFileTypes: true }); }
-  catch { return []; }
-  for (const e of entries.sort((a, b) => a.name.localeCompare(b.name))) {
-    if (e.name.startsWith('.') || e.name === 'node_modules') continue;
-    const rel = base ? `${base}/${e.name}` : e.name;
-    if (e.isDirectory()) {
-      out.push({ type: 'dir', name: e.name, path: rel, children: walkScriptTree(path.join(dir, e.name), rel) });
-    } else if (e.isFile()) {
-      let size = 0;
-      try { size = fs.statSync(path.join(dir, e.name)).size; } catch { /* ignore */ }
-      out.push({ type: 'file', name: e.name, path: rel, size });
-    }
-  }
-  return out;
-}
-
-// Tiny ring buffer hooked from main.js via `attachLogHook(line)`.
-const LOG_RING = [];
-const LOG_MAX = 500;
-export function pushLogLine(line) {
-  LOG_RING.push({ ts: Date.now(), line: String(line).slice(0, 1024) });
-  while (LOG_RING.length > LOG_MAX) LOG_RING.shift();
-}
-function getLogTail(limit = 200) { return LOG_RING.slice(-Math.max(1, Math.min(LOG_MAX, limit | 0))); }

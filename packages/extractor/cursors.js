@@ -24,7 +24,7 @@
 
 import { writeFileSync } from 'node:fs';
 import { join, basename } from 'node:path';
-import sharp from 'sharp';
+import sharp from './safe-sharp.js';
 import { openUopIndexed, readEntryContent } from './uop.js';
 
 // Pre-AOS cursor IDs in art.mul (CUO `CursorList[0]`).

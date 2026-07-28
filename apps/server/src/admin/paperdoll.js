@@ -15,7 +15,7 @@
 // thing not available server-side. Showing the un-tinted base art is
 // a "good enough" preview for an admin glance.
 
-import sharp from 'sharp';
+import sharp from './safe-sharp.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -70,7 +70,7 @@ function loadGumpManifest() {
   return _gumpManifest;
 }
 
-async function extractGumpTile(gumpId) {
+export async function extractGumpTile(gumpId) {
   if (_tileCache.has(gumpId)) return _tileCache.get(gumpId);
   const pending = extractGumpTileUncached(gumpId);
   _tileCache.set(gumpId, pending);

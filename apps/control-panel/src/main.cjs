@@ -10,6 +10,8 @@ const { app, BrowserWindow, dialog, ipcMain } = require('electron');
 const path = require('node:path');
 const { spawn, spawnSync } = require('node:child_process');
 const fs = require('node:fs');
+const http = require('node:http');
+const https = require('node:https');
 
 // Repo root = three dirs above this file (apps/control-panel/src/main.cjs).
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
@@ -284,6 +286,15 @@ ipcMain.handle('open-url', (_e, { url }) => {
   return { ok: true };
 });
 
+// Renderer-side fetches are deliberately sandboxed and cannot reliably probe
+// localhost from a file:// Electron page (CORS varies between Electron
+// versions). Keep the probe in the main process, restrict it to loopback, and
+// expose only a tiny status object. The launcher uses this before opening the
+// admin panel so a stale browser shell cannot masquerade as a working editor.
+ipcMain.handle('probe-http', (_e, { url, timeoutMs } = {}) => {
+  return probeLoopbackHttp(url, timeoutMs);
+});
+
 ipcMain.handle('choose-directory', async (_e, { defaultPath } = {}) => {
   const result = await dialog.showOpenDialog(mainWin, {
     title: 'Select Ultima Online Classic folder',
@@ -294,6 +305,41 @@ ipcMain.handle('choose-directory', async (_e, { defaultPath } = {}) => {
 });
 
 // ---- service spawn ---------------------------------------------------------
+
+function probeLoopbackHttp(rawUrl, timeoutMs = 1_500) {
+  let url;
+  try { url = new URL(String(rawUrl ?? '')); }
+  catch { return Promise.resolve({ ok: false, error: 'invalid URL' }); }
+  if (!['http:', 'https:'].includes(url.protocol)
+      || !['127.0.0.1', 'localhost', '::1'].includes(url.hostname)) {
+    return Promise.resolve({ ok: false, error: 'only loopback HTTP probes are allowed' });
+  }
+  const client = url.protocol === 'https:' ? https : http;
+  const boundedTimeout = Math.max(100, Math.min(10_000, Number(timeoutMs) || 1_500));
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
+    const request = client.request(url, {
+      method: 'GET',
+      headers: { accept: 'text/plain', connection: 'close' },
+    }, (response) => {
+      response.resume();
+      finish({
+        ok: response.statusCode >= 200 && response.statusCode < 400,
+        status: response.statusCode ?? 0,
+      });
+    });
+    request.setTimeout(boundedTimeout, () => {
+      request.destroy(new Error(`timeout after ${boundedTimeout}ms`));
+    });
+    request.on('error', (error) => finish({ ok: false, error: error.message }));
+    request.end();
+  });
+}
 
 function startService(id, envOverride, options = {}) {
   const s = SERVICES[id];

@@ -51,13 +51,13 @@ describe('audited item gaps', () => {
   });
 
   it('has spawnable recall rune and disguise-kit item templates', () => {
-    const byName = new Map(readItems().map((item) => [item.name, item]));
-    expect(byName.get('recall-rune')).toMatchObject({ itemId: 0x1F14, script: 'recall-rune' });
-    expect(byName.get('marked-rune')).toMatchObject({ itemId: 0x1F14, hue: 0x47, script: 'recall-rune' });
-    expect(byName.get('disguise-kit')).toMatchObject({ itemId: 0x0E05, script: 'disguise-kit' });
-    expect(byName.get('message-in-bottle')).toMatchObject({ itemId: 0x099F, script: 'message-in-bottle' });
-    expect(byName.get('waterstained-sos')).toMatchObject({ itemId: 0x14EE, script: 'sos' });
-    expect(byName.get('ancient-sos')).toMatchObject({ itemId: 0x14EE, hue: 0x0481, script: 'sos' });
+    const byDefinition = new Map(readItems().map((item) => [item.definitionId, item]));
+    expect(byDefinition.get('recall-rune')).toMatchObject({ artId: 0x1F14, script: 'recall-rune' });
+    expect(byDefinition.get('marked-rune')).toMatchObject({ artId: 0x1F14, hue: 0x47, script: 'recall-rune' });
+    expect(byDefinition.get('disguise-kit')).toMatchObject({ artId: 0x0E05, script: 'disguise-kit' });
+    expect(byDefinition.get('message-in-bottle')).toMatchObject({ artId: 0x099F, script: 'message-in-bottle' });
+    expect(byDefinition.get('waterstained-sos')).toMatchObject({ artId: 0x14EE, script: 'sos' });
+    expect(byDefinition.get('ancient-sos')).toMatchObject({ artId: 0x14EE, hue: 0x0481, script: 'sos' });
   });
 
   it('spyglass reports moon phases and tide direction', () => {

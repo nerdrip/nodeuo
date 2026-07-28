@@ -1,0 +1,2702 @@
+[
+  {
+    "definitionId": "client:achievement-progress-gump",
+    "scope": "client",
+    "name": "Achievement Progress",
+    "className": "AchievementProgressGump",
+    "type": "achievement-progress",
+    "source": "achievement-progress-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 420,
+      "height": 380,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:achievements-gump",
+    "scope": "client",
+    "name": "Achievements",
+    "className": "AchievementsGump",
+    "type": "achievements",
+    "source": "learning-gumps.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 80,
+      "height": 22,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:action-bar-gump",
+    "scope": "client",
+    "name": "Action Bar",
+    "className": "ActionBarGump",
+    "type": "actionbar",
+    "source": "action-bar-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 240,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:admin-gump",
+    "scope": "client",
+    "name": "Admin",
+    "className": "AdminGump",
+    "type": "admin",
+    "source": "admin-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 540,
+      "height": 460,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:auto-loot-rules-gump",
+    "scope": "client",
+    "name": "Auto Loot Rules",
+    "className": "AutoLootRulesGump",
+    "type": "autoloot-rules",
+    "source": "autoloot-rules-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 460,
+      "height": 360,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:banker-gump",
+    "scope": "client",
+    "name": "Banker",
+    "className": "BankerGump",
+    "type": "banker",
+    "source": "banker-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 360,
+      "height": 220,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:base-shop-gump",
+    "scope": "client",
+    "name": "Base Shop",
+    "className": "BaseShopGump",
+    "type": null,
+    "source": "buy-gump.js",
+    "abstract": true,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 240,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:bod-rewards-gump",
+    "scope": "client",
+    "name": "Bod Rewards",
+    "className": "BodRewardsGump",
+    "type": "bod-rewards",
+    "source": "bod-rewards-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 400,
+      "height": 380,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:book-gump",
+    "scope": "client",
+    "name": "Book",
+    "className": "BookGump",
+    "type": "book:${this.info.serial}",
+    "source": "book-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 240,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:buff-gump",
+    "scope": "client",
+    "name": "Buff",
+    "className": "BuffGump",
+    "type": "buffs",
+    "source": "buff-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 240,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:bulletin-board-gump",
+    "scope": "client",
+    "name": "Bulletin Board",
+    "className": "BulletinBoardGump",
+    "type": "bulletin:${this.boardSerial}",
+    "source": "bulletin-board-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 420,
+      "height": 360,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:buy-shop-gump",
+    "scope": "client",
+    "name": "Buy Shop",
+    "className": "BuyShopGump",
+    "type": null,
+    "source": "buy-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 240,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:chat-gump",
+    "scope": "client",
+    "name": "Chat",
+    "className": "ChatGump",
+    "type": "chat",
+    "source": "chat-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 330,
+      "height": 340,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:chat-choose-name-gump",
+    "scope": "client",
+    "name": "Chat Choose Name",
+    "className": "ChatChooseNameGump",
+    "type": "chat-choose-name",
+    "source": "chat-choose-name-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 300,
+      "height": 140,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:color-picker-gump",
+    "scope": "client",
+    "name": "Color Picker",
+    "className": "ColorPickerGump",
+    "type": "color-picker",
+    "source": "color-picker-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 240,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:combat-book-gump",
+    "scope": "client",
+    "name": "Combat Book",
+    "className": "CombatBookGump",
+    "type": null,
+    "source": "combat-book-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 260,
+      "height": 320,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:community-collection-gump",
+    "scope": "client",
+    "name": "Community Collection",
+    "className": "CommunityCollectionGump",
+    "type": "community-collection",
+    "source": "community-collection-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 240,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:container-gump",
+    "scope": "client",
+    "name": "Container",
+    "className": "ContainerGump",
+    "type": "container",
+    "source": "container-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 240,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:cooldown-gump",
+    "scope": "client",
+    "name": "Cooldown",
+    "className": "CooldownGump",
+    "type": "cooldowns",
+    "source": "cooldown-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 240,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:counter-bar-gump",
+    "scope": "client",
+    "name": "Counter Bar",
+    "className": "CounterBarGump",
+    "type": "counterbar",
+    "source": "counter-bar-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 240,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:craft-gump",
+    "scope": "client",
+    "name": "Craft",
+    "className": "CraftGump",
+    "type": "craft",
+    "source": "craft-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 600,
+      "height": 540,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:credits-gump",
+    "scope": "client",
+    "name": "Credits",
+    "className": "CreditsGump",
+    "type": "credits",
+    "source": "credits-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 420,
+      "height": 320,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:death-gump",
+    "scope": "client",
+    "name": "Death",
+    "className": "DeathGump",
+    "type": "death",
+    "source": "death-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 340,
+      "height": 200,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:faction-sigils-gump",
+    "scope": "client",
+    "name": "Faction Sigils",
+    "className": "FactionSigilsGump",
+    "type": "faction-sigils",
+    "source": "system-status-gumps.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 80,
+      "height": 22,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:fire-casino-gump",
+    "scope": "client",
+    "name": "Fire Casino",
+    "className": "FireCasinoGump",
+    "type": "fire-casino",
+    "source": "fire-casino-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 360,
+      "height": 240,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:grid-loot-gump",
+    "scope": "client",
+    "name": "Grid Loot",
+    "className": "GridLootGump",
+    "type": "grid-loot:${this.corpseSerial}",
+    "source": "grid-loot-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 240,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:guild-gump",
+    "scope": "client",
+    "name": "Guild",
+    "className": "GuildGump",
+    "type": "guild",
+    "source": "guild-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 420,
+      "height": 360,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:health-bar-gump",
+    "scope": "client",
+    "name": "Health Bar",
+    "className": "HealthBarGump",
+    "type": "health-bar:${this.mobileSerial}",
+    "source": "health-bar-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 240,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:help-gump",
+    "scope": "client",
+    "name": "Help",
+    "className": "HelpGump",
+    "type": "help",
+    "source": "help-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 380,
+      "height": 280,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:house-aclgump",
+    "scope": "client",
+    "name": "House ACL",
+    "className": "HouseACLGump",
+    "type": "house-acl",
+    "source": "house-acl-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 560,
+      "height": 460,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:house-customization-gump",
+    "scope": "client",
+    "name": "House Customization",
+    "className": "HouseCustomizationGump",
+    "type": "house-customization",
+    "source": "house-customization-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 460,
+      "height": 380,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:huntmaster-gump",
+    "scope": "client",
+    "name": "Huntmaster",
+    "className": "HuntmasterGump",
+    "type": "huntmaster",
+    "source": "system-status-gumps.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 80,
+      "height": 22,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:huntmaster-trophy-gump",
+    "scope": "client",
+    "name": "Huntmaster Trophy",
+    "className": "HuntmasterTrophyGump",
+    "type": "huntmaster-trophy",
+    "source": "huntmaster-trophy-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 240,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:ignore-manager-gump",
+    "scope": "client",
+    "name": "Ignore Manager",
+    "className": "IgnoreManagerGump",
+    "type": "ignore",
+    "source": "ignore-manager-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 320,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:imbuing-gump",
+    "scope": "client",
+    "name": "Imbuing",
+    "className": "ImbuingGump",
+    "type": "imbuing",
+    "source": "imbuing-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 420,
+      "height": 380,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:info-bar-gump",
+    "scope": "client",
+    "name": "Info Bar",
+    "className": "InfoBarGump",
+    "type": "infobar",
+    "source": "info-bar-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 240,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:info-bar-builder-gump",
+    "scope": "client",
+    "name": "Info Bar Builder",
+    "className": "InfoBarBuilderGump",
+    "type": "info-bar-builder",
+    "source": "info-bar-builder-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 240,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:inspector-gump",
+    "scope": "client",
+    "name": "Inspector",
+    "className": "InspectorGump",
+    "type": "inspector",
+    "source": "inspector-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 244,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:journal-gump",
+    "scope": "client",
+    "name": "Journal",
+    "className": "JournalGump",
+    "type": "journal",
+    "source": "journal-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 360,
+      "height": 170,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:journal-filter-editor-gump",
+    "scope": "client",
+    "name": "Journal Filter Editor",
+    "className": "JournalFilterEditorGump",
+    "type": "journal-filter-editor",
+    "source": "journal-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 360,
+      "height": 170,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:krampus-ledger-gump",
+    "scope": "client",
+    "name": "Krampus Ledger",
+    "className": "KrampusLedgerGump",
+    "type": "krampus-ledger",
+    "source": "krampus-ledger-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 200,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:large-bod-gump",
+    "scope": "client",
+    "name": "Large Bod",
+    "className": "LargeBodGump",
+    "type": "large-bod",
+    "source": "large-bod-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 380,
+      "height": 320,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:location-go-gump",
+    "scope": "client",
+    "name": "Location Go",
+    "className": "LocationGoGump",
+    "type": "location-go",
+    "source": "location-go-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 280,
+      "height": 130,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:macro-gump",
+    "scope": "client",
+    "name": "Macro",
+    "className": "MacroGump",
+    "type": "macros",
+    "source": "macro-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 460,
+      "height": 320,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:macro-button-gump",
+    "scope": "client",
+    "name": "Macro Button",
+    "className": "MacroButtonGump",
+    "type": "macro-button:${this.macro?.id ?? this.macro?.name ?? ",
+    "source": "macro-button-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 240,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:mahjong-gump",
+    "scope": "client",
+    "name": "Mahjong",
+    "className": "MahjongGump",
+    "type": "mahjong:${this.gameSerial}",
+    "source": "mahjong-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 240,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:map-pin-editor-gump",
+    "scope": "client",
+    "name": "Map Pin Editor",
+    "className": "MapPinEditorGump",
+    "type": "map-pins",
+    "source": "map-pin-editor-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 240,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:markers-manager-gump",
+    "scope": "client",
+    "name": "Markers Manager",
+    "className": "MarkersManagerGump",
+    "type": "markers-manager",
+    "source": "markers-manager-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 360,
+      "height": 360,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:mastery-learning-gump",
+    "scope": "client",
+    "name": "Mastery Learning",
+    "className": "MasteryLearningGump",
+    "type": "mastery",
+    "source": "learning-gumps.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 80,
+      "height": 22,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:menu-gump",
+    "scope": "client",
+    "name": "Menu",
+    "className": "MenuGump",
+    "type": "menu",
+    "source": "menu-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 240,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:message-box-gump",
+    "scope": "client",
+    "name": "Message Box",
+    "className": "MessageBoxGump",
+    "type": "message-box",
+    "source": "message-box-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 240,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:minimap-gump",
+    "scope": "client",
+    "name": "Minimap",
+    "className": "MinimapGump",
+    "type": "minimap",
+    "source": "minimap-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 240,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:mlquests-gump",
+    "scope": "client",
+    "name": "MLQuests",
+    "className": "MLQuestsGump",
+    "type": "mlquests",
+    "source": "mlquests-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 520,
+      "height": 420,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:name-over-head-handler-gump",
+    "scope": "client",
+    "name": "Name Over Head Handler",
+    "className": "NameOverHeadHandlerGump",
+    "type": "name-overhead-handler",
+    "source": "name-overhead-handler-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 220,
+      "height": 240,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:name-overhead-popup-gump",
+    "scope": "client",
+    "name": "Name Overhead Popup",
+    "className": "NameOverheadPopupGump",
+    "type": "name-overhead-popup",
+    "source": "name-overhead-popup-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 200,
+      "height": 72,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:network-stats-gump",
+    "scope": "client",
+    "name": "Network Stats",
+    "className": "NetworkStatsGump",
+    "type": "network-stats",
+    "source": "network-stats-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 340,
+      "height": 348,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:news-board-gump",
+    "scope": "client",
+    "name": "News Board",
+    "className": "NewsBoardGump",
+    "type": "news-board",
+    "source": "news-board-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 580,
+      "height": 420,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:opened-corpse-gump",
+    "scope": "client",
+    "name": "Opened Corpse",
+    "className": "OpenedCorpseGump",
+    "type": "corpse-filter:${this.corpseSerial}",
+    "source": "opened-corpse-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 240,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:options-gump",
+    "scope": "client",
+    "name": "Options",
+    "className": "OptionsGump",
+    "type": "options",
+    "source": "options-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 240,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:paperdoll-gump",
+    "scope": "client",
+    "name": "Paperdoll",
+    "className": "PaperdollGump",
+    "type": "paperdoll",
+    "source": "paperdoll-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 262,
+      "height": 324,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:party-gump",
+    "scope": "client",
+    "name": "Party",
+    "className": "PartyGump",
+    "type": "party",
+    "source": "party-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 240,
+      "height": 160,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:party-health-sidebar-gump",
+    "scope": "client",
+    "name": "Party Health Sidebar",
+    "className": "PartyHealthSidebarGump",
+    "type": "party-health-sidebar",
+    "source": "party-health-sidebar.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 240,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:pet-stable-gump",
+    "scope": "client",
+    "name": "Pet Stable",
+    "className": "PetStableGump",
+    "type": "pet-stable",
+    "source": "pet-stable-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 400,
+      "height": 320,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:pet-training-gump",
+    "scope": "client",
+    "name": "Pet Training",
+    "className": "PetTrainingGump",
+    "type": "pet-training",
+    "source": "pet-training-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 360,
+      "height": 60,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:player-vendor-gump",
+    "scope": "client",
+    "name": "Player Vendor",
+    "className": "PlayerVendorGump",
+    "type": "player-vendor",
+    "source": "player-vendor-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 360,
+      "height": 360,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:popup-menu-gump",
+    "scope": "client",
+    "name": "Popup Menu",
+    "className": "PopupMenuGump",
+    "type": "popup-menu",
+    "source": "popup-menu-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 240,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:profile-gump",
+    "scope": "client",
+    "name": "Profile",
+    "className": "ProfileGump",
+    "type": "profile:${this.info.serial}",
+    "source": "profile-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 400,
+      "height": 320,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:quest-log-gump",
+    "scope": "client",
+    "name": "Quest Log",
+    "className": "QuestLogGump",
+    "type": "quest-log",
+    "source": "learning-gumps.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 80,
+      "height": 22,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:question-gump",
+    "scope": "client",
+    "name": "Question",
+    "className": "QuestionGump",
+    "type": "question",
+    "source": "question-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 300,
+      "height": 130,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:race-change-gump",
+    "scope": "client",
+    "name": "Race Change",
+    "className": "RaceChangeGump",
+    "type": "race-change",
+    "source": "race-change-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 540,
+      "height": 360,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:racial-abilities-book-gump",
+    "scope": "client",
+    "name": "Racial Abilities Book",
+    "className": "RacialAbilitiesBookGump",
+    "type": "racial-abilities",
+    "source": "racial-abilities-book-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 360,
+      "height": 320,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:resizable-gump",
+    "scope": "client",
+    "name": "Resizable",
+    "className": "ResizableGump",
+    "type": null,
+    "source": "resizable-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 240,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:resource-diagnostics-gump",
+    "scope": "client",
+    "name": "Resource Diagnostics",
+    "className": "ResourceDiagnosticsGump",
+    "type": "resource-diagnostics",
+    "source": "resource-diagnostics-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 520,
+      "height": 380,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:resurrect-gump",
+    "scope": "client",
+    "name": "Resurrect",
+    "className": "ResurrectGump",
+    "type": "resurrect-offer",
+    "source": "resurrect-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 360,
+      "height": 220,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:runebook-gump",
+    "scope": "client",
+    "name": "Runebook",
+    "className": "RunebookGump",
+    "type": "runebook",
+    "source": "runebook-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 380,
+      "height": 480,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:sell-shop-gump",
+    "scope": "client",
+    "name": "Sell Shop",
+    "className": "SellShopGump",
+    "type": null,
+    "source": "buy-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 240,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:skill-button-gump",
+    "scope": "client",
+    "name": "Skill Button",
+    "className": "SkillButtonGump",
+    "type": "skill-btn:${this.skill.id}",
+    "source": "skill-button-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 240,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:skill-gump-advanced",
+    "scope": "client",
+    "name": "Skill Gump Advanced",
+    "className": "SkillGumpAdvanced",
+    "type": "skills-advanced",
+    "source": "skill-gump-advanced.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 470,
+      "height": 490,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:skills-gump",
+    "scope": "client",
+    "name": "Skills",
+    "className": "SkillsGump",
+    "type": "skills",
+    "source": "skills-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 360,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:specialization-gump",
+    "scope": "client",
+    "name": "Specialization",
+    "className": "SpecializationGump",
+    "type": null,
+    "source": "specialization-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 720,
+      "height": 430,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:spell-composer-gump",
+    "scope": "client",
+    "name": "Spell Composer",
+    "className": "SpellComposerGump",
+    "type": "spell-composer",
+    "source": "spell-composer-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 620,
+      "height": 570,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:spellbook-gump",
+    "scope": "client",
+    "name": "Spellbook",
+    "className": "SpellbookGump",
+    "type": "spellbook",
+    "source": "spellbook-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 240,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:split-menu-gump",
+    "scope": "client",
+    "name": "Split Menu",
+    "className": "SplitMenuGump",
+    "type": "split-menu",
+    "source": "split-menu-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 240,
+      "height": 150,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:status-gump",
+    "scope": "client",
+    "name": "Status",
+    "className": "StatusGump",
+    "type": "status",
+    "source": "status-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 240,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:text-container-gump",
+    "scope": "client",
+    "name": "Text Container",
+    "className": "TextContainerGump",
+    "type": "text-container:${this.containerSerial}",
+    "source": "text-container-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 340,
+      "height": 360,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:text-entry-dialog-gump",
+    "scope": "client",
+    "name": "Text Entry Dialog",
+    "className": "TextEntryDialogGump",
+    "type": "text-entry-dialog",
+    "source": "text-entry-dialog-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 160,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:tip-notice-gump",
+    "scope": "client",
+    "name": "Tip Notice",
+    "className": "TipNoticeGump",
+    "type": null,
+    "source": "tip-notice-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 360,
+      "height": 220,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:top-bar-gump",
+    "scope": "client",
+    "name": "Top Bar",
+    "className": "TopBarGump",
+    "type": "topbar",
+    "source": "top-bar-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 240,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:trading-gump",
+    "scope": "client",
+    "name": "Trading",
+    "className": "TradingGump",
+    "type": "trading",
+    "source": "trading-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 240,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:trick-or-treat-gump",
+    "scope": "client",
+    "name": "Trick Or Treat",
+    "className": "TrickOrTreatGump",
+    "type": "trick-or-treat",
+    "source": "trick-or-treat-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 340,
+      "height": 60,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:ultima-store-gump",
+    "scope": "client",
+    "name": "Ultima Store",
+    "className": "UltimaStoreGump",
+    "type": "ultima-store",
+    "source": "ultima-store-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 240,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:use-ability-button-gump",
+    "scope": "client",
+    "name": "Use Ability Button",
+    "className": "UseAbilityButtonGump",
+    "type": "use-ability:${this.slot}",
+    "source": "use-ability-button-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 240,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:use-spell-button-gump",
+    "scope": "client",
+    "name": "Use Spell Button",
+    "className": "UseSpellButtonGump",
+    "type": "use-spell",
+    "source": "use-spell-button-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 240,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:user-marker-gump",
+    "scope": "client",
+    "name": "User Marker",
+    "className": "UserMarkerGump",
+    "type": "user-marker:${this._marker.id ?? ",
+    "source": "user-marker-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 280,
+      "height": 220,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:vendor-inventory-gump",
+    "scope": "client",
+    "name": "Vendor Inventory",
+    "className": "VendorInventoryGump",
+    "type": "vendor-inventory",
+    "source": "vendor-rental-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 380,
+      "height": 260,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:vendor-rental-gump",
+    "scope": "client",
+    "name": "Vendor Rental",
+    "className": "VendorRentalGump",
+    "type": "vendor-rental",
+    "source": "vendor-rental-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 380,
+      "height": 260,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:vendor-search-gump",
+    "scope": "client",
+    "name": "Vendor Search",
+    "className": "VendorSearchGump",
+    "type": "vendor-search",
+    "source": "vendor-search-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 420,
+      "height": 380,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:veteran-rewards-gump",
+    "scope": "client",
+    "name": "Veteran Rewards",
+    "className": "VeteranRewardsGump",
+    "type": "veteran-rewards",
+    "source": "system-status-gumps.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 80,
+      "height": 22,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:virtue-gump",
+    "scope": "client",
+    "name": "Virtue",
+    "className": "VirtueGump",
+    "type": null,
+    "source": "virtue-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 250,
+      "height": 320,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:vv-vbattle-gump",
+    "scope": "client",
+    "name": "Vv VBattle",
+    "className": "VvVBattleGump",
+    "type": "vvv-battle",
+    "source": "vvv-battle-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 400,
+      "height": 280,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:vv-vbattle-standard-gump",
+    "scope": "client",
+    "name": "Vv VBattle Standard",
+    "className": "VvVBattleStandardGump",
+    "type": "vvv-standard",
+    "source": "vvv-extra-gumps.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 420,
+      "height": 360,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:vv-vmember-list-gump",
+    "scope": "client",
+    "name": "Vv VMember List",
+    "className": "VvVMemberListGump",
+    "type": "vvv-members",
+    "source": "vvv-extra-gumps.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 420,
+      "height": 360,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:vv-vmission-board-gump",
+    "scope": "client",
+    "name": "Vv VMission Board",
+    "className": "VvVMissionBoardGump",
+    "type": "vvv-missions",
+    "source": "vvv-extra-gumps.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 420,
+      "height": 360,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:vv-vreward-store-gump",
+    "scope": "client",
+    "name": "Vv VReward Store",
+    "className": "VvVRewardStoreGump",
+    "type": "vvv-store",
+    "source": "vvv-extra-gumps.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 420,
+      "height": 360,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:vv-vstatistics-gump",
+    "scope": "client",
+    "name": "Vv VStatistics",
+    "className": "VvVStatisticsGump",
+    "type": "vvv-stats",
+    "source": "vvv-extra-gumps.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 420,
+      "height": 360,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:window-gump",
+    "scope": "client",
+    "name": "Window",
+    "className": "WindowGump",
+    "type": null,
+    "source": "window-gump.js",
+    "abstract": true,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 240,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:world-viewport-gump",
+    "scope": "client",
+    "name": "World Viewport",
+    "className": "WorldViewportGump",
+    "type": "world-viewport",
+    "source": "world-viewport-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 240,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  },
+  {
+    "definitionId": "client:worldmap-gump",
+    "scope": "client",
+    "name": "Worldmap",
+    "className": "WorldmapGump",
+    "type": "worldmap",
+    "source": "worldmap-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": false,
+      "x": 0,
+      "y": 0,
+      "width": 320,
+      "height": 240,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": false,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": []
+  }
+]

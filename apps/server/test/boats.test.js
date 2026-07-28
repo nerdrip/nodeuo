@@ -12,13 +12,18 @@ afterEach(() => {
 
 function makeApi() {
   const world = new World();
+  const worldItemPackets = [];
   return {
     world,
+    worldItemPackets,
     items: { createItem, destroyItem },
     systems: { cannons: { placeCannon } },
     isWaterAt: () => true,
     protocol: {
-      worldItemSA: () => new Uint8Array([0xF3]),
+      worldItemSA: (data) => {
+        worldItemPackets.push(data);
+        return new Uint8Array([0xF3]);
+      },
       mobileMoving: () => new Uint8Array([0x77]),
       unicodeMessage: () => new Uint8Array([0xAE]),
     },
@@ -49,6 +54,25 @@ describe('boat system parity', () => {
     const plank = api.world.items.get(boat.boat.planks[0]);
     expect(cannon._mountSerial).toBe(boat.serial);
     expect(plank.boatPlank.boatSerial).toBe(boat.serial);
+  });
+
+  it('migrates restored static-art hull ids before clients can see them', () => {
+    const api = makeApi();
+    const legacyBoat = createItem(api.world, {
+      itemId: 0x3E96,
+      x: 100,
+      y: 100,
+      z: 0,
+      map: 1,
+      boat: {
+        facing: 'N', hullKind: 'small', riders: [], planks: [], cannons: [], anchored: true,
+      },
+    });
+
+    const boats = startBoatSystem(api);
+    running.push(boats);
+    expect(legacyBoat).toMatchObject({ itemId: 0, artId: 0, multiId: 0 });
+    expect(api.world._boats.has(legacyBoat.serial)).toBe(true);
   });
 
   it('moves planks, cannons, tillerman and riders with the sailing hull', () => {
@@ -178,8 +202,17 @@ describe('boat system parity', () => {
     const before = { dx: cannon.x - boat.x, dy: cannon.y - boat.y, facing: cannon.cannon.facing };
 
     expect(boats.setFacing(boat, 'E')).toBe(true);
+    expect(boat.multiId).toBe(0x31);
     expect({ dx: cannon.x - boat.x, dy: cannon.y - boat.y }).toEqual({ dx: -before.dy, dy: before.dx });
     expect(cannon.cannon.facing).toBe((before.facing + 1) & 3);
+    expect(api.worldItemPackets.find((packet) => packet.serial === boat.serial)).toMatchObject({
+      itemId: 0x31,
+      dataType: 2,
+    });
+    expect(api.worldItemPackets.find((packet) => packet.serial === cannon.serial)).toMatchObject({
+      itemId: cannon.itemId,
+      dataType: 0,
+    });
   });
 
   it('routes cannon splash through armor-aware boat damage', () => {

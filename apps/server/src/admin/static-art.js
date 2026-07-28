@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import sharp from 'sharp';
+import sharp from './safe-sharp.js';
 
 const ASSETS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../client/public/assets');
 let manifest = null;

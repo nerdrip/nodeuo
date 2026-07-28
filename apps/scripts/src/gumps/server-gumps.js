@@ -11,6 +11,8 @@
 //   RaffleGump           — house raffle UI (player vs raffle stone)
 //   HelpCategoriesGump   — the 9-category picker shown on Help (0x9B)
 
+import { configuredGump } from './definition-runtime.js';
+
 /** Generic 5054 panel + text/button helpers. */
 function panel(w, h) { return `{ resizepic 0 0 5054 ${w} ${h} }`; }
 
@@ -39,7 +41,7 @@ export function openGuildGump(gumps, state, guild) {
     `Members: ${members.length}`,
     ...members.slice(0, 10).map((m) => m.name ?? '?'),
   ];
-  gumps.send(state, { layout: layout.join(' '), texts }, (resp) => {
+  gumps.send(state, { definitionId: 'server:gumps-server-gumps:open-guild-gump-1', layout: layout.join(' '), texts }, (resp) => {
     if (resp.buttonId === 1) {
       // leave guild
       state.sendSystemMessage?.('You have left your guild.');
@@ -56,8 +58,8 @@ export function openGuildGump(gumps, state, guild) {
 
 // ---- RaceChangeGump ------------------------------------------------------
 
-export function openRaceChangeGump(gumps, state, applyRaceChange) {
-  const layout = [
+export function openRaceChangeGump(gumps, state, applyRaceChange, definitions) {
+  const fallback = { layout: [
     panel(280, 200),
     `{ text 20 14 1153 0 }`,             // "Change Race"
     `{ button 30 50 9720 9721 1 0 1 }`,  // Human
@@ -67,9 +69,9 @@ export function openRaceChangeGump(gumps, state, applyRaceChange) {
     `{ button 30 110 9720 9721 1 0 3 }`, // Gargoyle
     `{ text 60 112 1149 3 }`,
     `{ button 30 170 4017 4018 1 0 0 }`, // Cancel
-  ].join(' ');
-  const texts = ['Change Race', 'Human', 'Elf', 'Gargoyle'];
-  gumps.send(state, { layout, texts }, (resp) => {
+  ].join(' '), texts: ['Change Race', 'Human', 'Elf', 'Gargoyle'] };
+  const gump = configuredGump(definitions, 'race-change', {}, fallback);
+  gumps.send(state, gump, (resp) => {
     const race = ({ 1: 'human', 2: 'elf', 3: 'gargoyle' })[resp.buttonId];
     if (race && applyRaceChange) applyRaceChange(state.mobile, race);
   });
@@ -77,7 +79,7 @@ export function openRaceChangeGump(gumps, state, applyRaceChange) {
 
 // ---- BulkOrderGump -------------------------------------------------------
 
-export function openBulkOrderGump(gumps, state, bod) {
+export function openBulkOrderGump(gumps, state, bod, definitions) {
   if (!bod) return;
   const layout = [
     panel(400, 280),
@@ -97,7 +99,12 @@ export function openBulkOrderGump(gumps, state, bod) {
     `Material: ${bod.material ?? 'iron'}`,
     bod.exceptional ? 'Exceptional' : 'Normal',
   ];
-  gumps.send(state, { layout, texts }, (resp) => {
+  const configured = configuredGump(definitions, 'bulk-order', {
+    kind: bod.itemKind ?? bod.kind ?? '?', amount: bod.amount ?? 0,
+    collected: bod.collected ?? 0, material: bod.material ?? 'iron',
+    quality: bod.exceptional ? 'Exceptional' : 'Normal',
+  }, { layout, texts });
+  gumps.send(state, configured, (resp) => {
     if (resp.buttonId === 1 && bod.handIn) bod.handIn(state.mobile);
     if (resp.buttonId === 2 && bod.combine) bod.combine(state.mobile);
   });
@@ -105,7 +112,7 @@ export function openBulkOrderGump(gumps, state, bod) {
 
 // ---- HouseSecureInfoGump -------------------------------------------------
 
-export function openHouseSecureInfoGump(gumps, state, house) {
+export function openHouseSecureInfoGump(gumps, state, house, definitions) {
   if (!house) return;
   const layout = [
     panel(320, 200),
@@ -123,7 +130,11 @@ export function openHouseSecureInfoGump(gumps, state, house) {
     `Secures: ${house.secureCount ?? 0}/${house.secureMax ?? 0}`,
     `Co-owners: ${(house.coOwners?.length ?? 0)}`,
   ];
-  gumps.send(state, { layout, texts });
+  gumps.send(state, configuredGump(definitions, 'house-secure-info', {
+    ownerName: house.ownerName ?? '?', lockdownCount: house.lockdownCount ?? 0,
+    lockdownMax: house.lockdownMax ?? 0, secureCount: house.secureCount ?? 0,
+    secureMax: house.secureMax ?? 0, coOwnerCount: house.coOwners?.length ?? 0,
+  }, { layout, texts }));
 }
 
 // ---- HelpCategoriesGump --------------------------------------------------
@@ -143,7 +154,7 @@ const HELP_CATEGORIES = [
   'Other request',
 ];
 
-export function openHelpCategoriesGump(gumps, state, callback) {
+export function openHelpCategoriesGump(gumps, state, callback, definitions) {
   const layout = [
     panel(380, 360),
     `{ text 20 14 1153 0 }`,                  // "Help"
@@ -157,7 +168,8 @@ export function openHelpCategoriesGump(gumps, state, callback) {
   layout.push(`{ button 30 320 4023 4024 1 0 1 }`);   // Submit
   layout.push(`{ button 230 320 4017 4018 1 0 0 }`);  // Cancel
   const texts = ['Page a GM — pick category:', ...HELP_CATEGORIES];
-  gumps.send(state, { layout: layout.join(' '), texts }, (resp) => {
+  const configured = configuredGump(definitions, 'help-categories', {}, { layout: layout.join(' '), texts });
+  gumps.send(state, configured, (resp) => {
     if (resp.buttonId !== 1) { callback?.(-1); return; }
     const chosen = resp.switches.find((s) => s >= 100 && s < 200);
     callback?.(chosen != null ? chosen - 100 : 0);
@@ -166,7 +178,7 @@ export function openHelpCategoriesGump(gumps, state, callback) {
 
 // ---- RaffleGump ----------------------------------------------------------
 
-export function openRaffleGump(gumps, state, raffle, enterFn) {
+export function openRaffleGump(gumps, state, raffle, enterFn, definitions) {
   const layout = [
     panel(340, 260),
     `{ text 20 14 1153 0 }`,
@@ -185,9 +197,27 @@ export function openRaffleGump(gumps, state, raffle, enterFn) {
     `Cost: ${raffle?.entryCost ?? 25000}gp`,
     'Enter',
   ];
-  gumps.send(state, { layout, texts }, (resp) => {
+  const configured = configuredGump(definitions, 'raffle', {
+    prize: raffle?.prize ?? 'a custom house', remainingHours: Math.ceil(remainingMs / 3600_000),
+    entryCost: raffle?.entryCost ?? 25000,
+  }, { layout, texts });
+  gumps.send(state, configured, (resp) => {
     if (resp.buttonId === 1 && enterFn) enterFn(state.mobile);
   });
+}
+
+// Generic bridge for layouts authored in Content Studio. Gameplay scripts can
+// open a newly-created definition immediately without adding another bespoke
+// layout builder here. The generated packet is still the standard UO gump
+// layout/text-table pair; `values` only resolves {{runtime.placeholders}}.
+export function openConfiguredGump(gumps, state, definitions, definitionId, values = {}, callback) {
+  const definition = definitions?.get?.(definitionId)
+    ?? (Array.isArray(definitions)
+      ? definitions.find((entry) => (entry?.definitionId ?? entry?.id) === definitionId)
+      : null);
+  if (!definition) return false;
+  gumps.send(state, configuredGump(definitions, definitionId, values), callback);
+  return true;
 }
 
 // --- script entry point ---------------------------------------------
@@ -204,13 +234,15 @@ export default function register(api) {
   if (api.systems) {
     api.systems.serverGumps = api.systems.serverGumps ?? {};
     api.systems.serverGumps.openGuildGump = openGuildGump;
-    api.systems.serverGumps.openRaceChangeGump = openRaceChangeGump;
-    api.systems.serverGumps.openBulkOrderGump = openBulkOrderGump;
-    api.systems.serverGumps.openHouseSecureInfoGump = openHouseSecureInfoGump;
-    api.systems.serverGumps.openRaffleGump = openRaffleGump;
-    api.systems.serverGumps.openHelpCategoriesGump = openHelpCategoriesGump;
+    const definitions = () => api.systems?.gumpDefinitions;
+    api.systems.serverGumps.openRaceChangeGump = (gumps, state, apply) => openRaceChangeGump(gumps, state, apply, definitions());
+    api.systems.serverGumps.openBulkOrderGump = (gumps, state, bod) => openBulkOrderGump(gumps, state, bod, definitions());
+    api.systems.serverGumps.openHouseSecureInfoGump = (gumps, state, house) => openHouseSecureInfoGump(gumps, state, house, definitions());
+    api.systems.serverGumps.openRaffleGump = (gumps, state, raffle, enter) => openRaffleGump(gumps, state, raffle, enter, definitions());
+    api.systems.serverGumps.openHelpCategoriesGump = (gumps, state, callback) => openHelpCategoriesGump(gumps, state, callback, definitions());
+    api.systems.serverGumps.openConfiguredGump = (gumps, state, definitionId, values, callback) => openConfiguredGump(gumps, state, definitions(), definitionId, values, callback);
   }
-  api.log?.('gumps/server-gumps: 6 openers installed');
+  api.log?.('gumps/server-gumps: 7 openers installed');
   return () => {
     if (api.systems?.serverGumps) {
       delete api.systems.serverGumps.openGuildGump;
@@ -219,6 +251,7 @@ export default function register(api) {
       delete api.systems.serverGumps.openHouseSecureInfoGump;
       delete api.systems.serverGumps.openRaffleGump;
       delete api.systems.serverGumps.openHelpCategoriesGump;
+      delete api.systems.serverGumps.openConfiguredGump;
     }
   };
 }

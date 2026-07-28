@@ -3,8 +3,10 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { performance } from 'node:perf_hooks';
 import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
+import process from 'node:process';
 import { SectorIndex } from '../../apps/server/src/world/sectors.js';
 import { wave2Evidence } from './wave2-evidence.mjs';
+import { pnpmProcess } from './subprocess.mjs';
 
 const ROOT = resolve(import.meta.dirname, '../..');
 const ROADMAP = resolve(ROOT, 'docs/roadmap-300-wave-2.md');
@@ -18,7 +20,10 @@ function probe(name, paths, patterns) {
 }
 function run(label, command, args) {
   const started = performance.now();
-  const result = spawnSync(command, args, { cwd: ROOT, shell: process.platform === 'win32', encoding: 'utf8', timeout: 180_000 });
+  const invocation = command === 'pnpm'
+    ? pnpmProcess(args)
+    : { bin: command === 'node' ? process.execPath : command, args };
+  const result = spawnSync(invocation.bin, invocation.args, { cwd: ROOT, encoding: 'utf8', timeout: 180_000 });
   const row = { label, ok: result.status === 0, ms: Math.round(performance.now() - started), command: [command, ...args].join(' '),
     stdout: String(result.stdout || '').trim().split(/\r?\n/).slice(-8), stderr: String(result.stderr || '').trim().split(/\r?\n/).slice(-8) };
   if (!row.ok) process.stderr.write(`\n[wave2] ${label} failed\n${result.stdout}\n${result.stderr}\n`);

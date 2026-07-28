@@ -7,5 +7,5 @@
 
 export {
   getItem, registerItem, itemsOfKind,
-  getItemByTag, itemVariants,
+  getItemByDefinition, getItemByTag, itemVariants,
 } from './registry.js';

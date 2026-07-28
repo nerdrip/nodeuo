@@ -87,7 +87,7 @@ function defaultGrant(world, mob, pack, gift, streak) {
     case 'ankh-deed': {
       return !!createRewardItem(world, {
         itemId: 0x14F0, name: 'a small ankh deed', parent: pack.serial,
-        deed: 'small-ankh',
+        script: 'addon-deed', addonName: 'stone-ankh',
       });
     }
     default: return false;

@@ -1,4 +1,7 @@
 // Houses — foundation registry + ACL + lockdown tracking + decay.
+
+import { createItem, destroyItem } from '../../world/items.js';
+import { nearbyClients } from '../../world/visibility.js';
 //
 // ServUO `HouseFoundationData` enumerates per-style item caps. The
 // table below mirrors the canonical values: a Small Stone Workshop
@@ -106,6 +109,13 @@ export class HouseRegistry {
     // Keeping it on the instance (vs. module-scope) means tests that
     // spin up multiple registries don't bleed ids between them.
     this.nextHouseId = 1;
+    this.world = null;
+  }
+
+  /** Attach the live world so committed custom-house tiles become visible. */
+  attachWorld(world) {
+    this.world = world ?? null;
+    return this;
   }
 
   /**
@@ -121,6 +131,7 @@ export class HouseRegistry {
       ownerSerial: owner.serial >>> 0,
       ownerName: owner.name ?? 'Unknown',
       map, x1, y1, x2, y2,
+      z: opts.z | 0,
       coowners: new Set(),
       friends: new Set(),
       bans: new Set(),
@@ -129,11 +140,17 @@ export class HouseRegistry {
       vendors: new Set(),
       createdAt: Date.now(),
       lastTouchedAt: Date.now(),
-      sign: {
-        x: x1, y: y2 + 1,
+      sign: opts.sign ?? {
+        x: x1, y: y2 + 1, z: opts.z | 0,
         title: opts.title ?? 'Small Stone House',
       },
       foundation: opts.foundation ?? 'small-stone',
+      multiId: opts.multiId == null ? null : (opts.multiId | 0),
+      multiSerial: opts.multiSerial == null ? null : (opts.multiSerial >>> 0),
+      multiInstance: opts.multiInstance == null ? null : (opts.multiInstance >>> 0),
+      customizable: opts.customizable === true,
+      source: opts.source ?? 'registry',
+      customItemSerials: [],
     };
     // Seed item caps from the foundation table. Stored on the house so
     // future code (deed upgrades, GM gump) can mutate without re-deriving.
@@ -266,6 +283,36 @@ export class HouseRegistry {
 
   remove(id) {
     return this.houses.delete(id);
+  }
+
+  get(id) { return this.houses.get(id | 0) ?? null; }
+
+  /** Resolve a registry record from a canonical multi anchor/proxy. */
+  houseByMultiInstance(instanceId) {
+    if (instanceId == null) return null;
+    const wanted = instanceId >>> 0;
+    for (const house of this.houses.values()) {
+      if ((house.multiInstance >>> 0) === wanted) return house;
+    }
+    return null;
+  }
+
+  houseByMultiSerial(serial) {
+    if (serial == null) return null;
+    const wanted = serial >>> 0;
+    for (const house of this.houses.values()) {
+      if ((house.multiSerial >>> 0) === wanted) return house;
+    }
+    return null;
+  }
+
+  /** Resolve the house selected by its sign/UI, with ownership enforced. */
+  activeHouseFor(mob, activeHouseId = null, hintedSerial = null) {
+    if (!mob) return null;
+    let house = activeHouseId == null ? null : this.get(activeHouseId);
+    if (!house && hintedSerial != null) house = this.houseByMultiSerial(hintedSerial);
+    if (!house) house = this.housesOf(mob.serial)[0] ?? null;
+    return house && this.roleOf(house, mob.serial) === 'owner' ? house : null;
   }
 
   /** Find the house that contains world coord (x, y) on `map`. */
@@ -456,6 +503,23 @@ export class HouseRegistry {
 
   removeCustomItem(house, g, x, y, z = 0) {
     if (!house.editing) return 0;
+    // The web editor uses graphic 0 as "erase the topmost authored piece at
+    // this tile" because a terrain pick does not necessarily carry the
+    // dynamic item's graphic. Resolve that wildcard server-side.
+    if ((g >>> 0) === 0) {
+      const candidates = house.editing.tiles
+        .map((tile, index) => ({ tile, index }))
+        .filter(({ tile }) => tile.x === (x | 0) && tile.y === (y | 0));
+      if (!candidates.length) return 0;
+      candidates.sort((a, b) => {
+        const da = Math.abs(a.tile.z - (z | 0));
+        const db = Math.abs(b.tile.z - (z | 0));
+        return da - db || b.tile.z - a.tile.z;
+      });
+      house.editing.tiles.splice(candidates[0].index, 1);
+      this._recordCustom(house);
+      return 1;
+    }
     const before = house.editing.tiles.length;
     house.editing.tiles = house.editing.tiles.filter((t) =>
       !(t.g === (g >>> 0) && t.x === (x | 0) && t.y === (y | 0) && t.z === (z | 0)));
@@ -491,7 +555,53 @@ export class HouseRegistry {
     house.tiles = this._cloneCustomTiles(house.editing.tiles);
     house.revision = (house.revision ?? 0) + 1;
     house.editing = null;
+    this._materializeCustomTiles(house);
     return true;
+  }
+
+  /**
+   * Rebuild the visible dynamic pieces for a committed custom foundation.
+   * The foundation remains a canonical multi; authored walls/floors/doors
+   * are regular immovable world items so they stream, persist and collide
+   * through the same authoritative world path as every other item.
+   */
+  _materializeCustomTiles(house) {
+    const world = this.world;
+    if (!world || !house) return 0;
+    for (const serial of house.customItemSerials ?? []) {
+      const old = world.items.get(serial >>> 0);
+      if (old) {
+        for (const mob of nearbyClients(world, old)) mob.client?.sendRemove?.(old.serial);
+        destroyItem(world, old.serial);
+      }
+    }
+    house.customItemSerials = [];
+    for (const tile of house.tiles ?? []) {
+      const item = createItem(world, {
+        itemId: tile.g >>> 0,
+        x: tile.x | 0, y: tile.y | 0, z: tile.z | 0, map: house.map | 0,
+        name: `custom house ${tile.kind ?? 'piece'}`,
+        movable: false,
+        visible: true,
+        _customHouseId: house.id,
+        _noDecay: true,
+      });
+      item._customHouseId = house.id;
+      item._noDecay = true;
+      item.house = house.id;
+      if (tile.kind === 'wall' || tile.kind === 'roof') {
+        item.solid = true;
+        item.height = 20;
+      } else if (tile.kind === 'door') {
+        item.door = {
+          closedId: tile.g >>> 0, openId: ((tile.g >>> 0) + 1) & 0xffff,
+          isOpen: false, facing: null,
+        };
+      }
+      house.customItemSerials.push(item.serial >>> 0);
+      for (const mob of nearbyClients(world, item)) mob.client?.sendItem?.(item);
+    }
+    return house.customItemSerials.length;
   }
 
   revertCustom(house) {
@@ -605,7 +715,8 @@ export class HouseRegistry {
       if (tile.x < house.x1 - 1 || tile.x > house.x2 + 1 || tile.y < house.y1 - 1 || tile.y > house.y2 + 1) {
         errors.push(`Tile ${i}: outside foundation (${tile.x},${tile.y}).`);
       }
-      if (tile.z < -20 || tile.z > 100) errors.push(`Tile ${i}: invalid elevation ${tile.z}.`);
+      const baseZ = house?.z | 0;
+      if (tile.z < baseZ - 20 || tile.z > baseZ + 100) errors.push(`Tile ${i}: invalid elevation ${tile.z}.`);
       const key = `${tile.x}|${tile.y}|${tile.z}|${tile.kind}`;
       const count = (seen.get(key) ?? 0) + 1;
       seen.set(key, count);

@@ -54,6 +54,7 @@ import { walker } from '../managers/walker.js';
 import { profile } from '../managers/profile-manager.js';
 import { DIR_DX, DIR_DY, DIR_MASK, DIR_RUNNING_BIT, directionFromDelta } from '../shared/directions.js';
 import { isDeadBody } from '../shared/bodies.js';
+import { applyWorldItemInfo, captureNameFromSingleClick, u16, u32 } from './packet-state.js';
 import {
   extNodeUOCapabilities,
   NODEUO_CAPABILITIES_ALL,
@@ -81,44 +82,6 @@ import {
  *  name. Capture it so the overhead label stops showing the raw serial
  *  the moment the server replies — without it the label only updates
  *  when the user opens the paperdoll (0x88 carries the name too). */
-/** Big-endian u32 read at byte offset `o`. Used by the 0xBF subop fan-out
- *  where `payload` is the bytes AFTER the `op + len + subop` header. */
-function u32(payload, o) {
-  if (!payload || payload.length < o + 4) return 0;
-  return ((payload[o] << 24) | (payload[o + 1] << 16) | (payload[o + 2] << 8) | payload[o + 3]) >>> 0;
-}
-
-function u16(payload, o) {
-  if (!payload || payload.length < o + 2) return 0;
-  return ((payload[o] << 8) | payload[o + 1]) & 0xffff;
-}
-
-function captureNameFromSingleClick(m) {
-  if (!m || m.name !== 'You see' || !m.text) return;
-  const mob = world.mobiles.get(m.serial >>> 0);
-  if (mob) mob.name = String(m.text).trim();
-}
-
-function applyWorldItemInfo(it, info) {
-  const graphic = info.graphic | 0;
-  it.type = info.type | 0;
-  it.graphic = graphic;
-  it.itemId = graphic;
-  it.amount = info.amount | 0;
-  it.x = info.x | 0;
-  it.y = info.y | 0;
-  it.z = info.z | 0;
-  // WorldItem packets do not carry a facet id. ClassicUO assigns them to
-  // World.MapIndex (the currently active map); leaving this undefined made
-  // our spatial index fall back to map 1. Trammel therefore worked by
-  // accident while Felucca/Malas/Tokuno/Ter Mur items were indexed on the
-  // wrong facet and either vanished or resurfaced as stale render ghosts.
-  it.map = world.mapId | 0;
-  it.hue = info.hue | 0;
-  it.flags = info.flags | 0;
-  if (typeof info.direction === 'number') it.direction = info.direction | 0;
-  if (typeof info.facing === 'number') it.facing = info.facing | 0;
-}
 
 /** Authoritative client-side cache of the local player's war state.
  *  Updated on every 0x72 echo + consulted by `_applySelfWarLatch` to
@@ -514,8 +477,8 @@ export function registerHandlers(net) {
     const oldParent = it.parent | 0;
     const oldX = it.x, oldY = it.y, oldMap = it.map ?? 1;
     applyWorldItemInfo(it, info);
-    if (info.type === 2) it.multiId = info.graphic;
-    if (info.type === 1) it.isCorpse = true;
+    it.multiId = info.type === 2 ? info.graphic : null;
+    it.isCorpse = info.type === 1;
     // Audit #34 P1 #1 — `decodeWorldItem` only returns `type: 0 | 2`,
     // never 1, so the `info.type === 1` branch above never fires on
     // 0x1A. CUO `Item.IsCorpse` is derived from `graphic === 0x2006`.
@@ -533,8 +496,8 @@ export function registerHandlers(net) {
     const oldParent = it.parent | 0;
     const oldX = it.x, oldY = it.y, oldMap = it.map ?? 1;
     applyWorldItemInfo(it, info);
-    if (info.type === 2) it.multiId = info.graphic;
-    if (info.type === 1) it.isCorpse = true;
+    it.multiId = info.type === 2 ? info.graphic : null;
+    it.isCorpse = info.type === 1;
     // Audit #34 P1 #1 — mirror the 0x1A fix for SA frames that also
     // sometimes ship corpse graphics without the type byte set.
     if (info.graphic === 0x2006) it.isCorpse = true;
@@ -569,8 +532,8 @@ export function registerHandlers(net) {
           const oldParent = it.parent | 0;
           const oldX = it.x, oldY = it.y, oldMap = it.map ?? 1;
           applyWorldItemInfo(it, info);
-          if (info.type === 2) it.multiId = info.graphic;
-          if (info.type === 1) it.isCorpse = true;
+          it.multiId = info.type === 2 ? info.graphic : null;
+          it.isCorpse = info.type === 1;
           if (info.graphic === 0x2006) it.isCorpse = true;
           world.linkItemParent(it, oldParent);
           world.reindexItem?.(it, oldX, oldY, oldMap, oldParent);
@@ -1767,7 +1730,16 @@ export function registerHandlers(net) {
         try {
           const text = new TextDecoder('utf-8').decode(ext.payload.subarray(2, 2 + len));
           const data = JSON.parse(text);
-          bus.emit('shard:commands', data);
+          const catalogue = {
+            accessLevel: String(data?.accessLevel || 'Player'),
+            commands: Array.isArray(data?.commands) ? data.commands : [],
+          };
+          // Capability negotiation normally completes before GameScene is
+          // constructed. A plain event was therefore lost and an Admin saw
+          // the panel's hard-coded Player fallback. Cache the latest payload
+          // for late subscribers; world.reset() clears it on disconnect.
+          world.commandCatalogue = catalogue;
+          bus.emit('shard:commands', catalogue);
         } catch (err) {
           console.warn('[shard:commands] parse threw', err?.message);
         }

@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NodeUO Scriptbook</title>
+<link rel="stylesheet" href="/admin-assets/admin.css">
+<style>
+  :root{--docs-bg:#080b0f;--docs-panel:#0d1218;--docs-panel-2:#111821;--docs-border:#283241;--docs-text:#d8dee8;--docs-muted:#8995a5;--docs-gold:#f0c66f;--docs-cyan:#72d5e8;--docs-green:#82d8a0;--docs-code:#080b10;--docs-danger:#ff8f8f}
+  *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(circle at 55% -20%,#193047 0,transparent 38%),var(--docs-bg);color:var(--docs-text);font:14px/1.65 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+  button,input{font:inherit}.topbar{height:62px;position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:14px;padding:0 22px;background:#090d12eF;backdrop-filter:blur(18px);border-bottom:1px solid var(--docs-border)}
+  .brand{display:flex;align-items:center;gap:11px;min-width:238px}.brand-mark{display:grid;place-items:center;width:34px;height:34px;border:1px solid #7b6534;border-radius:10px;background:linear-gradient(145deg,#211a0d,#0b0f13);color:var(--docs-gold);font:700 15px Georgia,serif;box-shadow:0 0 0 4px #f0c66f0c}.brand b{letter-spacing:.12em;color:#f5d68f}.brand small{display:block;color:var(--docs-muted);font-size:10px;letter-spacing:.08em;text-transform:uppercase}
+  .top-search{position:relative;max-width:620px;flex:1}.top-search input{width:100%;height:38px;padding:0 72px 0 37px;color:var(--docs-text);background:#0d131a;border:1px solid var(--docs-border);border-radius:9px;outline:none}.top-search input:focus{border-color:#5c91aa;box-shadow:0 0 0 3px #72d5e815}.search-icon{position:absolute;left:13px;top:8px;color:var(--docs-muted)}.key{position:absolute;right:9px;top:8px;padding:1px 7px;border:1px solid #364250;border-radius:5px;color:var(--docs-muted);font:11px/20px ui-monospace,monospace}
+  .top-actions{display:flex;gap:8px}.top-actions a,.mobile-menu{display:inline-flex;align-items:center;justify-content:center;height:34px;padding:0 11px;border:1px solid var(--docs-border);border-radius:7px;color:#b8c4d2;text-decoration:none;background:#0d131a}.top-actions a:hover{color:var(--docs-gold);border-color:#705e36}.mobile-menu{display:none}
+  .shell{display:grid;grid-template-columns:274px minmax(0,1fr) 230px;min-height:calc(100vh - 62px)}.sidebar,.toc{position:sticky;top:62px;height:calc(100vh - 62px);overflow:auto}.sidebar{padding:24px 17px;border-right:1px solid var(--docs-border);background:#090d12b8}.toc{padding:31px 18px;border-left:1px solid #202936}
+  .side-label{margin:0 8px 8px;color:#718094;font-size:10px;font-weight:800;letter-spacing:.13em;text-transform:uppercase}.page-nav{display:grid;gap:4px;margin-bottom:25px}.page-link{display:grid;grid-template-columns:28px 1fr;align-items:center;width:100%;padding:8px 10px;text-align:left;color:#a9b4c2;background:transparent;border:1px solid transparent;border-radius:8px;cursor:pointer}.page-link:hover{background:#111821;color:#e9edf3}.page-link.active{color:#ffe0a0;background:linear-gradient(90deg,#33270f99,#111821);border-color:#5d4b28}.page-link .icon{font-size:15px}.page-link small{display:block;color:#718094;font-size:10px}
+  .quick{margin:8px;padding:13px;border:1px solid #26313e;border-radius:10px;background:#0e141b}.quick b{display:block;color:#d9e3ed;font-size:12px}.quick p{margin:4px 0 9px;color:var(--docs-muted);font-size:11px}.quick a{color:var(--docs-cyan);font-size:11px;text-decoration:none}
+  .content{min-width:0;padding:38px clamp(28px,5vw,82px) 100px}.hero{position:relative;overflow:hidden;margin-bottom:34px;padding:30px;border:1px solid #344252;border-radius:16px;background:linear-gradient(135deg,#131c26,#0c1117 60%);box-shadow:0 25px 70px #0006}.hero:after{content:"{}";position:absolute;right:27px;top:-27px;color:#f0c66f0b;font:800 150px/1 ui-monospace,monospace}.eyebrow{color:var(--docs-gold);font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase}.hero h1{max-width:720px;margin:5px 0 8px;font:600 clamp(28px,4vw,44px)/1.1 Georgia,serif;color:#f4f0e8}.hero p{max-width:720px;margin:0;color:#9eabb9}.metrics{display:flex;gap:8px;flex-wrap:wrap;margin-top:20px}.metric{padding:6px 10px;border:1px solid #32404e;border-radius:999px;background:#0b1117;color:#aab6c4;font-size:11px}.metric b{color:var(--docs-green);font-weight:700}
+  .article{max-width:980px;margin:auto}.article h1,.article h2,.article h3,.article h4{scroll-margin-top:82px;color:#f0f3f6;line-height:1.25}.article h1{margin:0 0 18px;font:600 34px/1.2 Georgia,serif}.article h2{margin:48px 0 15px;padding-top:10px;border-top:1px solid #202a35;font-size:24px}.article h3{margin:29px 0 10px;font-size:18px;color:#e8d4a4}.article h4{font-size:15px}.heading-anchor{margin-left:8px;color:#405166;text-decoration:none;opacity:0}.article h2:hover .heading-anchor,.article h3:hover .heading-anchor{opacity:1}.article p{margin:12px 0;color:#b8c2ce}.article a{color:var(--docs-cyan);text-underline-offset:3px}.article strong{color:#eef2f6}.article code{padding:2px 5px;border:1px solid #2b3541;border-radius:5px;background:#10161d;color:#f3cf82;font:12.5px/1.5 "Cascadia Code",Consolas,monospace}.article pre{position:relative;overflow:auto;margin:17px 0 23px;padding:18px 20px;border:1px solid #283442;border-radius:10px;background:var(--docs-code);box-shadow:inset 3px 0 #5a8da0}.article pre code{padding:0;border:0;background:none;color:#c9d4df;white-space:pre;font-size:12px}.copy{position:absolute;right:8px;top:8px;padding:4px 8px;border:1px solid #344252;border-radius:6px;background:#111821;color:#8998a9;font-size:10px;cursor:pointer}.copy:hover{color:#fff}.article blockquote{margin:20px 0;padding:12px 16px;border-left:3px solid var(--docs-gold);border-radius:0 8px 8px 0;background:#2a210f55;color:#e4cf9c}.article blockquote p{margin:0;color:inherit}.article ul,.article ol{padding-left:24px;color:#b8c2ce}.article li{margin:5px 0}.table-wrap{overflow:auto;margin:18px 0 25px;border:1px solid #2a3542;border-radius:10px}.article table{width:100%;border-collapse:collapse;background:#0c1117}.article th,.article td{padding:10px 13px;text-align:left;vertical-align:top;border-bottom:1px solid #202a35}.article th{color:#f0cc7f;background:#111821;font-size:11px;letter-spacing:.04em}.article tr:last-child td{border-bottom:0}.article tr:hover td{background:#101720}.article hr{border:0;border-top:1px solid #28323d;margin:35px 0}
+  .toc h3{margin:0 0 12px;color:#7e8b9a;font-size:10px;letter-spacing:.13em;text-transform:uppercase}.toc-links{display:grid;gap:3px;border-left:1px solid #293440}.toc a{padding:4px 0 4px 13px;color:#788698;text-decoration:none;font-size:11px;line-height:1.35}.toc a:hover,.toc a.active{color:var(--docs-gold);border-left:1px solid var(--docs-gold);margin-left:-1px}.toc a.depth-3{padding-left:24px;color:#667586}.source-meta{margin-top:24px;padding-top:14px;border-top:1px solid #242e39;color:#657284;font:10px/1.5 ui-monospace,monospace;word-break:break-word}
+  .search-results{position:fixed;z-index:50;left:50%;top:54px;width:min(680px,calc(100vw - 24px));max-height:min(620px,75vh);overflow:auto;transform:translateX(-50%);padding:8px;border:1px solid #3a4858;border-radius:11px;background:#0d131a;box-shadow:0 28px 80px #000c}.search-results[hidden]{display:none}.result{display:block;width:100%;padding:11px 12px;text-align:left;border:0;border-radius:7px;background:transparent;color:#c8d1dc;cursor:pointer}.result:hover,.result.active{background:#17212c}.result b{color:#f0cc7f}.result small{display:block;margin-top:3px;color:#7f8c9c}.empty,.loading{display:grid;place-items:center;min-height:350px;color:#7f8b99}.error{padding:20px;border:1px solid #713d45;border-radius:10px;background:#281318;color:#ffb4b4}
+  @media(max-width:1180px){.shell{grid-template-columns:250px minmax(0,1fr)}.toc{display:none}}
+  @media(max-width:780px){.topbar{padding:0 12px}.brand{min-width:0}.brand div:last-child,.top-actions a:not(.admin-link),.key{display:none}.mobile-menu{display:inline-flex}.shell{display:block}.sidebar{position:fixed;z-index:40;left:0;top:62px;width:280px;transform:translateX(-102%);transition:transform .2s}.sidebar.open{transform:none}.content{padding:24px 16px 80px}.hero{padding:23px}.hero:after{display:none}.article h1{font-size:29px}}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <button class="mobile-menu" id="menu" aria-label="Otwórz nawigację">☰</button>
+  <div class="brand"><div class="brand-mark">UO</div><div><b>NODEUO SCRIPTBOOK</b><small>Authoring documentation</small></div></div>
+  <div class="top-search"><span class="search-icon">⌕</span><input id="search" aria-label="Szukaj w dokumentacji" placeholder="Szukaj API, configu, przykładu…" autocomplete="off"><span class="key">Ctrl K</span></div>
+  <div class="top-actions"><a href="/studio">Content Studio</a><a href="/" class="admin-link">← Admin</a></div>
+</header>
+<div id="search-results" class="search-results" hidden></div>
+<div class="shell">
+  <aside class="sidebar" id="sidebar">
+    <p class="side-label">Przewodniki</p>
+    <nav class="page-nav" id="page-nav" aria-label="Rozdziały dokumentacji"></nav>
+    <p class="side-label">Narzędzia</p>
+    <div class="quick"><b>Edytuj zawartość wizualnie</b><p>Itemy, mobile, czary, AI, gumpy i dane świata.</p><a href="/studio">Otwórz Content Studio →</a></div>
+    <div class="quick"><b>Pełna regresja</b><p>Po zmianach skryptów uruchom testy serwera.</p><code>pnpm --filter @uo/server test</code></div>
+  </aside>
+  <main class="content">
+    <section class="hero">
+      <div class="eyebrow">NodeUO · scripts API</div>
+      <h1>Buduj świat bez zgadywania.</h1>
+      <p>Jedno miejsce dla publicznego API, lifecycle, konfiguracji, gumpów i sprawdzonych wzorców skryptów.</p>
+      <div class="metrics" id="metrics"><span class="metric">Ładowanie katalogu…</span></div>
+    </section>
+    <article class="article" id="article"><div class="loading">Ładowanie dokumentacji…</div></article>
+  </main>
+  <aside class="toc"><h3>Na tej stronie</h3><nav class="toc-links" id="toc"></nav><div class="source-meta" id="source-meta"></div></aside>
+</div>
+<script>
+'use strict';
+const state={pages:[],active:null,toc:[],search:[]};
+const $=(id)=>document.getElementById(id);
+const esc=(value)=>String(value??'').replace(/[&<>"']/g,(char)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+const icons={start:'◆',api:'⌘',gumps:'▣',config:'◇',examples:'λ',data:'≡'};
+function slug(value){return String(value).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'section'}
+function safeHref(value){const href=String(value??'').trim();return /^(?:https?:|\/|#|\.\.\/|\.\/)/i.test(href)?href:'#'}
+function inline(raw){
+  let text=esc(raw);
+  text=text.replace(/`([^`]+)`/g,'<code>$1</code>');
+  text=text.replace(/\[([^\]]+)\]\(([^)]+)\)/g,(_all,label,href)=>`<a href="${esc(safeHref(href))}">${label}</a>`);
+  text=text.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
+  text=text.replace(/(^|\s)\*([^*]+)\*/g,'$1<em>$2</em>');
+  return text;
+}
+function isTableDivider(line){return /^\s*\|?(?:\s*:?-{3,}:?\s*\|)+\s*$/.test(line)}
+function tableCells(line){return line.trim().replace(/^\||\|$/g,'').split('|').map((cell)=>cell.trim())}
+function renderMarkdown(markdown){
+  const lines=String(markdown??'').replace(/\r/g,'').split('\n');let html='',i=0;const toc=[],seen=new Map();
+  const special=(line,index)=>!line.trim()||/^#{1,4}\s/.test(line)||/^```/.test(line)||/^>\s?/.test(line)||/^\s*[-*+]\s+/.test(line)||/^\s*\d+\.\s+/.test(line)||/^\s*---+\s*$/.test(line)||(line.includes('|')&&isTableDivider(lines[index+1]??''));
+  while(i<lines.length){const line=lines[i];
+    if(!line.trim()){i++;continue}
+    if(/^```/.test(line)){const language=line.slice(3).trim();const body=[];i++;while(i<lines.length&&!/^```/.test(lines[i]))body.push(lines[i++]);if(i<lines.length)i++;html+=`<pre><button class="copy" type="button">Kopiuj</button><code data-language="${esc(language)}">${esc(body.join('\n'))}</code></pre>`;continue}
+    const heading=/^(#{1,4})\s+(.+)$/.exec(line);if(heading){const depth=heading[1].length;const title=heading[2].replace(/\s+#+$/,'');let id=slug(title);const count=seen.get(id)||0;seen.set(id,count+1);if(count)id+=`-${count+1}`;if(depth<=3)toc.push({depth,title,id});html+=`<h${depth} id="${id}">${inline(title)}${depth>1?`<a class="heading-anchor" href="#${esc(state.active?.id??'')}/${id}" aria-label="Link do sekcji">#</a>`:''}</h${depth}>`;i++;continue}
+    if(line.includes('|')&&isTableDivider(lines[i+1]??'')){const headers=tableCells(line);i+=2;const rows=[];while(i<lines.length&&lines[i].includes('|')&&lines[i].trim())rows.push(tableCells(lines[i++]));html+='<div class="table-wrap"><table><thead><tr>'+headers.map((cell)=>`<th>${inline(cell)}</th>`).join('')+'</tr></thead><tbody>'+rows.map((row)=>'<tr>'+headers.map((_h,index)=>`<td>${inline(row[index]??'')}</td>`).join('')+'</tr>').join('')+'</tbody></table></div>';continue}
+    if(/^>\s?/.test(line)){const body=[];while(i<lines.length&&/^>\s?/.test(lines[i]))body.push(lines[i++].replace(/^>\s?/,''));html+=`<blockquote><p>${inline(body.join(' '))}</p></blockquote>`;continue}
+    const unordered=/^\s*[-*+]\s+/.test(line),ordered=/^\s*\d+\.\s+/.test(line);if(unordered||ordered){const tag=ordered?'ol':'ul',pattern=ordered?/^\s*\d+\.\s+/:/^\s*[-*+]\s+/;const items=[];while(i<lines.length&&pattern.test(lines[i])){let item=lines[i++].replace(pattern,'');while(i<lines.length&&/^\s{2,}\S/.test(lines[i])&&!pattern.test(lines[i]))item+=` ${lines[i++].trim()}`;items.push(item)}html+=`<${tag}>${items.map((item)=>`<li>${inline(item)}</li>`).join('')}</${tag}>`;continue}
+    if(/^\s*---+\s*$/.test(line)){html+='<hr>';i++;continue}
+    const paragraph=[line.trim()];i++;while(i<lines.length&&!special(lines[i],i))paragraph.push(lines[i++].trim());html+=`<p>${inline(paragraph.join(' '))}</p>`;
+  }
+  return{html,toc};
+}
+function renderNav(){
+  $('page-nav').innerHTML=state.pages.map((page)=>`<button class="page-link ${page.id===state.active?.id?'active':''}" data-page="${esc(page.id)}"><span class="icon">${icons[page.icon]??'·'}</span><span>${esc(page.title)}<small>${esc(page.kicker??page.source)}</small></span></button>`).join('');
+  $('page-nav').querySelectorAll('[data-page]').forEach((button)=>button.onclick=()=>openPage(button.dataset.page));
+}
+function openPage(id,anchor='',push=true){
+  const page=state.pages.find((entry)=>entry.id===id)||state.pages[0];if(!page)return;state.active=page;const rendered=renderMarkdown(page.content);state.toc=rendered.toc;$('article').innerHTML=rendered.html;$('toc').innerHTML=rendered.toc.filter((entry)=>entry.depth>1).map((entry)=>`<a class="depth-${entry.depth}" href="#${esc(page.id)}/${entry.id}" data-anchor="${esc(entry.id)}">${esc(entry.title)}</a>`).join('')||'<span style="color:#657284;font-size:11px">Brak podrozdziałów</span>';
+  $('source-meta').innerHTML=`Źródło<br>${esc(page.source)}<br>Aktualizacja: ${esc(new Date(page.updatedAt).toLocaleString('pl-PL'))}`;renderNav();wireArticle();if(push)history.replaceState(null,'',`#${page.id}${anchor?`/${anchor}`:''}`);requestAnimationFrame(()=>{const target=anchor&&document.getElementById(anchor);if(target)target.scrollIntoView();else scrollTo({top:0})});$('sidebar').classList.remove('open');
+}
+function wireArticle(){
+  $('article').querySelectorAll('.copy').forEach((button)=>button.onclick=async()=>{const text=button.nextElementSibling?.textContent??'';await navigator.clipboard.writeText(text);button.textContent='Skopiowano';setTimeout(()=>button.textContent='Kopiuj',1200)});
+  $('article').querySelectorAll('a[href^="#"]').forEach((link)=>link.addEventListener('click',(event)=>{const value=link.getAttribute('href').slice(1);if(value.includes('/')){event.preventDefault();const [page,...parts]=value.split('/');openPage(page,parts.join('/'))}}));
+}
+function buildSearch(){state.search=state.pages.flatMap((page)=>{const heads=[...page.content.matchAll(/^#{1,3}\s+(.+)$/gm)].map((match)=>match[1]);return[{page:page.id,title:page.title,section:'Cała strona',text:page.content},...heads.map((heading)=>({page:page.id,title:page.title,section:heading,text:heading}))]})}
+function doSearch(query){const host=$('search-results'),q=query.trim().toLowerCase();if(!q){host.hidden=true;return}const tokens=q.split(/\s+/);const results=state.search.map((entry)=>{const hay=`${entry.title} ${entry.section} ${entry.text}`.toLowerCase();const score=tokens.reduce((sum,token)=>sum+(hay.includes(token)?(entry.section.toLowerCase().includes(token)?5:1):-20),0);return{...entry,score}}).filter((entry)=>entry.score>=tokens.length).sort((a,b)=>b.score-a.score).slice(0,12);host.innerHTML=results.map((entry)=>`<button class="result" data-result-page="${esc(entry.page)}" data-result-anchor="${esc(entry.section==='Cała strona'?'':slug(entry.section))}"><b>${esc(entry.section)}</b><small>${esc(entry.title)}</small></button>`).join('')||'<div class="result">Brak wyników.</div>';host.hidden=false;host.querySelectorAll('[data-result-page]').forEach((button)=>button.onclick=()=>{openPage(button.dataset.resultPage,button.dataset.resultAnchor);host.hidden=true;$('search').value=''})}
+async function boot(){
+  try{const response=await fetch('/api/docs/scripting',{credentials:'same-origin'});if(response.status===401){location.href='/login';return}if(!response.ok)throw new Error(`HTTP ${response.status}`);const data=await response.json();state.pages=data.pages??[];buildSearch();$('metrics').innerHTML=[['stron',data.pages?.length],['skryptów JS',data.inventory?.scripts],['configów JSON',data.inventory?.configs],['gumpów klienta',data.inventory?.clientGumps],['gumpów serwera',data.inventory?.serverGumps]].filter(([,value])=>Number.isFinite(value)).map(([label,value])=>`<span class="metric"><b>${value}</b> ${label}</span>`).join('');const [page,...anchor]=location.hash.slice(1).split('/');openPage(page||state.pages[0]?.id,anchor.join('/'),false)}catch(error){$('article').innerHTML=`<div class="error"><b>Nie udało się wczytać dokumentacji.</b><br>${esc(error.message)}</div>`}}
+$('search').addEventListener('input',(event)=>doSearch(event.target.value));$('search').addEventListener('keydown',(event)=>{if(event.key==='Escape'){$('search-results').hidden=true;$('search').blur()}});document.addEventListener('keydown',(event)=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='k'){event.preventDefault();$('search').focus()}else if(event.key==='/'&&!/input|textarea/i.test(document.activeElement?.tagName)){event.preventDefault();$('search').focus()}});document.addEventListener('click',(event)=>{if(!event.target.closest('.top-search')&&!event.target.closest('.search-results'))$('search-results').hidden=true});$('menu').onclick=()=>$('sidebar').classList.toggle('open');window.addEventListener('hashchange',()=>{const [page,...anchor]=location.hash.slice(1).split('/');if(page&&page!==state.active?.id)openPage(page,anchor.join('/'),false)});boot();
+</script>
+</body>
+</html>

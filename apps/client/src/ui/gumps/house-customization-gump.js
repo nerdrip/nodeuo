@@ -26,15 +26,15 @@ import { world } from '../../world/world.js';
 import { bus } from '../../core/event-bus.js';
 
 // CUO tool tabs. The `kind` we set on `houseCustomization` determines
-// which 0xD7 builder fires (item / roof / stair).
+// which 0xD7 builder fires and lets NodeUO preserve semantic piece kinds.
 const TABS = [
-  { key: 'walls',    table: 'walls',    kind: 'item',  label: 'Walls'    },
-  { key: 'doors',    table: 'doors',    kind: 'item',  label: 'Doors'    },
-  { key: 'floors',   table: 'floors',   kind: 'item',  label: 'Floors'   },
+  { key: 'walls',    table: 'walls',    kind: 'wall',  label: 'Walls'    },
+  { key: 'doors',    table: 'doors',    kind: 'door',  label: 'Doors'    },
+  { key: 'floors',   table: 'floors',   kind: 'floor', label: 'Floors'   },
   { key: 'stairs',   table: 'stairs',   kind: 'stair', label: 'Stairs'   },
   { key: 'roofs',    table: 'roofs',    kind: 'roof',  label: 'Roof'     },
-  { key: 'misc',     table: 'misc',     kind: 'item',  label: 'Misc'     },
-  { key: 'teleprts', table: 'teleprts', kind: 'item',  label: 'Teleport' },
+  { key: 'misc',     table: 'misc',     kind: 'misc',  label: 'Misc'     },
+  { key: 'teleprts', table: 'teleprts', kind: 'teleport', label: 'Teleport' },
 ];
 
 class TabBtn extends Control {
@@ -180,7 +180,7 @@ export class HouseCustomizationGump extends WindowGump {
     const actions = [
       ['Backup',  () => houseCustomization.backup()],
       ['Restore', () => houseCustomization.restore()],
-      ['Commit',  () => houseCustomization.commit()],
+      ['Commit',  () => { houseCustomization.commit(); this.close(); }],
       ['Revert',  () => houseCustomization.revert()],
       ['Eraser',  () => houseCustomization.toggleEraser()],
       ['Exit',    () => { houseCustomization.exit(); this.close(); }],

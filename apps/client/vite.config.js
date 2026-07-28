@@ -24,11 +24,17 @@ const MAX_BYTES = 12 * 1024 * 1024;
  * new npm dep is needed.
  */
 function precompressPlugin() {
+  let compressed = false;
   return {
     name: 'uo-precompress',
     apply: 'build',
     enforce: 'post',
     async closeBundle() {
+      // Vite 8's environment build can finalize the same client output more
+      // than once. Compression is deterministic, so avoid repeating the most
+      // CPU-expensive post-build pass within one invocation.
+      if (compressed) return;
+      compressed = true;
       const root = path.resolve('dist');
       if (!fs.existsSync(root)) return;
       const queue = [root];
@@ -118,22 +124,34 @@ export default defineConfig(({ mode }) => ({
     // via the //# sourceMappingURL comment — saves a public fetch and
     // hides source from casual viewers. In dev we still get inline maps.
     sourcemap: mode === 'production' ? 'hidden' : true,
-    // esbuild is the default and ~10× faster than terser; the size win
-    // from terser is small enough that it's not worth the build delay.
-    minify: 'esbuild',
+    // Vite 8 uses Oxc for transforms/minification and Rolldown for bundling.
+    // Keep the native fast path instead of pulling the legacy esbuild fallback.
+    minify: 'oxc',
     cssMinify: true,
     // Pixi is intentionally isolated as a long-cache vendor chunk and
     // currently lands around 850 kB minified. Keep the warning above that
     // known vendor floor so future game-code growth still stands out.
     chunkSizeWarningLimit: 900,
-    rollupOptions: {
+    rolldownOptions: {
       output: {
-        // Split the heavy Pixi runtime into its own chunk so the rest
-        // of the bundle (game code) can be re-deployed without
-        // invalidating the long-cached vendor file. Same trick CUO
-        // doesn't get to do — they ship one big binary.
-        manualChunks: {
-          pixi: ['pixi.js'],
+        // Split the heavy Pixi runtime into its own long-cache chunk using
+        // Rolldown's native grouping API. Vite 8 removed object-form
+        // manualChunks together with the Rollup backend.
+        codeSplitting: {
+          groups: [
+            {
+              name: 'pixi',
+              test: /[\\/]node_modules[\\/](?:\.pnpm[\\/][^/\\]+[\\/]node_modules[\\/])?pixi\.js[\\/]/,
+            },
+          ],
+        },
+        minify: {
+          compress: {
+            dropDebugger: true,
+            treeshake: {
+              manualPureFunctions: ['console.debug', 'console.trace'],
+            },
+          },
         },
       },
     },
@@ -154,12 +172,6 @@ export default defineConfig(({ mode }) => ({
     // directly so protocol and client exports always stay in lock-step.
     exclude: ['@uo/protocol'],
   },
-  // Drop dev-time console.debug/console.log from the production bundle
-  // (kept in dev). The renderer hot path emits a few traces that
-  // collectively cost noticeable CPU when DevTools is open.
-  esbuild: mode === 'production'
-    ? { drop: ['debugger'], pure: ['console.debug', 'console.trace'] }
-    : undefined,
   plugins: [
     ensureKtxTranscoderPlugin(),
     precompressPlugin(),

@@ -100,4 +100,16 @@ describe('daily-login', () => {
   it('gift table covers 7 days', () => {
     expect(DAILY_GIFTS.length).toBe(7);
   });
+
+  it('creates a functional stone-ankh addon deed on day seven', () => {
+    const world = mkWorld();
+    const mob = mkMob();
+    const pack = world.createItem({ itemId: 0x0E76, parent: mob.serial, layer: 21 });
+    const acc = mkAccount();
+    acc.lastDailyAt = Date.now() - 25 * 60 * 60 * 1000;
+    acc.dailyStreak = 6;
+    expect(checkAndGrantDailyReward(world, mob, acc)?.gift.key).toBe('ankh-deed');
+    const deed = [...world.items.values()].find((it) => it.parent === pack.serial && it.name === 'a small ankh deed');
+    expect(deed).toMatchObject({ script: 'addon-deed', addonName: 'stone-ankh' });
+  });
 });

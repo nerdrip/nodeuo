@@ -62,7 +62,10 @@ assert.equal(report.runtime.tier, 'low');
 assert.equal(report.assets.ok, true);
 assert.match(clientQualityReportMarkdown(report), /Runtime tier: low/);
 
-const tileSource = readFileSync(new URL('../src/renderer/tile-renderer.js', import.meta.url), 'utf8');
+const tileSource = [
+  '../src/renderer/tile-renderer.js',
+  '../src/renderer/chunk-visual.js',
+].map((file) => readFileSync(new URL(file, import.meta.url), 'utf8')).join('\n');
 assert.match(tileSource, /clientRuntimeProfile\.chunkPopulates/);
 assert.match(tileSource, /CHUNK_DIRECTION_VECTORS/);
 assert.match(tileSource, /\(tier \| 0\) \* 10_000/);
@@ -71,6 +74,8 @@ assert.match(tileSource, /diagnosticsSnapshot\(\)/);
 assert.match(tileSource, /this\._streamFrameEma/);
 assert.match(tileSource, /_chunkIntersectsViewport/);
 assert.match(tileSource, /_refreshChunkShimmerGeometry/);
+assert.match(tileSource, /if \(activeChunkShimmers\.size \|\| activeChunkReveals\.size\)/);
+assert.doesNotMatch(tileSource, /Ticker\.shared\.add/, 'chunk shimmer must use the application frame loop');
 assert.match(tileSource, /const staticsPromise = assets\.fetchStatics/);
 assert.doesNotMatch(
   tileSource,
@@ -87,5 +92,17 @@ const netSource = readFileSync(new URL('../src/net/net-client.js', import.meta.u
 assert.match(netSource, /SessionEpoch/);
 assert.match(netSource, /net:session-reset/);
 assert.match(netSource, /frame-watchdog/);
+
+const commandPanelSource = readFileSync(new URL('../src/managers/command-panel.js', import.meta.url), 'utf8');
+assert.match(commandPanelSource, /world\.commandCatalogue/);
+assert.match(commandPanelSource, /this\._el\.style\.width = '44px'/);
+const handlerSource = readFileSync(new URL('../src/net/handlers.js', import.meta.url), 'utf8');
+assert.match(handlerSource, /world\.commandCatalogue = catalogue/);
+const gameSceneSource = readFileSync(new URL('../src/scenes/game-scene.js', import.meta.url), 'utf8');
+assert.match(gameSceneSource, /el\.hidden = true/);
+assert.match(gameSceneSource, /if \(!this\._hud \|\| this\._hud\.hidden\) return/);
+const loginSceneSource = readFileSync(new URL('../src/scenes/login-scene.js', import.meta.url), 'utf8');
+assert.match(loginSceneSource, /role="progressbar"/);
+assert.match(loginSceneSource, /async _warmInitialTerrain\(\)/);
 
 console.log('[smoke:runtime-wave2] ok');

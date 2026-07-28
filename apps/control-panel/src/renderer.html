@@ -228,6 +228,10 @@
   }
   button:hover { background: #4a3818; }
   button.danger { color: #ff8060; border-color: #803030; }
+  @keyframes admin-wait {
+    from { transform: translateX(-70%); }
+    to { transform: translateX(220%); }
+  }
 
   /* ---- confirm dialog ---- */
   .modal-bg {
@@ -248,7 +252,7 @@
   <h1>UO·NODE · CONTROL</h1>
   <div class="links">
     <a href="#" onclick="uo.openUrl('http://localhost:5173')">browser client ↗</a>
-    <a href="#" onclick="uo.openUrl('http://127.0.0.1:2596/')">admin panel ↗</a>
+    <a href="#" onclick="openAdminPanel(event)">admin panel ↗</a>
     <button class="danger" onclick="confirmStopAll()" style="margin-left:14px">STOP ALL</button>
   </div>
 </header>
@@ -547,6 +551,7 @@ const TCP_GROUPS = ['server', 'client'];
 // only want a thin Vite (e.g. testing on an external shard via TCP
 // bridge) untick once and the choice persists.
 const COSTART_ADMIN_KEY = 'uo-costart-admin-with-server';
+const COSTART_ADMIN_POLICY_KEY = 'uo-costart-admin-policy-v2';
 function initTcpToggle() {
   // Sync every TCP-port label with the actual default port.
   if (DEFAULTS.UO_TCP_PORT) {
@@ -570,6 +575,13 @@ function initTcpToggle() {
   // plus admin env vars).
   const costart = document.getElementById('costart-admin-with-server');
   if (costart) {
+    // Earlier builds persisted OFF while the launcher UI still implied that
+    // the editors were available. Migrate that one stale preference once;
+    // explicit opt-out continues to work and persist after this version mark.
+    if (localStorage.getItem(COSTART_ADMIN_POLICY_KEY) !== '1') {
+      localStorage.setItem(COSTART_ADMIN_KEY, '1');
+      localStorage.setItem(COSTART_ADMIN_POLICY_KEY, '1');
+    }
     const stored = localStorage.getItem(COSTART_ADMIN_KEY);
     costart.checked = stored == null ? true : stored === '1';
     costart.addEventListener('change', () => {
@@ -598,6 +610,105 @@ function refreshButtonStates() {
     }
   });
 }
+
+function adminPanelUrl() {
+  const configuredHost = document.getElementById('env-UO_ADMIN_HOST')?.value?.trim()
+    || DEFAULTS.UO_ADMIN_HOST || '127.0.0.1';
+  const host = configuredHost === '0.0.0.0' || configuredHost === '::'
+    ? '127.0.0.1' : configuredHost;
+  const port = document.getElementById('env-UO_ADMIN_PORT')?.value?.trim()
+    || DEFAULTS.UO_ADMIN_PORT || '2596';
+  const urlHost = host.includes(':') && !host.startsWith('[') ? `[${host}]` : host;
+  return `http://${urlHost}:${port}`;
+}
+
+async function adminPanelReady(base = adminPanelUrl(), timeoutMs = 1_500) {
+  try { return !!(await uo.probeHttp(`${base}/healthz`, timeoutMs))?.ok; }
+  catch { return false; }
+}
+
+async function waitForAdminPanel(base, timeoutMs = 45_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await adminPanelReady(base, 1_000)) return true;
+    await new Promise((resolve) => setTimeout(resolve, 350));
+  }
+  return false;
+}
+
+async function startAdminAndOpen(base) {
+  closeModal();
+  const costart = document.getElementById('costart-admin-with-server');
+  if (costart) {
+    costart.checked = true;
+    localStorage.setItem(COSTART_ADMIN_KEY, '1');
+  }
+  ensureTab('admin');
+  selectTab('admin');
+  clearTabLog('admin');
+  const result = await uo.startService('admin', readEnvOverride('admin'), {});
+  if (result?.ok === false && !/already running/i.test(result.error || '')) {
+    showModal('Admin server failed to start', esc(result.error || 'Unknown launcher error.'), [
+      { label: 'Open logs', action: () => selectTab('admin') },
+    ]);
+    return false;
+  }
+  showModal('Starting Server + Admin', `
+    <div style="margin-bottom:10px">Waiting for <b>${esc(base)}</b>…</div>
+    <div style="height:6px;overflow:hidden;background:#14100a;border:1px solid #4a3818">
+      <div style="height:100%;width:40%;background:#ffd070;animation:admin-wait 1.1s ease-in-out infinite alternate"></div>
+    </div>
+  `, []);
+  const ready = await waitForAdminPanel(base);
+  closeModal();
+  refreshButtonStates();
+  if (ready) {
+    await uo.openUrl(`${base}/`);
+    return false;
+  }
+  showModal('Admin panel is still offline', `
+    Nothing is listening at <b>${esc(base)}</b>. Check the <b>Server + Admin</b> log for a startup error.
+  `, [
+    { label: 'Open logs', action: () => selectTab('admin') },
+    { label: 'Retry', action: () => openAdminPanel() },
+  ]);
+  return false;
+}
+
+async function openAdminPanel(event) {
+  event?.preventDefault?.();
+  // The same function is used by modal retry actions and the header link.
+  // Own the modal lifecycle here so the caller cannot accidentally close a
+  // newly-rendered progress/error dialog after this async function resolves.
+  closeModal();
+  const base = adminPanelUrl();
+  if (await adminPanelReady(base)) {
+    await uo.openUrl(`${base}/`);
+    return false;
+  }
+  SERVICES_INFO = await uo.listServices();
+  if (SERVICES_INFO.admin?.running) {
+    showModal('Admin panel is starting', `
+      The process is running, but <b>${esc(base)}</b> is not ready yet.
+    `, [
+      { label: 'Wait and open', action: () => startAdminAndOpen(base) },
+      { label: 'Open logs', action: () => selectTab('admin') },
+    ]);
+    return false;
+  }
+  const plainServerRunning = !!SERVICES_INFO.server?.running;
+  showModal('Admin tools are offline', plainServerRunning ? `
+    The shard is running in <b>game-server only</b> mode. ISO Editor, Data Editor and Content Studio need
+    <b>Server + Admin</b>. Switching modes restarts the shard process; world state is saved by the normal shutdown path.
+  ` : `
+    No admin backend is listening at <b>${esc(base)}</b>. Start <b>Server + Admin</b> now?
+  `, [
+    { label: plainServerRunning ? 'Restart with Admin' : 'Start Server + Admin', action: () => startAdminAndOpen(base) },
+    { label: 'Cancel' },
+  ]);
+  return false;
+}
+window.openAdminPanel = openAdminPanel;
 
 function initExtractScope() {
   const boxes = [...document.querySelectorAll('[data-extract-step]')];
@@ -765,7 +876,7 @@ async function onServiceClick(id) {
     return;
   }
   Object.assign(opts, serviceOptions);
-  const startResult = await uo.startService(effectiveId, readEnvOverride(id), opts);
+  const startResult = await uo.startService(effectiveId, readEnvOverride(effectiveId), opts);
   if (startResult?.ok === false) {
     if (id === 'extract' && /KTX2 is selected/i.test(startResult.error || '')) {
       showModal('KTX2 encoder required', esc(startResult.error), [
@@ -942,7 +1053,7 @@ async function restartActiveTab() {
   }
   Object.assign(opts, serviceOptions);
   try {
-    const result = await uo.startService(effectiveId, readEnvOverride(id), opts);
+    const result = await uo.startService(effectiveId, readEnvOverride(effectiveId), opts);
     if (result?.ok === false) {
       showModal('Cannot restart service', esc(result.error || 'Unknown launcher error.'), [
         { label: 'OK', action: closeModal },
@@ -1191,7 +1302,11 @@ function readEnvOverride(serviceId) {
   // ignores it — Client TCP is wired through onServiceClick, not the
   // env var.
   if (svc?.group === 'server' || svc?.group === 'admin') {
-    const cb = document.getElementById('tcp-enable-' + svc.group);
+    // Admin is a hidden variant of the SERVER button, so it deliberately has
+    // no separate checkbox. Preserve the SERVER TCP opt-in when switching the
+    // running shard from plain server to Server + Admin.
+    const cb = document.getElementById('tcp-enable-' + svc.group)
+      || (svc.group === 'admin' ? document.getElementById('tcp-enable-server') : null);
     if (cb?.checked) {
       env.UO_TCP_PORT = DEFAULTS.UO_TCP_PORT || '2594';
       // Verbose packet logging so the Server TCP virtual tab gets the

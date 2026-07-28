@@ -1,5 +1,6 @@
 import { createItem, destroyItemBySerial } from '../../../_items.js';
 import { mobileBySerial } from '../../../_entities.js';
+import { syncRegistryHouseToMulti } from '../../../commands/housing/multi-house-bridge.js';
 // House Transfer Deed — ServUO `Items/Deeds/HouseTransferDeed.cs`.
 //
 // Two-step transfer: the deed is created automatically by a house owner
@@ -64,6 +65,7 @@ export default function buildHouseTransferDeed(api) {
         user.client.sendSystemMessage?.('The transfer cannot be completed.');
         return true;
       }
+      syncRegistryHouseToMulti(api, house);
       // Notify both sides. Previous-owner notification only fires if they
       // are still online (their client may be null on a cold transfer).
       user.client.sendSystemMessage?.(

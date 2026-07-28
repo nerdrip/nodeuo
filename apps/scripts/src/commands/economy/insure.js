@@ -76,7 +76,7 @@ function openInsuranceGump(api, state, mob, insurance = api.systems?.insurance) 
   }
   // Close (X) at top-right.
   lines.push(`{ button ${W - 32} 8 4017 4018 1 0 0 }`);
-  api.gumps.send(state, { x: 100, y: 100, layout: lines.join(''), texts }, (resp) => {
+  api.gumps.send(state, { definitionId: 'server:commands-economy-insure:open-insurance-gump', x: 100, y: 100, layout: lines.join(''), texts }, (resp) => {
     const btn = resp.buttonId | 0;
     if (btn === 0) return;
     if (btn === 200) {

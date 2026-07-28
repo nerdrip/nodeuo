@@ -2,17 +2,20 @@ import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import process from 'node:process';
+import { pnpmProcess } from './subprocess.mjs';
 
 const full = process.argv.includes('--full');
 const soakArg = process.argv.find((arg) => arg.startsWith('--soak-hours='));
 const soakHours = soakArg ? Math.max(0, Number(soakArg.slice('--soak-hours='.length)) || 0) : 0;
-const pnpm = 'pnpm';
 const node = (script, args = []) => ({ bin: process.execPath, args: [script, ...args] });
-const command = (...args) => ({ bin: pnpm, args });
+const command = (...args) => pnpmProcess(args);
 
 const groups = new Map([
   ['core', [node('tools/audit/nodeuo-quality-suite.mjs', full ? ['--full'] : [])]],
-  ['e2e', [node('tools/audit/client-server-browser-e2e.mjs')]],
+  ['e2e', [
+    node('tools/audit/client-server-browser-e2e.mjs'),
+    node('tools/audit/multis-restart-e2e.mjs'),
+  ]],
   ['network', [
     node('tools/audit/network-chaos-replay.mjs', full ? ['--full'] : []),
     command('--filter', '@uo/server', 'test', '--', 'netstate-close.test.js', 'tcp-adapter.test.js', 'login-flow.test.js'),
@@ -40,7 +43,7 @@ const item = (id, title, groupsForItem, evidence) => ({ id, title, groups: group
 const items = [
   item(1, 'Browser-to-server gameplay flow', ['e2e', 'gameplay'], ['tools/audit/client-server-browser-e2e.mjs']),
   item(2, 'Long configurable client/server soak', ['core', 'load'], ['apps/client/scripts/audit-movement-soak.mjs', 'tools/audit/server-load-soak.mjs']),
-  item(3, 'Disconnect, reconnect and state recovery', ['network'], ['apps/server/test/netstate-close.test.js']),
+  item(3, 'Disconnect, reconnect and state recovery', ['network', 'e2e'], ['apps/server/test/netstate-close.test.js', 'tools/audit/multis-restart-e2e.mjs']),
   item(4, 'Network fragmentation and malformed-tail chaos', ['network'], ['tools/audit/network-chaos-replay.mjs']),
   item(5, 'Concurrent world load budget', ['load'], ['tools/audit/server-load-soak.mjs']),
   item(6, 'Deterministic network replay artifact', ['network'], ['artifacts/network-chaos-replay.json']),
@@ -77,9 +80,9 @@ const items = [
   item(37, 'Spawner limits and respawn ecology', ['gameplay'], ['apps/server/test/xml-spawner.test.js']),
   item(38, 'Vendor behavior/economy simulation', ['gameplay'], ['apps/server/test/vendor-ai.test.js']),
   item(39, 'Loot distribution and paragon fallbacks', ['gameplay'], ['apps/server/test/loot.test.js']),
-  item(40, 'Durable customized-house state', ['core', 'gameplay'], ['apps/server/src/world/persistence.js']),
+  item(40, 'Durable customized-house state', ['core', 'gameplay', 'e2e'], ['apps/server/src/world/persistence.js', 'tools/audit/multis-restart-e2e.mjs']),
   item(41, 'Click-to-place custom-house tiles', ['core'], ['apps/client/src/managers/house-customization-manager.js']),
-  item(42, 'Boat collision/passenger persistence', ['gameplay'], ['apps/server/test/boats.test.js']),
+  item(42, 'Boat collision/passenger persistence', ['gameplay', 'e2e'], ['apps/server/test/boats.test.js', 'tools/audit/multis-restart-e2e.mjs']),
   item(43, 'Pet tame/stable/training lifecycle', ['gameplay'], ['apps/server/test/pet-training.test.js']),
   item(44, 'Quest progression/conversation safety', ['gameplay'], ['apps/server/test/quest-conversation.test.js']),
   item(45, 'Data-driven world bosses and sigils', ['gameplay'], ['apps/server/src/content/world-event-registry.js']),
@@ -94,7 +97,7 @@ function run(spec) {
   return new Promise((done) => {
     const started = Date.now();
     const child = spawn(spec.bin, spec.args, {
-      cwd: resolve('.'), stdio: 'inherit', shell: process.platform === 'win32',
+      cwd: resolve('.'), stdio: 'inherit',
       env: { ...process.env, NODEUO_AUDIT_FULL: full ? '1' : '0', NODEUO_SOAK_HOURS: String(soakHours) },
     });
     child.once('error', (error) => done({ ok: false, error: String(error), ms: Date.now() - started }));

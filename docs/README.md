@@ -17,6 +17,10 @@ This directory keeps documentation that is larger than the root quickstart.
 | Document | Purpose |
 | --- | --- |
 | [server-scripting.md](server-scripting.md) | current server scripting API |
+| [scripting/getting-started.md](scripting/getting-started.md) | Polish quickstart and authoring workflow |
+| [scripting/gumps.md](scripting/gumps.md) | server/client gumps, JSON layouts and compatibility |
+| [scripting/configuration.md](scripting/configuration.md) | config identity, data taxonomy and publishing |
+| [scripting/examples.md](scripting/examples.md) | complete script patterns and checklist |
 | [../apps/server/src/content/ARCHITECTURE.md](../apps/server/src/content/ARCHITECTURE.md) | engine vs scripts split |
 | [../apps/server/src/systems/README.md](../apps/server/src/systems/README.md) | gameplay systems overview |
 | [../apps/scripts/SCRIPTING.md](../apps/scripts/SCRIPTING.md) | script package notes |

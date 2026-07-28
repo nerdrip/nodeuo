@@ -138,11 +138,13 @@ export function hasDecayed(acl, now = Date.now()) {
 /** Apply the ACL across every tile of a placed multi. Called by
  *  `placemulti` right after `stampMultiAt` so the freshly-stamped
  *  tiles all share the new ACL by reference. */
-export function applyAclToTiles(world, multiId, facet, acl) {
+export function applyAclToTiles(world, multiId, facet, acl, instanceId = null) {
   let n = 0;
   for (const it of allItems({ world })) {
-    if ((it._multi | 0) !== (multiId | 0)) continue;
     if ((it.map ?? 1) !== facet) continue;
+    if (instanceId != null) {
+      if ((it._multiInstance >>> 0) !== (instanceId >>> 0)) continue;
+    } else if ((it._multi | 0) !== (multiId | 0)) continue;
     it._multiAcl = acl;
     n++;
   }
@@ -157,11 +159,20 @@ export function findDecayedMultis(world, now = Date.now()) {
   for (const it of allItems({ world })) {
     const acl = it._multiAcl;
     if (!acl) continue;
-    const key = `${it.map ?? 1}:${it._multi | 0}`;
+    const instanceId = it._multiInstance == null ? null : (it._multiInstance >>> 0);
+    const key = instanceId == null
+      ? `legacy:${it.map ?? 1}:${it._multi | 0}`
+      : `instance:${instanceId}`;
     if (seen.has(key)) continue;
     seen.add(key);
     if (hasDecayed(acl, now)) {
-      out.push({ multiId: it._multi | 0, facet: it.map ?? 1, anchorTile: it, acl });
+      out.push({
+        multiId: it._multi | 0,
+        instanceId,
+        facet: it.map ?? 1,
+        anchorTile: it,
+        acl,
+      });
     }
   }
   return out;

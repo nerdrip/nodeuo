@@ -2,13 +2,12 @@ import { spawn } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import process from 'node:process';
+import { pnpmProcess } from './subprocess.mjs';
 
 const full = process.argv.includes('--full');
 const selectedArg = process.argv.find((arg) => arg.startsWith('--category='));
 const selected = selectedArg ? new Set(selectedArg.slice('--category='.length).split(',').filter(Boolean)) : null;
-const pnpm = 'pnpm';
-
-const cmd = (label, args, options = {}) => ({ label, bin: pnpm, args, ...options });
+const cmd = (label, args, options = {}) => ({ label, ...pnpmProcess(args), ...options });
 const node = (label, script, args = []) => ({ label, bin: process.execPath, args: [script, ...args] });
 const serverTests = (label, files) => cmd(label, ['--filter', '@uo/server', 'test', '--', ...files]);
 
@@ -136,7 +135,6 @@ function run(command) {
     const child = spawn(command.bin, command.args, {
       cwd: resolve('.'),
       stdio: 'inherit',
-      shell: process.platform === 'win32',
       env: { ...process.env, NODEUO_AUDIT_FULL: full ? '1' : '0' },
     });
     child.once('error', (error) => resolveRun({ ok: false, error: String(error), ms: Date.now() - startedAt }));

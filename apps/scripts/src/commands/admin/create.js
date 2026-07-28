@@ -16,7 +16,9 @@ const CATEGORIES = [
   {
     key: 'multi', title: 'Multis', command: 'multigump',
     description: 'Houses, ships, structures and custom multis',
-    preview: '{ tilepicfit 24 192 0x0BD2 0 54 54 }',
+    // A multi has no representative itemId. Render the complete standard
+    // stone-plaster house footprint instead of a random component tile.
+    preview: '{ multipic 16 190 0x0064 64 52 }',
   },
   {
     key: 'mount', title: 'Mounts', command: 'mounts',

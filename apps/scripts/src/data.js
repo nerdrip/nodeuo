@@ -11,11 +11,14 @@
 //   data/config/monsters.json      — array of MonsterTemplate
 //   data/config/npcs.json          — array of NpcTemplate
 //   data/config/skills.json        — array of SkillEntry
+//   data/config/gumps.json         — visual server-gump definitions
+//   data/config/server-gump-catalog.json — source-linked server-gump inventory
 
 import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
 import { registerLifecycleScripts } from './items/behaviors/lifecycle-scripts.js';
+import { compileGumpDefinition } from './gumps/definition-runtime.js';
 // Shared housedata accessor — shared with the in-game client and the
 // admin editor so all three surfaces resolve `houseRole` / `doorPiece`
 // identically. See apps/client/src/shared/housedata.js.
@@ -57,11 +60,12 @@ export default function register(api) {
   if (items && api.templates) {
     const registered = [];
     for (const t of items) {
+      const definitionId = t.definitionId ?? t.id ?? t.name;
       try {
         api.templates.registerTemplate(t);
-        registered.push(t.name);
+        registered.push(definitionId);
       } catch (e) {
-        api.log(`data: item template ${t.name} failed: ${e.message}`);
+        api.log(`data: item template ${definitionId ?? '<unnamed>'} failed: ${e.message}`);
       }
     }
     api.log(`data: ${registered.length} item templates from items.json`);
@@ -159,6 +163,58 @@ export default function register(api) {
     api.log(`data: ${registered.length} skills from skills.json`);
     disposers.push(() => {
       for (const id of registered) api.skills.unregister(id);
+    });
+  }
+
+  // --- Data-driven server gumps --------------------------------------
+  // The layout compiler lives in gumps/definition-runtime.js; this loader
+  // owns only the hot-reloadable canonical records shared with Content Studio.
+  const gumpDefinitions = readJson('data/config/gumps.json');
+  const sourceLinkedGumps = readJson('data/config/server-gump-catalog.json');
+  if ((Array.isArray(gumpDefinitions) || Array.isArray(sourceLinkedGumps)) && api.systems) {
+    const previous = api.systems.gumpDefinitions;
+    const previousResolver = api.systems.resolveServerGumpOverride;
+    const registry = new Map();
+    const byGumpId = new Map();
+    const ambiguousGumpIds = new Set();
+    for (const definition of [...(gumpDefinitions ?? []), ...(sourceLinkedGumps ?? [])]) {
+      const id = String(definition?.definitionId ?? definition?.id ?? '').trim();
+      if (!id) { api.log?.('data: skipped a gump without definitionId'); continue; }
+      registry.set(id, definition);
+      if (definition?.gumpId != null && Number.isFinite(Number(definition.gumpId))) {
+        const gumpId = Number(definition.gumpId) >>> 0;
+        if (byGumpId.has(gumpId)) { ambiguousGumpIds.add(gumpId); byGumpId.delete(gumpId); }
+        else if (!ambiguousGumpIds.has(gumpId)) byGumpId.set(gumpId, definition);
+      }
+    }
+    api.systems.gumpDefinitions = registry;
+    const resolver = (gump) => {
+      if (!gump || typeof gump !== 'object') return gump;
+      const definitionId = String(gump.definitionId ?? '').trim();
+      const definition = (definitionId ? registry.get(definitionId) : null)
+        ?? (gump.gumpId != null ? byGumpId.get(Number(gump.gumpId) >>> 0) : null);
+      if (!definition?.enabled || !Array.isArray(definition.controls) || !definition.controls.length) return gump;
+      const compiled = compileGumpDefinition(definition, {
+        texts: Array.isArray(gump.texts) ? gump.texts : [],
+        original: gump,
+        ...(gump.values && typeof gump.values === 'object' ? gump.values : {}),
+      });
+      const resolved = { ...gump, ...compiled };
+      if (gump.gumpId != null) resolved.gumpId = gump.gumpId;
+      else if (definition.gumpId == null) delete resolved.gumpId;
+      return resolved;
+    };
+    api.systems.resolveServerGumpOverride = resolver;
+    api.log?.(`data: ${registry.size} visual/source-linked gump definitions (${byGumpId.size} stable gumpId mappings)`);
+    disposers.push(() => {
+      if (api.systems.gumpDefinitions === registry) {
+        if (previous === undefined) delete api.systems.gumpDefinitions;
+        else api.systems.gumpDefinitions = previous;
+      }
+      if (api.systems.resolveServerGumpOverride === resolver) {
+        if (previousResolver === undefined) delete api.systems.resolveServerGumpOverride;
+        else api.systems.resolveServerGumpOverride = previousResolver;
+      }
     });
   }
 

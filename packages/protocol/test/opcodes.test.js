@@ -1,7 +1,24 @@
 import { describe, it, expect } from 'vitest';
 import { frameIncoming, INCOMING_OPCODES } from '../src/opcodes.js';
+import { worldItemSA } from '../src/packets/items.js';
 
 describe('frameIncoming', () => {
+  it('encodes canonical type-2 multi id 0 without treating it as absent', () => {
+    const packet = worldItemSA({
+      serial: 0x40001234,
+      itemId: 0,
+      dataType: 2,
+      x: 100,
+      y: 200,
+      z: 0,
+    });
+    expect(packet).toHaveLength(26);
+    expect(packet[0]).toBe(0xF3);
+    expect(packet[3]).toBe(2);
+    expect(packet[8]).toBe(0);
+    expect(packet[9]).toBe(0);
+  });
+
   it('frames a single fixed-length packet', () => {
     // 0x73 (PingReq) is 2 bytes: opcode + 1-byte seq
     const buf = new Uint8Array([0x73, 0x42]);

@@ -17,6 +17,13 @@ function packet(op, serial, extra = 1, mobile = 0) {
   return w.bytes();
 }
 
+function unequipPacket(...layers) {
+  const w = new PacketWriter(4 + layers.length);
+  w.writeU8(0xED); w.writeU16(4 + layers.length); w.writeU8(layers.length);
+  for (const layer of layers) w.writeU8(layer);
+  return w.bytes();
+}
+
 function fixture() {
   const world = new World();
   const mobile = world.createMobile({ x: 100, y: 100, z: 0, map: 1, str: 50, dex: 50, int: 50 });
@@ -108,5 +115,20 @@ describe('paperdoll drag/equip round-trip', () => {
     } finally {
       unregisterTemplate(templateName);
     }
+  });
+
+  it('broadcasts macro-unequipped paperdoll removals through nearby mobile clients', () => {
+    const { world, mobile, state, bag, handlers } = fixture();
+    mobile.backpack = bag.serial;
+    const observer = world.createMobile({ x: 101, y: 100, z: 0, map: 1 });
+    const observedPackets = [];
+    observer.client = { send(bytes) { observedPackets.push(bytes); } };
+    const shirt = createItem(world, { itemId: 0x1517, parent: mobile.serial, layer: 5, map: 1 });
+
+    handlers[0xED](state, unequipPacket(5));
+
+    expect(shirt).toMatchObject({ parent: bag.serial, layer: 0 });
+    expect(observedPackets.map((bytes) => bytes[0])).toContain(0x1D);
+    expect(state.sentPackets.map((bytes) => bytes[0])).toContain(0x3C);
   });
 });

@@ -13,6 +13,7 @@ import { assets } from './assets/asset-manager.js';
 import { startKeepAlive, stopKeepAlive } from './net/keep-alive.js';
 import { systemCursor } from './managers/system-cursor.js';
 import { world } from './world/world.js';
+import { clientGumpDefinitions } from './managers/client-gump-definitions.js';
 
 const mount = document.getElementById('app');
 if (!mount) throw new Error('#app mount point missing');
@@ -54,16 +55,33 @@ let worldServicesPromise = null;
 // overlaps the final server handshake with module fetch/evaluation and keeps
 // world-only managers off the initial login path.
 gc.prepareWorld = () => {
+  const report = (progress, label) => bus.emit('world:bootstrap-progress', {
+    progress: Math.max(0, Math.min(1, Number(progress) || 0)),
+    label: String(label || 'Preparing world'),
+  });
   worldServicesPromise ??= Promise.all([
-    assets.init({ facet: world.mapId }),
-    import('./bootstrap-world.js'),
+    (async () => {
+      report(0.02, 'Reading world manifests');
+      await assets.init({
+        facet: world.mapId,
+        onProgress: (pct, label) => report(0.04 + Math.max(0, Math.min(1, pct)) * 0.78, label),
+      });
+      report(0.84, 'World assets ready');
+    })(),
+    import('./bootstrap-world.js').then((module) => {
+      report(0.90, 'Starting world services');
+      return module;
+    }),
   ]).then(([, { installWorldServices }]) => {
       worldServices = installWorldServices(bus);
+      report(1, 'World services ready');
       return worldServices;
     });
   return worldServicesPromise;
 };
 setSplash('INITIALISING RENDERER', 5);
+setSplash('LOADING INTERFACE DEFINITIONS', 8);
+await clientGumpDefinitions.load();
 await gc.init();
 
 // Pre-load static asset manifests + the hues palette texture. Atlas pages
@@ -154,7 +172,7 @@ setTimeout(() => splash.remove(), 600);
 // expose for ad-hoc debugging in DevTools
 if (import.meta.env.DEV || new URLSearchParams(globalThis.location?.search ?? '').has('runtimeAudit')) {
   /** @type {any} */ (globalThis).__uo = {
-    gc, net, bus,
+    gc, net, bus, world,
     get camera() { return worldServices?.camera ?? null; },
     get diagnostics() { return worldServices?.diagnosticsManager ?? null; },
   };

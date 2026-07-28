@@ -3,12 +3,12 @@ import { readFileSync } from 'node:fs';
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 
-const tile = read('../src/renderer/tile-renderer.js');
+const tile = read('../src/renderer/tile-renderer.js') + read('../src/renderer/chunk-visual.js');
 const mobile = read('../src/renderer/mobile-renderer.js');
 const effects = read('../src/renderer/effect-renderer.js');
 const profile = read('../src/managers/profile-manager.js');
 const options = read('../src/ui/gumps/options-gump.js');
-const gameScene = read('../src/scenes/game-scene.js');
+const gameScene = read('../src/scenes/game-scene.js') + read('../src/scenes/game-dom-ui.js');
 const commandPanel = read('../src/managers/command-panel.js');
 const textInput = read('../src/ui/controls/text-input.js');
 

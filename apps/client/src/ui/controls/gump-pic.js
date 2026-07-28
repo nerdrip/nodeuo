@@ -174,6 +174,30 @@ export class GumpPic extends Control {
     }
   }
 
+  /** Swap the backing gump art without replacing the control. Used by the
+   *  optional JSON-authored client-gump overrides. Generation invalidation
+   *  prevents a slower previous atlas request from winning the race. */
+  setGumpId(id) {
+    const next = Number(id) | 0;
+    if (next === this.gumpId) return;
+    this.gumpId = next;
+    this.beginAsyncGeneration();
+    if (this._sprite) {
+      try { this.node.removeChild(this._sprite); } catch { /* already detached */ }
+      releaseSprite(this._sprite);
+      this._sprite = null;
+    }
+    this._tex = null;
+    this._pxCanvas = null;
+    this._pxData = null;
+    this._pxLoading = false;
+    this._pxFailed = false;
+    this._shimmer?.dispose();
+    this._shimmer = createShimmer(this.width || 32, this.height || 32);
+    this.node.addChild(this._shimmer.gfx);
+    this._mountTexture();
+  }
+
   setTint(t) {
     const rgb = ((typeof t === 'number' ? t : 0xffffff) & 0xffffff) >>> 0;
     if (rgb === this.tint) return;

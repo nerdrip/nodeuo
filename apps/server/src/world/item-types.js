@@ -1,5 +1,5 @@
-// Item-type resolver — bridges ServUO C# type names (BlackPearl,
-// RefreshPotion, IronIngot, …) to concrete itemIds (graphic ids).
+// Item-type resolver — bridges stable ServUO definition ids (BlackPearl,
+// RefreshPotion, IronIngot, …) to concrete art ids (UO graphic ids).
 //
 // Source data: `apps/scripts/src/data/config/item-types.json`, produced by
 // `packages/extractor/servuo-item-types.js`. The extractor catches ~2400
@@ -30,7 +30,24 @@ function load() {
   if (_cache !== null) return _cache;
   if (!fs.existsSync(FILE)) { _cache = {}; _ciIndex = {}; return _cache; }
   try {
-    _cache = JSON.parse(fs.readFileSync(FILE, 'utf8')) ?? {};
+    const raw = JSON.parse(fs.readFileSync(FILE, 'utf8')) ?? {};
+    _cache = Object.create(null);
+    for (const [key, value] of Object.entries(raw)) {
+      if (!value || typeof value !== 'object') continue;
+      const definitionId = String(value.definitionId ?? value.id ?? key);
+      const artId = Number(value.artId ?? value.itemId);
+      if (!Number.isInteger(artId) || artId < 0 || artId > 0xFFFF) continue;
+      _cache[key] = {
+        ...value,
+        definitionId,
+        id: definitionId,
+        artId,
+        // Runtime-only backwards-compatible wire graphic alias.
+        itemId: artId,
+        name: value.name ?? definitionId,
+        hue: Number(value.hue ?? 0) | 0,
+      };
+    }
   } catch (e) {
     console.warn(`[item-types] load failed: ${e.message}`);
     _cache = {};
@@ -66,14 +83,15 @@ const SUFFIX_FALLBACK = [
 ];
 
 /**
- * Resolve a ServUO type name to `{itemId, hue, base}` or null.
+ * Resolve a ServUO type name to an unambiguous definition. `itemId` is kept
+ * as a compatibility alias of `artId` for callers that build UO packets.
  *
  * @param {string} typeName        ServUO class name (e.g. "BlackPearl")
  * @param {Object} [opts]
  * @param {(name:string)=>any} [opts.templateLookup]  optional fallback that
  *   takes a type name and returns `{ itemId }`-shaped row from the
  *   server's hand-authored template registry.
- * @returns {{itemId:number, hue:number, base?:string} | null}
+ * @returns {{definitionId:string, id:string, artId:number, itemId:number, name:string, hue:number, script?:string|null, base?:string} | null}
  */
 export function resolveItemType(typeName, opts = {}) {
   if (!typeName) return null;
@@ -83,13 +101,24 @@ export function resolveItemType(typeName, opts = {}) {
   if (ci) return map[ci];
   // Optional template lookup (script-side authored items).
   const t = opts.templateLookup?.(typeName);
-  if (t && Number.isFinite(t.itemId)) {
-    return { itemId: t.itemId, hue: t.hue ?? 0 };
+  const templateArtId = t?.artId ?? t?.itemId;
+  if (t && Number.isFinite(templateArtId)) {
+    const definitionId = String(t.definitionId ?? t.id ?? t.name ?? typeName);
+    return {
+      definitionId, id: definitionId,
+      artId: templateArtId, itemId: templateArtId,
+      name: t.label ?? t.name ?? definitionId,
+      hue: t.hue ?? 0, script: t.script ?? null,
+    };
   }
   // Suffix heuristic — the type name often ends with the base type.
   for (const [suffix, graphic] of SUFFIX_FALLBACK) {
     if (typeName.endsWith(suffix)) {
-      return { itemId: graphic, hue: 0, _fromSuffix: suffix };
+      return {
+        definitionId: String(typeName), id: String(typeName),
+        artId: graphic, itemId: graphic, name: String(typeName), hue: 0,
+        script: null, _fromSuffix: suffix,
+      };
     }
   }
   return null;

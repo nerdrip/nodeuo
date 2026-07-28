@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { Texture } from 'pixi.js';
-import { SpritePool } from '../src/renderer/sprite-pool.js';
+import { LandMeshPool, SpritePool } from '../src/renderer/sprite-pool.js';
 
-const pool = new SpritePool(2);
+const pool = new SpritePool(2, 0);
 const first = pool.acquire(Texture.EMPTY);
 const generation = first._uoPoolGeneration;
 first.pivot.set(9, 7);
@@ -30,4 +30,73 @@ assert.ok(reused._uoPoolGeneration > generation, 'reacquire gets a distinct owne
 
 pool.release(reused);
 pool.destroyAll();
+
+let spriteNow = 500;
+const delayedSprites = new SpritePool(2, 80, () => spriteNow);
+const staleSprite = delayedSprites.acquire(Texture.EMPTY);
+delayedSprites.release(staleSprite);
+const immediateSprite = delayedSprites.acquire(Texture.EMPTY);
+assert.notEqual(immediateSprite, staleSprite, 'sprite must not be reused while its previous GPU draw may still be queued');
+delayedSprites.release(immediateSprite);
+spriteNow += 81;
+const reusableSprite = delayedSprites.acquire(Texture.EMPTY);
+assert.equal(reusableSprite, immediateSprite, 'sprite becomes reusable after the frame quarantine');
+delayedSprites.release(reusableSprite);
+delayedSprites.destroyAll();
+
+// Land meshes may switch their diagonal/topology when the same pooled object
+// is reused for another slope.  All three buffers must follow the new tile.
+const meshPool = new LandMeshPool(1, 0);
+const firstMesh = meshPool.acquire(
+  Texture.EMPTY,
+  new Float32Array([0, 0, 1, 0, 0, 1]),
+  new Float32Array([0, 0, 1, 0, 0, 1]),
+  new Uint32Array([0, 1, 2]),
+);
+meshPool.release(firstMesh);
+const nextIndices = new Uint32Array([0, 1, 3, 0, 3, 2]);
+const reusedMesh = meshPool.acquire(
+  Texture.EMPTY,
+  new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]),
+  new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]),
+  nextIndices,
+);
+assert.equal(reusedMesh, firstMesh, 'land mesh pool should reuse the released mesh');
+assert.deepEqual(
+  Array.from(reusedMesh.geometry.indexBuffer.data),
+  Array.from(nextIndices),
+  'reused land mesh must replace its stale index topology',
+);
+meshPool.release(reusedMesh);
+meshPool.destroyAll();
+
+// Production meshes are deliberately not recycled while Pixi may still have
+// a render instruction for their old owner queued in the current frame.
+let now = 1000;
+const quarantinedPool = new LandMeshPool(2, 120, () => now);
+const oldMesh = quarantinedPool.acquire(
+  Texture.EMPTY,
+  new Float32Array([0, 0, 1, 0, 0, 1]),
+  new Float32Array([0, 0, 1, 0, 0, 1]),
+  new Uint32Array([0, 1, 2]),
+);
+quarantinedPool.release(oldMesh);
+const freshMesh = quarantinedPool.acquire(
+  Texture.EMPTY,
+  new Float32Array([0, 0, 1, 0, 0, 1]),
+  new Float32Array([0, 0, 1, 0, 0, 1]),
+  new Uint32Array([0, 1, 2]),
+);
+assert.notEqual(freshMesh, oldMesh, 'land mesh must not be reused inside its GPU quarantine window');
+quarantinedPool.release(freshMesh);
+now += 121;
+const safeMesh = quarantinedPool.acquire(
+  Texture.EMPTY,
+  new Float32Array([0, 0, 1, 0, 0, 1]),
+  new Float32Array([0, 0, 1, 0, 0, 1]),
+  new Uint32Array([0, 1, 2]),
+);
+assert.equal(safeMesh, freshMesh, 'land mesh becomes reusable after the quarantine window');
+quarantinedPool.release(safeMesh);
+quarantinedPool.destroyAll();
 console.log('[smoke:sprite-pool] ok');

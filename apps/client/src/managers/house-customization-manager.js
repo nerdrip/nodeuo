@@ -59,11 +59,15 @@ function buildHouseDeleteItem(g, x, y, z) {
   w.writeU8(0x00); w.writeI32(z | 0);
   return _close(w);
 }
-function buildHouseAddItem(g, x, y) {
+const HOUSE_KIND_CODE = Object.freeze({ item: 0, wall: 1, door: 2, floor: 3, misc: 4, teleport: 5 });
+function buildHouseAddItem(g, x, y, kind = 'item') {
   const w = _open(0x06);
   w.writeU8(0x00); w.writeU32(g >>> 0);
   w.writeU8(0x00); w.writeU32(x >>> 0);
   w.writeU8(0x00); w.writeU32(y >>> 0);
+  // NodeUO extension: one optional kind byte before the standard 0x0A
+  // terminator. Classic clients omit it and remain fully compatible.
+  w.writeU8(HOUSE_KIND_CODE[kind] ?? 0);
   return _close(w);
 }
 function buildHouseExit()           { return _close(_open(0x0C)); }
@@ -116,6 +120,8 @@ class HouseCustomizationManager {
     this._installed = false;
     this._requestId = 0;
     this.toolState = { history: null, templates: [], validation: null };
+    this.draftTiles = [];
+    this._draftBackup = [];
   }
   install() {
     if (this._installed) return;
@@ -139,14 +145,23 @@ class HouseCustomizationManager {
     this.state = HouseCustomState.Editing;
     this.targetSerial = serial >>> 0;
     this.currentFloor = 1;
+    this.draftTiles = [];
+    this._draftBackup = [];
+    bus.emit('house:draft-changed', { tiles: [] });
     bus.emit('house:custom-state', { state: this.state });
   }
   exit() {
     if (this.state === HouseCustomState.Idle) return;
     try { net.send(buildHouseExit()); } catch { /* socket */ }
+    this._finishLocal();
+  }
+  _finishLocal() {
     this.state = HouseCustomState.Idle;
     this.targetSerial = 0;
     this.clearPreviewTile();
+    this.draftTiles = [];
+    this._draftBackup = [];
+    bus.emit('house:draft-changed', { tiles: [] });
     bus.emit('house:custom-state', { state: this.state });
     bus.emit('house:brush-changed', null);
   }
@@ -169,7 +184,7 @@ class HouseCustomizationManager {
   setPreviewTile(x, y, z = 0) {
     this.previewX = x | 0;
     this.previewY = y | 0;
-    this.previewZ = z | 0;
+    this.previewZ = (z | 0) + 7 + (Math.max(1, this.currentFloor | 0) - 1) * 20;
   }
 
   clearPreviewTile() {
@@ -194,12 +209,30 @@ class HouseCustomizationManager {
     this.currentFloor = floor | 0;
     try { net.send(buildHouseGoToFloor(this.currentFloor)); } catch { /* socket */ }
   }
-  backup()  { try { net.send(buildHouseBackup());  } catch { /* socket */ } }
-  restore() { try { net.send(buildHouseRestore()); } catch { /* socket */ } }
-  commit()  { try { net.send(buildHouseCommit());  } catch { /* socket */ } }
+  backup()  {
+    this._draftBackup = this.draftTiles.map((tile) => ({ ...tile }));
+    try { net.send(buildHouseBackup()); } catch { /* socket */ }
+  }
+  restore() {
+    this.draftTiles = this._draftBackup.map((tile) => ({ ...tile }));
+    bus.emit('house:draft-changed', { tiles: this.draftTiles });
+    try { net.send(buildHouseRestore()); } catch { /* socket */ }
+  }
+  commit()  {
+    try { net.send(buildHouseCommit()); } catch { /* socket */ }
+    this._finishLocal();
+  }
   sync()    { try { net.send(buildHouseSync());    } catch { /* socket */ } }
-  clear()   { try { net.send(buildHouseClear());   } catch { /* socket */ } }
-  revert()  { try { net.send(buildHouseRevert());  } catch { /* socket */ } }
+  clear()   {
+    this.draftTiles = [];
+    bus.emit('house:draft-changed', { tiles: [] });
+    try { net.send(buildHouseClear()); } catch { /* socket */ }
+  }
+  revert()  {
+    this.draftTiles = [];
+    bus.emit('house:draft-changed', { tiles: [] });
+    try { net.send(buildHouseRevert()); } catch { /* socket */ }
+  }
 
   _tool(kind, payload = {}) {
     if (!net.supportsNodeUO?.(NodeUOCapability.HouseTools)) return false;
@@ -230,13 +263,19 @@ class HouseCustomizationManager {
   place(x, y, z) {
     if (this.state !== HouseCustomState.Editing) return;
     if (!this.brush) return;
+    const floorZ = (z | 0) + 7 + (Math.max(1, this.currentFloor | 0) - 1) * 20;
     if (this.brushKind === 'roof') {
-      try { net.send(buildHouseAddRoof(this.brush, x, y, z | 0)); } catch { /* socket */ }
+      try { net.send(buildHouseAddRoof(this.brush, x, y, floorZ)); } catch { /* socket */ }
     } else if (this.brushKind === 'stair') {
       try { net.send(buildHouseAddStair(this.brush, x, y)); } catch { /* socket */ }
     } else {
-      try { net.send(buildHouseAddItem(this.brush, x, y)); } catch { /* socket */ }
+      try { net.send(buildHouseAddItem(this.brush, x, y, this.brushKind)); } catch { /* socket */ }
     }
+    this.draftTiles.push({
+      graphic: this.brush | 0, kind: this.brushKind,
+      x: x | 0, y: y | 0, z: floorZ,
+    });
+    bus.emit('house:draft-changed', { tiles: this.draftTiles });
   }
   erase(graphic, x, y, z) {
     if (this.state === HouseCustomState.Idle) return;
@@ -245,6 +284,14 @@ class HouseCustomizationManager {
     } else {
       try { net.send(buildHouseDeleteItem(graphic, x, y, z | 0)); } catch { /* socket */ }
     }
+    for (let i = this.draftTiles.length - 1; i >= 0; i--) {
+      const tile = this.draftTiles[i];
+      if (tile.x === (x | 0) && tile.y === (y | 0)) {
+        this.draftTiles.splice(i, 1);
+        break;
+      }
+    }
+    bus.emit('house:draft-changed', { tiles: this.draftTiles });
   }
 }
 

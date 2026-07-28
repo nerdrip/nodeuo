@@ -35,7 +35,10 @@ assert.equal(weatherParticleBudget(3, 70, 1920, 1080), 0, 'storm brewing must no
 assert.equal(weatherParticleBudget(2, 70, 1920, 1080), 160, 'large viewports use a bounded adaptive pool');
 seasonManager.season = SeasonIds.Winter;
 assert.notEqual(seasonManager.remapStatic(0x0CA7), 0x0CA7);
+assert.equal(seasonManager.remapLand(3), 282, 'ClassicUO winter landtile remap must be generated');
+assert.equal(seasonManager.remapLand(121), 910, 'winter snow terrain table must not be empty');
 seasonManager.season = SeasonIds.Summer;
 assert.equal(seasonManager.remapStatic(0x0CA7), 0x0CA7);
+assert.equal(seasonManager.remapLand(3), 3);
 
 console.log('[smoke:light-overlay] ok');

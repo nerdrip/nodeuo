@@ -398,8 +398,12 @@ export class NetState {
     // server rejected (item not movable) → "You cannot pick that up"
     // spam on every door click. Match the existing convention used by
     // `_onClose` (line 219) — 0x20 movable, 0x00 fixed.
+    const isMulti = item._multiAnchor === true || item.multiId != null || item.boat != null;
     this.send(worldItemSA({
-      serial: item.serial, itemId: item.itemId, hue: item.hue,
+      serial: item.serial,
+      itemId: isMulti ? (item.multiId ?? item.itemId) : item.itemId,
+      dataType: isMulti ? 2 : 0,
+      hue: item.hue,
       amount: item.amount, x: item.x, y: item.y, z: item.z,
       flags: (item.movable === false) ? 0x00 : 0x20,
     }));

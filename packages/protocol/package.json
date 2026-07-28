@@ -9,13 +9,17 @@
     "./buffer": "./src/buffer.js",
     "./huffman": "./src/huffman.js",
     "./opcodes": "./src/opcodes.js",
-    "./packets": "./src/packets/index.js"
+    "./packets": "./src/packets/index.js",
+    "./encryption": "./src/encryption.js",
+    "./blowfish": "./src/blowfish.js",
+    "./twofish": "./src/twofish.js",
+    "./md5": "./src/md5.js"
   },
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "devDependencies": {
-    "vitest": "^2.1.9"
+    "vitest": "^4.1.10"
   }
 }

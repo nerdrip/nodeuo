@@ -50,6 +50,14 @@ export function staticNameOf(tiledata, id) {
   return e?.name ?? `static 0x${(id | 0).toString(16)}`;
 }
 
+/** Implementation-marker art is present under both `nodraw` and
+ * `no draw` spellings (plus suffixes such as `nodraw_hover`). It is map
+ * scaffolding and must never reach a player's renderer. */
+export function isNoDrawStatic(tiledata, id) {
+  const name = String(staticEntry(tiledata, id)?.name ?? '').trim();
+  return /^no\s*draw(?:\b|_)/i.test(name);
+}
+
 export function landNameOf(tiledata, id) {
   const e = landEntry(tiledata, id);
   return e?.name ?? `land 0x${(id | 0).toString(16)}`;

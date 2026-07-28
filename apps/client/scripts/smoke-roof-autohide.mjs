@@ -116,6 +116,21 @@ const bankCeilingBounds = tallStructureBoundsForPlayer(britainBankLikeCeiling, 6
 assert.deepEqual(bankCeilingBounds, { x0: 60, y0: 60, x1: 64, y1: 64 });
 assert.equal(shouldHideTallEntry(britainBankLikeCeiling[0], 62, 62, true, 5, Infinity, bankCeilingBounds), true);
 
+// Classic house multis place their walkable ground floor above the anchor.
+// A player can temporarily still be at the terrain Z while the house mounts;
+// that first floor is not an overhead storey and must remain visible.
+const classicMultiGroundFloor = [ceilingSurface(70, 70, 12)];
+assert.equal(
+  tallStructureBoundsForPlayer(classicMultiGroundFloor, 70, 70, 0),
+  null,
+  'raised multi ground floor is not mistaken for an overhead ceiling',
+);
+assert.equal(
+  shouldHideTallEntry(classicMultiGroundFloor[0], 70, 70, true, 5, Infinity),
+  false,
+  'raised multi ground floor remains visible while roof cut-off is active',
+);
+
 const renderer = Object.create(TileRenderer.prototype);
 renderer.visuals = new Map();
 renderer._dynamicTalls = new Map();

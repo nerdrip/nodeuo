@@ -10,18 +10,19 @@
 //   [placemulti list           print the 20 most-used multi ids
 //   [placemulti search wall    grep multi names for "wall"
 //
-// Tiles are spawned as world items tagged `_multi: <id>` so we can
-// sweep them later via `[destroymulti` / `[removemulti`. Each tile is movable=false
-// and isDecoration=true so the persistence + decay sweepers skip them.
+// Each placement creates one canonical BaseMulti-style anchor sent to
+// clients as a type-2 world item. Blueprint components remain server-side
+// collision proxies; only hidden dynamic pieces (doors/signs) are also sent
+// as ordinary items. Every part shares a unique `_multiInstance` so two
+// houses built from the same template never share ACL or demolition state.
 //
 // ServUO equivalent: `Scripts/Multis/Deeds/HouseDeed.cs` placement.
-// We don't model the HOUSE registry yet (lockdowns, vendor slots, etc)
-// — placing a multi here just stamps the static tile blueprint. Wire
-// `[house place` to call this internally when we're ready.
+// House multis are bridged into HouseRegistry immediately after stamping;
+// boats and scenery remain plain canonical multis.
 
 import { readFileSync, existsSync } from 'node:fs';
 import {
-  newAclFor, getAcl, getAclLevel, applyAclToTiles,
+  getAcl, getAclLevel,
   addToRoster, removeFromRoster, lockdownItem, releaseItem,
   bumpVisit, findDecayedMultis,
   ACL_OWNER, ACL_CO_OWNER, ACL_FRIEND, ACL_STRANGER, ACL_NONE,
@@ -32,6 +33,11 @@ import { fileURLToPath } from 'node:url';
 import { createItem, destroyItemBySerial } from '../../_items.js';
 import { allItems, allMobiles } from '../../_spatial.js';
 import { itemBySerial, mobileBySerial } from '../../_entities.js';
+import { isCustomHouseMulti, isHouseMulti, nameForMulti } from './multi-catalog.js';
+import {
+  ensureHouseForMulti, isHousingStaff, openHouseManagement, registerMultiHouse,
+  syncMultiAclToRegistry, syncRegistryHouseToMulti,
+} from './multi-house-bridge.js';
 
 // Resolve relative to THIS file so the lookup works regardless of
 // where the server was launched from. User report: "Multi 0xb not in
@@ -79,6 +85,26 @@ function parseId(s) {
   const t = String(s).trim();
   if (/^0x[0-9a-f]+$/i.test(t)) return parseInt(t.slice(2), 16);
   return parseInt(t, 10);
+}
+
+function multiInstanceId(item) {
+  return item?._multiInstance == null ? null : (item._multiInstance >>> 0);
+}
+
+/** Match one concrete placed structure. Older saves have no instance id,
+ * so they retain the historical facet + template-id fallback. */
+function sameMultiInstance(item, reference) {
+  if (!item || !reference) return false;
+  const instanceId = multiInstanceId(reference);
+  if (instanceId != null) return multiInstanceId(item) === instanceId;
+  return (item._multi | 0) === (reference._multi | 0)
+    && (item.map ?? 1) === (reference.map ?? 1);
+}
+
+function matchesMultiRef(item, multiId, facet, instanceId = null) {
+  if (!item || (item.map ?? 1) !== facet) return false;
+  if (instanceId != null) return multiInstanceId(item) === (instanceId >>> 0);
+  return (item._multi | 0) === (multiId | 0);
 }
 
 // House / vendor sign tile-id ranges. Classic UO ships sign graphics
@@ -142,6 +168,7 @@ export default function register(api) {
     name: 'signinfo',
     help: '[signinfo — target an item to inspect its tile id, flags, and sign-hook coverage.',
     access: 'GM',
+    hidden: true,
     run(ctx) {
       ctx.state.sendSystemMessage('Target the item to inspect.');
       api.targeting?.request(ctx.state, (picked) => {
@@ -171,6 +198,7 @@ export default function register(api) {
     name: 'placemulti',
     help: '[placemulti <id|list|search NAME> [hue] — stamp a UO multi template.',
     access: 'GM',
+    hidden: true,
     run(ctx) {
       const sub = (ctx.args[0] ?? '').toLowerCase();
       const mob = ctx.sender;
@@ -268,6 +296,7 @@ export default function register(api) {
     name: 'fixmultis',
     help: '[fixmultis — retro-patch placed multi/static items with solid/door flags.',
     access: 'GM',
+    hidden: true,
     run(ctx) {
       const player = ctx.sender;
       const sub = (ctx.args[0] ?? '').toLowerCase();
@@ -321,6 +350,14 @@ export default function register(api) {
         user.client.sendSystemMessage?.('This deed is missing its multi id.');
         return true;
       }
+      if (!isHouseMulti(multiId)) {
+        user.client.sendSystemMessage?.('This deed does not reference a house foundation.');
+        return true;
+      }
+      if (!isHousingStaff(user) && (api.houses?.housesOf?.(user.serial) ?? []).length > 0) {
+        user.client.sendSystemMessage?.('You already own a house.');
+        return true;
+      }
       const multis = loadMultis(api);
       const tiles = multis?.[multiId];
       if (!tiles) {
@@ -350,25 +387,15 @@ export default function register(api) {
           user.client.sendSystemMessage?.(`Placement blocked: ${placement.reason}.`);
           return;
         }
-        const placed = stampMultiAt(api, multiId, hue, tiles, ox, oy, oz, user.map ?? 1);
-        if (placed > 0) {
+        const result = stampMultiAt(api, multiId, hue, tiles, ox, oy, oz, user.map ?? 1);
+        if (result.placed > 0) {
           destroyItemBySerial(api, deedSerial);
           user.client.sendSystemMessage?.(
-            `You place a multi 0x${multiId.toString(16)} (${placed} tiles).`,
+            `You place a multi 0x${multiId.toString(16)} (${result.placed} components).`,
           );
-          // Stamp the deed-owner reference AND the full ACL on every
-          // tile. The ACL gates door-open + lockdown + decay; legacy
-          // `_multiOwner` is preserved as a fast-read shortcut for the
-          // sign gump's header lines but the canonical source of truth
-          // is `_multiAcl.owner` from now on.
-          const acl = newAclFor(user);
-          applyAclToTiles(api.world, multiId, user.map ?? 1, acl);
-          const ownerRef = { serial: user.serial >>> 0, name: user.name };
-          for (const it of allItems(api)) {
-            if ((it._multi | 0) === (multiId | 0) && (it.map ?? 1) === (user.map ?? 1)) {
-              it._multiOwner = ownerRef;
-            }
-          }
+          registerMultiHouse(api, result.anchor, user, {
+            source: 'house-deed', title: item.name ?? nameForMulti(multiId),
+          });
           user.client.sendSystemMessage?.(
             `You are now the owner. Use the house sign to manage friends, co-owners, and lockdowns.`,
           );
@@ -410,6 +437,10 @@ export default function register(api) {
         ctx.state.sendSystemMessage('Usage: [housedeed [multiId|0xHEX] [name] (omit args to open the picker)');
         return;
       }
+      if (!isHouseMulti(multiId)) {
+        ctx.state.sendSystemMessage('That multi is not a house. Use [multigump for boats and scenery.');
+        return;
+      }
       const multis = loadMultis(api);
       if (!multis?.[multiId]) {
         ctx.state.sendSystemMessage(`Unknown multi 0x${multiId.toString(16)}.`);
@@ -430,7 +461,9 @@ export default function register(api) {
         ctx.state.sendSystemMessage('That tile is not part of a placed multi.');
         return;
       }
-      const removed = destroyMultiByBrand(api, it._multi, it.map ?? 1);
+      const removed = destroyMultiByBrand(
+        api, it._multi, it.map ?? 1, multiInstanceId(it),
+      );
       ctx.state.sendSystemMessage(`Demolished multi 0x${(it._multi|0).toString(16)} — ${removed} tiles removed.`);
       api.log?.(`[${commandName}] ${ctx.sender?.name ?? 'admin'} demolished 0x${(it._multi|0).toString(16)} on facet ${it.map}: ${removed} tiles`);
     }, { kind: 0 });
@@ -444,12 +477,14 @@ export default function register(api) {
     name: 'destroymulti',
     help: '[destroymulti — target any tile of a placed multi to demolish the whole structure.',
     access: 'GM',
+    hidden: true,
     run(ctx) { requestDestroyMulti(ctx, 'destroymulti'); },
   });
   api.commands.register({
     name: 'removemulti',
     help: '[removemulti — alias for [destroymulti.',
     access: 'GM',
+    hidden: true,
     run(ctx) { requestDestroyMulti(ctx, 'removemulti'); },
   });
 
@@ -461,8 +496,8 @@ export default function register(api) {
   const tickHouseDecay = () => {
     try {
       const expired = findDecayedMultis(api.world);
-      for (const { multiId, facet, acl } of expired) {
-        const removed = destroyMultiByBrand(api, multiId, facet);
+      for (const { multiId, instanceId, facet, acl } of expired) {
+        const removed = destroyMultiByBrand(api, multiId, facet, instanceId);
         const ownerName = acl.owner?.name ?? 'unknown';
         api.log?.(`[house-decay] 0x${multiId.toString(16)} (owner: ${ownerName}) decayed → ${removed} tiles wiped`);
         // Drop a notification to the owner if they're online so they
@@ -488,12 +523,13 @@ export default function register(api) {
     name: 'housedecay',
     help: '[housedecay [status|force] — inspect or force the house decay sweeper.',
     access: 'GM',
+    hidden: true,
     run(ctx) {
       const sub = String(ctx.args[0] ?? 'status').toLowerCase();
       if (sub === 'force') {
         const expired = findDecayedMultis(api.world);
-        for (const { multiId, facet } of expired) {
-          destroyMultiByBrand(api, multiId, facet);
+        for (const { multiId, instanceId, facet } of expired) {
+          destroyMultiByBrand(api, multiId, facet, instanceId);
         }
         ctx.state.sendSystemMessage(`Forced decay swept ${expired.length} houses.`);
         return;
@@ -504,7 +540,9 @@ export default function register(api) {
       for (const it of allItems(api)) {
         const acl = it._multiAcl;
         if (!acl) continue;
-        const key = `${it.map ?? 1}:${it._multi | 0}`;
+        const key = multiInstanceId(it) == null
+          ? `legacy:${it.map ?? 1}:${it._multi | 0}`
+          : `instance:${multiInstanceId(it)}`;
         if (seen.has(key)) continue;
         seen.add(key);
         const remaining = ((acl.lastVisitAt + (DECAY_DAYS * 86_400_000)) - Date.now()) / 86_400_000;
@@ -541,7 +579,7 @@ function getMultiCatalogueKeys(api) {
   if (!multis) return [];
   return Object.keys(multis)
     .map((k) => +k)
-    .filter((k) => Number.isFinite(k) && k > 0)
+    .filter((k) => Number.isFinite(k) && k > 0 && isHouseMulti(k))
     .sort((a, b) => a - b);
 }
 
@@ -549,7 +587,7 @@ function getMultiCatalogueKeys(api) {
  *  the chosen multi id. Shared by the terminal-mode [housedeed call
  *  and the picker gump so the broadcast / response shape stays in
  *  lockstep with the rest of placemulti's contract. */
-function spawnHousedeedIntoPack(api, state, mob, multiId, name = 'deed to a building') {
+export function spawnHousedeedIntoPack(api, state, mob, multiId, name = 'deed to a building') {
   const deed = api.game?.mobile?.giveItem?.(mob, {
     itemId: 0x14F0,             // HousePlacementTool icon
     hue: 1153,                   // gold tint — matches ServUO
@@ -584,7 +622,8 @@ function openHousedeedPicker(api, state, mob, page = 0, filter = '') {
   const filtered = needle
     ? keys.filter((k) => {
         const hex = '0x' + k.toString(16);
-        return hex.includes(needle) || k.toString(10).includes(needle);
+        const name = nameForMulti(k).toLowerCase();
+        return hex.includes(needle) || k.toString(10).includes(needle) || name.includes(needle);
       })
     : keys;
   const PAGE_SIZE = 12;
@@ -593,7 +632,7 @@ function openHousedeedPicker(api, state, mob, page = 0, filter = '') {
   const slice = filtered.slice(cur * PAGE_SIZE, cur * PAGE_SIZE + PAGE_SIZE);
   const multis = loadMultis(api);
 
-  const W = 460;
+  const W = 570;
   const headerH = 56;
   const rowH = 22;
   const footerH = 56;
@@ -602,7 +641,7 @@ function openHousedeedPicker(api, state, mob, page = 0, filter = '') {
   const texts = [];
 
   // Title + counter
-  texts.push('── Multi catalogue ──');
+  texts.push('── House deed catalogue ──');
   lines.push(`{ text 20 12 1153 ${texts.length - 1} }`);
   texts.push(
     filtered.length === keys.length
@@ -620,12 +659,14 @@ function openHousedeedPicker(api, state, mob, page = 0, filter = '') {
   texts.push('Filter');
   lines.push(`{ text 405 14 1153 ${texts.length - 1} }`);
 
-  // Per-row buttons. Label format: "0x006A  (140 tiles)".
+  // Per-row buttons include the canonical house name and make custom
+  // foundations discoverable without memorising the 0x13EC range.
   slice.forEach((id, idx) => {
     const y = headerH + idx * rowH;
     const tileCount = multis?.[id]?.length ?? 0;
     lines.push(`{ button 20 ${y} 4023 4024 1 0 ${100 + idx} }`);
-    texts.push(`0x${id.toString(16).padStart(4, '0')}  (${tileCount} tile${tileCount === 1 ? '' : 's'})`);
+    const kind = isCustomHouseMulti(id) ? 'CUSTOM' : 'CLASSIC';
+    texts.push(`0x${id.toString(16).padStart(4, '0')}  [${kind}]  ${nameForMulti(id)}  (${tileCount} tiles)`);
     lines.push(`{ text 52 ${y + 4} 70 ${texts.length - 1} }`);
   });
 
@@ -645,7 +686,7 @@ function openHousedeedPicker(api, state, mob, page = 0, filter = '') {
   texts.push('Cancel');
   lines.push(`{ text ${W - 58} ${footerY + 4} 1153 ${texts.length - 1} }`);
 
-  api.gumps.send(state, { x: 80, y: 80, layout: lines.join(''), texts }, (resp) => {
+  api.gumps.send(state, { definitionId: 'server:commands-housing-placemulti:open-housedeed-picker-1', x: 80, y: 80, layout: lines.join(''), texts }, (resp) => {
     const btn = resp.buttonId | 0;
     if (btn === 0) return;
     const typed = (resp.textEntries ?? []).find((e) => e.entryId === 0)?.text ?? filter;
@@ -681,13 +722,15 @@ function openHousedeedPicker(api, state, mob, page = 0, filter = '') {
  *    300..399 — informational (Owner / Coords / Tile count)
  *  Cancel (0) just closes. */
 function openHouseSignGump(api, world, signItem, user) {
+  const registeredHouse = ensureHouseForMulti(api, signItem, user);
+  if (registeredHouse && openHouseManagement(api, user.client, user, registeredHouse)) return;
   const multiId = signItem._multi | 0;
   const map = signItem.map ?? 1;
   const acl = getAcl(signItem);
   const access = user?.client?.account?.accessLevel ?? 'Player';
   const tier = getAclLevel(user, acl, access);
   const customName = signItem._multiName ?? `House 0x${multiId.toString(16)}`;
-  const tileCount = countMultiTiles(api, multiId, map);
+  const tileCount = countMultiTiles(api, multiId, map, multiInstanceId(signItem));
   const ownerName = acl?.owner?.name ?? signItem._multiOwner?.name ?? null;
   // Bump the owner's last-visit timestamp — the decay timer resets
   // every time the owner physically interacts with the sign. Mirrors
@@ -703,7 +746,7 @@ function openHouseSignGump(api, world, signItem, user) {
     acl
       ? `Friends: ${acl.friends.length} · Co-owners: ${acl.coOwners.length} · Lockdowns: ${acl.lockedDown.length}/${acl.lockdownCap}`
       : 'ACL: (legacy multi — no permissions)',
-    `Your access: ${ACL_LABELS[tier] ?? 'Unknown'}`,
+    `Your access: ${acl ? (ACL_LABELS[tier] ?? 'Unknown') : 'Unowned'}`,
   ];
   if (!api.gumps?.send) {
     for (const ln of headerLines) user.client?.sendSystemMessage?.(ln);
@@ -758,7 +801,7 @@ function openHouseSignGump(api, world, signItem, user) {
     parts.push(`{ text ${bx + 32} ${by + 4} ${a.hue} ${texts.length - 1} }`);
   });
   parts.push(`{ button ${W - 32} 8 4017 4018 1 0 0 }`);
-  api.gumps.send(user.client, { x: 100, y: 100, layout: parts.join(''), texts }, (resp) => {
+  api.gumps.send(user.client, { definitionId: 'server:commands-housing-placemulti:open-house-sign-gump-2', x: 100, y: 100, layout: parts.join(''), texts }, (resp) => {
     handleHouseSignButton(api, world, signItem, user, resp);
   });
 }
@@ -768,8 +811,14 @@ const ACL_LABELS = {
   [ACL_CO_OWNER]: 'Co-owner',
   [ACL_FRIEND]:   'Friend',
   [ACL_STRANGER]: 'Stranger',
-  [ACL_NONE]:     'Banned',
+  [ACL_NONE]:     'Banned / no access',
 };
+
+function hasSignTier(signItem, user, minimum) {
+  return getAclLevel(
+    user, getAcl(signItem), user?.client?.account?.accessLevel ?? 'Player',
+  ) >= minimum;
+}
 
 /** Dispatch a button click from the house-sign gump. Each branch is
  *  intentionally narrow + idempotent so re-clicks don't cascade. */
@@ -778,16 +827,40 @@ function handleHouseSignButton(api, world, signItem, user, resp) {
   if (btn === 0) return;                                // cancel / close
   const multiId = signItem._multi | 0;
   const map = signItem.map ?? 1;
+  const acl = getAcl(signItem);
+  const tier = getAclLevel(user, acl, user?.client?.account?.accessLevel ?? 'Player');
+  const requiredTier = btn >= 100 && btn < 300
+    ? ACL_OWNER
+    : ([412, 413].includes(btn) ? ACL_OWNER
+      : ([410, 411, 420, 421].includes(btn) ? ACL_CO_OWNER
+        : ([400, 401].includes(btn) ? ACL_FRIEND : ACL_STRANGER)));
+  if (tier < requiredTier) {
+    user.client?.sendSystemMessage?.('You no longer have permission to perform that house action.');
+    return;
+  }
   switch (btn) {
     case 100: {     // Demolish
-      const removed = destroyMultiByBrand(api, multiId, map);
-      user.client?.sendSystemMessage?.(`Demolished multi 0x${multiId.toString(16)} — ${removed} tiles removed.`);
+      const house = api.houses?.houseByMultiInstance?.(multiInstanceId(signItem));
+      const deed = spawnHousedeedIntoPack(
+        api, user.client, user, multiId,
+        `deed to ${house?.sign?.title ?? nameForMulti(multiId) ?? 'a building'}`,
+      );
+      if (!deed) {
+        user.client?.sendSystemMessage?.('Demolition cancelled because the deed could not be placed in your backpack.');
+        return;
+      }
+      const removed = destroyMultiByBrand(api, multiId, map, multiInstanceId(signItem));
+      if (house) api.houses.remove(house.id);
+      user.client?.sendSystemMessage?.(`House demolished — ${removed} parts removed and its placement deed returned.`);
       api.log?.(`[sign] ${user.name ?? 'admin'} demolished 0x${multiId.toString(16)}: ${removed} tiles`);
       return;
     }
     case 101: {     // Transfer ownership
       user.client?.sendSystemMessage?.('Target the new owner.');
       api.targeting?.request(user.client, (picked) => {
+        if (!hasSignTier(signItem, user, ACL_OWNER)) {
+          user.client?.sendSystemMessage?.('House ownership changed; transfer cancelled.'); return;
+        }
         if (!picked?.serial) { user.client?.sendSystemMessage?.('Cancelled.'); return; }
         const newOwner = mobileBySerial(api, picked.serial >>> 0);
         if (!newOwner) { user.client?.sendSystemMessage?.('Not a mobile.'); return; }
@@ -795,13 +868,18 @@ function handleHouseSignButton(api, world, signItem, user, resp) {
         // Update both legacy `_multiOwner` AND the canonical `_multiAcl.owner`
         // — readers still check the legacy field for header rendering
         // but the ACL is what gates all permission checks.
-        const acl = getAcl(signItem);
-        if (acl) acl.owner = ownerRef;
+        const liveAcl = getAcl(signItem);
+        if (liveAcl) liveAcl.owner = ownerRef;
         for (const it of allItems(api)) {
-          if ((it._multi | 0) === (multiId | 0) && (it.map ?? 1) === map) {
+          if (sameMultiInstance(it, signItem)) {
             it._multiOwner = ownerRef;
           }
         }
+        const house = syncMultiAclToRegistry(api, signItem);
+        house?.coowners?.delete?.(newOwner.serial >>> 0);
+        house?.friends?.delete?.(newOwner.serial >>> 0);
+        house?.bans?.delete?.(newOwner.serial >>> 0);
+        if (house) syncRegistryHouseToMulti(api, house);
         user.client?.sendSystemMessage?.(`Ownership transferred to ${ownerRef.name ?? 'mobile'}.`);
         api.log?.(`[sign] ${user.name ?? 'admin'} transferred 0x${multiId.toString(16)} → ${ownerRef.name}`);
       }, { kind: 1 });
@@ -826,25 +904,34 @@ function handleHouseSignButton(api, world, signItem, user, resp) {
         return;
       }
       sendHuePicker(user.client, { start: 0, count: 1000 }, (hue) => {
+        if (!hasSignTier(signItem, user, ACL_OWNER)) return;
         if (hue == null) return;
         let touched = 0;
+        const changedVisible = [];
         for (const it of allItems(api)) {
-          if ((it._multi | 0) !== (multiId | 0)) continue;
-          if ((it.map ?? 1) !== map) continue;
+          if (!sameMultiInstance(it, signItem)) continue;
           if (it.hue === hue) continue;
           it.hue = hue;
-          if (api.protocol?.worldItemSA) {
-            const pkt = api.protocol.worldItemSA({
-              serial: it.serial, itemId: it.itemId, hue: it.hue,
-              amount: 1, x: it.x, y: it.y, z: it.z, flags: 0x00,
-            });
-            for (const m of allMobiles(api)) {
-              if (!m.client || m.map !== map) continue;
-              if (Math.abs(m.x - it.x) > 24 || Math.abs(m.y - it.y) > 24) continue;
-              m.client.send(pkt);
+          if (!it._multiAnchor) touched++;
+          // Collision proxies are not client entities; broadcasting them
+          // here would recreate the duplicate sprites the anchor replaced.
+          if (it._multiAnchor || it.visible !== false) changedVisible.push(it);
+        }
+        for (const it of changedVisible) {
+          for (const m of allMobiles(api)) {
+            if (!m.client || (m.map ?? 1) !== map) continue;
+            if (Math.abs(m.x - it.x) > 24 || Math.abs(m.y - it.y) > 24) continue;
+            if (typeof m.client.sendItem === 'function') {
+              m.client.sendItem(it);
+            } else if (api.protocol?.worldItemSA) {
+              m.client.send(api.protocol.worldItemSA({
+                serial: it.serial,
+                itemId: it._multiAnchor ? (it.multiId | 0) : it.itemId,
+                hue: it.hue, amount: 1, x: it.x, y: it.y, z: it.z,
+                flags: 0x00, dataType: it._multiAnchor ? 2 : 0,
+              }));
             }
           }
-          touched++;
         }
         user.client?.sendSystemMessage?.(`Re-hued ${touched} tile${touched === 1 ? '' : 's'} to 0x${hue.toString(16)}.`);
       });
@@ -856,13 +943,16 @@ function handleHouseSignButton(api, world, signItem, user, resp) {
         prompt: 'New name:',
         initial: signItem._multiName ?? '',
       }, (newName) => {
+        if (!hasSignTier(signItem, user, ACL_OWNER)) return;
         if (newName == null) return;
         const trimmed = String(newName).slice(0, 60);
         for (const it of allItems(api)) {
-          if ((it._multi | 0) === (multiId | 0) && (it.map ?? 1) === map) {
+          if (sameMultiInstance(it, signItem)) {
             it._multiName = trimmed;
           }
         }
+        const house = api.houses?.houseByMultiInstance?.(multiInstanceId(signItem));
+        if (house) house.sign = { ...(house.sign ?? {}), title: trimmed };
         user.client?.sendSystemMessage?.(`House renamed to "${trimmed}".`);
       });
       // Fallback when the gump runtime doesn't have a text-entry helper:
@@ -873,14 +963,14 @@ function handleHouseSignButton(api, world, signItem, user, resp) {
       return;
     }
     case 300: {     // Show multi info — re-dump headers to chat
-      user.client?.sendSystemMessage?.(`Multi 0x${multiId.toString(16)} · ${countMultiTiles(api, multiId, map)} tiles on facet ${map}`);
+      user.client?.sendSystemMessage?.(`Multi 0x${multiId.toString(16)} · ${countMultiTiles(api, multiId, map, multiInstanceId(signItem))} components on facet ${map}`);
       return;
     }
     case 301: {     // Highlight tiles — temporary effect at each tile
       let n = 0;
       for (const it of allItems(api)) {
-        if ((it._multi | 0) !== (multiId | 0)) continue;
-        if ((it.map ?? 1) !== map) continue;
+        if (!sameMultiInstance(it, signItem)) continue;
+        if (it._multiAnchor) continue;
         try {
           api.protocol?.locationEffect && user.client?.send?.(
             api.protocol.locationEffect({
@@ -905,6 +995,8 @@ function aclAddTarget(api, signItem, user, rosterName, label) {
   if (!acl) { user.client?.sendSystemMessage?.('This house has no ACL.'); return; }
   user.client?.sendSystemMessage?.(`Target the ${label} to add.`);
   api.targeting?.request(user.client, (picked) => {
+    const needed = rosterName === 'coOwners' ? ACL_OWNER : ACL_CO_OWNER;
+    if (!hasSignTier(signItem, user, needed)) return;
     if (!picked?.serial) return;
     const target = mobileBySerial(api, picked.serial >>> 0);
     if (!target) { user.client?.sendSystemMessage?.('Not a mobile.'); return; }
@@ -913,6 +1005,7 @@ function aclAddTarget(api, signItem, user, rosterName, label) {
       return;
     }
     if (addToRoster(acl, rosterName, target)) {
+      syncMultiAclToRegistry(api, signItem);
       user.client?.sendSystemMessage?.(`${target.name} added as ${label}.`);
       api.log?.(`[house-acl] +${rosterName} ${target.name} → 0x${(signItem._multi|0).toString(16)}`);
     } else {
@@ -926,8 +1019,11 @@ function aclRemoveTarget(api, signItem, user, rosterName, label) {
   if (!acl) { user.client?.sendSystemMessage?.('This house has no ACL.'); return; }
   user.client?.sendSystemMessage?.(`Target the ${label} to remove.`);
   api.targeting?.request(user.client, (picked) => {
+    const needed = rosterName === 'coOwners' ? ACL_OWNER : ACL_CO_OWNER;
+    if (!hasSignTier(signItem, user, needed)) return;
     if (!picked?.serial) return;
     if (removeFromRoster(acl, rosterName, picked.serial)) {
+      syncMultiAclToRegistry(api, signItem);
       const target = mobileBySerial(api, picked.serial >>> 0);
       user.client?.sendSystemMessage?.(`${target?.name ?? 'Mob'} removed from ${label} list.`);
       api.log?.(`[house-acl] -${rosterName} 0x${(picked.serial>>>0).toString(16)} ← 0x${(signItem._multi|0).toString(16)}`);
@@ -940,6 +1036,16 @@ function aclRemoveTarget(api, signItem, user, rosterName, label) {
 /** Target an item inside the house footprint to lock it down. Cap is
  *  enforced inside `lockdownItem`. Items must already be on the floor
  *  (not in a backpack) — i.e. `parent == null`. */
+function multiBoundsFor(api, reference) {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const it of allItems(api)) {
+    if (!sameMultiInstance(it, reference) || it._multiAnchor) continue;
+    minX = Math.min(minX, it.x | 0); maxX = Math.max(maxX, it.x | 0);
+    minY = Math.min(minY, it.y | 0); maxY = Math.max(maxY, it.y | 0);
+  }
+  return Number.isFinite(minX) ? { minX, minY, maxX, maxY } : null;
+}
+
 function aclLockdownTarget(api, signItem, user) {
   const acl = getAcl(signItem);
   if (!acl) { user.client?.sendSystemMessage?.('This house has no ACL.'); return; }
@@ -951,15 +1057,24 @@ function aclLockdownTarget(api, signItem, user) {
   }
   user.client?.sendSystemMessage?.('Target an item to lock down.');
   api.targeting?.request(user.client, (picked) => {
+    if (!hasSignTier(signItem, user, ACL_FRIEND)) return;
     if (!picked?.serial) return;
     const item = itemBySerial(api, picked.serial >>> 0);
     if (!item) { user.client?.sendSystemMessage?.('Not an item.'); return; }
     if (item.parent != null) { user.client?.sendSystemMessage?.('Cannot lock items inside containers.'); return; }
-    if ((item._multi | 0) !== (signItem._multi | 0)) {
+    if (sameMultiInstance(item, signItem)) {
       user.client?.sendSystemMessage?.('Items belonging to the house structure cannot be locked down.');
       return;
     }
+    const bounds = multiBoundsFor(api, signItem);
+    if (!bounds || (item.map ?? 1) !== (signItem.map ?? 1)
+        || (item.x | 0) < bounds.minX || (item.x | 0) > bounds.maxX
+        || (item.y | 0) < bounds.minY || (item.y | 0) > bounds.maxY) {
+      user.client?.sendSystemMessage?.('That item is outside this house.');
+      return;
+    }
     if (lockdownItem(acl, item)) {
+      syncMultiAclToRegistry(api, signItem);
       user.client?.sendSystemMessage?.(
         `Locked down (${acl.lockedDown.length}/${acl.lockdownCap}).`,
       );
@@ -974,10 +1089,12 @@ function aclReleaseTarget(api, signItem, user) {
   if (!acl) { user.client?.sendSystemMessage?.('This house has no ACL.'); return; }
   user.client?.sendSystemMessage?.('Target a locked-down item to release.');
   api.targeting?.request(user.client, (picked) => {
+    if (!hasSignTier(signItem, user, ACL_FRIEND)) return;
     if (!picked?.serial) return;
     const item = itemBySerial(api, picked.serial >>> 0);
     if (!item) { user.client?.sendSystemMessage?.('Not an item.'); return; }
     if (releaseItem(acl, item)) {
+      syncMultiAclToRegistry(api, signItem);
       user.client?.sendSystemMessage?.(
         `Released (${acl.lockedDown.length}/${acl.lockdownCap}).`,
       );
@@ -991,11 +1108,11 @@ function aclReleaseTarget(api, signItem, user) {
  *  sign gump for the "Tiles on this facet" line so the GM can sanity-
  *  check whether they're about to nuke a real structure vs an orphaned
  *  marker tile that's the only survivor of a half-failed placement. */
-function countMultiTiles(api, multiId, facet) {
+function countMultiTiles(api, multiId, facet, instanceId = null) {
   let n = 0;
   for (const it of allItems(api)) {
-    if ((it._multi | 0) !== (multiId | 0)) continue;
-    if ((it.map ?? 1) !== facet) continue;
+    if (!matchesMultiRef(it, multiId, facet, instanceId)) continue;
+    if (it._multiAnchor) continue;
     n++;
   }
   return n;
@@ -1007,11 +1124,10 @@ function countMultiTiles(api, multiId, facet) {
  *  tile is broadcast individually so the client's tile-renderer drops
  *  the sprite via the `entity:removed` listener (mirrors the per-tile
  *  worldItemSA fan-out the placement path uses). */
-function destroyMultiByBrand(api, multiId, facet) {
+export function destroyMultiByBrand(api, multiId, facet, instanceId = null) {
   const victims = [];
   for (const it of allItems(api)) {
-    if ((it._multi | 0) !== (multiId | 0)) continue;
-    if ((it.map ?? 1) !== facet) continue;
+    if (!matchesMultiRef(it, multiId, facet, instanceId)) continue;
     victims.push(it);
   }
   if (!victims.length) return 0;
@@ -1068,8 +1184,14 @@ function placeMultiInteractive(api, state, mob, multiId, hue, tiles) {
       state?.sendSystemMessage?.(`Placement blocked: ${placement.reason}.`);
       return;
     }
-    stampMultiAt(api, multiId, hue, tiles, mob.x | 0, mob.y | 0, mob.z | 0, mob.map ?? 1);
-    state?.sendSystemMessage?.('Multi placed at your feet (no preview).');
+    const result = stampMultiAt(
+      api, multiId, hue, tiles,
+      mob.x | 0, mob.y | 0, mob.z | 0, mob.map ?? 1,
+    );
+    if (isHouseMulti(multiId)) registerMultiHouse(api, result.anchor, mob, { source: 'staff-placement' });
+    state?.sendSystemMessage?.(
+      `Multi placed at your feet (${result.placed} components, no preview).`,
+    );
     return;
   }
   // Register a target callback first so the 0x6C reply has a
@@ -1089,8 +1211,9 @@ function placeMultiInteractive(api, state, mob, multiId, hue, tiles) {
       state?.sendSystemMessage?.(`Placement blocked: ${placement.reason}.`);
       return;
     }
-    const placed = stampMultiAt(api, multiId, hue, tiles, x, y, z, map);
-    state?.sendSystemMessage?.(`Placed ${placed}/${tiles.length} tiles of multi 0x${multiId.toString(16)} at (${x},${y},${z}).`);
+    const result = stampMultiAt(api, multiId, hue, tiles, x, y, z, map);
+    if (isHouseMulti(multiId)) registerMultiHouse(api, result.anchor, mob, { source: 'staff-placement' });
+    state?.sendSystemMessage?.(`Placed ${result.placed}/${tiles.length} components of multi 0x${multiId.toString(16)} at (${x},${y},${z}).`);
     api.log?.(`[placemulti] ${mob.name} stamped 0x${multiId.toString(16)} at (${x},${y},${z})  hue=${hue}`);
   });
   // Push 0x99 to put the client in multi-placement mode (ghost preview
@@ -1203,7 +1326,7 @@ function canPlaceMultiAt(api, tiles, ox, oy, oz, map) {
     if (x < minX || x > maxX || y < minY || y > maxY) continue;
     const arr = byCell.get(`${x}:${y}`);
     if (!arr) continue;
-    const existingBlocks = it.solid || it.door || it._multi != null;
+    const existingBlocks = !it._multiAnchor && (it.solid || it.door || it._multi != null);
     if (!existingBlocks) continue;
     const eh = Math.max(1, it.height || tileHeight(api, it.itemId | 0) || 1);
     const ez = it.z | 0;
@@ -1237,42 +1360,78 @@ function canPlaceMultiAt(api, tiles, ox, oy, oz, map) {
   return { ok: true };
 }
 
-function stampMultiAt(api, multiId, hue, tiles, ox, oy, oz, map) {
+export function stampMultiAt(api, multiId, hue, tiles, ox, oy, oz, map) {
+  // A real UO multi is a single world entity whose graphic is an index into
+  // multi.mul/MultiCollection.uop. The client expands that index locally.
+  // Keep component items only as collision/interaction proxies so placement
+  // remains authoritative without sending thousands of duplicate sprites.
+  const anchor = createItem(api, api.world, {
+    itemId: multiId | 0,
+    multiId: multiId | 0,
+    x: ox | 0, y: oy | 0, z: oz | 0, map,
+    hue: hue | 0,
+    movable: false,
+    visible: true,
+    _multi: multiId | 0,
+    _multiAnchor: true,
+    isDecoration: false,
+  });
+  if (!anchor) throw new Error(`Unable to create anchor for multi 0x${(multiId | 0).toString(16)}`);
+
+  const instanceId = anchor.serial >>> 0;
+  // Preserve these explicitly for compatibility with older/custom item
+  // factories that still copy only their historical fixed field list.
+  anchor.multiId = multiId | 0;
+  anchor._multi = multiId | 0;
+  anchor._multiInstance = instanceId;
+  anchor._multiAnchor = true;
+  // Runtime decorations are deliberately omitted from world saves because
+  // `[createworld` recreates them. Player/staff multis are persistent state,
+  // so they must never carry that marker.
+  anchor.isDecoration = false;
+  anchor._noDecay = true;
+  anchor.movable = false;
+  anchor.visible = true;
+
   let placed = 0;
-  // Audit user-report — stampMultiAt created items server-side but
-  // never pushed worldItemSA to nearby clients, so the user saw
-  // "Placed 177/212 tiles" with NOTHING on screen. Same bug pattern
-  // that hit corpses (now fixed). Collect created items + broadcast
-  // each via 0xF3 WorldItemSA after stamping. Compute a bounding box
-  // so we only walk clients near the build site once (vs once per tile).
-  const createdItems = [];
+  const createdItems = [anchor];
+  const clientVisibleItems = [anchor];
+  const statics = api.tileData?.table?.()?.statics;
   for (const t of tiles) {
-    if (!t || (!t.id && !t.itemId)) continue;
-    // User-report — `visible: false` was filtered out, which dropped
-    // the door + house-sign markers that classic UO multis encode as
-    // hidden tile slots. Real housing places these as dynamic items
-    // separately; we have no BaseHouse yet, so include them as plain
-    // static decorations so the placed shell looks complete.
+    if (!t || (t.id == null && t.itemId == null)) continue;
     const x = ox + (t.x | 0);
     const y = oy + (t.y | 0);
     const z = oz + (t.z | 0);
     const tileId = (t.id ?? t.itemId) | 0;
+    const tileName = String(statics?.[tileId]?.name ?? '').trim();
+    // Multi data commonly carries hidden 0x0001 "No Draw" markers. They
+    // are implementation metadata, not dynamic world entities.
+    if (tileId === 0x0001 || /\bno\s*draw\b/i.test(tileName)) continue;
+
     const solid  = isTileSolid(api, tileId);
     try {
+      // Visible blueprint parts are already drawn by the multi anchor and
+      // therefore stay invisible on the wire. Hidden components represent
+      // doors/signs/holds/planks and must remain regular interactive items.
+      const clientVisible = t.visible === false;
       const it = createItem(api, api.world, {
         itemId: tileId, x, y, z, map,
         hue: hue | 0,
         movable: false,
+        visible: clientVisible,
+        _multi: multiId | 0,
+        _multiInstance: instanceId,
+        _multiAnchor: false,
+        isDecoration: false,
       });
-      // User-report fix — `createItem` only copies a fixed field list
-      // (serial / itemId / hue / amount / x / y / z / map / name /
-      // movable / parent / gump / grid / layer / script) and drops any
-      // extra keys you pass in `data`. That meant `_multi`, `solid`,
-      // `isDecoration`, `height` were silently lost on every placement
-      // so [fixmultis found 0 items and walls/roof tiles never blocked.
-      // Stamp the brand + collision payload AFTER creation:
-      it._multi       = multiId;
-      it.isDecoration = true;
+      if (!it) throw new Error('item factory returned no item');
+      it._multi       = multiId | 0;
+      it._multiInstance = instanceId;
+      it._multiAnchor = false;
+      it.isDecoration = false;
+      it._noDecay = true;
+      it.visible      = clientVisible;
+      it.movable      = false;
       if (solid) {
         it.solid  = true;
         it.height = tileHeight(api, tileId) || 20;
@@ -1282,14 +1441,16 @@ function stampMultiAt(api, multiId, hue, tiles, ox, oy, oz, map) {
       // fire on first use. Skipped for non-door tiles (returns null).
       bindDoorTile(api, it);
       createdItems.push(it);
+      if (clientVisible) clientVisibleItems.push(it);
       placed++;
     } catch (e) {
       api.log?.(`[placemulti] tile ${tileId} at (${x},${y},${z}) threw: ${e.message}`);
     }
   }
-  // Broadcast every tile to nearby clients (range 24, comfortably larger
-  // than any house footprint).
-  if (createdItems.length && api.protocol?.worldItemSA) {
+
+  // One anchor plus a handful of interactive pieces replaces the old
+  // component-per-packet fan-out. Compute the range once per structure.
+  if (clientVisibleItems.length) {
     const RANGE = 24;
     const minX = createdItems.reduce((m, it) => Math.min(m, it.x | 0),  Infinity);
     const maxX = createdItems.reduce((m, it) => Math.max(m, it.x | 0), -Infinity);
@@ -1305,20 +1466,25 @@ function stampMultiAt(api, multiId, hue, tiles, ox, oy, oz, map) {
       if (Math.abs((m.y | 0) - cy) > halfBox) continue;
       nearClients.push(m.client);
     }
-    for (const it of createdItems) {
-      let pkt;
-      try {
-        pkt = api.protocol.worldItemSA({
-          serial: it.serial, itemId: it.itemId,
-          amount: it.amount ?? 1, hue: it.hue ?? 0,
-          x: it.x, y: it.y, z: it.z, direction: 0,
-          flags: 0, dataType: 0, graphicInc: 0,
-        });
-      } catch { continue; }
+    for (const it of clientVisibleItems) {
       for (const cl of nearClients) {
-        try { cl.send(pkt); } catch { /* socket gone */ }
+        try {
+          if (typeof cl.sendItem === 'function') {
+            if (cl.sendItem(it) !== false) cl._visibleItems?.add?.(it.serial >>> 0);
+            continue;
+          }
+          if (!api.protocol?.worldItemSA) continue;
+          cl.send(api.protocol.worldItemSA({
+            serial: it.serial,
+            itemId: it._multiAnchor ? (it.multiId | 0) : it.itemId,
+            amount: it.amount ?? 1, hue: it.hue ?? 0,
+            x: it.x, y: it.y, z: it.z, direction: 0,
+            flags: 0, dataType: it._multiAnchor ? 2 : 0, graphicInc: 0,
+          }));
+          cl._visibleItems?.add?.(it.serial >>> 0);
+        } catch { /* socket gone */ }
       }
     }
   }
-  return placed;
+  return { placed, anchor, instanceId };
 }

@@ -1,7 +1,7 @@
 // 0xF3 WorldItemSA (SA+ clients). Replaces legacy 0x1A for most object types.
 // ServUO: Server/Network/Packets.cs `WorldItemSA`.
 //
-// Layout (24 bytes for dataType=0, which is all we currently emit):
+// Layout (26 bytes; dataType 0=item, 1=corpse, 2=multi):
 //   u8  0xF3
 //   u16 reserved (1)
 //   u8  dataType   (0 = item, 2 = multi)

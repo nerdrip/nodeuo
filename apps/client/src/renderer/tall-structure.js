@@ -90,6 +90,12 @@ export function assignTallStructureBounds(entries, scratch = null) {
 export function tallStructureBoundsForPlayer(entries, playerX, playerY, playerZ, scratch = null) {
   if (!Array.isArray(entries) || entries.length === 0) return null;
   const px = playerX | 0, py = playerY | 0, roofCut = (playerZ | 0) + 5;
+  // A surface becomes an overhead storey only once it is at least one
+  // mobile-height above the player. Classic multi ground floors commonly
+  // sit 7-12 Z above the placement/terrain point; treating every surface
+  // above playerZ+5 as a ceiling hid the actual wooden floor of houses.
+  // `_computeMaxDrawZ` uses the same playerZ+15 threshold.
+  const ceilingCut = (playerZ | 0) + 15;
   const work = scratch ?? createTallStructureScratch(); reset(work);
   try {
     seedWork(entries, work);
@@ -107,10 +113,11 @@ export function tallStructureBoundsForPlayer(entries, playerX, playerY, playerZ,
         const onRoofProbe = !!entry.isRoof
           && (entry.x | 0) === px + 1
           && (entry.y | 0) === py + 1;
+        const entryCut = entry.isCeilingSurface ? ceilingCut : roofCut;
         if ((onPlayerTile || onRoofProbe)
             && !entry.isTransparent
             && (entry.isRoof || entry.isCeilingSurface || (entry.isWall && (entry.height | 0) >= 20))
-            && (entry.z | 0) >= roofCut) hasCoverAbovePlayer = true;
+            && (entry.z | 0) >= entryCut) hasCoverAbovePlayer = true;
       }
       if (bounds.x0 !== Infinity && hasCoverAbovePlayer && boundsContains(bounds, px, py)) {
         for (const entry of component) entry.bounds = bounds;
@@ -126,7 +133,8 @@ export function shouldHideTallEntry(entry, playerX, playerY, indoors, roofCut, m
   const inOwnBounds = boundsContains(entry.bounds, playerX, playerY);
   const inStructureBounds = !!structureBounds && boundsContains(structureBounds, entry.x | 0, entry.y | 0);
   if (entry.isRoof || entry.isCeilingSurface) {
-    return !!indoors && (inOwnBounds || inStructureBounds) && (entry.z | 0) >= roofCut;
+    const entryCut = entry.isCeilingSurface ? roofCut + 10 : roofCut;
+    return !!indoors && (inOwnBounds || inStructureBounds) && (entry.z | 0) >= entryCut;
   }
   return inOwnBounds && (entry.z | 0) >= maxDrawZ;
 }

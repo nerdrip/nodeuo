@@ -275,7 +275,7 @@ function applyResponseEdits(api, ent, fields, resp, state = null) {
 function openEditor(api, state, ent) {
   const fields = ent.body != null && ent.itemId == null ? MOBILE_FIELDS : ALLOWED_FIELDS;
   const { layout, texts } = buildLayout(ent, fields);
-  api.gumps.send(state, { layout, texts, x: 100, y: 80 }, (resp) => {
+  api.gumps.send(state, { definitionId: 'server:commands-debug-itemgump:open-editor', layout, texts, x: 100, y: 80 }, (resp) => {
     const btn = resp.buttonId | 0;
     // Pick buttons live at buttonId 100 + fieldIdx. Open the client's
     // color picker for that field and re-open the editor with the

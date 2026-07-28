@@ -6,7 +6,7 @@
 
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import sharp from 'sharp';
+import sharp from './safe-sharp.js';
 import { openUopIndexed, readEntryContent } from './uop.js';
 
 const GUMP_COUNT = 0x10000; // 65536 ids reserved

@@ -61,7 +61,7 @@ export class GameWorldPicker {
     const toleranceX = Math.max(14, 22 * zoom);
     let best = null;
     const visit = (item) => {
-      if ((item.parent && item.parent !== 0) || item.multiId) return undefined;
+      if ((item.parent && item.parent !== 0) || item.multiId != null) return undefined;
       const point = this.worldScreenPoint(item.x, item.y, item.z);
       const entry = staticEntry(assets.tiledata, item.itemId | 0);
       const spriteHeight = entry?.height ? Math.max(22, entry.height * 4 + 22) : 80;

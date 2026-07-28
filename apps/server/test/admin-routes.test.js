@@ -41,6 +41,22 @@ function fixture(extraCtx = {}) {
 }
 
 describe('admin route safety and editor behavior', () => {
+  it('serves the canonical scripting documentation catalogue', async () => {
+    const { route } = fixture();
+    const docs = await route('GET', '/api/docs/scripting').run({});
+    expect(docs).toMatchObject({ version: 1, pages: expect.any(Array), inventory: expect.any(Object) });
+    expect(docs.pages.map((page) => page.id)).toEqual(expect.arrayContaining(['start', 'api', 'gumps', 'config', 'examples', 'data']));
+    expect(docs.pages.find((page) => page.id === 'gumps')?.content).toContain('client-gumps.json');
+    expect(docs.pages.find((page) => page.id === 'api')?.content).toContain('api.gumps.send');
+  });
+
+  it('keeps internal ServUO parity metadata out of the authoring catalogue', async () => {
+    const { route } = fixture();
+    const catalog = await route('GET', '/api/studio/catalog').run({});
+    expect(catalog.domains.some((domain) => domain.id === 'commands')).toBe(false);
+    expect(catalog.domains.find((domain) => domain.id === 'gumps')).toMatchObject({ preview: 'gump' });
+  });
+
   it('blocks self-demotion and self-deletion using the string session account', async () => {
     const { route } = fixture();
     const session = { account: 'admin' };
@@ -139,6 +155,68 @@ describe('admin route safety and editor behavior', () => {
     const invalid = await route('POST', '/api/studio/sandbox/spell').run({ body: { spell: { requiresTarget: true } } });
     expect(invalid.ok).toBe(false);
     expect(invalid.errors.map((error) => error.field)).toEqual(expect.arrayContaining(['words', 'mana', 'target']));
+  });
+
+  it('validates visual gumps, item identity and live AI/script bindings', async () => {
+    const itemScript = { name: 'door', onUse() {} };
+    const { route } = fixture({
+      ai: { behaviors: new Map([['aggressive', { name: 'aggressive' }]]) },
+      systems: { itemScripts: { all: () => [itemScript] } },
+    });
+    const gumps = await route('POST', '/api/studio/validate').run({ body: { domain: 'gumps', data: [{
+      definitionId: 'sample', width: 200, height: 120,
+      controls: [{ type: 'label', x: 190, y: 110, width: 80, height: 20, text: 'overflow' }],
+    }] } });
+    expect(gumps).toMatchObject({ ok: true, errors: [], records: 1 });
+    expect(gumps.warnings.join(' ')).toContain('overflows');
+
+    const clientGumps = await route('POST', '/api/studio/validate').run({ body: { domain: 'gumps', data: [{
+      definitionId: 'client:sample', scope: 'client', className: 'SampleGump', type: 'sample',
+      frame: { enabled: true, x: 20, y: 30, width: 300, height: 180, opacity: 0.9 },
+      controlOverrides: [{ enabled: true, path: '0.2', x: 10, y: 20, width: 80, height: 24 }],
+    }] } });
+    expect(clientGumps).toMatchObject({ ok: true, errors: [], records: 1 });
+
+    const items = await route('POST', '/api/studio/validate').run({ body: { domain: 'items', data: [
+      { definitionId: 'door-red', artId: 100, name: 'Red door', script: 'door' },
+      { definitionId: 'door-blue', artId: 100, name: 'Blue door', script: 'missing' },
+    ] } });
+    expect(items.ok).toBe(true);
+    expect(items.warnings).toContain("door-blue: item script 'missing' is not registered in the live runtime.");
+
+    const mobiles = await route('POST', '/api/studio/validate').run({ body: { domain: 'mobiles', data: [
+      { kind: 'orc', body: 17, ai: 'aggressive', dmgMin: 2, dmgMax: 8 },
+      { kind: 'broken', body: 17, ai: 'unknown', dmgMin: 9, dmgMax: 1 },
+    ] } });
+    expect(mobiles.ok).toBe(false);
+    expect(mobiles.errors.join(' ')).toContain('dmgMin');
+    expect(mobiles.warnings.join(' ')).toContain("AI behavior 'unknown'");
+  });
+
+  it('catalogues editable AI/item/spell scripts and rejects invalid source before overwrite', async () => {
+    const itemScript = { name: 'sample-item', onUse() {} };
+    const { scriptsDir, route } = fixture({
+      ai: { behaviors: new Map([['sample-ai', { name: 'sample-ai' }]]) },
+      systems: { itemScripts: { all: () => [itemScript] } },
+    });
+    fs.mkdirSync(path.join(scriptsDir, 'npcs', 'ai'), { recursive: true });
+    fs.mkdirSync(path.join(scriptsDir, 'items'), { recursive: true });
+    fs.mkdirSync(path.join(scriptsDir, 'spells', 'magery', 'circle3'), { recursive: true });
+    fs.writeFileSync(path.join(scriptsDir, 'npcs', 'ai', 'sample-ai.js'), "export default api => api.ai.registerBehavior({ name: 'sample-ai', tick() {} });", 'utf8');
+    fs.writeFileSync(path.join(scriptsDir, 'items', 'sample.js'), "export default api => api.itemScripts.register({ name: 'sample-item', onUse() {} });", 'utf8');
+    fs.writeFileSync(path.join(scriptsDir, 'spells', 'magery', 'circle3', 'test-flame.js'), "export default { name: 'test-flame', cast() {} };", 'utf8');
+    const catalog = await route('GET', '/api/studio/script-catalog').run({});
+    expect(catalog.ai).toContainEqual(expect.objectContaining({ name: 'sample-ai', path: 'npcs/ai/sample-ai.js', live: true }));
+    expect(catalog.items).toContainEqual(expect.objectContaining({ name: 'sample-item', path: 'items/sample.js', hooks: ['onUse'] }));
+    expect(catalog.spells).toContainEqual(expect.objectContaining({
+      name: 'test-flame', path: 'spells/magery/circle3/test-flame.js', reference: 'magery/circle3/test-flame.js', school: 'magery',
+    }));
+
+    const query = new URLSearchParams({ path: 'npcs/ai/sample-ai.js' });
+    const before = fs.readFileSync(path.join(scriptsDir, 'npcs', 'ai', 'sample-ai.js'), 'utf8');
+    const result = await route('PUT', '/api/scripts/file').run({ query, body: { content: 'export default function (' } });
+    expect(result).toMatchObject({ phase: 'validate' });
+    expect(fs.readFileSync(path.join(scriptsDir, 'npcs', 'ai', 'sample-ai.js'), 'utf8')).toBe(before);
   });
 
   it('reports map, table and API performance budgets together', async () => {

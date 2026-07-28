@@ -111,6 +111,79 @@ try {
   const state = states.find((entry) => entry.mobile);
   assert.ok(state?.mobile, 'browser did not create and enter a character');
   assert.equal(state.mobile.name, 'AuditHero');
+  // The server can enter InWorld a moment before the browser has completed
+  // its 5×5 terrain warm-up. Verify that the interim gateway is visibly
+  // alive, then wait for the actual scene before sending gameplay input.
+  const gatewayState = await page.evaluate(() => {
+    const track = document.querySelector('#uo-loading-track');
+    const fill = document.querySelector('#uo-loading-progress');
+    const spinner = document.querySelector('.uo-loading-card .uo-spinner');
+    if (!track || !fill) return null;
+    return {
+      now: Number(track.getAttribute('aria-valuenow')),
+      detail: document.querySelector('#uo-loading-detail')?.textContent || '',
+      fillTransform: window.getComputedStyle(fill).transform,
+      spinnerAnimation: spinner ? window.getComputedStyle(spinner, '::before').animationName : '',
+    };
+  });
+  if (gatewayState) {
+    assert.ok(gatewayState.now >= 60 && gatewayState.now <= 100,
+      `world gateway progress is not staged: ${JSON.stringify(gatewayState)}`);
+    assert.ok(gatewayState.detail.length > 3, 'world gateway must expose the active loading stage');
+    assert.notEqual(gatewayState.spinnerAnimation, 'none', 'world gateway spinner is frozen');
+  }
+  await page.waitForFunction(() => globalThis.__uo?.gc?.scene?._tiles, null, { timeout: 30_000 });
+  // This isolated harness intentionally constructs an empty command registry
+  // and does not run the full script/capability bootstrap. Inject the exact
+  // cached payload shape used by the real 0xBF/0xA0 handler so access-gated
+  // DOM behaviour is still exercised in a real browser.
+  await page.evaluate(() => {
+    const catalogue = {
+      accessLevel: 'Admin',
+      commands: [{ name: 'audit', help: 'browser audit command', access: 'Admin' }],
+    };
+    globalThis.__uo.world.commandCatalogue = catalogue;
+    globalThis.__uo.bus.emit('shard:commands', catalogue);
+  });
+  await page.waitForFunction(() => {
+    const catalogue = globalThis.__uo?.world?.commandCatalogue;
+    const badge = document.querySelector('#uo-cmd-access');
+    return catalogue?.accessLevel === 'Admin' && badge?.textContent === 'Admin';
+  }, null, { timeout: 10_000 });
+  const accessUi = await page.evaluate(async () => {
+    const head = document.querySelector('#uo-cmd-head');
+    const journalButton = document.querySelector('.uo-journal-open');
+    const journalHead = document.querySelector('.uo-journal-head');
+    const buttonRect = journalButton?.getBoundingClientRect();
+    const headRect = journalHead?.getBoundingClientRect();
+    head?.click();
+    await new Promise((resolve) => setTimeout(resolve, 240));
+    const panelRect = document.querySelector('#uo-cmd-panel')?.getBoundingClientRect();
+    const state = {
+      access: document.querySelector('#uo-cmd-access')?.textContent,
+      debugHidden: document.querySelector('.uo-hud-panel')?.hidden,
+      collapsed: panelRect ? [panelRect.width, panelRect.height] : null,
+      collapsedGlyph: document.querySelector('#uo-cmd-collapse')?.textContent,
+      journalCenterDelta: buttonRect && headRect
+        ? Math.abs((buttonRect.top + buttonRect.height / 2) - (headRect.top + headRect.height / 2))
+        : null,
+    };
+    head?.click();
+    return state;
+  });
+  assert.equal(accessUi.access, 'Admin', `early admin catalogue was lost: ${JSON.stringify(accessUi)}`);
+  assert.equal(accessUi.debugHidden, false, 'Debug must be visible for a staff account');
+  assert.deepEqual(accessUi.collapsed?.map(Math.round), [44, 44], 'collapsed Commands button has invalid geometry');
+  assert.equal(accessUi.collapsedGlyph, '⌘');
+  assert.ok(accessUi.journalCenterDelta != null && accessUi.journalCenterDelta <= 1,
+    `journal shortcut is not vertically centred: ${JSON.stringify(accessUi)}`);
+  const playerDebugHidden = await page.evaluate(() => {
+    globalThis.__uo.bus.emit('shard:commands', { accessLevel: 'Player', commands: [] });
+    const hidden = document.querySelector('.uo-hud-panel')?.hidden;
+    globalThis.__uo.bus.emit('shard:commands', globalThis.__uo.world.commandCatalogue);
+    return hidden;
+  });
+  assert.equal(playerDebugHidden, true, 'Debug must stay hidden for Player access');
   const before = { x: state.mobile.x, y: state.mobile.y, direction: state.mobile.direction };
   // A fixed first step is not reliable: the canonical New Haven spawn can
   // legitimately have a blocked tile on one side. Exercise the CUO turn-then-

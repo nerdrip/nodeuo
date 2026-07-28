@@ -389,9 +389,12 @@ const MOBILE_EXT_KEYS = [
   'isPlayer', 'accountName',
 ];
 const ITEM_EXT_KEYS = [
+  // Stable definition identity is separate from the UO art graphic. artId is
+  // persisted explicitly even though itemId remains its wire-compatible alias.
+  'definitionId', 'artId',
   'door', 'solid', 'locked', 'lockedDown', 'lockDifficulty', 'lockpickDifficulty', 'lockLevel',
   'requiredSkill', 'treasureLevel', 'paragonChest',
-  'powerScroll', 'house', 'treasureMap', 'seed',
+  'powerScroll', 'statScroll', 'house', 'treasureMap', 'seed',
   // Personal Bless Deed binding + scroll consumed flag + soulstone bind.
   '_personalBlessed', '_consumed', 'soulstoneAccount', 'soulstone',
   '_engravedName',                         // spellbook / weapon engraving
@@ -427,7 +430,9 @@ const ITEM_EXT_KEYS = [
   'cannon', '_mountSerial', '_mountDx', '_mountDy',
   // ServUO multi/house placement metadata. Dynamic multis are authored as
   // item sets, so the brand/ACL/deed payload must survive saves.
-  '_multi', '_multiAcl', '_multiOwner', '_multiName',
+  '_multi', '_multiInstance', '_multiAnchor', '_multiHouseId', 'multiId',
+  '_multiAcl', '_multiOwner', '_multiName',
+  '_customHouseId',
   '_deedMulti', '_deedOffset', '_contestHouse', '_previewHouse',
   'miniHouseType', 'isRewardItem', 'rewardItem',
   'isDecoration', 'decoType', 'decoFacing', 'decoSourceKey', 'height',
@@ -723,6 +728,16 @@ function serializeMobile(m) {
 }
 
 function serializeItem(it) {
+  const extensions = copyExtensions(it, ITEM_EXT_KEYS);
+  // Every component of a placed house shares the exact same ACL object at
+  // runtime. Persisting that object on hundreds of collision proxies bloats
+  // items.json and makes every save/restore do needless JSON work. Canonical
+  // multis have a durable anchor, so store the ACL once there and reconnect
+  // all parts to it after restore. Legacy multis without an instance id keep
+  // their previous per-item representation for backward compatibility.
+  if (it._multiInstance != null && it._multiAnchor !== true) {
+    delete extensions._multiAcl;
+  }
   return {
     serial: it.serial, itemId: it.itemId, hue: it.hue, amount: it.amount,
     x: it.x, y: it.y, z: it.z, map: it.map,
@@ -734,7 +749,7 @@ function serializeItem(it) {
     gridLocation: it.gridLocation ?? 0,
     layer: it.layer ?? 0,
     template: it.template,
-    ...copyExtensions(it, ITEM_EXT_KEYS),
+    ...extensions,
   };
 }
 
@@ -947,6 +962,7 @@ export function restoreWorld(world, snap) {
   world._combatMobiles?.clear?.();
   world._tickingMobiles?.clear?.();
   world._boats?.clear?.();
+  world._boatIndexReady = false;
   world._tickingItems?.clear?.();
   world._bosses?.clear?.();
   world._peerlessBosses?.clear?.();
@@ -1074,6 +1090,23 @@ export function restoreWorld(world, snap) {
     world.serial.observe(it.serial);
   }
 
+  // Canonical multis persist their shared ACL once on the anchor. Restore the
+  // in-memory invariant expected by housing commands: every part belonging to
+  // an instance points at the same ACL object (not merely equal JSON copies).
+  const multiAclByInstance = new Map();
+  for (const it of world.items.values()) {
+    if (it._multiInstance == null || it._multiAcl == null) continue;
+    const instanceId = it._multiInstance >>> 0;
+    if (it._multiAnchor === true || !multiAclByInstance.has(instanceId)) {
+      multiAclByInstance.set(instanceId, it._multiAcl);
+    }
+  }
+  for (const it of world.items.values()) {
+    if (it._multiInstance == null) continue;
+    const acl = multiAclByInstance.get(it._multiInstance >>> 0);
+    if (acl != null) it._multiAcl = acl;
+  }
+
   // Referential-integrity sweep: an item whose parent no longer exists is
   // orphaned. Rather than silently losing it (which used to cause items to
   // vanish on reload whenever a worn parent was purged), drop it to the
@@ -1189,7 +1222,7 @@ function serializeHouse(h) {
     id: h.id,
     ownerSerial: h.ownerSerial >>> 0,
     ownerName: h.ownerName,
-    map: h.map, x1: h.x1, y1: h.y1, x2: h.x2, y2: h.y2,
+    map: h.map, x1: h.x1, y1: h.y1, x2: h.x2, y2: h.y2, z: h.z | 0,
     coowners: [...h.coowners],
     friends:  [...h.friends],
     bans:     [...h.bans],
@@ -1200,6 +1233,11 @@ function serializeHouse(h) {
     lastTouchedAt: h.lastTouchedAt ?? h.createdAt,
     sign: h.sign ?? null,
     foundation: h.foundation ?? null,
+    multiId: h.multiId ?? null,
+    multiSerial: h.multiSerial ?? null,
+    multiInstance: h.multiInstance ?? null,
+    customizable: h.customizable === true,
+    source: h.source ?? 'registry',
     // Custom-interior tiles + revision survive the round-trip; the
     // engine's `commitCustom` writes house.tiles[] from the editing
     // buffer, and the client renders the committed list on next chunk
@@ -1212,6 +1250,7 @@ function serializeHouse(h) {
     lockdownCap: h.lockdownCap ?? null,
     secureCap:   h.secureCap   ?? null,
     spawnedItems: Array.isArray(h.spawnedItems) ? h.spawnedItems.slice() : [],
+    customItemSerials: Array.isArray(h.customItemSerials) ? h.customItemSerials.slice() : [],
   };
 }
 
@@ -1222,6 +1261,7 @@ function deserializeHouse(raw) {
     ownerName: raw.ownerName ?? 'Unknown',
     map: raw.map | 0, x1: raw.x1 | 0, y1: raw.y1 | 0,
     x2: raw.x2 | 0, y2: raw.y2 | 0,
+    z: raw.z | 0,
     coowners:  new Set(Array.isArray(raw.coowners)  ? raw.coowners  : []),
     friends:   new Set(Array.isArray(raw.friends)   ? raw.friends   : []),
     bans:      new Set(Array.isArray(raw.bans)      ? raw.bans      : []),
@@ -1232,12 +1272,18 @@ function deserializeHouse(raw) {
     lastTouchedAt: raw.lastTouchedAt ?? raw.createdAt ?? Date.now(),
     sign: raw.sign ?? null,
     foundation: raw.foundation ?? null,
+    multiId: raw.multiId == null ? null : (raw.multiId | 0),
+    multiSerial: raw.multiSerial == null ? null : (raw.multiSerial >>> 0),
+    multiInstance: raw.multiInstance == null ? null : (raw.multiInstance >>> 0),
+    customizable: raw.customizable === true,
+    source: raw.source ?? 'registry',
     tiles: Array.isArray(raw.tiles) ? raw.tiles : [],
     revision: raw.revision | 0,
     customTemplates: raw.customTemplates && typeof raw.customTemplates === 'object' ? raw.customTemplates : {},
     lockdownCap: raw.lockdownCap ?? null,
     secureCap:   raw.secureCap   ?? null,
     spawnedItems: Array.isArray(raw.spawnedItems) ? raw.spawnedItems : [],
+    customItemSerials: Array.isArray(raw.customItemSerials) ? raw.customItemSerials : [],
     editing: null,
   };
 }

@@ -18,7 +18,8 @@ import {
   readActionBarPage, setActionBarPage,
 } from './spell-shortcut-drag.js';
 
-const SLOT = 42;
+const SLOT = 48;
+const SLOT_GAP = 4;
 const COUNT = ACTION_BAR_SLOT_COUNT;
 
 class ActionSlot extends Control {
@@ -30,24 +31,42 @@ class ActionSlot extends Control {
     this.width = SLOT; this.height = SLOT; this.acceptMouseInput = true;
     this._frame = new Graphics(); this.node.addChild(this._frame);
     if (this.spell) {
-      this._pic = new GumpPic(spellIconId(this.spell) || 0x08C0, { width: 34, height: 34 });
-      this._pic.setPosition(4, 4); this._pic.acceptMouseInput = false; this.add(this._pic);
+      this._pic = new GumpPic(spellIconId(this.spell) || 0x08C0, { width: 36, height: 36 });
+      this._pic.setPosition(6, 4); this._pic.acceptMouseInput = false; this.add(this._pic);
     } else if (action?.type === 'skill') {
-      this._skillLabel = new Label((action.name || `Skill ${action.id}`).slice(0, 7), {
-        fontSize: 10, hue: 0x9ed8ff, stroke: true, maxWidth: 32, wordWrap: true,
+      this._skillLabel = new Label((action.name || `Skill ${action.id}`).slice(0, 9), {
+        fontSize: 11, hue: 0xbfe7ff, stroke: true, maxWidth: 38, wordWrap: true,
       });
-      this._skillLabel.setPosition(4, 5);
+      this._skillLabel.setPosition(5, 9);
       this.add(this._skillLabel);
+    } else {
+      this._empty = new Label('+', { fontSize: 19, hue: 0x8d846e, fontWeight: 400 });
+      this._empty.setPosition(18, 10);
+      this.add(this._empty);
     }
-    this._key = new Label(index === 9 ? '0' : String(index + 1), { fontSize: 10, hue: 0xffd36a });
-    this._key.setPosition(3, 26); this.add(this._key);
+    const caption = this.spell?.name ?? action?.name ?? '';
+    if (caption) {
+      this._caption = new Label(caption.slice(0, 7), {
+        fontSize: 9, hue: 0xf4e7c5, stroke: true, maxWidth: 40,
+      });
+      this._caption.setPosition(4, 34);
+      this.add(this._caption);
+    }
+    this._key = new Label(index === 9 ? '0' : String(index + 1), {
+      fontSize: 10, hue: 0xffdf8a, stroke: true, fontWeight: 700,
+    });
+    this._key.setPosition(4, 2); this.add(this._key);
     this._draw(false, 0);
   }
   _draw(hover, cooldown) {
     this._frame.clear();
-    this._frame.roundRect(0, 0, SLOT, SLOT, 4)
-      .fill({ color: hover ? 0x2c3d59 : 0x101722, alpha: 0.94 })
-      .stroke({ width: 1, color: hover ? 0xffd36a : 0x765525, alpha: 1 });
+    this._frame.roundRect(0, 0, SLOT, SLOT, 5)
+      .fill({ color: hover ? 0x263850 : 0x0d141d, alpha: 0.97 })
+      .stroke({ width: hover ? 2 : 1, color: hover ? 0xffd36a : 0x8a672e, alpha: 1 })
+      .roundRect(3, 3, SLOT - 6, SLOT - 6, 3)
+      .stroke({ width: 1, color: 0xffffff, alpha: hover ? 0.10 : 0.045 })
+      .rect(2, SLOT - 14, SLOT - 4, 12)
+      .fill({ color: 0x080b0f, alpha: 0.72 });
     if (cooldown > 0) this._frame.rect(1, 1, SLOT - 2, (SLOT - 2) * cooldown)
       .fill({ color: 0x101010, alpha: 0.62 });
   }
@@ -82,8 +101,8 @@ class ActionSlot extends Control {
 
 export class ActionBarGump extends WindowGump {
   constructor() {
-    const width = 18 + COUNT * (SLOT + 3);
-    const height = 72;
+    const width = 16 + COUNT * (SLOT + SLOT_GAP);
+    const height = 82;
     const uiScale = Math.max(0.75, Math.min(2, Number(profile.get?.('ui.scale')) || 1));
     // Dock below the centered world, in logical UI coordinates (UIManager
     // applies uiScale to its whole Pixi container). This avoids restoring the
@@ -98,8 +117,8 @@ export class ActionBarGump extends WindowGump {
     });
     this.canCloseWithRMB = false;
     this._toggleKey = 'actionbar'; this._cooldowns = new Map();
-    this._pageLabel = new Label('', { fontSize: 10, hue: 0xffd36a });
-    this._pageLabel.setPosition(width - 88, 7); this.add(this._pageLabel);
+    this._pageLabel = new Label('', { fontSize: 11, hue: 0xffdf8a, fontWeight: 700 });
+    this._pageLabel.setPosition(width - 116, 6); this.add(this._pageLabel);
     this._previousPage = new Button({ label: '‹', width: 20, height: 18, flat: true });
     this._previousPage.setPosition(width - 45, 3);
     this._previousPage.onClick = () => setActionBarPage((readActionBarPage() + ACTION_BAR_PAGE_COUNT - 1) % ACTION_BAR_PAGE_COUNT);
@@ -122,10 +141,10 @@ export class ActionBarGump extends WindowGump {
     for (const slot of this._slots ?? []) { try { this.remove(slot); } catch {} slot.dispose?.(); }
     this._slots = [];
     const entries = this._entries();
-    this._pageLabel.text = `${readActionBarPage() + 1}/${ACTION_BAR_PAGE_COUNT}`;
+    this._pageLabel.setText?.(`Set ${readActionBarPage() + 1}/${ACTION_BAR_PAGE_COUNT}`);
     for (let i = 0; i < COUNT; i++) {
       const slot = new ActionSlot(i, entries[i] ?? null);
-      slot.setPosition(8 + i * (SLOT + 3), 24); this.add(slot); this._slots.push(slot);
+      slot.setPosition(8 + i * (SLOT + SLOT_GAP), 25); this.add(slot); this._slots.push(slot);
     }
   }
   findAction(query) {

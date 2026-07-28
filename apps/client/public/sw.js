@@ -1,11 +1,11 @@
-// Service Worker — cache-first for /assets/*. The atlas pages
-// (land/static/gump/mobile PNGs, fonts.png, cursors-atlas.png) are
-// content-addressed by filename + version so cache lifetime can be
-// "until the file name changes". JSON manifests revalidate via the
-// existing IDB-cache layer; SW is the durable disk-backed mirror.
+// Service Worker — cache-first for extracted /assets/*. Atlas pages and JSON
+// manifests share one extractor-generated cache generation, so their geometry
+// and pixels can never drift across deployments. Heavy JSON is parsed in a
+// worker; retaining its raw response here avoids downloading the 50+ MB mobile
+// catalogue again on every page load.
 //
 // Strategy:
-//   - /assets/*.png  → cache-first, network fallback, store on first miss
+//   - /assets/*.png/json → cache-first, network fallback, store on first miss
 //   - /assets/*.bin  → cache-first (map / staidx / sounds bin)
 //   - /assets/*.mp3  → cache-first (music tracks)
 //   - everything else → network passthrough (HTML, JS, JSON, sockets)
@@ -22,7 +22,7 @@
 // pointed into an OLD atlas page on disk). Format:
 //   uo-assets-<timestamp> — millis since epoch, monotonically increasing.
 const CACHE_VERSION = 'uo-assets-v1784070731622';
-const ASSET_PATH    = /^\/assets\/.+\.(png|bin|mp3|ktx2)$/;
+const ASSET_PATH    = /^\/assets\/.+\.(png|json|bin|mp3|ktx2)$/;
 
 self.addEventListener('install', (e) => {
   // Skip-waiting so a fresh worker doesn't sit pending until every

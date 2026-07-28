@@ -140,6 +140,7 @@
   <button data-tab="characters">Characters</button>
   <button data-tab="items">Items</button>
   <button data-tab="studio" data-min-rank="3" style="color:#f0c878">Content Studio</button>
+  <button data-tab="docs" style="color:#72d5e8">Docs</button>
   <button data-tab="scripts" data-min-rank="3">Scripts</button>
   <button data-tab="data" data-min-rank="3">Data (raw)</button>
   <button data-tab="data-editor" data-min-rank="3" style="color:#80ff80">🌳 Data Editor</button>
@@ -645,7 +646,7 @@ function showCharacterPicker(chars, originalPayload) {
 function flashToast(text) {
   AdminCore.toast(text, 'success');
 }
-async function inspectItem(serial){const [ctx,events]=await Promise.all([api('GET',`/api/live/entity/${serial}`),api('GET',`/api/live/entity/${serial}/events?limit=50`)]);const it=ctx.entity,links=ctx.quickLinks??{};showModal(`Item ${serial}`,`<div style="display:grid;grid-template-columns:130px 1fr;gap:12px"><div class="preview-art"><img src="/api/studio/art/${it.itemId}" alt="item art" style="max-width:100%;max-height:100%;image-rendering:pixelated"></div><div class="kv"><b>Name</b><div>${esc(it.name??'—')}</div><b>Art/hue</b><div>0x${(+it.itemId).toString(16)} / ${it.hue??0}</div><b>Position</b><div>${it.x},${it.y},${it.z} map ${it.map}</div><b>Parent/layer</b><div>${esc(it.parent??'ground')} / ${it.layer??0}</div><b>Regions</b><div>${esc(ctx.regions.map(x=>x.name).join(', ')||'none')}</div><b>Spawners</b><div>${esc(ctx.spawners.join(', ')||'none')}</div></div></div><div class="toolbar"><button onclick="closeModal();liveHue('${serial}',${it.hue??0})">Hue</button><button onclick="closeModal();liveMove('${serial}',${it.x},${it.y},${it.z},${it.map})">Move</button>${links.owner?`<button onclick="closeModal();adminQuickLink('entity','${links.owner.serial}')">Owner</button>`:''}${(links.regions??[]).slice(0,1).map(link=>`<button onclick="closeModal();adminQuickLink('region','${escJS(link.name)}')">Region</button>`).join('')}${links.template?`<button onclick="closeModal();adminQuickLink('template','${escJS(links.template.name)}')">Template</button>`:''}</div><details><summary>Events</summary><pre>${esc(JSON.stringify({packets:events.packets,events:events.structured,audit:events.audit},null,2))}</pre></details>`)}
+async function inspectItem(serial){const [ctx,events]=await Promise.all([api('GET',`/api/live/entity/${serial}`),api('GET',`/api/live/entity/${serial}/events?limit=50`)]);const it=ctx.entity,links=ctx.quickLinks??{},artId=it.artId??it.itemId;showModal(`Item ${serial}`,`<div style="display:grid;grid-template-columns:130px 1fr;gap:12px"><div class="preview-art"><img src="/api/studio/art/${artId}" alt="item art" style="max-width:100%;max-height:100%;image-rendering:pixelated"></div><div class="kv"><b>Definition</b><div>${esc(it.definitionId??'—')}</div><b>Name</b><div>${esc(it.name??'—')}</div><b>Art/hue</b><div>0x${(+artId).toString(16)} / ${it.hue??0}</div><b>Position</b><div>${it.x},${it.y},${it.z} map ${it.map}</div><b>Parent/layer</b><div>${esc(it.parent??'ground')} / ${it.layer??0}</div><b>Regions</b><div>${esc(ctx.regions.map(x=>x.name).join(', ')||'none')}</div><b>Spawners</b><div>${esc(ctx.spawners.join(', ')||'none')}</div></div></div><div class="toolbar"><button onclick="closeModal();liveHue('${serial}',${it.hue??0})">Hue</button><button onclick="closeModal();liveMove('${serial}',${it.x},${it.y},${it.z},${it.map})">Move</button>${links.owner?`<button onclick="closeModal();adminQuickLink('entity','${links.owner.serial}')">Owner</button>`:''}${(links.regions??[]).slice(0,1).map(link=>`<button onclick="closeModal();adminQuickLink('region','${escJS(link.name)}')">Region</button>`).join('')}${links.template?`<button onclick="closeModal();adminQuickLink('template','${escJS(links.template.name)}')">Template</button>`:''}</div><details><summary>Events</summary><pre>${esc(JSON.stringify({packets:events.packets,events:events.structured,audit:events.audit},null,2))}</pre></details>`)}
 async function adminQuickLink(type,value){if(type==='entity'){const ctx=await api('GET',`/api/live/entity/${encodeURIComponent(value)}`);return ctx.type==='mobile'?viewMob(value):inspectItem(value)}if(type==='region'){await showTab('world-design');const index=wdRegions.findIndex(region=>region.name===value);if(index>=0){document.getElementById('wd-region-select').value=String(index);wdPickRegion(index)}return}if(type==='template'){AdminCore.openPalette();setTimeout(()=>{const input=document.querySelector('.admin-command-palette input');if(input){input.value=value;input.dispatchEvent(new Event('input',{bubbles:true}))}},0)}}
 window.inspectItem=inspectItem;
 window.flashToast = flashToast;
@@ -1274,55 +1275,142 @@ async function doWipeWorld() {
   showModal('WipeWorld', `<pre>${esc(JSON.stringify(r, null, 2))}</pre>`);
 }
 
-// Full-screen iso editor — visual paint of terrain + statics in an
-// isometric view. Rendered by /editor (separate page) so it can take
-// the whole viewport and own keyboard input. The tab here just
-// embeds an iframe and exposes a "pop out" link.
-registerTab('isoeditor', async () => {
-  document.getElementById('main').innerHTML = `
-    <div class="card" style="padding:0;margin-bottom:0;height:calc(100vh - 96px)">
-      <div style="padding:6px 10px;border-bottom:1px solid #4a3818;display:flex;align-items:center;gap:10px">
-        <b style="color:#ffd070">Iso World Editor</b>
-        <span style="opacity:.6;font-size:11px">renders terrain + statics in isometric; free-fly camera, paint land, place items, walk around</span>
+// Heavy visual workbenches live on their own routes, while the admin shell
+// embeds them as same-origin frames. Probe the backend before inserting a
+// frame: a browser can keep this shell painted after the server exits, and a
+// raw iframe then degrades into Chromium's opaque "127.0.0.1 refused" page.
+// The explicit offline state tells the operator exactly what to restart and
+// offers an in-place retry once Server + Admin is listening again.
+async function renderEmbeddedWorkbench({ title, description, src, background = '#080b0f', compact = false }) {
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="card" style="padding:0!important;margin-bottom:0;height:calc(100vh - ${compact ? 132 : 96}px);overflow:hidden">
+      <div style="min-height:38px;padding:7px 10px;border-bottom:1px solid #4a3818;display:flex;align-items:center;gap:10px">
+        <b style="color:#ffd070">${esc(title)}</b>
+        <span style="opacity:.65;font-size:11px">${esc(description)}</span>
         <span style="flex:1"></span>
-        <a href="/editor" target="_blank" rel="noopener" style="color:#80c0ff;text-decoration:none">↗ pop out (new tab)</a>
+        <a href="${esc(src)}" target="_blank" rel="noopener" style="color:#80c0ff;text-decoration:none">↗ pop out (new tab)</a>
       </div>
-      <iframe src="/editor" style="width:100%;height:calc(100% - 36px);border:0;background:#050403"></iframe>
-    </div>
-  `;
-});
-
-// Tree-view JSON editor for the apps/scripts/src/data catalog. Same
-// embed-or-pop pattern as the iso editor — the heavy lifting lives in
-// /data-editor.html so it can own its own keyboard shortcuts (Ctrl+S /
-// Ctrl+F / Ctrl+Shift+E) without fighting the admin panel. The legacy
-// "Data" tab above stays as a raw textarea fallback for power users
-// who want to bulk-paste a fresh blob.
-registerTab('data-editor', async () => {
-  document.getElementById('main').innerHTML = `
-    <div class="card" style="padding:0;margin-bottom:0;height:calc(100vh - 96px)">
-      <div style="padding:6px 10px;border-bottom:1px solid #4a3818;display:flex;align-items:center;gap:10px">
-        <b style="color:#ffd070">🌳 Data Editor (visual)</b>
-        <span style="opacity:.6;font-size:11px">tree-view JSON editor for apps/scripts/src/data/* (items, monsters, recipes, spawners, regions, decorations, …)</span>
-        <span style="flex:1"></span>
-        <a href="/data-editor" target="_blank" rel="noopener" style="color:#80c0ff;text-decoration:none">↗ pop out (new tab)</a>
+      <div data-embedded-host style="height:calc(100% - 38px);position:relative;background:${esc(background)}">
+        <div style="height:100%;display:grid;place-items:center;color:#9a8a60">Connecting to editor…</div>
       </div>
-      <iframe src="/data-editor" style="width:100%;height:calc(100% - 36px);border:0;background:#0a0805"></iframe>
-    </div>
-  `;
-});
-
-registerTab('studio', async () => {
-  document.getElementById('main').innerHTML = `
-    <div class="card" style="padding:0!important;margin-bottom:0;height:calc(100vh - 132px);overflow:hidden">
-      <div style="padding:8px 12px;border-bottom:1px solid var(--admin-border);display:flex;align-items:center;gap:10px">
-        <b style="color:var(--admin-accent-strong)">Content Studio</b>
-        <span class="muted">visual editors, previews, drafts, diff, validation and safe publish</span>
-        <span style="flex:1"></span><a href="/studio" target="_blank" rel="noopener" style="color:var(--admin-info)">↗ pop out</a>
-      </div>
-      <iframe title="Content Studio" src="/studio" style="width:100%;height:calc(100% - 42px);border:0;background:#080b0f"></iframe>
     </div>`;
-});
+  const host = main.querySelector('[data-embedded-host]');
+  const viewSignal = AdminCore.viewSignal();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 2_500);
+  viewSignal?.addEventListener('abort', () => controller.abort(), { once: true });
+  let online = false;
+  let incompatibility = '';
+  try {
+    const health = await fetch('/healthz', {
+      cache: 'no-store', credentials: 'same-origin', signal: controller.signal,
+    });
+    if (health.ok) {
+      // Probe the actual workbench response too. During development an old
+      // Node process can serve a newer HTML file while its in-memory security
+      // middleware still emits X-Frame-Options:DENY. A health-only check
+      // cannot see that mixed-version state and Chromium replaces the iframe
+      // with an unhelpful grey blocked-page icon.
+      const route = await fetch(src, {
+        cache: 'no-store', credentials: 'same-origin', signal: controller.signal,
+      });
+      const finalPath = new URL(route.url, location.href).pathname;
+      if (route.redirected && finalPath === '/login') {
+        location.href = '/login';
+        return;
+      }
+      const xFrame = String(route.headers.get('x-frame-options') ?? '').toLowerCase();
+      const csp = String(route.headers.get('content-security-policy') ?? '').toLowerCase();
+      incompatibility = xFrame === 'deny' || /frame-ancestors\s+'none'/.test(csp)
+        ? 'The running admin process still uses the old non-embeddable security policy. Restart Server + Admin to load the current code.'
+        : '';
+      online = route.ok && !incompatibility;
+      route.body?.cancel?.().catch?.(() => {});
+    }
+  } catch { online = false; }
+  finally { clearTimeout(timeout); }
+  if (!host?.isConnected) return;
+  if (!online) {
+    host.innerHTML = `
+      <div data-embedded-offline style="height:100%;display:grid;place-items:center;padding:32px">
+        <div style="max-width:560px;text-align:center;background:#14100a;border:1px solid #7a5a20;border-radius:6px;padding:24px">
+          <div style="font-size:28px;color:#ff8060;margin-bottom:8px">Connection lost</div>
+          <p style="color:#d8c89a">${esc(incompatibility || 'The admin backend is offline. Start the Server + Admin variant in UO·Node Control, then retry.')}</p>
+          <button type="button" data-embedded-retry>Reconnect / sign in</button>
+        </div>
+      </div>`;
+    // A backend restart invalidates in-memory admin sessions. Reload the
+    // top-level shell instead of retrying only the frame; the normal root
+    // route will either restore the tab or redirect cleanly to /login.
+    host.querySelector('[data-embedded-retry]')?.addEventListener('click', () => location.reload());
+    return;
+  }
+  const frame = document.createElement('iframe');
+  frame.title = title;
+  frame.src = src;
+  frame.style.cssText = `width:100%;height:100%;border:0;background:${background}`;
+  host.replaceChildren(frame);
+
+  // The backend may exit after the preflight but before/during iframe
+  // navigation. Poll only while this workbench is the active view and replace
+  // Chromium's error document after two consecutive failures. This is one
+  // tiny request every three seconds and stops immediately on tab change.
+  let consecutiveFailures = 0;
+  let monitorBusy = false;
+  const monitor = setInterval(async () => {
+    if (monitorBusy) return;
+    if (!host.isConnected || viewSignal?.aborted) {
+      clearInterval(monitor);
+      return;
+    }
+    monitorBusy = true;
+    const probeController = new AbortController();
+    const probeTimeout = setTimeout(() => probeController.abort(), 1_500);
+    try {
+      const response = await fetch('/healthz', {
+        cache: 'no-store', credentials: 'same-origin', signal: probeController.signal,
+      });
+      consecutiveFailures = response.ok ? 0 : consecutiveFailures + 1;
+    } catch { consecutiveFailures++; }
+    finally {
+      clearTimeout(probeTimeout);
+      monitorBusy = false;
+    }
+    if (consecutiveFailures < 2 || !host.isConnected) return;
+    clearInterval(monitor);
+    host.innerHTML = `
+      <div data-embedded-offline style="height:100%;display:grid;place-items:center;padding:32px">
+        <div style="max-width:560px;text-align:center;background:#14100a;border:1px solid #7a5a20;border-radius:6px;padding:24px">
+          <div style="font-size:28px;color:#ff8060;margin-bottom:8px">Connection lost</div>
+          <p style="color:#d8c89a">The admin process stopped while this editor was open. Restart <b>Server + Admin</b>, then reconnect.</p>
+          <button type="button" data-embedded-retry>Reconnect / sign in</button>
+        </div>
+      </div>`;
+    host.querySelector('[data-embedded-retry]')?.addEventListener('click', () => location.reload());
+  }, 3_000);
+}
+
+// Full-screen iso editor — visual paint of terrain + statics in an
+// isometric view. Rendered by /editor so it can own keyboard input.
+registerTab('isoeditor', () => renderEmbeddedWorkbench({
+  title: 'Iso World Editor', src: '/editor', background: '#050403',
+  description: 'terrain + statics, free-fly camera, land painting, item placement and walk preview',
+}));
+
+// Tree-view JSON editor for apps/scripts/src/data. The legacy Data tab stays
+// available as a raw textarea fallback for bulk edits.
+registerTab('data-editor', () => renderEmbeddedWorkbench({
+  title: '🌳 Data Editor (visual)', src: '/data-editor', background: '#0a0805',
+  description: 'tree-view editor for items, monsters, recipes, spawners, regions and decorations',
+}));
+
+// Content Studio is a full three-column application rather than a small
+// auxiliary editor. Navigate to its same-origin route directly so it gets the
+// whole viewport and cannot ever be broken by iframe/X-Frame-Options/CSP
+// interactions. studio.html already exposes a persistent "← Admin" return.
+registerTab('studio', () => { location.assign('/studio'); });
+registerTab('docs', () => { location.assign('/docs'); });
 
 
 // ---------------------------- Modal ---------------------------------------

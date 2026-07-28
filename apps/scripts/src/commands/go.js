@@ -275,6 +275,7 @@ function renderGoGump(api, ctx, entries) {
     parts.push(`{ button ${W - 30} 8 4017 4018 1 0 0 }`);
 
     api.gumps.send(ctx.state, {
+      definitionId: 'server:commands-go:page',
       x: 100, y: 80,
       layout: parts.join(''),
       texts,

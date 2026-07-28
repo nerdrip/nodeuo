@@ -1,0 +1,7 @@
+* text=auto eol=lf
+
+# Native Windows launchers are consumed by cmd.exe.
+*.bat text eol=crlf
+
+# Never run binary assets through line-ending normalization.
+*.png binary

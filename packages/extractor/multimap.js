@@ -20,7 +20,7 @@
 
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import sharp from 'sharp';
+import sharp from './safe-sharp.js';
 
 export async function extractMultimap(srcDir, outDir) {
   // Filename casing varies across UO installs ("Multimap.rle" upper-M).

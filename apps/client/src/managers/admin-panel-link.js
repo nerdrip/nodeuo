@@ -1,5 +1,5 @@
-// AdminPanelLink — surfaces a small "Open Admin Panel" pill in the
-// in-game UI for any account whose `shard:commands` payload reports
+// AdminPanelLink — surfaces an "Open Admin Panel" action inside the
+// staff-only Debug card for any account whose `shard:commands` reports
 // accessLevel ≥ GM. Clicking it `window.open()`s the admin web panel
 // (default http://<host>:2596/) in a new browser tab.
 //
@@ -20,6 +20,7 @@
 //      a link to 10.0.0.42:2596 instead of localhost).
 
 import { bus } from '../core/event-bus.js';
+import { world } from '../world/world.js';
 
 const ADMIN_ACCESS = new Set(['GM', 'GameMaster', 'Admin', 'Administrator']);
 
@@ -36,11 +37,16 @@ function resolveAdminUrl() {
 export class AdminPanelLink {
   constructor() {
     this._el = null;
+    this._destroyed = false;
     this._access = 'Player';
     this._unsub = bus.on('shard:commands', (data) => {
       this._access = data?.accessLevel || 'Player';
       this._refresh();
     });
+    if (world.commandCatalogue) {
+      this._access = world.commandCatalogue.accessLevel || 'Player';
+      this._refresh();
+    }
     // Reset on disconnect so a fresh login with a different account
     // doesn't inherit the previous user's admin state.
     this._unsubClose = bus.on('net:close', () => {
@@ -50,6 +56,7 @@ export class AdminPanelLink {
   }
 
   destroy() {
+    this._destroyed = true;
     try { this._unsub?.(); } catch { /* ignore */ }
     try { this._unsubClose?.(); } catch { /* ignore */ }
     this._removeEl();
@@ -64,33 +71,37 @@ export class AdminPanelLink {
     if (this._el) return;
     const el = document.createElement('a');
     el.id = 'uo-admin-link';
-    el.textContent = '⚙ Admin Panel';
+    el.textContent = 'Admin ↗';
     el.target = '_blank';
     el.rel = 'noopener noreferrer';
     el.href = resolveAdminUrl();
     el.title = `Open ${el.href} in a new tab (account access: ${this._access})`;
-    // Inline styles keep this self-contained — no CSS-import dependency
-    // and no risk of an unrelated stylesheet rewrite breaking the badge.
+    // The Debug panel is built before this manager is installed. Keeping the
+    // staff action in its title row prevents a second floating control from
+    // competing with the command-panel collapse button in the upper-right.
     Object.assign(el.style, {
-      position: 'fixed',
-      top: '6px',
-      right: '12px',
-      zIndex: '9999',
-      padding: '4px 10px',
-      background: '#3a2c14',
-      color: '#ffd070',
-      border: '1px solid #7a5a20',
-      borderRadius: '3px',
-      font: '11px/1.3 Consolas, monospace',
+      position: 'static',
+      display: 'inline-flex',
+      alignItems: 'center',
+      minHeight: '22px',
+      padding: '0 8px',
+      background: 'rgba(226, 180, 92, 0.10)',
+      color: '#ffe0a0',
+      border: '1px solid rgba(226, 180, 92, 0.34)',
+      borderRadius: '4px',
+      font: '700 10px/1 "Segoe UI Variable Text", "Segoe UI", sans-serif',
       textDecoration: 'none',
-      letterSpacing: '1px',
+      letterSpacing: '0.04em',
+      textTransform: 'none',
       cursor: 'pointer',
       userSelect: 'none',
-      boxShadow: '0 1px 4px rgba(0,0,0,0.6)',
+      boxShadow: 'none',
     });
-    el.addEventListener('mouseenter', () => { el.style.background = '#4a3818'; });
-    el.addEventListener('mouseleave', () => { el.style.background = '#3a2c14'; });
-    document.body.appendChild(el);
+    el.addEventListener('mouseenter', () => { el.style.background = 'rgba(226, 180, 92, 0.20)'; });
+    el.addEventListener('mouseleave', () => { el.style.background = 'rgba(226, 180, 92, 0.10)'; });
+    const host = document.querySelector?.('#dom-ui .uo-hud-title')
+      ?? document.querySelector?.('.uo-hud-title');
+    (host ?? document.body).appendChild(el);
     this._el = el;
   }
 
@@ -103,7 +114,7 @@ export class AdminPanelLink {
 
 let _singleton = null;
 export function installAdminPanelLink() {
-  if (_singleton) return _singleton;
+  if (_singleton && !_singleton._destroyed) return _singleton;
   _singleton = new AdminPanelLink();
   return _singleton;
 }

@@ -34,7 +34,11 @@ const pageErrors = [];
 const consoleErrors = [];
 const serverErrors = [];
 page.on('pageerror', (error) => pageErrors.push(String(error)));
-page.on('console', (message) => { if (message.type() === 'error') consoleErrors.push(message.text()); });
+page.on('console', (message) => {
+  if (message.type() !== 'error') return;
+  const location = message.location?.();
+  consoleErrors.push(`${message.text()}${location?.url ? ` @ ${location.url}` : ''}`);
+});
 page.on('response', (response) => { if (response.status() >= 500) serverErrors.push(`${response.status()} ${response.url()}`); });
 
 async function auditAccessibility(label) {
@@ -163,6 +167,96 @@ try {
     }
     await auditAccessibility(`admin:${tab}`);
   }
+  await Promise.all([
+    page.waitForURL(`${base}/docs`),
+    page.click('[data-tab="docs"]'),
+  ]);
+  await page.waitForSelector('#article h1');
+  assert.match(await page.locator('#article').innerText(), /NodeUO Scriptbook/i);
+  assert.ok(await page.locator('#page-nav [data-page]').count() >= 6, 'scripting documentation navigation incomplete');
+  await page.fill('#search', 'client-gumps.json');
+  await page.waitForSelector('#search-results [data-result-page]');
+  assert.ok(await page.locator('#search-results [data-result-page]').count(), 'documentation full-text search returned no result');
+  await page.keyboard.press('Escape');
+  await auditAccessibility('admin:docs');
+  await page.goto(`${base}/`, { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('nav#tabs');
+  // Content Studio is a full-screen top-level workbench. Keeping it out of an
+  // iframe removes the X-Frame-Options/CSP failure mode and gives its dense
+  // three-column editor the complete viewport.
+  await Promise.all([
+    page.waitForURL(`${base}/studio`),
+    page.click('[data-tab="studio"]'),
+  ]);
+  await page.waitForSelector('[data-domain="items"]');
+  assert.equal(await page.locator('a[href="/"]', { hasText: 'Admin' }).count(), 1, 'studio return-to-admin link missing');
+  await page.goto(`${base}/`, { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('nav#tabs');
+
+  // Exercise the two compact editors that remain embedded in the shell.
+  for (const embedded of [
+    { tab: 'data-editor', selector: '#file-tree' },
+    { tab: 'isoeditor', selector: '#cv' },
+  ]) {
+    await page.click(`[data-tab="${embedded.tab}"]`);
+    const iframe = page.locator('#main iframe');
+    await iframe.waitFor({ state: 'visible' });
+    await page.frameLocator('#main iframe').locator(embedded.selector).waitFor({ state: 'attached', timeout: 12_000 });
+    const frameUrl = await iframe.getAttribute('src');
+    assert.ok(frameUrl?.startsWith('/'), `embedded ${embedded.tab} has invalid src ${frameUrl}`);
+  }
+  // A stale admin document can remain visible after its Node process exits.
+  // Verify that the workbench wrapper replaces Chromium's opaque refused-page
+  // iframe with an actionable offline state and that Retry mounts the editor
+  // again once the health probe recovers.
+  await page.evaluate(() => {
+    window.__adminE2EFetch = window.fetch;
+    window.fetch = (input, init) => {
+      const url = typeof input === 'string' ? input : input?.url;
+      if (url === '/healthz') return Promise.reject(new TypeError('simulated admin backend outage'));
+      return window.__adminE2EFetch(input, init);
+    };
+    globalThis.activate('isoeditor');
+  });
+  await page.locator('[data-embedded-offline]').waitFor({ state: 'visible' });
+  assert.match(await page.locator('[data-embedded-offline]').innerText(), /Server \+ Admin/i);
+  await page.evaluate(() => { window.fetch = window.__adminE2EFetch; });
+  await page.click('[data-embedded-retry]');
+  await page.frameLocator('#main iframe').locator('#cv').waitFor({ state: 'attached', timeout: 12_000 });
+  await page.evaluate(() => {
+    window.__adminE2EFetch = window.fetch;
+    window.fetch = (input, init) => {
+      const url = typeof input === 'string' ? input : input?.url;
+      if (url === '/data-editor') {
+        return Promise.resolve(new Response('<!doctype html><title>stale data editor</title>', {
+          status: 200,
+          headers: {
+            'content-type': 'text/html',
+            'x-frame-options': 'DENY',
+            'content-security-policy': "default-src 'self'; frame-ancestors 'none'",
+          },
+        }));
+      }
+      return window.__adminE2EFetch(input, init);
+    };
+    globalThis.activate('data-editor');
+  });
+  await page.locator('[data-embedded-offline]').waitFor({ state: 'visible' });
+  assert.match(await page.locator('[data-embedded-offline]').innerText(), /old non-embeddable security policy/i);
+  await page.evaluate(() => { window.fetch = window.__adminE2EFetch; });
+  await page.click('[data-embedded-retry]');
+  await page.frameLocator('#main iframe').locator('#file-tree').waitFor({ state: 'attached', timeout: 12_000 });
+  await page.evaluate(() => {
+    window.__adminE2EFetch = window.fetch;
+    window.fetch = (input, init) => {
+      const url = typeof input === 'string' ? input : input?.url;
+      if (url === '/healthz') return Promise.reject(new TypeError('simulated post-mount outage'));
+      return window.__adminE2EFetch(input, init);
+    };
+  });
+  await page.locator('[data-embedded-offline]').waitFor({ state: 'visible', timeout: 10_000 });
+  assert.match(await page.locator('[data-embedded-offline]').innerText(), /stopped while this editor was open/i);
+  await page.evaluate(() => { window.fetch = window.__adminE2EFetch; });
   await page.goto(`${base}/studio?domain=items`, { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('[data-domain="items"]');
   await page.waitForSelector('[data-record]', { timeout: 12_000 }).catch(async (error) => {
@@ -180,8 +274,101 @@ try {
   assert.ok(studio.records > 0, 'studio item catalogue rendered empty');
   assert.ok(studio.editorFields > 0, 'studio item editor rendered no fields');
   assert.equal(await page.locator('.domain-workbench').count(), 1, 'studio domain workbench missing');
+  assert.equal(await page.locator('[data-special-editor="item"]').count(), 1, 'specialized item workbench missing');
+  assert.ok(await page.locator('[data-special-editor="item"] [data-quick-path="definitionId"]').count(), 'item identity editor missing');
+  assert.ok(await page.locator('[data-open-bound-script="item"]').count(), 'item script editor action missing');
   assert.ok(studio.overflow <= 2, `studio horizontal overflow ${studio.overflow}px`);
-  await auditAccessibility('studio:items');
+  // Regression: renderState() used to replace the records host while the
+  // cached VirtualList kept rendering into its detached viewport. The first
+  // domain loaded, every later domain/file remained on "Loading records…".
+  for (const domain of ['items', 'spells', 'crafting', 'mobiles']) {
+    await page.click(`[data-domain="${domain}"]`);
+    await page.waitForFunction((id) => {
+      const active = document.querySelector(`[data-domain="${id}"]`)?.classList.contains('active');
+      const records = document.querySelector('#records');
+      return active && !records?.textContent?.includes('Loading records')
+        && records?.querySelectorAll('[data-record]').length > 0;
+    }, domain, { timeout: 12_000 });
+    assert.ok(await page.locator('#records [data-record]').count(), `studio ${domain} rendered no records after switch`);
+    if (domain === 'spells') {
+      assert.equal(await page.locator('[data-special-editor="spell"]').count(), 1, 'specialized spell workbench missing');
+      assert.ok(await page.locator('[data-open-bound-script="spell"]').count(), 'bound spell script action missing');
+      assert.ok(await page.locator('[data-open-script-picker="spell"]').count(), 'spell script catalogue action missing');
+      await page.click('[data-open-script-picker="spell"]');
+      await page.waitForSelector('.modal-bg [data-script-choice]');
+      assert.ok(await page.locator('.modal-bg [data-script-choice] option').count(), 'spell script catalogue rendered empty');
+      await page.click('.modal-bg [data-close]');
+    }
+  }
+  const sourceOptions = await page.locator('#source option').evaluateAll((options) => options.map((option) => option.value));
+  assert.ok(sourceOptions.length >= 2, 'mobiles studio domain should expose multiple source files');
+  await page.selectOption('#source', sourceOptions[1]);
+  await page.waitForFunction((file) => {
+    const records = document.querySelector('#records');
+    return document.querySelector('#source')?.value === file
+      && !records?.textContent?.includes('Loading records')
+      && records?.querySelectorAll('[data-record]').length > 0;
+  }, sourceOptions[1], { timeout: 12_000 });
+  // Deliberately overlap changes: only the last selection may commit.
+  await page.evaluate(() => {
+    document.querySelector('[data-domain="items"]')?.click();
+    document.querySelector('[data-domain="spells"]')?.click();
+    document.querySelector('[data-domain="mobiles"]')?.click();
+  });
+  await page.waitForFunction(() => {
+    const records = document.querySelector('#records');
+    return document.querySelector('[data-domain="mobiles"]')?.classList.contains('active')
+      && !records?.textContent?.includes('Loading records')
+      && records?.querySelectorAll('[data-record]').length > 0;
+  }, null, { timeout: 12_000 });
+  assert.equal(await page.locator('[data-special-editor="mobile"]').count(), 1, 'specialized mobile workbench missing');
+  assert.ok(await page.locator('[data-special-editor="mobile"] [data-quick-path="ai"]').count(), 'mobile AI binding editor missing');
+  await page.click('[data-special-editor="mobile"] [data-visual-picker="body"]');
+  await page.waitForSelector('.asset-picker-grid [data-asset-id]', { timeout: 12_000 });
+  assert.ok(await page.locator('.asset-picker-grid [data-asset-id]').count(), 'visual mobile body picker rendered empty');
+  await page.click('.modal-bg [data-close]');
+  await page.click('[data-open-script-picker="ai"]');
+  await page.waitForSelector('.modal-bg [data-script-choice]');
+  assert.ok(await page.locator('.modal-bg [data-script-choice] option').count(), 'AI script catalogue rendered empty');
+  await page.click('.modal-bg [data-close]');
+
+  await page.click('[data-domain="gumps"]');
+  await page.waitForFunction(() => {
+    const records = document.querySelector('#records');
+    return document.querySelector('[data-domain="gumps"]')?.classList.contains('active')
+      && !records?.textContent?.includes('Loading records')
+      && records?.querySelectorAll('[data-record]').length > 0;
+  }, null, { timeout: 12_000 });
+  assert.equal(await page.locator('[data-special-editor="gump"]').count(), 1, 'visual gump designer missing');
+  assert.equal(await page.locator('[data-gump-stage]').count(), 1, 'gump design canvas missing');
+  assert.ok(await page.locator('[data-gump-control]').count(), 'gump definition rendered no visual controls');
+  assert.ok(await page.locator('[data-add-control="button"]').count(), 'gump control palette missing');
+  assert.ok(await page.locator('[data-control-field="x"]').count(), 'gump control inspector missing');
+  assert.ok(await page.locator('[data-visual-picker="gump"]').count(), 'visual gump art picker missing');
+  await page.click('[data-browse-client-gumps]');
+  await page.waitForSelector('[data-client-gump]');
+  assert.ok(await page.locator('[data-client-gump]').count(), 'built-in client gump source catalogue rendered empty');
+  await page.click('.modal-bg [data-close]');
+  const gumpSources = await page.locator('#source option').evaluateAll((options) => options.map((option) => option.value));
+  assert.ok(gumpSources.includes('@client/client-gumps.json'), 'bundled client gump JSON source missing');
+  await page.selectOption('#source', '@client/client-gumps.json');
+  await page.waitForFunction(() => {
+    const records = document.querySelector('#records');
+    return document.querySelector('#source')?.value === '@client/client-gumps.json'
+      && !records?.textContent?.includes('Loading records')
+      && records?.querySelectorAll('[data-record]').length > 0;
+  }, null, { timeout: 12_000 });
+  assert.equal(await page.locator('[data-special-editor="client-gump"]').count(), 1, 'bundled client gump override editor missing');
+  assert.ok(await page.locator('[data-open-client-gump-source]').count(), 'client gump source editor action missing');
+  assert.ok(await page.locator('[data-add-client-control]').count(), 'client gump control override action missing');
+  const clientGumpLayout = await page.evaluate(() => ({
+    overflow: document.documentElement.scrollWidth - innerWidth,
+    inspectorColumns: window.getComputedStyle(
+      document.querySelector('.gump-inspector .gump-control-fields') ?? document.body,
+    ).gridTemplateColumns,
+  }));
+  assert.ok(clientGumpLayout.overflow <= 2, `client gump editor horizontal overflow ${clientGumpLayout.overflow}px`);
+  await auditAccessibility('studio:domain-switching');
   await page.goto(`${base}/data-editor`, { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('#file-tree');
   await page.waitForTimeout(100);

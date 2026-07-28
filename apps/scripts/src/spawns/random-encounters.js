@@ -117,6 +117,10 @@ export default function register(api) {
   const lastSamplePosition = new Map();
 
   const poll = () => {
+    // `[wipeworld` intentionally leaves the world-population gate closed
+    // until the next successful `[createworld`. Autonomous encounters must
+    // not repopulate an otherwise clean shard during that maintenance gap.
+    if (api.world._createWorldDone === false) return;
     const now = Date.now();
     if (areaCooldownUntil.size > 1024) {
       for (const [key, due] of areaCooldownUntil) {

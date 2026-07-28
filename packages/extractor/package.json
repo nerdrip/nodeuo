@@ -13,6 +13,6 @@
     "ktx2:tool:install": "node ./ktx2-tool.js --install"
   },
   "dependencies": {
-    "sharp": "^0.34.5"
+    "sharp": "^0.35.3"
   }
 }

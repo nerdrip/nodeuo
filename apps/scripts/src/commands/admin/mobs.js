@@ -213,6 +213,7 @@ export default function register(api) {
     // Stable gumpId — see items.js for the rationale.
     const STABLE_ID = 0x4D4F4253;     // 'MOBS'
     gumps.send(state, {
+      definitionId: 'server:commands-admin-mobs:open-catalogue',
       x: 60, y: 60, gumpId: STABLE_ID, layout: parts.join(''), texts,
     }, (resp) => {
       const b = resp.buttonId;

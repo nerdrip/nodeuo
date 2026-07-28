@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
-import { openBookLegacy, openBookNew, deathAction, healthbarPoison, mobileIncoming, mobileMoving } from '@uo/protocol';
+import {
+  openBookLegacy, openBookNew, deathAction, healthbarPoison,
+  mobileIncoming, mobileMoving, worldItemSA,
+} from '@uo/protocol';
 
 globalThis.localStorage = globalThis.localStorage ?? {
   getItem: () => null,
@@ -29,6 +32,17 @@ function once(topic) {
 bus.clear();
 const net = new FakeNet();
 registerHandlers(net);
+
+world.reset?.();
+net.handlers.get(0xF3)(worldItemSA({
+  serial: 0x4000A001,
+  itemId: 0,
+  dataType: 2,
+  x: 100,
+  y: 100,
+  z: 0,
+}));
+assert.equal(world.items.get(0x4000A001)?.multiId, 0, 'type-2 multi id 0 must not collapse into the no-multi sentinel');
 
 for (const op of [0x93, 0xD4, 0xD7]) {
   assert.equal(typeof net.handlers.get(op), 'function', `0x${op.toString(16)} handler should register`);

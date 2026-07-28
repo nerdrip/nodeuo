@@ -27,6 +27,7 @@ describe('visual create command', () => {
     expect(sent?.texts).toContain('Items');
     expect(sent?.texts).toContain('Mobiles');
     expect(sent?.layout).toContain('mobilepic');
+    expect(sent?.layout).toContain('multipic');
     respond({ buttonId: 100 });
     expect(dispatch).toHaveBeenCalledWith('items', ctx);
 

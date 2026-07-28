@@ -32,7 +32,7 @@
 import { open, readdir, rename, unlink } from 'node:fs/promises';
 import { writeFile } from 'node:fs';
 import { join } from 'node:path';
-import sharp from 'sharp';
+import sharp from './safe-sharp.js';
 import { loadBodyConfig, resolveIdxIndex, pickAnimFile } from './body-config.js';
 import { loadAnimUopFiles } from './anim-uop.js';
 import {

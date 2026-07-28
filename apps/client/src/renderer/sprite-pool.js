@@ -68,10 +68,12 @@ function installTrackedTexture(sp) {
 }
 
 class SpritePool {
-  constructor(cap = DEFAULT_CAP) {
-    /** @type {Sprite[]} */
+  constructor(cap = DEFAULT_CAP, reuseDelayMs = 80, now = () => performance.now()) {
+    /** @type {{sprite: Sprite, reusableAt: number}[]} */
     this._free = [];
     this._cap = cap;
+    this._reuseDelayMs = Math.max(0, Number(reuseDelayMs) || 0);
+    this._now = typeof now === 'function' ? now : () => performance.now();
     this._activeCount = 0;
     this._reuseCount = 0;
     this._allocCount = 0;
@@ -79,7 +81,14 @@ class SpritePool {
 
   /** Take a sprite, optionally pre-bound to `texture`. */
   acquire(texture) {
-    let sp = this._free.pop();
+    const now = this._now();
+    let sp = null;
+    for (let i = this._free.length - 1; i >= 0; i--) {
+      if (this._free[i].reusableAt > now) continue;
+      sp = this._free[i].sprite;
+      this._free.splice(i, 1);
+      break;
+    }
     if (sp) {
       this._reuseCount++;
       sp.visible = true;
@@ -143,12 +152,16 @@ class SpritePool {
       try { sp.destroy(); } catch { /* ignore */ }
       return;
     }
-    this._free.push(sp);
+    // Pixi render groups may still contain the old draw instruction until
+    // the frame boundary.  Delayed reuse prevents a season remount from
+    // turning a released tree/roof sprite into a screen-sized copy carrying
+    // another static's texture and transform.
+    this._free.push({ sprite: sp, reusableAt: this._now() + this._reuseDelayMs });
   }
 
   /** Drop the entire pool (test teardown / scene change). */
   destroyAll() {
-    for (const sp of this._free) {
+    for (const { sprite: sp } of this._free) {
       try { sp.destroy(); } catch { /* ignore */ }
     }
     this._free.length = 0;
@@ -178,9 +191,30 @@ export function acquireSprite(texture) { return spritePool.acquire(texture); }
 export function releaseSprite(sp) { spritePool.release(sp); }
 
 class LandMeshPool {
-  constructor(cap = 2048) { this._free = []; this._cap = cap; this._active = 0; this._allocs = 0; this._reuses = 0; }
+  constructor(cap = 2048, reuseDelayMs = 120, now = () => performance.now()) {
+    this._free = [];
+    this._cap = cap;
+    this._reuseDelayMs = Math.max(0, Number(reuseDelayMs) || 0);
+    this._now = typeof now === 'function' ? now : () => performance.now();
+    this._active = 0;
+    this._allocs = 0;
+    this._reuses = 0;
+  }
   acquire(texture, vertices, uvs, indices) {
-    let mesh = this._free.pop();
+    // A destroyed chunk can still have a Pixi render instruction queued for
+    // the current frame.  Reusing its MeshSimple immediately (most visible
+    // during a season/facet remount) lets that stale instruction observe the
+    // new texture/geometry and produces screen-sized foliage/roof polygons.
+    // Keep released meshes in a short quarantine spanning several frames.
+    const now = this._now();
+    let mesh = null;
+    for (let i = this._free.length - 1; i >= 0; i--) {
+      const entry = this._free[i];
+      if (entry.reusableAt > now) continue;
+      mesh = entry.mesh;
+      this._free.splice(i, 1);
+      break;
+    }
     if (!mesh) {
       mesh = new MeshSimple({ texture, vertices, uvs, indices });
       mesh._uoLandMeshPool = true; this._allocs++;
@@ -188,8 +222,31 @@ class LandMeshPool {
     } else {
       this._reuses++;
       releaseTexture(mesh.texture); mesh.texture = texture; retainTexture(texture);
-      const positions = mesh.geometry.getBuffer('aPosition'); positions.data = vertices; positions.update();
-      const uv = mesh.geometry.getBuffer('aUV'); uv.data = uvs; uv.update();
+      // Keep Pixi's Buffer objects and their typed-array backing stores when
+      // topology is unchanged.  Replacing `.data` while a pooled MeshSimple
+      // still had a render instruction queued could leave the GPU reading
+      // the previous allocation for one frame.  A mass remount (season/facet
+      // change) then displayed a few land tiles as screen-sized polygons.
+      // In-place copies are both cheaper and race-free; only replace when a
+      // future topology genuinely changes the buffer length/type.
+      const updateBuffer = (buffer, next) => {
+        const current = buffer?.data;
+        if (current?.constructor === next.constructor && current.length === next.length) {
+          current.set(next);
+        } else if (buffer) {
+          buffer.data = next;
+        }
+        buffer?.update?.();
+      };
+      const positions = mesh.geometry.getBuffer('aPosition'); updateBuffer(positions, vertices);
+      const uv = mesh.geometry.getBuffer('aUV'); updateBuffer(uv, uvs);
+      // Most land meshes currently share one topology, but the renderer is
+      // allowed to choose the smoother diagonal for a slope.  Leaving the
+      // pooled mesh's old index buffer in place made a reused tile inherit
+      // the previous tile's triangulation (and, after tessellation changes,
+      // potentially an entirely different index count).
+      const index = mesh.geometry.indexBuffer;
+      if (index) updateBuffer(index, indices);
     }
     mesh.visible = true; mesh.alpha = 1; mesh.tint = 0xffffff; mesh.filters = null;
     mesh.position.set(0, 0); mesh.scale.set(1, 1); mesh.rotation = 0;
@@ -201,11 +258,15 @@ class LandMeshPool {
     mesh._uoLandMeshActive = false; this._active = Math.max(0, this._active - 1);
     if (mesh.parent) { try { mesh.parent.removeChild(mesh); } catch {} }
     releaseTexture(mesh.texture); mesh.texture = Texture.EMPTY; mesh.visible = false; mesh.filters = null;
-    if (this._free.length >= this._cap) { try { mesh.destroy(); } catch {} } else this._free.push(mesh);
+    if (this._free.length >= this._cap) {
+      try { mesh.destroy(); } catch {}
+    } else {
+      this._free.push({ mesh, reusableAt: this._now() + this._reuseDelayMs });
+    }
     return true;
   }
   stats() { return { free: this._free.length, active: this._active, cap: this._cap, allocs: this._allocs, reuses: this._reuses }; }
-  destroyAll() { for (const mesh of this._free) try { mesh.destroy(); } catch {} this._free.length = 0; this._active = 0; }
+  destroyAll() { for (const { mesh } of this._free) try { mesh.destroy(); } catch {} this._free.length = 0; this._active = 0; }
 }
 
 export const landMeshPool = new LandMeshPool();

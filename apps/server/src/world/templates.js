@@ -14,11 +14,15 @@ import { createItem, destroyItem } from './items.js';
 import { getItem as contentItem } from '../content/items/index.js';
 import { removeEntity as _removeEntityBuilder } from '@uo/protocol';
 import { dispatchItemEvent } from './item-scripts.js';
+import { consumeScroll, describeScrollEffect } from '../systems/power-scrolls.js';
 
 /**
  * @typedef {Object} ItemTemplate
- * @property {string} name             registry key
- * @property {number} itemId           default graphic id
+ * @property {string} [definitionId]   stable gameplay identity
+ * @property {string} [id]             canonical alias of definitionId
+ * @property {string} [name]           legacy registry key / canonical display name
+ * @property {number} [artId]          canonical UO static-art graphic id
+ * @property {number} [itemId]         legacy alias of artId
  * @property {number} [hue]
  * @property {number} [gumpId]         non-zero marks this as a container
  * @property {boolean} [movable]
@@ -53,24 +57,42 @@ const TEMPLATE_RUNTIME_KEYS = [
 
 /** Register (or replace) a template. Hot-reload friendly. */
 export function registerTemplate(tmpl) {
-  if (!tmpl || typeof tmpl.name !== 'string') throw new Error('template must have a name');
-  if (!Number.isFinite(tmpl.itemId)) throw new Error(`template ${tmpl.name} missing itemId`);
+  if (!tmpl || typeof tmpl !== 'object') throw new Error('template must be an object');
+  const definitionId = String(tmpl.definitionId ?? tmpl.id ?? tmpl.name ?? '').trim();
+  if (!definitionId) throw new Error('template must have definitionId (or legacy name)');
+  const artId = Number(tmpl.artId ?? tmpl.itemId);
+  if (!Number.isInteger(artId) || artId < 0 || artId > 0xFFFF) {
+    throw new Error(`template ${definitionId} missing valid artId`);
+  }
   // BH #12 B5 — `spawn()` lowercases name lookups; if a template
   // registered with capital letters (`'Torch'`) it became unreachable
   // (silent miss → `unknown item template` throw). Lowercase the
   // registry key here too.
-  const key = tmpl.name.toLowerCase();
+  const key = definitionId.toLowerCase();
   unregisterTemplate(key);
-  registry.set(key, tmpl);
+  const canonical = tmpl.definitionId != null || tmpl.id != null || tmpl.artId != null;
+  const normalized = {
+    ...tmpl,
+    id: definitionId,
+    definitionId,
+    artId,
+    itemId: artId,
+    // Internally `name` remains the spawn/template key. In canonical rows the
+    // authored `name` is the display label instead of another hidden id.
+    name: key,
+    label: tmpl.label ?? (canonical ? tmpl.name : undefined),
+  };
+  registry.set(key, normalized);
   const templateAliases = new Set([
-    tmpl.servuoClass,
-    ...(Array.isArray(tmpl.servuoClasses) ? tmpl.servuoClasses : []),
+    normalized.servuoClass,
+    ...(Array.isArray(normalized.servuoClasses) ? normalized.servuoClasses : []),
   ].filter(Boolean));
   for (const alias of templateAliases) {
-    aliases.set(String(alias), tmpl);
-    aliases.set(String(alias).toLowerCase(), tmpl);
+    aliases.set(String(alias), normalized);
+    aliases.set(String(alias).toLowerCase(), normalized);
   }
   aliasesByName.set(key, templateAliases);
+  return normalized;
 }
 
 /** Remove a template by name (used by script disposers). */
@@ -129,7 +151,8 @@ export function spawn(world, name, overrides) {
     if (t[key] !== undefined && overrides[key] === undefined) runtime[key] = t[key];
   }
   const item = createItem(world, {
-    itemId: t.itemId,
+    definitionId: t.definitionId,
+    artId: t.artId,
     hue: t.hue ?? 0,
     gumpId: t.gumpId ?? 0,
     movable: t.movable ?? true,
@@ -138,7 +161,7 @@ export function spawn(world, name, overrides) {
   });
   // Tag the template name so on-use lookup + persistence round-trips.
   // @ts-expect-error — augment Item with a runtime-only field.
-  item.template = t.name;
+  item.template = t.definitionId.toLowerCase();
   if (t.label) item.name = t.label;
   // FAZA BN: copy template-declared lifecycle hooks onto the item.
   //   `script`        — name registered in item-scripts registry
@@ -208,12 +231,19 @@ export function useItem(world, item, user) {
       console.error('[templates] useItem hook threw:', e);
     }
   }
-  // Path 0: power-scroll consumption. Champion-altar drops carry a
-  // `powerScroll = { skillId, amount }` payload that gets baked into
-  // the user's per-skill cap. We do this BEFORE the template lookup
-  // so a power-scroll never accidentally falls through to a template
-  // onUse from a colliding art id.
-  if (item.powerScroll) {
+  // Migrate the broken week-7 reward already present in old saves. The
+  // original factory used an unknown `deed` field, which createItem dropped,
+  // leaving only this exact name/art pair and no onUse script.
+  if (item.itemId === 0x14F0 && /^a small ankh deed$/i.test(String(item.name ?? '')) && !item.script) {
+    item.script = 'addon-deed';
+    item.addonName = 'stone-ankh';
+  }
+
+  // Path 0: canonical power/stat-scroll consumption. Both old `{amount}`
+  // and new `{cap}` payloads are accepted; unrelated items sharing 0x14F0
+  // (deeds and Scrolls of Transcendence) continue to their own scripts.
+  const scrollEffect = describeScrollEffect(user, item);
+  if (scrollEffect) {
     // FAZA BM: confirmation gump — port of CUO PowerScroll usage
     // dialog. Real shards always pop a "Yes / No" before consuming
     // because power-scrolls are tradable luxury items. Without the
@@ -221,18 +251,21 @@ export function useItem(world, item, user) {
     // route through `user.client._gumpsHost` if a gump host accessor
     // exists; otherwise fall through to immediate apply (admin-test
     // path or non-client mob via [reload commands).
-    const ps = item.powerScroll;
-    user.skillCaps ??= {};
-    const cur = user.skillCaps[ps.skillId] ?? 100;
-    if (cur >= 120) {
-      user.client?.sendSystemMessage?.('Your skill cap is already at the maximum.');
+    const isSkill = scrollEffect.kind === 'skill';
+    if (scrollEffect.target <= scrollEffect.current) {
+      user.client?.sendSystemMessage?.(isSkill
+        ? `Your skill cap is already ${scrollEffect.current}; this scroll cannot raise it.`
+        : `Your stat cap is already ${scrollEffect.current}; this scroll cannot raise it.`);
       return true;
     }
     const apply = () => {
-      user.skillCaps[ps.skillId] = Math.min(120, cur + ps.amount);
-      user.client?.sendSystemMessage?.(
-        `You absorb the scroll. Skill cap +${ps.amount} (now ${user.skillCaps[ps.skillId]}).`,
-      );
+      if (!consumeScroll(user, item)) {
+        user.client?.sendSystemMessage?.('This scroll can no longer improve your cap.');
+        return;
+      }
+      user.client?.sendSystemMessage?.(isSkill
+        ? `You absorb the power scroll. Skill cap raised to ${scrollEffect.target}.`
+        : `You absorb the stat scroll. Stat cap raised to ${scrollEffect.target}.`);
       destroyItem(world, item.serial);
       if (user.client && _removeEntityBuilder) {
         try { user.client.send(_removeEntityBuilder(item.serial)); }
@@ -246,8 +279,9 @@ export function useItem(world, item, user) {
     // directly so the admin / test paths keep working unchanged.
     const sharedGumps = user.client?.ctx?.gumps ?? gumps;
     if (sharedGumps?.send) {
-      const skillName = user.client?.ctx?.skills?.byId?.get?.(ps.skillId)?.name
-        ?? `skill ${ps.skillId}`;
+      const skillName = isSkill
+        ? (user.client?.ctx?.skills?.byId?.get?.(scrollEffect.skillId)?.name ?? `skill ${scrollEffect.skillId}`)
+        : null;
       sharedGumps.send(user.client, {
         gumpId: 0x50535C00 | (item.serial & 0xFFFF),
         x: 200, y: 150,
@@ -261,8 +295,10 @@ export function useItem(world, item, user) {
           '{ text 235 112 1153 3 }',
         ].join(''),
         texts: [
-          'Power Scroll',
-          `Apply +${ps.amount} cap to ${skillName}? Current cap: ${cur}.`,
+          isSkill ? 'Power Scroll' : 'Stat Scroll',
+          isSkill
+            ? `Raise ${skillName} cap from ${scrollEffect.current} to ${scrollEffect.target}?`
+            : `Raise your stat cap from ${scrollEffect.current} to ${scrollEffect.target}?`,
           'Yes',
           'No',
         ],
@@ -290,14 +326,12 @@ export function useItem(world, item, user) {
       catch (e) { console.error(`[items] template ${name} onUse threw:`, e); }
     }
   }
-  // Path 2: content catalog effect (consumables like potions/food from
-  // content/items/consumables.js). If the item's art id is registered
-  // there, invoke its effect() on the user, then remove the item from
-  // the world (single-use consumable). Potions that require a target
-  // (poison, explosion) are currently stubbed — those need a target
-  // cursor roundtrip we'll wire up in a follow-up.
+  // Path 2: content catalogue effect. Resolve by stable gameplay identity
+  // first; art lookup is only a compatibility fallback for old saves. This
+  // prevents two items sharing the same graphic from invoking each other's
+  // effect/script.
   if (item.itemId) {
-    const def = contentItem(item.itemId);
+    const def = contentItem(item.definitionId ?? item.tagId ?? item.itemId);
     if (def?.effect) {
       try { def.effect(user, { world, item, def }); }
       catch (e) { console.error(`[items] content 0x${item.itemId.toString(16)} effect threw:`, e); }
