@@ -1,7 +1,7 @@
 import { allMobiles, nearbyClients } from '../../_spatial.js';
 import { itemBySerial } from '../../_entities.js';
-import { createItem, destroyItemBySerial } from '../../_items.js';
-import { destroyMultiByBrand, spawnHousedeedIntoPack } from './placemulti.js';
+import { createItem } from '../../_items.js';
+import { demolishMultiWithDeed } from './placemulti.js';
 import { openHouseManagement, syncRegistryHouseToMulti } from './multi-house-bridge.js';
 
 function selectedHouse(api, state, mob, requestedId = null) {
@@ -173,36 +173,30 @@ export default function register(api) {
           ctx.state.sendSystemMessage('Only the owner may remove a house.');
           return;
         }
-        // Return the exact placement deed before mutating the structure. If
-        // the backpack cannot receive it, leave the house completely intact.
-        const deed = spawnHousedeedIntoPack(
-          api, ctx.state, mob, house.multiId,
-          `deed to ${house.sign?.title ?? `house #${house.id}`}`,
-        );
-        if (!deed) {
-          ctx.state.sendSystemMessage('Demolition cancelled: the placement deed could not be returned to your backpack.');
-          return;
-        }
-        // Despawn every wall / floor / door spawned at place time. We send
-        // 0x1D RemoveEntity to nearby clients first so the tiles disappear
-        // immediately instead of waiting for a chunk re-stream.
-        if (house.multiInstance != null) {
-          destroyMultiByBrand(api, house.multiId, house.map, house.multiInstance);
-        }
         const looseItems = [...(house.spawnedItems ?? []), ...(house.customItemSerials ?? [])];
-        if (looseItems.length) {
-          for (const serial of looseItems) {
-            const item = itemBySerial(api, serial);
-            if (!item) continue;
-            const rm = api.protocol?.removeEntity?.(serial);
-            // BUGFIX #65: visibility-gate.
-            if (rm) for (const m of nearbyClients(api.world, item)) m.client.send(rm);
-            destroyItemBySerial(api, serial);
-          }
+        const demolition = demolishMultiWithDeed(api, ctx.state, mob, {
+          multiId: house.multiId,
+          facet: house.map,
+          instanceId: house.multiInstance,
+          name: `deed to ${house.sign?.title ?? `house #${house.id}`}`,
+          extraSerials: looseItems,
+        });
+        if (!demolition.ok) {
+          const reason = demolition.reason === 'no-backpack'
+            ? 'you need a backpack to receive the placement deed'
+            : demolition.reason === 'structure-missing'
+              ? 'the registered structure could not be found'
+              : demolition.reason === 'deed-create-failed'
+                ? 'the placement deed could not be prepared'
+                : `${demolition.failed?.length ?? 0} house parts could not be removed`;
+          ctx.state.sendSystemMessage(`Demolition stopped: ${reason}. No placement deed was returned; you may retry safely.`);
+          return;
         }
         api.houses.remove(house.id);
         ctx.state._activeHouseId = null;
-        ctx.state.sendSystemMessage(`House #${house.id} demolished. Its placement deed is in your backpack.`);
+        ctx.state.sendSystemMessage(
+          `House #${house.id} demolished. ${demolition.removed} parts were removed and its placement deed is in your backpack.`,
+        );
         return;
       }
 

@@ -116,7 +116,7 @@ export function validateStudioDraft(domain, data, catalogs = {}) {
           record.controlOverrides.forEach((override, overrideIndex) => {
             const label = `${id} override ${overrideIndex + 1}`;
             if (!override || typeof override !== 'object' || Array.isArray(override)) errors.push(`${label}: expected an object.`);
-            else if (!String(override.path ?? '').trim() && !String(override.className ?? '').trim()) errors.push(`${label}: path or className is required.`);
+            else if (!String(override.controlId ?? '').trim() && !String(override.path ?? '').trim() && !String(override.className ?? '').trim()) errors.push(`${label}: controlId, path or className is required.`);
           });
         }
         return;
@@ -219,4 +219,3 @@ export function pushLogLine(line) {
   while (LOG_RING.length > LOG_MAX) LOG_RING.shift();
 }
 export function getLogTail(limit = 200) { return LOG_RING.slice(-Math.max(1, Math.min(LOG_MAX, limit | 0))); }
-

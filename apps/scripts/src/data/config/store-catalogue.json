@@ -249,6 +249,8 @@
     "name": "Power Hour Scroll",
     "priceSovereign": 300,
     "itemId": 5360,
+    "script": "power-hour-scroll",
+    "powerHour": true,
     "category": "character-token"
   },
   {

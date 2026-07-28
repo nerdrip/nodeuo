@@ -218,12 +218,13 @@
       ...override,
       type: override.previewType ?? (override.itemId != null ? 'tilepic' : override.gumpId != null ? 'image' : override.text != null ? 'label' : 'alpha'),
       artId: override.gumpId ?? override.itemId ?? 0,
-      text: override.text ?? override.path ?? override.className ?? 'override',
+      text: override.text ?? override.controlId ?? override.path ?? override.className ?? 'override',
       width: override.width ?? 80,
       height: override.height ?? 24,
     }));
-    const overrideEditor = (override, index) => `<details class="client-control-override" ${index === local.selectedControl ? 'open' : ''}><summary>#${index + 1} · ${esc(override.path || override.className || 'unmapped control')}</summary><div class="quick-grid">
+    const overrideEditor = (override, index) => `<details class="client-control-override" ${index === local.selectedControl ? 'open' : ''}><summary>#${index + 1} · ${esc(override.controlId || override.path || override.className || 'unmapped control')}</summary><div class="quick-grid">
       ${quickField('Enabled', `controlOverrides.${index}.enabled`, override.enabled ?? true, 'boolean')}
+      ${quickField('Stable control ID', `controlOverrides.${index}.controlId`, override.controlId ?? '')}
       ${quickField('Child path', `controlOverrides.${index}.path`, override.path ?? '')}
       ${quickField('Or class name', `controlOverrides.${index}.className`, override.className ?? '')}
       ${quickField('Class occurrence', `controlOverrides.${index}.classIndex`, override.classIndex ?? 0, 'number')}
@@ -251,7 +252,7 @@
         ${quickField('Close with Esc', 'behavior.canCloseWithEsc', value.behavior.canCloseWithEsc ?? true, 'boolean')}${quickField('Close with RMB', 'behavior.canCloseWithRMB', value.behavior.canCloseWithRMB ?? true, 'boolean')}
       </div></div>
       <div class="gump-designer"><div class="gump-canvas-wrap"><div class="gump-stage client-gump-stage" data-client-gump-stage style="width:${width}px;height:${height}px">${previewControls.map((control, index) => gumpNode(control, index, width, height)).join('')}</div></div>
-      <aside class="gump-inspector"><h5>Control overrides</h5><p class="muted"><code>Child path</code> uses zero-based child indices, e.g. <code>0.2</code>. A class name plus occurrence is safer when the tree order changes.</p><button data-add-client-control>＋ Add control override</button><div class="client-control-overrides">${overrides.map(overrideEditor).join('') || '<p class="muted">No control overrides. The code-authored layout is used unchanged.</p>'}</div></aside></div>
+      <aside class="gump-inspector"><h5>Control overrides</h5><p class="muted"><code>Stable control ID</code> is the preferred mapping and survives code reordering. Child path and class occurrence remain available for legacy gumps.</p><button data-add-client-control>＋ Add control override</button><div class="client-control-overrides">${overrides.map(overrideEditor).join('') || '<p class="muted">No control overrides. The code-authored layout is used unchanged.</p>'}</div></aside></div>
       <p class="muted">The canvas shows authored overrides, not a fake reconstruction of dynamic game state. Reopen a gump after publishing to apply the new catalogue.</p>
     </div>`;
   }
@@ -573,7 +574,7 @@
     ctx.root.querySelector('[data-open-client-gump-source]')?.addEventListener('click', () => openScriptEditor(ctx, ctx.value.source, { clientGump: true }));
     ctx.root.querySelector('[data-add-client-control]')?.addEventListener('click', () => {
       ctx.beforeMutate();
-      overrides.push({ enabled: true, path: '0', className: '', classIndex: 0, x: 20, y: 20, width: 80, height: 24, visible: true, opacity: 1 });
+      overrides.push({ enabled: true, controlId: '', path: '', className: '', classIndex: 0, x: 20, y: 20, width: 80, height: 24, visible: true, opacity: 1 });
       local.selectedControl = overrides.length - 1;
       rerender();
     });

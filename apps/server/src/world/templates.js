@@ -238,6 +238,15 @@ export function useItem(world, item, user) {
     item.script = 'addon-deed';
     item.addonName = 'stone-ankh';
   }
+  // Migrate Power Hour rewards created before the daily-login factory
+  // stamped a script identity. Old saves retained only the 0x14F0 art and
+  // exact reward name (the custom `powerHour` field was not persisted), so
+  // dispatching by that narrow pair is both safe and immediately repairs the
+  // item the first time it is used.
+  if (item.itemId === 0x14F0 && /^a power hour scroll$/i.test(String(item.name ?? '')) && !item.script) {
+    item.script = 'power-hour-scroll';
+    item.powerHour = true;
+  }
 
   // Path 0: canonical power/stat-scroll consumption. Both old `{amount}`
   // and new `{cap}` payloads are accepted; unrelated items sharing 0x14F0

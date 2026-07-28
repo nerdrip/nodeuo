@@ -291,8 +291,8 @@ const CROPS = [
 for (const c of CROPS) {
   functional({
     id: c.id, name: c.name, tagId: `crop-${c.resource}`, hue: c.hue,
-    weight: 1, movable: false, script: 'farmable-crop',
-    farm: { resource: c.resource, yield: c.yield, regrowMs: 30 * 60 * 1000 },
+    weight: 1, movable: false, script: 'farmable-plant',
+    farm: { kind: c.resource, resource: c.resource, yield: c.yield, regrowMs: 30 * 60 * 1000 },
   });
 }
 

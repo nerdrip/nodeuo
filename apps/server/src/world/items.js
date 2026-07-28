@@ -13,6 +13,108 @@ import {
 } from '../content/items/index.js';
 import { runtimeGovernor } from '../systems/runtime-governor.js';
 
+// Content definitions are trusted, server-owned data. Keep their serializable
+// gameplay fields on runtime instances instead of maintaining a second,
+// inevitably incomplete hand-written property list. The explicit list below
+// remains useful documentation for common fields, while this fallback covers
+// new content attributes (for example `farm`, `shipKind`, `powerHour` and
+// quiver bonuses) on day one.
+const CONTENT_DEFINITION_SKIP = new Set([
+  'serial', 'id', 'definitionId', 'artId', 'itemId', 'effect', 'onCreate', 'contentDef',
+]);
+const PERSISTENCE_MARK_SKIP = new Set([
+  ...CONTENT_DEFINITION_SKIP,
+  'hue', 'amount', 'x', 'y', 'z', 'map', 'name', 'movable', 'parent',
+  'gumpId', 'gridX', 'gridY', 'gridLocation', 'layer',
+]);
+const PERSISTENT_ITEM_FIELDS = Symbol.for('uo.itemPersistentFields');
+
+function markPersistentItemField(item, key) {
+  if (!item || PERSISTENCE_MARK_SKIP.has(key)) return;
+  let fields = item[PERSISTENT_ITEM_FIELDS];
+  if (!(fields instanceof Set)) {
+    fields = new Set();
+    Object.defineProperty(item, PERSISTENT_ITEM_FIELDS, {
+      value: fields, writable: true, configurable: true, enumerable: false,
+    });
+  }
+  fields.add(key);
+}
+
+function cloneItemData(value, seen = new WeakMap()) {
+  if (value == null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'function' || typeof value === 'symbol') return undefined;
+  if (typeof value !== 'object') return value;
+  if (seen.has(value)) return seen.get(value);
+  if (Array.isArray(value)) {
+    const out = [];
+    seen.set(value, out);
+    for (const entry of value) out.push(cloneItemData(entry, seen));
+    return out;
+  }
+  if (value instanceof Set) {
+    const out = new Set();
+    seen.set(value, out);
+    for (const entry of value) out.add(cloneItemData(entry, seen));
+    return out;
+  }
+  if (value instanceof Map) {
+    const out = new Map();
+    seen.set(value, out);
+    for (const [key, entry] of value) out.set(cloneItemData(key, seen), cloneItemData(entry, seen));
+    return out;
+  }
+  if (value instanceof Date) return new Date(value.getTime());
+  const proto = Object.getPrototypeOf(value);
+  if (proto !== Object.prototype && proto !== null) return value;
+  const out = {};
+  seen.set(value, out);
+  for (const [key, entry] of Object.entries(value)) {
+    const cloned = cloneItemData(entry, seen);
+    if (cloned !== undefined) out[key] = cloned;
+  }
+  return out;
+}
+
+/**
+ * Fill absent runtime properties from a canonical content definition.
+ * Existing instance state always wins, so restoring a growing crop or a
+ * partially charged tool cannot be reset by a catalogue default.
+ */
+export function applyItemDefinitionDefaults(item, definition) {
+  if (!item || !definition) return 0;
+  let changed = 0;
+  for (const [key, value] of Object.entries(definition)) {
+    if (CONTENT_DEFINITION_SKIP.has(key) || value == null || typeof value === 'function') continue;
+    markPersistentItemField(item, key);
+    if (item[key] != null) continue;
+    const cloned = cloneItemData(value);
+    if (cloned === undefined) continue;
+    item[key] = cloned;
+    changed++;
+  }
+  return changed;
+}
+
+function applyItemCreationExtensions(item, data) {
+  if (!item || !data) return 0;
+  let changed = 0;
+  for (const [key, value] of Object.entries(data)) {
+    if (CONTENT_DEFINITION_SKIP.has(key) || value == null || typeof value === 'function') continue;
+    markPersistentItemField(item, key);
+    // Creation payloads are explicit overrides. Base identity/position fields
+    // have already been normalised above; assigning them again is harmless and
+    // keeps extension handling deterministic.
+    const cloned = cloneItemData(value);
+    if (cloned === undefined) continue;
+    item[key] = cloned;
+    changed++;
+  }
+  return changed;
+}
+
 /**
  * Setter for the template-by-itemId resolver. main.js wires this at
  * boot to avoid an items.js → templates.js → items.js cycle (templates
@@ -193,6 +295,12 @@ export function createItem(world, data) {
     if (data[key] != null) item[key] = data[key];
     else if (contentDef?.[key] != null) item[key] = contentDef[key];
   }
+  // Close the global data-loss gap left by the legacy whitelist. Definitions
+  // and explicit factories may add JSON-like gameplay fields without also
+  // patching this engine file. Clone nested data so mutating one runtime item
+  // never mutates the shared catalogue row or a sibling item.
+  applyItemDefinitionDefaults(item, contentDef);
+  applyItemCreationExtensions(item, data);
   if (item.kind === 'shield' && item.shield == null) item.shield = true;
   // Back-fill the script tag from a template that ships the same
   // graphic id. Without this, a bread loaf bought from a vendor
@@ -278,6 +386,33 @@ function resolveContentDefinition(data = {}) {
     // Same as above: direct unit tests may not load the content registry.
   }
   return null;
+}
+
+/**
+ * Rehydrate old persisted items after content scripts have registered their
+ * definitions. Only stable identity (`definitionId` / `tagId`) is used here;
+ * art-id fallback is deliberately excluded because many unrelated UO items
+ * share one graphic. Returns diagnostics for startup logs and tests.
+ */
+export function rehydrateWorldItemDefinitions(world) {
+  const result = { items: 0, fields: 0, scripts: 0 };
+  for (const item of world?.items?.values?.() ?? []) {
+    let definition = null;
+    try {
+      if (item.definitionId) definition = contentItemByDefinition?.(item.definitionId) ?? null;
+      if (!definition && item.tagId) definition = contentItemByTag?.(item.tagId) ?? null;
+    } catch {
+      definition = null;
+    }
+    if (!definition) continue;
+    const hadScript = !!item.script;
+    const fields = applyItemDefinitionDefaults(item, definition);
+    if (!fields) continue;
+    result.items++;
+    result.fields += fields;
+    if (!hadScript && item.script) result.scripts++;
+  }
+  return result;
 }
 
 let _itemScriptsMod = null;

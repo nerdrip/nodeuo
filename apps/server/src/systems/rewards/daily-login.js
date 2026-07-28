@@ -81,7 +81,7 @@ function defaultGrant(world, mob, pack, gift, streak) {
     case 'powerhour': {
       return !!createRewardItem(world, {
         itemId: 0x14F0, name: 'a Power Hour scroll', parent: pack.serial,
-        powerHour: 60 * 60 * 1000,
+        script: 'power-hour-scroll', powerHour: 60 * 60 * 1000,
       });
     }
     case 'ankh-deed': {

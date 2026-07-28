@@ -30,6 +30,10 @@ export class Control {
     this.acceptMouseInput = true;
     this.acceptKeyboardInput = false;
     this.keyboardFocusable = false;
+    /** Stable, author-facing key used by /client-gumps.json overrides.
+     * Unlike a child-tree path it survives controls being inserted or
+     * reordered by a later code change. */
+    this.layoutId = '';
     /** When true, mouse-down on this control starts a gump drag. Default
      *  for ResizePic backgrounds + WindowGump title bars. */
     this.isDragHandle = false;
@@ -103,6 +107,11 @@ export class Control {
     this.width  = safeSize(w);
     this.height = safeSize(h);
     this.onResize?.();
+  }
+
+  setLayoutId(id) {
+    this.layoutId = String(id ?? '').trim();
+    return this;
   }
 
   _applyPosition() {

@@ -110,8 +110,7 @@ export class NetClient {
   sendCommand(command) {
     const text = String(command ?? '').trim();
     if (!text) return false;
-    this.send(buildUnicodeSpeech(text.startsWith('[') ? text : `[${text}`));
-    return true;
+    return this.send(buildUnicodeSpeech(text.startsWith('[') ? text : `[${text}`)) !== false;
   }
 
   /** Connect to a `ws://host:port/path` URL. Resolves on open, rejects on error/close-before-open. */
@@ -245,7 +244,7 @@ export class NetClient {
   send(bytes) {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       console.warn('[net] send before open, dropped opcode 0x' + bytes[0].toString(16));
-      return;
+      return false;
     }
     // Backpressure guard. Client perf round 2 #12: above the soft threshold
     // (512 KB), DROP low-priority chatter (LookReq / status / property /
@@ -260,7 +259,7 @@ export class NetClient {
       // 0x09 LookReq, 0xBF (sub 0x10) QueryProperties, 0x34 StatusReq,
       // 0x73 Ping — all OK to drop when the link is congested.
       if (opcode === 0x09 || opcode === 0xBF || opcode === 0x34 || opcode === 0x73) {
-        return;
+        return false;
       }
     }
     if (this.ws.bufferedAmount > HIGH_WATER) {
@@ -295,6 +294,7 @@ export class NetClient {
       console.log(`[trace tx] op=0x${opcode.toString(16)} size=${frame.length} bytes head=${head} ` +
         `wsBuf=${this.ws.bufferedAmount}`);
     }
+    return true;
   }
 
   _onMessage(data, epoch = this.sessionEpoch.capture()) {

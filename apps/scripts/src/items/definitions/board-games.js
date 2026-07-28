@@ -86,9 +86,9 @@ game({ id: 0x0E9C, name: 'Lute Display',        tagId: 'lute-display', script: '
 //  GAMBLING — chips + tokens (used by Fire Casino events)
 // =====================================================================
 game({ id: 0x14F0, name: 'Casino Chip',         tagId: 'casino-chip', kind: 'consumable',
-       script: 'casino-chip', weight: 0.1, value: 100 });
+       weight: 0.1, value: 100 });
 game({ id: 0x14F0, name: 'High-Roller Chip',    tagId: 'casino-chip-high', kind: 'consumable',
-       script: 'casino-chip', weight: 0.1, value: 1000 });
+       weight: 0.1, value: 1000 });
 
 
 export default function register(api) {

@@ -253,11 +253,13 @@ export class CommandRegistry {
         result.then(() => finish()).catch((e) => {
           finish(e);
           console.error(`[cmd] ${name} rejected:`, e);
+          ctx.state?.sendSystemMessage?.(`Command [${name} failed. Check the server log and try again.`);
         });
       } else finish();
     } catch (e) {
       finish(e);
       console.error(`[cmd] ${name} threw:`, e);
+      ctx.state?.sendSystemMessage?.(`Command [${name} failed. Check the server log and try again.`);
     }
     return true;
   }

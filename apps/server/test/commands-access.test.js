@@ -108,6 +108,14 @@ describe('CommandRegistry access enforcement', () => {
     reg.dispatch('shutdown', ctx);
     expect(run).not.toHaveBeenCalled();
   });
+
+  it('reports synchronous command failures to the invoking client', () => {
+    const reg = new CommandRegistry();
+    reg.register({ name: 'broken', access: 'Player', run: () => { throw new Error('boom'); } });
+    const ctx = makeCtx('Player');
+    expect(reg.dispatch('broken', ctx)).toBe(true);
+    expect(ctx.messages).toContain('Command [broken failed. Check the server log and try again.');
+  });
 });
 
 describe('script command catalogue audit', () => {

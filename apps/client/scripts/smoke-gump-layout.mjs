@@ -76,6 +76,7 @@ const { Label } = await import('../src/ui/controls/label.js');
 const { OptionsGump } = await import('../src/ui/gumps/options-gump.js');
 const { SpellbookGump } = await import('../src/ui/gumps/spellbook-gump.js');
 const { CraftGump, parseCraftPayload } = await import('../src/ui/gumps/craft-gump.js');
+const { HouseACLGump } = await import('../src/ui/gumps/house-acl-gump.js');
 const { BuyShopGump } = await import('../src/ui/gumps/buy-gump.js');
 const { TradingGump } = await import('../src/ui/gumps/trading-gump.js');
 const { UIManager } = await import('../src/ui/ui-manager.js');
@@ -130,6 +131,34 @@ assert(craft._visibleRecipes().length === 1, 'craft search should filter without
 craft._onlyCraftable = true;
 assert(craft._visibleRecipes().length === 0, 'craftable filter should use the authoritative skill value');
 craft.dispose();
+
+const houseCommands = [];
+const house = new HouseACLGump({
+  net: { sendCommand(command) { houseCommands.push(command); return true; } },
+  payload: '42|Builder|0%2F100|0%2F10||||owner|Test%20Cottage|0|40000001|New|0%2F4',
+});
+house._requestDemolition(house.house);
+house._requestDemolition(house.house);
+assert(houseCommands.at(-1) === 'house remove 42',
+  'House Management should send the exact selected-house demolition command');
+assert(house._demolitionPending === true,
+  'House Management should remain open while it waits for an authoritative result');
+let houseClosed = false;
+house.close = () => { houseClosed = true; };
+house._consumeDemolitionMessage('House #42 demolished. 10 parts were removed and its placement deed is in your backpack.');
+await Promise.resolve();
+assert(houseClosed === true,
+  'House Management should close itself after the server confirms the returned deed');
+house.dispose();
+
+const disconnectedHouse = new HouseACLGump({
+  payload: '43|Builder|0%2F100|0%2F10||||owner|Offline%20Cottage|0|40000002|New|0%2F4',
+});
+disconnectedHouse._requestDemolition(disconnectedHouse.house);
+disconnectedHouse._requestDemolition(disconnectedHouse.house);
+assert(disconnectedHouse._demolitionPending === false,
+  'House Management should fail immediately when no command transport is available');
+disconnectedHouse.dispose();
 const richCraft = parseCraftPayload(
   'smithing|100.0|7001|Dagger|8|20|100|Weapons|3921|1|smith|7154:3:ingots|1|0.1|iron:0:0,valorite:2219:99',
 );

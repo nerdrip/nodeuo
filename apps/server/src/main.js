@@ -823,6 +823,14 @@ const scriptRuntime = await loadScripts(scriptsDir, {
   log: (msg) => console.log(`[scripts] ${msg}`),
 });
 try {
+  const hydrated = items.rehydrateWorldItemDefinitions(world);
+  if (hydrated.fields > 0) {
+    console.log(`[uo-node] item definitions rehydrated: ${hydrated.items} item(s), ${hydrated.fields} field(s), ${hydrated.scripts} script tag(s)`);
+  }
+} catch (e) {
+  console.warn('[uo-node] item definition rehydrate failed:', e?.message);
+}
+try {
   const n = itemScriptRegistry.rebuildTickingItemIndex(world);
   if (n > 0) console.log(`[uo-node] ticking item index rebuilt: ${n} item(s)`);
 } catch (e) {
@@ -851,6 +859,8 @@ ai.start();
 // stale commands (or "— no commands —") after hot-reload because the
 // only push site lived in `LoginComplete`.
 world.events?.on?.('scripts:reloaded', () => {
+  try { items.rehydrateWorldItemDefinitions(world); }
+  catch (e) { console.warn('[item-script] definition rehydrate failed:', e?.message); }
   try { itemScriptRegistry.rebuildTickingItemIndex(world); }
   catch (e) { console.warn('[item-script] tick index rebuild failed:', e?.message); }
   try { rebuildTickingMobileIndex(world); }

@@ -155,6 +155,11 @@ import {
 export class GameScene extends Scene {
   constructor(gc) {
     super(gc);
+    // Local/lazy gumps use this transport for their `[command` actions.
+    // The scene imports the singleton directly, but historically never
+    // assigned `_net`, so buttons appeared to work and then silently timed
+    // out without putting a packet on the WebSocket.
+    this._net = net;
     this._unsubs = [];
     /** @type {HTMLElement | null} */
     this._hud = null;
@@ -675,6 +680,14 @@ export class GameScene extends Scene {
     this._sub('target:multi',     (info) => {
       targetManager.setMultiPlacement(info);
       this._appendJournal(`[system] Place multi 0x${info.multiId.toString(16)} - click a ground tile.`);
+    });
+    this._sub('target:cleared', () => {
+      // The target manager clears its multi metadata synchronously after the
+      // 0x6C placement reply. Clear the renderer at the same boundary instead
+      // of waiting for a later frame/key comparison; otherwise an async
+      // texture mount can leave the translucent house preview behind.
+      this._multiGhostKey = '';
+      this._multiGhost?.clear?.();
     });
     // 0xBF 0x16 close-window — server-driven dismiss. CUO maps `kind`
     // to a gump family: 1=paperdoll, 2=healthbar, 8=profile,

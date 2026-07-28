@@ -195,6 +195,8 @@ assert.equal(scene._panel, null);
 assert.ok(mounted.length >= 1, 'DOM mount should be exercised');
 
 const gameSceneSource = readFileSync(new URL('../src/scenes/game-scene.js', import.meta.url), 'utf8');
+assert.ok(gameSceneSource.includes('this._net = net;'),
+  'GameScene must pass the live singleton transport to command-driven local gumps');
 for (const [tag, eventName] of [
   ['ADMIN', 'ui:admin:open'],
   ['PLAYERVENDOR', 'ui:player-vendor:open'],

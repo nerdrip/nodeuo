@@ -151,13 +151,15 @@ nakładką na działający kod klienta:
   "frame": { "enabled": true, "width": 720, "height": 72, "opacity": 1 },
   "behavior": { "enabled": true, "canMove": true, "canClose": true },
   "controlOverrides": [
-    { "enabled": true, "className": "Label", "occurrence": 0, "x": 12, "y": 8 }
+    { "enabled": true, "controlId": "status-label", "x": 12, "y": 8 }
   ]
 }
 ```
 
-Kontrolkę można wskazać stabilnie przez `className` + `occurrence` albo ścieżką
-indeksów dzieci, np. `0.2`. Preferuj klasę, jeśli drzewo UI może zmieniać kolejność.
+Najstabilniejszym selektorem jest `controlId` nadany kontrolce w konstruktorze
+przez `setLayoutId()`. Przetrwa on dodawanie i zmianę kolejności innych elementów.
+Starsze gumpy można nadal wskazać przez `className` + `classIndex` albo ścieżką
+indeksów dzieci, np. `0.2`.
 
 Plik jest częścią statycznych zasobów klienta. Jeśli fetch zakończy się błędem,
 rekord jest błędny albo klient łączy się z obcym serwerem, konstruktor JS nadal
@@ -182,4 +184,3 @@ tworzy pełne okno. Dzięki temu edycja wizualna nie jest warunkiem kompatybilno
 - Duże gumpy są automatycznie pakowane, ale nadal mają limit rozmiaru pakietu UO.
 - Callback jest połączeniowy i krótkotrwały; trwały workflow zapisuj jako dane gracza.
 - Dynamiczne listy stronicuj zamiast wysyłać tysiące wierszy.
-

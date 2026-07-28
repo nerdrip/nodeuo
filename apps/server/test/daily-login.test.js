@@ -112,4 +112,18 @@ describe('daily-login', () => {
     const deed = [...world.items.values()].find((it) => it.parent === pack.serial && it.name === 'a small ankh deed');
     expect(deed).toMatchObject({ script: 'addon-deed', addonName: 'stone-ankh' });
   });
+
+  it('creates a scripted Power Hour scroll on day six', () => {
+    const world = mkWorld();
+    const mob = mkMob();
+    const pack = world.createItem({ itemId: 0x0E76, parent: mob.serial, layer: 21 });
+    const acc = mkAccount();
+    acc.lastDailyAt = Date.now() - 25 * 60 * 60 * 1000;
+    acc.dailyStreak = 5;
+    expect(checkAndGrantDailyReward(world, mob, acc)?.gift.key).toBe('powerhour');
+    const scroll = [...world.items.values()].find(
+      (item) => item.parent === pack.serial && /^a power hour scroll$/i.test(item.name ?? ''),
+    );
+    expect(scroll).toMatchObject({ script: 'power-hour-scroll', powerHour: 60 * 60 * 1000 });
+  });
 });

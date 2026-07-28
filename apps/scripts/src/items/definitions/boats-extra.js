@@ -74,7 +74,9 @@ functional({ id: 0x4070, name: 'Bilge Pump',     tagId: 'bilge-pump',     script
 functional({ id: 0x4071, name: 'Ship Anchor',    tagId: 'ship-anchor',    script: 'ship-anchor',    weight: 200, movable: false });
 functional({ id: 0x4072, name: 'Ship Wheel',     tagId: 'ship-wheel',     script: 'ship-wheel',     weight: 50,  movable: false });
 functional({ id: 0x4073, name: 'Captain\'s Cabin Door',  tagId: 'cabin-door',     script: 'cabin-door',     weight: 30,  movable: false });
-functional({ id: 0x4074, name: 'Captain\'s Hold',        tagId: 'cabin-hold',     script: 'cabin-hold',     weight: 30,  movable: false });
+functional({ id: 0x4074, name: 'Captain\'s Hold',        tagId: 'cabin-hold',
+             kind: 'container', container: true, gumpId: 0x0048, capacity: 125,
+             maxWeight: 1000, weight: 30, movable: false });
 functional({ id: 0x4075, name: 'Map Table',      tagId: 'ship-map-table', script: 'ship-map-table', weight: 60 });
 
 // =====================================================================

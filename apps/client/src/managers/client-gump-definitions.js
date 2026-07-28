@@ -67,7 +67,21 @@ function controlsByClass(root, className) {
   return matches;
 }
 
+function controlByLayoutId(root, layoutId) {
+  const wanted = String(layoutId ?? '').trim();
+  if (!wanted) return null;
+  let match = null;
+  const visit = (control) => {
+    if (!control || match) return;
+    if (control.layoutId === wanted) { match = control; return; }
+    for (const child of control.children ?? []) visit(child);
+  };
+  visit(root);
+  return match;
+}
+
 function targetForOverride(gump, override) {
+  if (String(override.controlId ?? '').trim()) return controlByLayoutId(gump, override.controlId);
   if (override.path != null && String(override.path).trim() !== '') return controlAtPath(gump, override.path);
   const matches = controlsByClass(gump, override.className);
   return matches[Math.max(0, Number(override.classIndex) | 0)] ?? null;
@@ -185,4 +199,4 @@ class ClientGumpDefinitions {
 }
 
 export const clientGumpDefinitions = new ClientGumpDefinitions();
-export { normalizeDefinition, applyControlOverride, controlAtPath };
+export { normalizeDefinition, applyControlOverride, controlAtPath, controlByLayoutId };

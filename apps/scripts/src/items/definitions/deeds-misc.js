@@ -114,6 +114,7 @@ __PENDING__.push({
   hue: 0x021,
   name: 'a power hour scroll',
   weight: 1,
+  script: 'power-hour-scroll',
   powerHour: true,
 });
 

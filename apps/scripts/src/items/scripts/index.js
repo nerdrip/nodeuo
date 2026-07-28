@@ -25,6 +25,7 @@ import buildDrink         from './consumables/drink.js';
 import buildBankCheck     from './consumables/bank-check.js';
 import buildImbueRecipeScroll from './consumables/imbue-recipe-scroll.js';
 import buildEventLogScroll from './consumables/event-log-scroll.js';
+import buildPowerHourScroll from './consumables/power-hour-scroll.js';
 import buildBandage       from './tools/bandage.js';
 import buildMagicScroll   from './tools/magic-scroll.js';
 import buildSpikeTrap     from './traps/spike-trap.js';
@@ -33,6 +34,12 @@ import { buildGasTrap, buildFireColumnTrap, buildSawTrap, buildDartTrap } from '
 import buildTeleporter    from './world/teleporter.js';
 import buildPeerlessAltar from './world/peerless-altar.js';
 import buildPublicMoongate, { registerMoongateCommand } from './world/public-moongate.js';
+import buildSignPost from './world/sign-post.js';
+import {
+  buildBilgePump, buildShipAnchor, buildShipWheel, buildCabinDoor,
+  buildSeaChart, buildShipMapTable, buildDock, buildDockCrane,
+  buildMooringPost, buildShipPlans, buildCannon, buildLobsterTrap, buildCrabTrap,
+} from './world/nautical-items.js';
 import { buildVirtueAltar, buildPeerlessChaosAltar, buildHealingAltar, buildResurrectionAltar } from './world/altars.js';
 import { buildFarmablePlant } from './world/farmable.js';
 import { buildPotPlantScript } from '../behaviors/pot-plants.js';
@@ -165,10 +172,15 @@ const SCRIPT_BUILDERS = [
   buildPotionHeal, buildPotionCure, buildPotionRefresh,
   buildPoisonPotion, buildEodonPotion, buildEndlessDecanter, buildAreaPotion,
   buildFood, buildDrink, buildBankCheck, buildImbueRecipeScroll, buildEventLogScroll,
+  buildPowerHourScroll,
   buildBandage, buildMagicScroll,
   buildSpikeTrap, buildPressurePlate,
   buildGasTrap, buildFireColumnTrap, buildSawTrap, buildDartTrap,
   buildTeleporter, buildPeerlessAltar, buildPublicMoongate,
+  buildSignPost,
+  buildBilgePump, buildShipAnchor, buildShipWheel, buildCabinDoor,
+  buildSeaChart, buildShipMapTable, buildDock, buildDockCrane,
+  buildMooringPost, buildShipPlans, buildCannon, buildLobsterTrap, buildCrabTrap,
   () => buildSpellFieldScript(),
 
   buildVirtueAltar, buildPeerlessChaosAltar, buildHealingAltar, buildResurrectionAltar,

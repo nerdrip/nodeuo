@@ -56,7 +56,6 @@ container({ id: 0x0E7D, name: 'Wooden Box',   gumpId: 0x0043, weight: 4 });
 container({
   id: 0x09A8, name: 'Strongbox', tagId: 'strongbox',
   gumpId: 0x004B, weight: 25, capacity: 200, maxWeight: 600,
-  script: 'house-strongbox',
 });
 
 // ---- Barrels & kegs -------------------------------------------------
@@ -64,7 +63,7 @@ container({ id: 0x0E77, name: 'Barrel',       gumpId: 0x003E, weight: 25, capaci
 container({ id: 0x0E7F, name: 'Keg',          gumpId: 0x003E, weight: 5,  capacity: 25 });
 container({
   id: 0x1843, name: 'Powder Keg', tagId: 'powder-keg',
-  gumpId: 0x003E, weight: 50, script: 'powder-keg', explosive: true,
+  gumpId: 0x003E, weight: 50, explosive: true,
 });
 
 // ---- Coffins / sarcophagi -------------------------------------------
@@ -105,15 +104,16 @@ container({ id: 0x0E3E, name: 'Large Crate',  gumpId: 0x0044, weight: 12 });
 
 // ---- Trapped variants ------------------------------------------------
 // Trapable containers carry a `trapped` payload activated on open.
-// Lifecycle hook `trap-chest` (registered separately under apps/scripts)
-// rolls explosion / poison / dart per `trapped.kind`.
+// The packet handler runs the canonical lock/trap flow before opening, so
+// these intentionally use the generic container path instead of a duplicate
+// lifecycle script.
 container({
   id: 0x0E40, name: 'Trapped Wooden Chest', tagId: 'trapped-wooden-chest',
-  gumpId: 0x0049, weight: 8, script: 'trapped-chest',
+  gumpId: 0x0049, weight: 8,
 });
 container({
   id: 0x09A8, name: 'Trapped Metal Chest', tagId: 'trapped-metal-chest',
-  gumpId: 0x0048, weight: 9, script: 'trapped-chest',
+  gumpId: 0x0048, weight: 9,
 });
 
 // ---- Treasure chests (5 levels) -------------------------------------
@@ -155,15 +155,15 @@ container({
 
 container({
   id: 0x9AA1, name: 'Jewelry Box', tagId: 'jewelry-box',
-  gumpId: 0x0042, weight: 4, capacity: 125, script: 'jewelry-box',
+  gumpId: 0x0042, weight: 4, capacity: 125,
 });
 container({
   id: 0x4B23, name: 'Seed Box', tagId: 'seed-box',
-  gumpId: 0x004A, weight: 8, capacity: 24, script: 'seed-box',
+  gumpId: 0x004A, weight: 8, capacity: 24,
 });
 container({
   id: 0xA2C5, name: 'Commodity Deed Box', tagId: 'commodity-deed-box',
-  gumpId: 0x0042, weight: 8, capacity: 125, script: 'commodity-deed-box',
+  gumpId: 0x0042, weight: 8, capacity: 125,
 });
 
 // ---- Elven Quiver (ServUO Items/Equipment/Quivers/) -------------------
@@ -176,13 +176,11 @@ container({
   id: 0x2FB7, name: 'Elven Quiver', tagId: 'elven-quiver',
   gumpId: 0x108, weight: 2, capacity: 50, maxWeight: 50,
   layer: 22, weightReducePct: 50, ammoBonus: 5,
-  script: 'elven-quiver',
 });
 container({
   id: 0x2B02, name: 'Quiver of Infinity', tagId: 'quiver-of-infinity',
   gumpId: 0x108, weight: 2, capacity: 100, maxWeight: 100,
   layer: 22, weightReducePct: 100, ammoBonus: 8,
-  script: 'quiver-of-infinity',
 });
 
 // ---- Garbage / cleanup-britannia bin ---------------------------------

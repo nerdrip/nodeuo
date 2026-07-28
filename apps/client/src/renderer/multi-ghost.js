@@ -74,8 +74,16 @@ export class MultiGhost {
   }
 
   destroy() {
-    this._clearSprites();
+    this.clear();
     this.container.destroy({ children: true });
+  }
+
+  /** Synchronously invalidate both mounted sprites and any in-flight async
+   * texture load. Called directly when the target manager resolves/cancels
+   * placement so a completed house can never retain its tinted preview. */
+  clear() {
+    this._last = null;
+    this._clearSprites();
   }
 
   _clearSprites() {
@@ -90,8 +98,7 @@ export class MultiGhost {
    *  null to hide. Idempotent — only re-mounts on actual changes. */
   async update(originTile) {
     if (!targetManager.multi || !originTile) {
-      if (this._last !== null) this._clearSprites();
-      this._last = null;
+      if (this._last !== null || this._sprites.length > 0) this.clear();
       return;
     }
     const m = targetManager.multi;

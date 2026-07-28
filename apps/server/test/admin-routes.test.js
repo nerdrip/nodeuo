@@ -173,7 +173,7 @@ describe('admin route safety and editor behavior', () => {
     const clientGumps = await route('POST', '/api/studio/validate').run({ body: { domain: 'gumps', data: [{
       definitionId: 'client:sample', scope: 'client', className: 'SampleGump', type: 'sample',
       frame: { enabled: true, x: 20, y: 30, width: 300, height: 180, opacity: 0.9 },
-      controlOverrides: [{ enabled: true, path: '0.2', x: 10, y: 20, width: 80, height: 24 }],
+      controlOverrides: [{ enabled: true, controlId: 'status-label', x: 10, y: 20, width: 80, height: 24 }],
     }] } });
     expect(clientGumps).toMatchObject({ ok: true, errors: [], records: 1 });
 

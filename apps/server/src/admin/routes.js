@@ -1423,6 +1423,21 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
         if (definition.scope !== 'client') return { error: `${id}: scope must be 'client'` };
         if (definition.controlOverrides != null && !Array.isArray(definition.controlOverrides)) return { error: `${id}: controlOverrides must be an array` };
         if ((definition.controlOverrides?.length ?? 0) > 512) return { error: `${id}: at most 512 control overrides are allowed` };
+        const controlIds = new Set();
+        for (let overrideIndex = 0; overrideIndex < (definition.controlOverrides?.length ?? 0); overrideIndex++) {
+          const override = definition.controlOverrides[overrideIndex];
+          if (!override || typeof override !== 'object' || Array.isArray(override)) {
+            return { error: `${id}: control override ${overrideIndex + 1} must be an object` };
+          }
+          const controlId = String(override.controlId ?? '').trim();
+          const path = String(override.path ?? '').trim();
+          const className = String(override.className ?? '').trim();
+          if (!controlId && !path && !className) {
+            return { error: `${id}: control override ${overrideIndex + 1} requires controlId, path or className` };
+          }
+          if (controlId && controlIds.has(controlId)) return { error: `${id}: duplicate controlId '${controlId}'` };
+          if (controlId) controlIds.add(controlId);
+        }
       }
       try {
         const before = fs.existsSync(clientGumpDefinitionsFile) ? fs.statSync(clientGumpDefinitionsFile) : null;

@@ -46,6 +46,8 @@ import { fileURLToPath } from 'node:url';
 import { isMobileSerial, isItemSerial } from './serial.js';
 import { CURRENT_SNAPSHOT_VERSION, migrateSnapshot } from './persistence-migrations.js';
 
+const PERSISTENT_ITEM_FIELDS = Symbol.for('uo.itemPersistentFields');
+
 // Worker-thread JSON.stringify enabled for snapshots >= this many bytes.
 // Cost of structured-cloning the snap to the worker is ~30-50 % of the
 // stringify cost, so the win starts above ~3 MB. Set via env to tune
@@ -409,6 +411,18 @@ const ITEM_EXT_KEYS = [
   // + `_reagentBag` flags also persist now.
   '_nextRestockAt', 'treasureBonus', '_reagentBag', 'engravingTool',
   'boatNamingDeed', 'powerHour', 'tokunoArtifact', 'saArtifact',
+  // Data-driven content extensions. These used to exist only on catalogue
+  // rows and were silently dropped by create/save, which made otherwise
+  // valid scripted items lose their payload after spawning or restarting.
+  '_refreshDays', 'accessory', 'ammoBonus', 'anatomy', 'begReward',
+  'bonus', 'chargeable', 'craftSkill', 'data', 'dex', 'dyeHues',
+  'explosive', 'farm', 'firstSpellId', 'fishBonus', 'gameType', 'hunger',
+  'imbuingMagic', 'immobile', 'int', 'lit', 'lumberjackBonus', 'magery',
+  'material', 'mineBonus', 'peerless', 'pickaxeBonus', 'protectionVs',
+  'questItem', 'race', 'region', 'repairSkill', 'resists', 'school',
+  'shipKind', 'slayerType', 'smithBonus', 'soundId', 'special', 'str',
+  'subKind', 'summon', 'trap', 'uniqueArt', 'value', 'vvvCost',
+  'weightReducePct',
   // Fishing trophy — big-fish mount preserves angler + weight as deco.
   '_trophyWeight', '_fishTrophy', '_trophyAngler',
   // City Stone — granite marker tying an item to a CityLoyalty city key.
@@ -728,7 +742,11 @@ function serializeMobile(m) {
 }
 
 function serializeItem(it) {
-  const extensions = copyExtensions(it, ITEM_EXT_KEYS);
+  const dynamicFields = it[PERSISTENT_ITEM_FIELDS] instanceof Set
+    ? [...it[PERSISTENT_ITEM_FIELDS]]
+    : [];
+  const extensions = copyExtensions(it, [...ITEM_EXT_KEYS, ...dynamicFields]);
+  if (dynamicFields.length) extensions._persistentFields = dynamicFields;
   // Every component of a placed house shares the exact same ACL object at
   // runtime. Persisting that object on hundreds of collision proxies bloats
   // items.json and makes every save/restore do needless JSON work. Canonical
@@ -1065,9 +1083,18 @@ export function restoreWorld(world, snap) {
       continue;
     }
     const restored = { ...it };
+    const persistentFields = Array.isArray(restored._persistentFields)
+      ? restored._persistentFields.filter((key) => typeof key === 'string')
+      : [];
+    delete restored._persistentFields;
     Object.defineProperty(restored, '_world', {
       value: world, writable: true, configurable: true, enumerable: false,
     });
+    if (persistentFields.length) {
+      Object.defineProperty(restored, PERSISTENT_ITEM_FIELDS, {
+        value: new Set(persistentFields), writable: true, configurable: true, enumerable: false,
+      });
+    }
     // Wave 4: re-wrap boat.riders array → Set so existing .add()/.has()
     // callers in scripts/commands/boat.js keep working unchanged.
     if (restored.boat && Array.isArray(restored.boat.riders)) {

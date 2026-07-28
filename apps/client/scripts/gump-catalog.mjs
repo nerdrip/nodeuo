@@ -99,6 +99,40 @@ if (new Set(catalog.map((entry) => entry.id)).size !== catalog.length) failures.
 if (editableGumps.length < 90) failures.push(`expected at least 90 editable gump classes, found ${editableGumps.length}`);
 if (new Set(editableGumps.map((entry) => entry.definitionId)).size !== editableGumps.length) failures.push('duplicate editable gump definitionIds');
 
+// The checked-in runtime catalogue is the admin-editable source of truth for
+// local gump appearance. Keep it complete and validate stable control IDs so
+// an innocent constructor reorder cannot silently retarget an override.
+let runtimeDefinitions = [];
+const checkedRuntimeOutput = join(appRoot, 'public', 'client-gumps.json');
+try {
+  runtimeDefinitions = JSON.parse(readFileSync(checkedRuntimeOutput, 'utf8'));
+  if (!Array.isArray(runtimeDefinitions)) throw new Error('root must be an array');
+} catch (error) {
+  failures.push(`client-gumps.json is invalid: ${error.message}`);
+  runtimeDefinitions = [];
+}
+const runtimeById = new Map(runtimeDefinitions.map((entry) => [entry?.definitionId, entry]));
+for (const entry of editableGumps) {
+  if (!runtimeById.has(entry.definitionId)) failures.push(`client-gumps.json is missing ${entry.definitionId}`);
+}
+for (const definition of runtimeDefinitions) {
+  const stableIds = new Set();
+  for (const [index, override] of (definition?.controlOverrides ?? []).entries()) {
+    const stableId = String(override?.controlId ?? '').trim();
+    const path = String(override?.path ?? '').trim();
+    const className = String(override?.className ?? '').trim();
+    if (!stableId && !path && !className) failures.push(`${definition?.definitionId} override ${index + 1} has no target`);
+    if (stableId && stableIds.has(stableId)) failures.push(`${definition?.definitionId} duplicates controlId '${stableId}'`);
+    if (stableId) stableIds.add(stableId);
+  }
+}
+const houseDefinition = runtimeById.get('client:house-aclgump');
+const houseControlIds = new Set((houseDefinition?.controlOverrides ?? []).map((entry) => entry.controlId));
+if (!houseDefinition?.frame?.enabled) failures.push('House Management must use its JSON frame definition');
+for (const requiredId of ['actions-panel', 'ownership-panel', 'access-panel', 'demolish-button', 'demolition-hint']) {
+  if (!houseControlIds.has(requiredId)) failures.push(`House Management JSON is missing stable control '${requiredId}'`);
+}
+
 if (process.argv.includes('--write')) {
   const output = join(appRoot, '.generated', 'gump-catalog.json');
   const runtimeOutput = join(appRoot, 'public', 'client-gumps.json');

@@ -31,6 +31,7 @@ import {
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createItem, destroyItemBySerial } from '../../_items.js';
+import { findBackpack } from '../../_inventory.js';
 import { allItems, allMobiles } from '../../_spatial.js';
 import { itemBySerial, mobileBySerial } from '../../_entities.js';
 import { isCustomHouseMulti, isHouseMulti, nameForMulti } from './multi-catalog.js';
@@ -389,7 +390,7 @@ export default function register(api) {
         }
         const result = stampMultiAt(api, multiId, hue, tiles, ox, oy, oz, user.map ?? 1);
         if (result.placed > 0) {
-          destroyItemBySerial(api, deedSerial);
+          consumePlacedHouseDeed(api, state, deedSerial);
           user.client.sendSystemMessage?.(
             `You place a multi 0x${multiId.toString(16)} (${result.placed} components).`,
           );
@@ -571,6 +572,24 @@ export default function register(api) {
   };
 }
 
+/** Consume a successfully used house deed and immediately invalidate its
+ * client-side container entry. Removing only the authoritative world object
+ * leaves an already-open backpack rendering the stale deed until its next
+ * full contents snapshot. */
+export function consumePlacedHouseDeed(api, state, deedSerial) {
+  const serial = Number(deedSerial) >>> 0;
+  if (!serial) return false;
+  const removed = destroyItemBySerial(api, serial);
+  if (!removed) return false;
+  if (api.protocol?.removeEntity) {
+    try { state?.send?.(api.protocol.removeEntity(serial)); }
+    catch (error) {
+      api.log?.(`[house-deed] remove notification failed for 0x${serial.toString(16)}: ${error.message}`);
+    }
+  }
+  return true;
+}
+
 /** Resolve the cached `multi.json` once. Same structure `placemulti` /
  *  `housedeed` already pull from — we expose the picker helper here so
  *  both share the on-disk catalogue without re-fetching. */
@@ -587,18 +606,67 @@ function getMultiCatalogueKeys(api) {
  *  the chosen multi id. Shared by the terminal-mode [housedeed call
  *  and the picker gump so the broadcast / response shape stays in
  *  lockstep with the rest of placemulti's contract. */
-export function spawnHousedeedIntoPack(api, state, mob, multiId, name = 'deed to a building') {
+export function spawnHousedeedIntoPack(
+  api, state, mob, multiId, name = 'deed to a building',
+  { notify = true, announce = true } = {},
+) {
   const deed = api.game?.mobile?.giveItem?.(mob, {
     itemId: 0x14F0,             // HousePlacementTool icon
     hue: 1153,                   // gold tint — matches ServUO
     name,
     movable: true,
     script: 'house-deed',
-  }, { randomGrid: true });
-  if (!deed) { state?.sendSystemMessage?.('You have no backpack.'); return null; }
+  }, { randomGrid: true, notify });
+  if (!deed) {
+    if (announce) state?.sendSystemMessage?.('You have no backpack.');
+    return null;
+  }
   deed._deedMulti = multiId | 0;
-  state?.sendSystemMessage?.(`Spawned a deed for multi 0x${multiId.toString(16)} in your backpack.`);
+  if (announce) state?.sendSystemMessage?.(`Spawned a deed for multi 0x${multiId.toString(16)} in your backpack.`);
   return deed;
+}
+
+/** Demolish one exact multi instance and return its deed without ever exposing
+ * a duplicate deed for a structure that still exists. The deed is staged in
+ * the backpack without a client update, all authoritative item removals run,
+ * and only a fully successful result reveals it. A failed removal destroys the
+ * staged deed again, so retrying cannot duplicate placement deeds. */
+export function demolishMultiWithDeed(api, state, mob, {
+  multiId,
+  facet,
+  instanceId = null,
+  name = 'deed to a building',
+  extraSerials = [],
+} = {}) {
+  const pack = findBackpack(api, mob);
+  if (!pack) return { ok: false, reason: 'no-backpack', expected: 0, removed: 0, failed: [] };
+
+  const deed = spawnHousedeedIntoPack(api, state, mob, multiId, name, {
+    notify: false,
+    announce: false,
+  });
+  if (!deed) return { ok: false, reason: 'deed-create-failed', expected: 0, removed: 0, failed: [] };
+
+  const result = destroyMultiByBrandDetailed(api, multiId, facet, instanceId, { extraSerials });
+  if (result.expected === 0 || result.failed.length > 0 || result.removed !== result.expected) {
+    try { destroyItemBySerial(api, deed.serial); } catch { /* best-effort rollback of an unseen deed */ }
+    return {
+      ok: false,
+      reason: result.expected === 0 ? 'structure-missing' : 'incomplete-removal',
+      ...result,
+    };
+  }
+
+  // The container update is deliberately after the authoritative deletion.
+  // A stale/broken socket may miss this visual refresh, but can no longer
+  // interrupt demolition; reopening the backpack will still show the deed.
+  try {
+    const packet = api.protocol?.containerContentUpdate?.(deed, pack.serial);
+    if (packet) state?.send?.(packet);
+  } catch (error) {
+    api.log?.(`[house-demolish] deed reveal failed for 0x${deed.serial.toString(16)}: ${error.message}`);
+  }
+  return { ok: true, deed, ...result };
 }
 
 /** Pop the deed-picker gump. Mirrors the structure of [createworld
@@ -841,18 +909,26 @@ function handleHouseSignButton(api, world, signItem, user, resp) {
   switch (btn) {
     case 100: {     // Demolish
       const house = api.houses?.houseByMultiInstance?.(multiInstanceId(signItem));
-      const deed = spawnHousedeedIntoPack(
-        api, user.client, user, multiId,
-        `deed to ${house?.sign?.title ?? nameForMulti(multiId) ?? 'a building'}`,
-      );
-      if (!deed) {
-        user.client?.sendSystemMessage?.('Demolition cancelled because the deed could not be placed in your backpack.');
+      const demolition = demolishMultiWithDeed(api, user.client, user, {
+        multiId,
+        facet: map,
+        instanceId: multiInstanceId(signItem),
+        name: `deed to ${house?.sign?.title ?? nameForMulti(multiId) ?? 'a building'}`,
+        extraSerials: house
+          ? [...(house.spawnedItems ?? []), ...(house.customItemSerials ?? [])]
+          : [],
+      });
+      if (!demolition.ok) {
+        user.client?.sendSystemMessage?.(
+          `Demolition stopped (${demolition.reason}). No placement deed was returned; you may retry safely.`,
+        );
         return;
       }
-      const removed = destroyMultiByBrand(api, multiId, map, multiInstanceId(signItem));
       if (house) api.houses.remove(house.id);
-      user.client?.sendSystemMessage?.(`House demolished — ${removed} parts removed and its placement deed returned.`);
-      api.log?.(`[sign] ${user.name ?? 'admin'} demolished 0x${multiId.toString(16)}: ${removed} tiles`);
+      user.client?.sendSystemMessage?.(
+        `House demolished — ${demolition.removed} parts removed and its placement deed returned.`,
+      );
+      api.log?.(`[sign] ${user.name ?? 'admin'} demolished 0x${multiId.toString(16)}: ${demolition.removed} tiles`);
       return;
     }
     case 101: {     // Transfer ownership
@@ -1124,13 +1200,25 @@ function countMultiTiles(api, multiId, facet, instanceId = null) {
  *  tile is broadcast individually so the client's tile-renderer drops
  *  the sprite via the `entity:removed` listener (mirrors the per-tile
  *  worldItemSA fan-out the placement path uses). */
-export function destroyMultiByBrand(api, multiId, facet, instanceId = null) {
+export function destroyMultiByBrandDetailed(
+  api, multiId, facet, instanceId = null, { extraSerials = [] } = {},
+) {
   const victims = [];
+  const seen = new Set();
   for (const it of allItems(api)) {
     if (!matchesMultiRef(it, multiId, facet, instanceId)) continue;
+    seen.add(it.serial >>> 0);
     victims.push(it);
   }
-  if (!victims.length) return 0;
+  for (const serialValue of extraSerials ?? []) {
+    const serial = Number(serialValue) >>> 0;
+    if (!serial || seen.has(serial)) continue;
+    const item = itemBySerial(api, serial);
+    if (!item) continue;
+    seen.add(serial);
+    victims.push(item);
+  }
+  if (!victims.length) return { expected: 0, removed: 0, failed: [], notificationErrors: 0 };
   // Bounding box for the broadcast range filter — cheaper than a full
   // world.mobiles walk per tile. House footprints are tiny vs. the world
   // so a 24-tile pad around the bbox covers every client that could
@@ -1150,24 +1238,44 @@ export function destroyMultiByBrand(api, multiId, facet, instanceId = null) {
     nearClients.push(m.client);
   }
   let removed = 0;
+  let notificationErrors = 0;
+  const failed = [];
   for (const it of victims) {
-    if (api.protocol?.removeEntity) {
-      const pkt = api.protocol.removeEntity(it.serial);
-      for (const c of nearClients) c.send(pkt);
-    }
     // Door cleanup: clear any pending auto-close timer to avoid the
     // setTimeout firing on an already-destroyed item.
     if (it.door?._closeTimer) {
       try { clearTimeout(it.door._closeTimer); } catch { /* ignore */ }
     }
+    let didRemove = false;
     try {
-      destroyItemBySerial(api, it.serial);
-      removed++;
+      didRemove = destroyItemBySerial(api, it.serial);
+      if (didRemove) removed++;
+      else failed.push(it.serial >>> 0);
     } catch (e) {
+      failed.push(it.serial >>> 0);
       api.log?.(`[destroymulti] destroyItem failed for 0x${it.serial.toString(16)}: ${e.message}`);
     }
+    if (!didRemove) continue;
+    if (!api.protocol?.removeEntity) continue;
+    try {
+      const packet = api.protocol.removeEntity(it.serial);
+      for (const client of nearClients) {
+        try { client.send(packet); }
+        catch (error) {
+          notificationErrors++;
+          api.log?.(`[destroymulti] client removal notification failed: ${error.message}`);
+        }
+      }
+    } catch (error) {
+      notificationErrors++;
+      api.log?.(`[destroymulti] remove packet failed for 0x${it.serial.toString(16)}: ${error.message}`);
+    }
   }
-  return removed;
+  return { expected: victims.length, removed, failed, notificationErrors };
+}
+
+export function destroyMultiByBrand(api, multiId, facet, instanceId = null) {
+  return destroyMultiByBrandDetailed(api, multiId, facet, instanceId).removed;
 }
 
 /** Open the multi-targeting cursor on the user's client and stamp the
