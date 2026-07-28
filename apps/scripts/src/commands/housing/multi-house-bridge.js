@@ -1,4 +1,4 @@
-import { allItems } from '../../_spatial.js';
+import { allItems, nearbyClients } from '../../_spatial.js';
 import { mobileBySerial } from '../../_entities.js';
 import {
   applyAclToTiles, getAcl, newAclFor,
@@ -30,6 +30,42 @@ function multiParts(api, reference) {
   const multiId = reference?._multi | 0;
   const map = reference?.map ?? 1;
   return [...allItems(api)].filter((item) => sameInstance(item, instanceId, multiId, map));
+}
+
+/**
+ * Remove the legacy whole-structure tint from canonical house multis.
+ *
+ * A deed's `hue` belongs to its inventory icon. Older placement code copied
+ * it onto the multi anchor and every proxy, which made the renderer tint the
+ * complete house gray/purple. With `reference` only that concrete instance is
+ * repaired; without it every persisted house multi is migrated in one pass.
+ * Boats and non-house multis are deliberately left untouched.
+ */
+export function neutralizeHouseMultiHues(api, reference = null, { notify = true } = {}) {
+  const referenceMultiId = reference?._multi ?? reference?.multiId;
+  if (reference && !isHouseMulti(referenceMultiId)) return 0;
+  const referenceInstance = reference ? instanceOf(reference) : null;
+  const referenceMap = reference?.map ?? 1;
+  let changed = 0;
+
+  for (const item of allItems(api)) {
+    const multiId = item?._multi ?? item?.multiId;
+    if (!isHouseMulti(multiId)) continue;
+    if (reference && !sameInstance(item, referenceInstance, referenceMultiId, referenceMap)) continue;
+    if ((item.hue | 0) === 0) continue;
+    item.hue = 0;
+    changed++;
+
+    // Visible anchors and dynamic pieces may already be mounted by an online
+    // client during script hot-reload. Re-broadcasting the item remounts it
+    // immediately with neutral art; hidden collision proxies need no packet.
+    if (notify && item.visible !== false && item.parent == null) {
+      for (const viewer of nearbyClients(api, item)) {
+        try { viewer.client?.sendItem?.(item); } catch { /* socket transient */ }
+      }
+    }
+  }
+  return changed;
 }
 
 function boundsOf(parts, fallback) {
@@ -66,6 +102,7 @@ export function syncRegistryHouseToMulti(api, house) {
   const anchor = [...allItems(api)].find((item) =>
     instanceOf(item) === (house.multiInstance >>> 0) && item._multiAnchor === true);
   if (!anchor) return null;
+  neutralizeHouseMultiHues(api, anchor);
   const prior = getAcl(anchor);
   const acl = prior ?? newAclFor(refFor(api, house.ownerSerial, house.ownerName));
   acl.owner = refFor(api, house.ownerSerial, house.ownerName);
@@ -106,6 +143,7 @@ export function syncMultiAclToRegistry(api, reference) {
 export function registerMultiHouse(api, reference, owner, options = {}) {
   const multiId = reference?._multi ?? reference?.multiId;
   if (!api?.houses || !reference || !owner || !isHouseMulti(multiId)) return null;
+  neutralizeHouseMultiHues(api, reference);
   const instanceId = instanceOf(reference) ?? (reference.serial >>> 0);
   const existing = api.houses.houseByMultiInstance?.(instanceId);
   if (existing) {

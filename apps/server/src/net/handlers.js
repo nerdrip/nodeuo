@@ -4319,6 +4319,22 @@ function handleUseSerial(state, serial) {
     // human and visually changed the creature on double-click.
     if (!isPaperdollBody(mob.body)) return;
     const isSelf = mob === state.mobile;
+    // Re-seed the paperdoll from one authoritative equipment snapshot before
+    // opening it. 0x88 carries only serial/title; relying solely on whatever
+    // 0x78 happened to arrive earlier let a missed/partial equipment update
+    // produce a naked body or a missing backpack on subsequent opens.
+    state.send(mobileIncoming({
+      serial: mob.serial,
+      body: mob.body,
+      x: mob.x,
+      y: mob.y,
+      z: mob.z,
+      direction: mob.direction,
+      hue: mob.hue,
+      flags: mob.flags,
+      notoriety: mob.notoriety,
+      equipment: equipmentFor(state.ctx.world, mob),
+    }));
     state.send(openPaperdoll({
       serial: mob.serial,
       title: mob.title ? `${mob.name}, ${mob.title}` : (mob.name ?? ''),

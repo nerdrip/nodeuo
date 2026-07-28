@@ -40,6 +40,20 @@ export function releaseTexture(texture) {
 }
 
 /**
+ * Return true only while `sp` still belongs to the caller that captured the
+ * supplied generation. Pooled sprites deliberately survive `release()`, so
+ * checking `destroyed` alone is not an ownership check: an old animation
+ * registry can otherwise keep writing textures into a sprite that has since
+ * been recycled as a paperdoll layer, house roof, or unrelated world item.
+ */
+export function spriteLeaseValid(sp, generation) {
+  return !!sp
+    && !sp.destroyed
+    && sp._uoPoolActive === true
+    && (sp._uoPoolGeneration >>> 0) === (generation >>> 0);
+}
+
+/**
  * Pixi does not retain-count Texture objects. Cache eviction used to call
  * `texture.destroy(false)` while a visible Sprite still pointed at that
  * sub-texture, blanking paperdolls, worn equipment and world items at

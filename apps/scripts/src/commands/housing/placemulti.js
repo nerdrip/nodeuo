@@ -37,7 +37,7 @@ import { itemBySerial, mobileBySerial } from '../../_entities.js';
 import { isCustomHouseMulti, isHouseMulti, nameForMulti } from './multi-catalog.js';
 import {
   ensureHouseForMulti, isHousingStaff, openHouseManagement, registerMultiHouse,
-  syncMultiAclToRegistry, syncRegistryHouseToMulti,
+  neutralizeHouseMultiHues, syncMultiAclToRegistry, syncRegistryHouseToMulti,
 } from './multi-house-bridge.js';
 
 // Resolve relative to THIS file so the lookup works regardless of
@@ -123,6 +123,14 @@ function isHouseSignGraphic(id) {
 
 export default function register(api) {
   if (!api.commands || !api.items) return () => {};
+
+  // One-time/idempotent migration for structures placed by the old deed
+  // path. During hot-reload this also pushes corrected anchors to nearby
+  // connected clients, so an already-purple house fixes itself immediately.
+  const repairedHouseHues = neutralizeHouseMultiHues(api);
+  if (repairedHouseHues > 0) {
+    api.log?.(`[house-deed] neutralized legacy hue on ${repairedHouseHues} house multi item(s)`);
+  }
 
   // User-report — clicking a house sign just spammed "you see nothing
   // special about that". Wire a real double-click hook: shows a tiny
@@ -369,7 +377,7 @@ export default function register(api) {
       // after stamping succeeds. We don't pre-consume in case the
       // operator cancels the targeting.
       const deedSerial = item.serial >>> 0;
-      const hue = (item.hue | 0);
+      const hue = houseDeedPlacementHue(item);
       // Re-use placeMultiInteractive but wrap its target callback so we
       // can destroy the deed after the multi lands.
       const state = user.client;
@@ -570,6 +578,11 @@ export default function register(api) {
     api.commands.unregister('housedecay');
     try { api.itemScripts?.unregister?.('house-deed'); } catch { /* ignore */ }
   };
+}
+
+/** The deed icon may be dyed, but canonical house components are not. */
+export function houseDeedPlacementHue(_deed) {
+  return 0;
 }
 
 /** Consume a successfully used house deed and immediately invalidate its

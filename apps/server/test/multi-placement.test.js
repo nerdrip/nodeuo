@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { World } from '../src/world/world.js';
 import { createItem } from '../src/world/items.js';
 import { restoreWorld, snapshotWorld } from '../src/world/persistence.js';
-import { stampMultiAt } from '../../scripts/src/commands/housing/placemulti.js';
+import {
+  houseDeedPlacementHue, stampMultiAt,
+} from '../../scripts/src/commands/housing/placemulti.js';
 import { applyAclToTiles, newAclFor } from '../../scripts/src/items/behaviors/house-acl.js';
 import { HouseRegistry } from '../src/systems/housing/houses.js';
 import {
@@ -40,6 +42,11 @@ function makeApi() {
 }
 
 describe('canonical multi placement', () => {
+  it('keeps the dyed deed icon hue separate from canonical house art', () => {
+    expect(houseDeedPlacementHue({ hue: 0x0481 })).toBe(0);
+    expect(houseDeedPlacementHue({ hue: 0x0000 })).toBe(0);
+  });
+
   it('sends one type-2 anchor, keeps collision proxies hidden, and preserves dynamic pieces', () => {
     const { api, delivered } = makeApi();
     const tiles = [
@@ -139,7 +146,7 @@ describe('canonical multi placement', () => {
     api.houses = new HouseRegistry();
     const owner = api.world.createMobile({ name: 'Architect', x: 100, y: 100, z: 0, map: 1 });
     owner.client = { account: { accessLevel: 'GM' } };
-    const result = stampMultiAt(api, 0x006E, 0, [
+    const result = stampMultiAt(api, 0x006E, 0x0481, [
       { id: WALL, x: -2, y: -1, z: 0, visible: true },
       { id: DOOR, x: 2, y: 1, z: 0, visible: false },
     ], 100, 100, 0, 1);
@@ -156,6 +163,7 @@ describe('canonical multi placement', () => {
     expect(api.houses.houseAt(98, 99, 1)).toBe(house);
     for (const item of api.world.items.values()) {
       if (item._multiInstance !== result.instanceId) continue;
+      expect(item.hue).toBe(0);
       expect(item._multiHouseId).toBe(house.id);
       expect(item._multiAcl?.owner?.serial).toBe(owner.serial);
     }

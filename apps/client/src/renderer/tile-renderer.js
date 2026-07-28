@@ -14,7 +14,9 @@ import { assets } from '../assets/asset-manager.js';
 import { world } from '../world/world.js';
 import { bus } from '../core/event-bus.js';
 import { applyHueTo } from './hue-filter.js';
-import { acquireSprite, landMeshPool, releaseSprite } from './sprite-pool.js';
+import {
+  acquireSprite, landMeshPool, releaseSprite, spriteLeaseValid,
+} from './sprite-pool.js';
 import { profile as profileManager } from '../managers/profile-manager.js';
 import { lightPoints, staticLightSpec } from './light-points.js';
 import { houseCustomization } from '../managers/house-customization-manager.js';
@@ -910,7 +912,13 @@ export class TileRenderer {
     // in tiledata, and cycling them produces the barrel/banner morph.
     if (_shouldAnimateStaticGraphic(itemId)) {
       if (!this._animatedItems) this._animatedItems = [];
-      this._animatedItems.push({ sprite: sp, baseId: itemId, x: wx | 0, y: wy | 0 });
+      this._animatedItems.push({
+        sprite: sp,
+        generation: sp._uoPoolGeneration >>> 0,
+        baseId: itemId,
+        x: wx | 0,
+        y: wy | 0,
+      });
     }
     return sp;
   }
@@ -1267,7 +1275,10 @@ export class TileRenderer {
         let writeIdx = 0;
         for (let i = 0; i < this._animatedItems.length; i++) {
           const a = this._animatedItems[i];
-          if (!a.sprite || a.sprite.destroyed) continue;
+          // A released pooled sprite is not destroyed. It may already be a
+          // paperdoll layer or a completely different world tile, so retain
+          // the entry only while its original ownership generation matches.
+          if (!spriteLeaseValid(a.sprite, a.generation)) continue;
           this._animatedItems[writeIdx++] = a;
           if (a.x < x0 - 8 || a.x > x1 + 8 || a.y < y0 - 8 || a.y > y1 + 8) continue;
           const id = assets.currentAnimatedGraphic(a.baseId, now);
@@ -1281,10 +1292,10 @@ export class TileRenderer {
           }
           if (a._pendingAnimId === id) continue;
           a._pendingAnimId = id;
-          const generation = a.sprite._uoPoolGeneration;
+          const generation = a.generation;
           assets.staticTexture(id).then((tex) => {
-            if (tex && a._pendingAnimId === id && a.sprite && !a.sprite.destroyed
-                && a.sprite._uoPoolGeneration === generation) {
+            if (tex && a._pendingAnimId === id
+                && spriteLeaseValid(a.sprite, generation)) {
               a.sprite.texture = tex;
               a.sprite._lastAnimId = id;
             }

@@ -422,8 +422,13 @@ export class PaperdollGump extends Gump {
     if (this._title.setHue) {
       this._title.setHue(NOTO_HUE[mob?.notoriety ?? 1] ?? 0xfff0c0);
     }
-    this._frame.gumpId = pickFrameGump(mob);
-    this._body.gumpId = pickBodyGump(mob);
+    // `gumpId` is asynchronous atlas state, not a passive field. Assigning it
+    // directly changed the model without replacing the mounted texture, so a
+    // refresh racing an earlier open could leave the old frame/body behind.
+    // GumpPic owns the generation guard and releases the previous pooled
+    // sprite safely through setGumpId().
+    this._frame.setGumpId(pickFrameGump(mob));
+    this._body.setGumpId(pickBodyGump(mob));
     this._body.setHue(mob?.hue ?? 0);
 
     this._equipmentSerials.clear();

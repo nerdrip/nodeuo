@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
 import { Texture } from 'pixi.js';
-import { LandMeshPool, SpritePool } from '../src/renderer/sprite-pool.js';
+import {
+  LandMeshPool, SpritePool, spriteLeaseValid,
+} from '../src/renderer/sprite-pool.js';
 
 const pool = new SpritePool(2, 0);
 const first = pool.acquire(Texture.EMPTY);
 const generation = first._uoPoolGeneration;
+assert.equal(spriteLeaseValid(first, generation), true, 'fresh sprite lease must be valid');
 first.pivot.set(9, 7);
 first.skew.set(0.2, -0.3);
 first.eventMode = 'none';
@@ -16,6 +19,7 @@ pool.release(first);
 assert.equal(pool.stats().free, 1, 'double release must not put the same sprite into the pool twice');
 
 assert.notEqual(first._uoPoolGeneration, generation, 'release invalidates pending animation callbacks');
+assert.equal(spriteLeaseValid(first, generation), false, 'released sprite invalidates its old lease');
 
 const reused = pool.acquire();
 assert.equal(reused, first, 'pool should reuse the released sprite');
@@ -27,6 +31,16 @@ assert.equal(reused.cursor, undefined);
 assert.equal(reused.hitArea, null);
 assert.equal(reused.alpha, 1);
 assert.ok(reused._uoPoolGeneration > generation, 'reacquire gets a distinct ownership generation');
+assert.equal(
+  spriteLeaseValid(reused, generation),
+  false,
+  'an old animation registry must not own a sprite after pool reuse',
+);
+assert.equal(
+  spriteLeaseValid(reused, reused._uoPoolGeneration),
+  true,
+  'the reacquired sprite exposes only its new lease',
+);
 
 pool.release(reused);
 pool.destroyAll();

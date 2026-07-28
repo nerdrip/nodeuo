@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildHandlers } from '../src/net/handlers.js';
 import { Stage } from '../src/net/net-state.js';
 import { isPaperdollBody } from '../src/systems/race.js';
+import { createItem } from '../src/world/items.js';
 import { World } from '../src/world/world.js';
 
 function usePacket(serial) {
@@ -23,7 +24,7 @@ describe('mobile paperdoll body gate', () => {
     expect(isPaperdollBody(0x0034)).toBe(false); // lava snake
   });
 
-  it('opens 0x88 only for a humanoid mobile', () => {
+  it('refreshes a humanoid equipment snapshot immediately before opening 0x88', () => {
     const world = new World();
     const player = { serial: 0x1001, name: 'player', body: 0x0190 };
     const human = { serial: 0x2001, name: 'vendorless human', body: 0x0191 };
@@ -31,6 +32,9 @@ describe('mobile paperdoll body gate', () => {
     world.mobiles.set(player.serial, player);
     world.mobiles.set(human.serial, human);
     world.mobiles.set(daemon.serial, daemon);
+    const backpack = createItem(world, {
+      itemId: 0x0E75, parent: human.serial, layer: 21, hue: 0x0481,
+    });
     const sent = [];
     const state = {
       id: 1, stage: Stage.InWorld, mobile: player,
@@ -42,7 +46,8 @@ describe('mobile paperdoll body gate', () => {
     expect(sent).toHaveLength(0);
 
     use(state, usePacket(human.serial));
-    expect(sent).toHaveLength(1);
-    expect(sent[0][0]).toBe(0x88);
+    expect(sent).toHaveLength(2);
+    expect(sent.map((packet) => packet[0])).toEqual([0x78, 0x88]);
+    expect(new DataView(sent[0].buffer, sent[0].byteOffset).getUint32(19)).toBe(backpack.serial);
   });
 });
