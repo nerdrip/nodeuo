@@ -18,6 +18,8 @@ const DATA_FILES = [
   'apps/scripts/src/data/config/servuo-runtime-parity.json',
   'apps/scripts/src/data/config/servuo-spell-parity.json',
   'apps/scripts/src/data/config/monsters.json',
+  'apps/scripts/src/data/config/mobile-types.json',
+  'apps/scripts/src/data/config/servuo-functional-ports.json',
   'apps/scripts/src/data/config/npcs.json',
   'apps/scripts/src/data/config/vendor-inventory.json',
   'apps/scripts/src/data/config/loot-tables.json',
@@ -178,21 +180,46 @@ function parseClasses(file) {
   const re = /\b(?:public|private|protected|internal|abstract|sealed|static|partial|\s)*class\s+([A-Za-z_][A-Za-z0-9_]*)\b/g;
   let match;
   while ((match = re.exec(text))) {
+    const open = text.indexOf('{', re.lastIndex);
+    const headerTail = open >= 0 ? text.slice(re.lastIndex, open) : '';
+    const baseClass = headerTail.match(/^\s*:\s*([A-Za-z_][A-Za-z0-9_.<>]*)/)?.[1]
+      ?.split('.').at(-1)?.replace(/<.*$/, '') ?? null;
+    let end = text.length;
+    if (open >= 0) {
+      let depth = 1;
+      for (let i = open + 1; i < text.length; i++) {
+        if (text[i] === '{') depth++;
+        else if (text[i] === '}' && --depth === 0) { end = i; break; }
+      }
+    }
     classes.push({
       name: match[1],
       abstract: /\babstract\s+class\s+/.test(text.slice(Math.max(0, match.index - 80), match.index + 40)),
+      baseClass,
+      start: match.index,
+      end,
     });
   }
   if (classes.length === 0) {
     classes.push({ name: path.basename(file, '.cs'), abstract: false, inferred: true });
+  } else {
+    for (const cls of classes) {
+      const parent = classes
+        .filter((candidate) => candidate !== cls && candidate.start < cls.start && candidate.end > cls.start)
+        .sort((a, b) => (a.end - a.start) - (b.end - b.start))[0];
+      cls.nested = !!parent;
+      cls.parentClass = parent?.name ?? null;
+    }
   }
   return classes;
 }
 
 function stripCSharpComments(text) {
   return String(text)
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
-    .replace(/\/\/.*$/gm, ' ');
+    .replace(/\/\*[\s\S]*?\*\//g, (value) => value.replace(/[^\r\n]/g, ' '))
+    .replace(/\/\/.*$/gm, (value) => ' '.repeat(value.length))
+    .replace(/@"(?:[^"]|"")*"|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/g,
+      (value) => value.replace(/[^\r\n]/g, ' '));
 }
 
 function collectServuoClasses() {
@@ -208,7 +235,10 @@ function collectServuoClasses() {
         category: meta.category,
         service: meta.service,
         abstract: cls.abstract,
+        baseClass: cls.baseClass ?? null,
         inferred: cls.inferred === true,
+        nested: cls.nested === true,
+        parentClass: cls.parentClass ?? null,
       });
     }
   }
@@ -236,14 +266,24 @@ function collectStrings(value, out, depth = 0) {
   }
 }
 
-function collectParityClassListStrings(text, out) {
-  const listRe = /export\s+const\s+SERVUO_[A-Z0-9_]+_CLASSES\s*=\s*Object\.freeze\(\s*\[([\s\S]*?)\]\s*\)/g;
-  let listMatch;
-  while ((listMatch = listRe.exec(text))) {
-    const body = listMatch[1];
+function collectExplicitServuoClasses(text, out) {
+  // Functional scripts and definitions annotate the concrete ServUO classes
+  // they implement.  Treat those structured fields as stronger evidence than
+  // a class name appearing in a comment or an unrelated identifier.  Both the
+  // per-entity form (`servuoClass(es)`) and shared capability arrays are used.
+  const assignmentRe = /\b(?:servuoClasses|servuoClass|ServUO[A-Za-z0-9_]*Classes|SERVUO_[A-Z0-9_]+_CLASSES)\b\s*(?::|=)\s*(?:Object\.freeze\(\s*)?(\[[\s\S]*?\]|['"][A-Za-z_][A-Za-z0-9_]*['"])/g;
+  let assignment;
+  while ((assignment = assignmentRe.exec(text))) {
     const stringRe = /['"]([A-Za-z_][A-Za-z0-9_]{2,})['"]/g;
     let stringMatch;
-    while ((stringMatch = stringRe.exec(body))) out.add(stringMatch[1]);
+    while ((stringMatch = stringRe.exec(assignment[1]))) out.add(stringMatch[1]);
+  }
+  const helperCallRe = /\b(?:addServuoClasses|ensureClasses)\s*\([^,]+,\s*(\[[\s\S]*?\])\s*\)/g;
+  let helperCall;
+  while ((helperCall = helperCallRe.exec(text))) {
+    const stringRe = /['"]([A-Za-z_][A-Za-z0-9_]{2,})['"]/g;
+    let stringMatch;
+    while ((stringMatch = stringRe.exec(helperCall[1]))) out.add(stringMatch[1]);
   }
 }
 
@@ -259,6 +299,11 @@ function collectNodeIndex() {
       pathNorm: norm(fileRel),
       stemNorm: norm(path.basename(file, path.extname(file))),
       contentNorm: text ? norm(text) : '',
+      explicitClasses: (() => {
+        const values = new Set();
+        if (text) collectExplicitServuoClasses(text, values);
+        return new Set([...values].map(norm));
+      })(),
     });
   }
 
@@ -276,6 +321,7 @@ function collectNodeIndex() {
   }
 
   const dataEntries = [];
+  const functionalPorts = new Map();
   for (const fileRel of DATA_FILES) {
     const file = path.join(ROOT, fileRel);
     if (!fs.existsSync(file)) continue;
@@ -283,6 +329,17 @@ function collectNodeIndex() {
       const st = fs.statSync(file);
       if (st.size > 3_000_000) continue;
       const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+      if (fileRel.endsWith('servuo-functional-ports.json')) {
+        for (const group of data.groups ?? []) {
+          if (!fs.existsSync(path.join(ROOT, group.mechanism ?? ''))) continue;
+          if (!fs.existsSync(path.join(ROOT, group.test ?? ''))) continue;
+          for (const className of group.classes ?? []) {
+            functionalPorts.set(norm(className), {
+              className, family: group.family, path: group.mechanism, testPath: group.test,
+            });
+          }
+        }
+      }
       const strings = new Set();
       collectStrings(data, strings);
       for (const value of strings) {
@@ -299,7 +356,7 @@ function collectNodeIndex() {
     if (!fs.existsSync(file)) continue;
     try {
       const strings = new Set();
-      collectParityClassListStrings(fs.readFileSync(file, 'utf8'), strings);
+      collectExplicitServuoClasses(fs.readFileSync(file, 'utf8'), strings);
       for (const value of strings) {
         const valueNorm = norm(value);
         if (valueNorm.length >= 3) dataEntries.push({ value, valueNorm, path: fileRel });
@@ -309,7 +366,7 @@ function collectNodeIndex() {
     }
   }
 
-  return { files, testFiles, dataEntries };
+  return { files, testFiles, dataEntries, functionalPorts };
 }
 
 function serviceMapMatch(record) {
@@ -331,10 +388,19 @@ function findBestMatch(record, index) {
   const candidates = [];
   const mapped = serviceMapMatch(record);
   if (mapped) candidates.push(mapped);
+  const functionalPort = index.functionalPorts.get(norm(record.servuoClass));
+  if (functionalPort) candidates.push({
+    score: 96,
+    path: functionalPort.path,
+    kind: 'functional-port',
+    reason: `native ${functionalPort.family} capability with executable regression test`,
+  });
 
   for (const alias of aliases) {
     for (const file of index.files) {
-      if (file.stemNorm === alias) {
+      if (file.explicitClasses.has(alias)) {
+        candidates.push({ score: 92, path: file.path, kind: 'functional-annotation', reason: 'explicit ServUO functional annotation' });
+      } else if (file.stemNorm === alias) {
         candidates.push({ score: 100, path: file.path, kind: 'file-stem', reason: 'exact JS file stem match' });
       } else if (file.pathNorm.includes(alias)) {
         candidates.push({ score: 84, path: file.path, kind: 'file-path', reason: 'JS path contains class alias' });
@@ -373,6 +439,8 @@ function statusFor(record, match) {
 }
 
 function findBestTest(record, index) {
+  const functionalPort = index.functionalPorts.get(norm(record.servuoClass));
+  if (functionalPort) return functionalPort.testPath;
   const aliases = classAliases(record.servuoClass);
   const candidates = [];
   for (const alias of aliases) {
@@ -434,7 +502,7 @@ function priorityFor(record, status) {
 function buildMatrix() {
   const classes = collectServuoClasses();
   const index = collectNodeIndex();
-  return classes
+  const records = classes
     .filter((record) => !args.category || record.category === args.category || record.service === args.category)
     .map((record) => {
       const match = findBestMatch(record, index);
@@ -453,6 +521,25 @@ function buildMatrix() {
         reason: match?.reason ?? 'no Node data/script/system match found',
       };
     });
+
+  const byPathAndClass = new Map(records.map((record) => [`${record.servuoPath}\0${record.servuoClass}`, record]));
+  return records.map((record) => {
+    if (!record.nested || !['PARTIAL', 'WEAK', 'MISSING', 'INFRA_UNMAPPED'].includes(record.status)) return record;
+    const parent = byPathAndClass.get(`${record.servuoPath}\0${record.parentClass}`);
+    if (!parent || !['MATCHED', 'INFRA_MATCHED'].includes(parent.status)) return record;
+    return {
+      ...record,
+      status: 'INFRA_MATCHED',
+      priority: 'P3',
+      nodePath: parent.nodePath,
+      testPath: record.testPath ?? parent.testPath,
+      ownerSystem: parent.ownerSystem,
+      behaviorCritical: false,
+      matchKind: 'nested-functional-infrastructure',
+      matchScore: Math.max(record.matchScore, parent.matchScore),
+      reason: `nested ${record.servuoClass} behavior is owned by functional parent ${parent.servuoClass}`,
+    };
+  });
 }
 
 function groupCounts(records, keyFn) {

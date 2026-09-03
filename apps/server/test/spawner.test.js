@@ -96,4 +96,30 @@ describe('Spawner', () => {
     expect([...spawner.groupsNear(1, 18, 18, 4)]).toEqual([]);
     expect(spawner.validateIndex()).toMatchObject({ ok: true, missing: [], orphaned: [] });
   });
+
+  it('preserves live tracking across definition edits and script hot reload', () => {
+    const world = new World();
+    const spawner = new Spawner(world, (w, kind, pos) => w.createMobile({ name: kind, ...pos }));
+    const first = spawner.add({
+      id: 'reload-safe', map: 1, rect: { x1: 1, y1: 1, x2: 2, y2: 2 },
+      maxCount: 1, respawnMs: [0, 0], kinds: ['rat'],
+    });
+    first.nextSpawnAt = 0;
+    spawner.tick();
+    const serial = [...first.spawnedSerials][0];
+
+    const edited = spawner.add({
+      id: 'reload-safe', map: 1, rect: { x1: 3, y1: 3, x2: 4, y2: 4 },
+      maxCount: 2, respawnMs: [1000, 2000], kinds: ['rat'],
+    });
+    expect([...edited.spawnedSerials]).toEqual([serial]);
+
+    spawner.remove('reload-safe', { preserveRuntime: true });
+    const reloaded = spawner.add({
+      id: 'reload-safe', map: 1, rect: { x1: 3, y1: 3, x2: 4, y2: 4 },
+      maxCount: 2, respawnMs: [1000, 2000], kinds: ['rat'],
+    });
+    expect([...reloaded.spawnedSerials]).toEqual([serial]);
+    expect(spawner.validateIndex()).toMatchObject({ ok: true });
+  });
 });

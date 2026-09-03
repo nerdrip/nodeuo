@@ -11,6 +11,7 @@ import { mobileBySerial } from '../../../_entities.js';
 export default function buildPetBondingDeed(api) {
   return {
     name: 'pet-bonding-deed',
+    servuoClasses: ['PetBondingDeed', 'PetBondingPotion', 'BondingTarget'],
     onUse(world, item, user) {
       const state = user?.client;
       if (!state) return true;

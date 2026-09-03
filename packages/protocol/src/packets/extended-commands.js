@@ -68,7 +68,9 @@ export const NODEUO_CAPABILITIES_ALL = Object.values(NodeUOCapability)
 export const NODEUO_CAPABILITIES_CURRENT = NODEUO_CAPABILITIES_ALL;
 
 export const NodeUOCapabilityMessage = Object.freeze({ Offer: 1, Accept: 2 });
-export const NodeUOSpellComposerMessage = Object.freeze({ Open: 1, Save: 2, Result: 3, Publish: 4 });
+export const NodeUOSpellComposerMessage = Object.freeze({
+  Open: 1, Save: 2, Result: 3, Publish: 4, Scribe: 5,
+});
 export const NodeUOSpecializationMessage = Object.freeze({ Open: 1, Allocate: 2, Result: 3, Reset: 4 });
 export const NodeUOCooldownMessage = Object.freeze({ Start: 1, Remove: 2, Snapshot: 3 });
 export const NodeUONavalMessage = Object.freeze({ ShowRange: 1, HideRange: 2 });

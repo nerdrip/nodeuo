@@ -46,6 +46,6 @@ export default function register(api) {
   api.log(`spawn/camps: registered ${camps.length} camp groups`);
 
   return () => {
-    for (const c of camps) api.spawner.remove?.(c.id);
+    for (const c of camps) api.spawner.remove?.(c.id, { preserveRuntime: true });
   };
 }

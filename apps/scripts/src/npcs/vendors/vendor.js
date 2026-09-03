@@ -381,6 +381,11 @@ export const VENDOR_KINDS = {
       { itemId: 0x0F8D, name: 'sulfurous ash',  price: 4 },
       { itemId: 0x0EFA, name: 'spellbook',      price: 175 },
       { itemId: 0x1F4D, name: 'scroll',         price: 45 },
+      {
+        itemId: 0x0EFA, hue: 0x0481, name: 'Arcane Schema Codex', price: 250,
+        definitionId: 'spell-schema-codex', script: 'spell-schema-codex',
+        kind: 'book', category: 'spell-schema', weight: 3,
+      },
     ],
   },
   armorer: {
@@ -491,11 +496,19 @@ export const VENDOR_KINDS = {
     body: 0x0190, hue: 0x041C,
     stock: [
       { itemId: 0x0FBB, name: 'scribe pen',          price: 6 },
-      { itemId: 0x0FBC, name: 'blank scroll',        price: 5, amount: 50 },
+      {
+        itemId: 0x0E34, name: 'blank scroll', price: 5, amount: 50,
+        definitionId: 'blank-scroll', category: 'blank-scroll', stackable: true,
+      },
       { itemId: 0x0FF1, name: 'book',                price: 18 },
       { itemId: 0x0EFB, name: 'recall scroll',       price: 65 },
       { itemId: 0x0EFC, name: 'gate travel scroll',  price: 95 },
       { itemId: 0x0EFA, name: 'spellbook',           price: 175 },
+      {
+        itemId: 0x0EFA, hue: 0x0481, name: 'Arcane Schema Codex', price: 250,
+        definitionId: 'spell-schema-codex', script: 'spell-schema-codex',
+        kind: 'book', category: 'spell-schema', weight: 3,
+      },
     ],
   },
   alchemist: {
@@ -1226,6 +1239,14 @@ export default function (api) {
         price: s.price,
         description: s.name,
         tagId: s.tagId,
+        definitionId: s.definitionId,
+        script: s.script,
+        kind: s.kind,
+        category: s.category,
+        weight: s.weight,
+        stackable: s.stackable,
+        spellcraftUnlock: s.spellcraftUnlock,
+        spellcraftXp: s.spellcraftXp,
         maxStock,
         currentStock: maxStock,
       };
@@ -1342,6 +1363,10 @@ export default function (api) {
           const item = api.game?.mobile?.giveItem?.(buyer, {
             itemId: def.itemId, hue: def.hue, amount: p.amount,
             name: def.description, tagId: def.tagId,
+            definitionId: def.definitionId, script: def.script,
+            kind: def.kind, category: def.category, weight: def.weight,
+            stackable: def.stackable, spellcraftUnlock: def.spellcraftUnlock,
+            spellcraftXp: def.spellcraftXp,
           }, { notify: false, randomGrid: true });
           if (!item) {
             for (const made of created) destroyItemBySerial(api, made.item.serial);

@@ -1241,9 +1241,10 @@ class AssetManager {
     // substitutions when atlas pages stream in.
     let realBody = resolvedMobileBody(this.mobilesAtlas, body);
     if (!this.mobilesAtlas.bodies?.[realBody]) {
-      const fallback = BODY_FALLBACK[body | 0];
-      if (fallback != null) {
-        realBody = resolvedMobileBody(this.mobilesAtlas, fallback);
+      if (this.mobilesAtlas.bodies?.[body | 0]) realBody = body | 0;
+      else {
+        const fallback = BODY_FALLBACK[body | 0];
+        if (fallback != null) realBody = resolvedMobileBody(this.mobilesAtlas, fallback);
       }
     }
     const b = this.mobilesAtlas?.bodies?.[realBody];

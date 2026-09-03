@@ -50,18 +50,19 @@ export default function register(api) {
       let tpl = null;
       if (itemId == null) {
         // Template lookup.
-        tpl = api.templates?.get?.(arg);
+        tpl = api.templates?.get?.(arg) ?? api.itemTypes?.resolve?.(arg);
         if (!tpl) {
-          ctx.state.sendSystemMessage(`Unknown template: ${arg}.`);
+          ctx.state.sendSystemMessage(`Unknown item definition: ${arg}.`);
           return;
         }
-        itemId = tpl.itemId;
+        itemId = tpl.artId ?? tpl.itemId;
         name = tpl.label ?? tpl.name ?? arg;
         if (ctx.args[2] == null) hue = tpl.hue ?? 0;
       }
       const item = api.game.mobile.giveItem(ctx.sender, {
         itemId, hue, amount,
         name,
+        ...(tpl?.definitionId ? { definitionId: tpl.definitionId } : {}),
         ...copyTemplateRuntime(tpl),
         ...(tpl?.script ? { script: tpl.script } : {}),
       }, { requireBackpack: false, randomGrid: true });

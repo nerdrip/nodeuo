@@ -22,6 +22,8 @@ import {
 } from './consumables/special-potions.js';
 import buildFood          from './consumables/food.js';
 import buildDrink         from './consumables/drink.js';
+import buildGreenThorns, { buildGreenThornsSolenHole } from './consumables/green-thorns.js';
+import { buildGenderChangeToken, buildRaceChangeToken } from './consumables/promotional-tokens.js';
 import buildBankCheck     from './consumables/bank-check.js';
 import buildImbueRecipeScroll from './consumables/imbue-recipe-scroll.js';
 import buildEventLogScroll from './consumables/event-log-scroll.js';
@@ -113,6 +115,9 @@ import { buildBallotBox, buildPlayerBulletinBoard } from './functional/player-bo
 import buildSigilScript from './functional/sigil.js';
 import buildSoulforge   from './functional/soulforge.js';
 import buildHeartwoodRewardBag from './functional/heartwood-reward-bag.js';
+import {
+  buildSpellSchemaCodexScript, buildCustomSpellScrollScript, buildSpellcraftKnowledgeScript,
+} from './functional/spell-schema.js';
 import buildBraceletBinding from './equipment/bracelet-binding.js';
 import buildInteriorDecorator from './functional/interior-decorator.js';
 import buildMannequinDeed from './functional/mannequin.js';
@@ -171,7 +176,9 @@ const SCRIPT_BUILDERS = [
   buildTorch, buildLantern,
   buildPotionHeal, buildPotionCure, buildPotionRefresh,
   buildPoisonPotion, buildEodonPotion, buildEndlessDecanter, buildAreaPotion,
-  buildFood, buildDrink, buildBankCheck, buildImbueRecipeScroll, buildEventLogScroll,
+  buildFood, buildDrink, buildGreenThorns, buildGreenThornsSolenHole,
+  buildGenderChangeToken, buildRaceChangeToken,
+  buildBankCheck, buildImbueRecipeScroll, buildEventLogScroll,
   buildPowerHourScroll,
   buildBandage, buildMagicScroll,
   buildSpikeTrap, buildPressurePlate,
@@ -241,6 +248,7 @@ const SCRIPT_BUILDERS = [
   buildSoulforge,
   // Server parity #8 #9 reward chain — Heartwood reward bag.
   buildHeartwoodRewardBag,
+  buildSpellSchemaCodexScript, buildCustomSpellScrollScript, buildSpellcraftKnowledgeScript,
   // Audit #35 P3 #16 — Bracelet of Binding artifact (recall jewelry).
   buildBraceletBinding,
   // "Missing" batch 2026-05-14 — ServUO content items previously

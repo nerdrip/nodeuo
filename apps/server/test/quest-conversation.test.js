@@ -67,4 +67,31 @@ describe('quest-conversation', () => {
     });
     expect(next).toBeNull();
   });
+
+  it('supports transactional choice routing', () => {
+    registerConversation('merchant-conversation', {
+      entry: 'offer',
+      nodes: [
+        {
+          id: 'offer',
+          text: 'Buy?',
+          choices: [{
+            key: 'buy',
+            text: 'Buy.',
+            next: ({ playerState }) => playerState.gold >= 10 ? 'sold' : 'no-gold',
+          }],
+        },
+        { id: 'sold', text: 'Sold.', terminal: true },
+        { id: 'no-gold', text: 'Not enough gold.', terminal: true },
+      ],
+    });
+    const npc = { serial: 500 };
+    const rich = { gold: 10 };
+    beginConversation({ playerState: rich, npc, kind: 'merchant-conversation' });
+    expect(advanceConversation({ playerState: rich, npc, input: 'buy' }).id).toBe('sold');
+
+    const poor = { gold: 0 };
+    beginConversation({ playerState: poor, npc, kind: 'merchant-conversation' });
+    expect(advanceConversation({ playerState: poor, npc, input: 'buy' }).id).toBe('no-gold');
+  });
 });

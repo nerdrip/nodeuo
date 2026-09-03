@@ -10,6 +10,11 @@
 const registry = new Map();
 
 export function registerSpell(def) { registry.set(def.id, def); }
+export function unregisterSpell(id, expected = null) {
+  const current = registry.get(id);
+  if (!current || (expected && current !== expected)) return false;
+  return registry.delete(id);
+}
 export function getSpell(id)      { return registry.get(id); }
 export function allSpells()       { return Array.from(registry.values()); }
 export function spellsBySchool(s) {

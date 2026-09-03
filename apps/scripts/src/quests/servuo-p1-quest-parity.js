@@ -7,6 +7,9 @@
 // registries so the chains are discoverable and scriptable without
 // carrying the C# inheritance tree across.
 
+import { packItems } from '../_inventory.js';
+import { destroyItemBySerial } from '../_items.js';
+
 export const SERVUO_P1_QUEST_HELPER_CLASSES = Object.freeze([
   'DontOfferConversation',
   'AcceptConversation',
@@ -43,6 +46,7 @@ export const SERVUO_P1_QUEST_HELPER_CLASSES = Object.freeze([
   'FindAlbertaObjective',
   'FindGabrielObjective',
   'FindSheetMusicObjective',
+  'SheetMusicOfferGump',
   'FindTomasObjective',
   'MakeRoomObjective',
   'ReanimateMaabusConversation',
@@ -440,6 +444,68 @@ function registerQuest(api, def) {
   }
 }
 
+function consumePlayerGold(api, player, amount) {
+  if ((player?.gold ?? 0) >= amount) {
+    player.gold -= amount;
+    return true;
+  }
+  const piles = [...packItems(api, player)].filter((item) => item.itemId === 0x0EED);
+  if (piles.reduce((sum, item) => sum + (item.amount ?? 1), 0) < amount) return false;
+  let remaining = amount;
+  for (const pile of piles) {
+    const have = pile.amount ?? 1;
+    const take = Math.min(have, remaining);
+    pile.amount = have - take;
+    remaining -= take;
+    if (pile.amount <= 0) destroyItemBySerial(api, pile.serial);
+    if (remaining <= 0) break;
+  }
+  return true;
+}
+
+function sheetMusicConversation(api) {
+  return {
+    id: 'impresario',
+    entry: 'SheetMusicOfferGump',
+    servuoClasses: ['Impresario', 'SheetMusicOfferGump', 'FindSheetMusicObjective'],
+    nodes: [
+      {
+        id: 'SheetMusicOfferGump',
+        text: 'I have sheet music for a Gabriel Piete song. A copy costs 10 gold.',
+        choices: [
+          {
+            key: 'accept',
+            text: 'I accept.',
+            next: ({ playerState }) => {
+              const player = playerState?.mobile ?? playerState;
+              if (!consumePlayerGold(api, player, 10)) return 'NoGoldForSheetMusicConversation';
+              player.collectorSheetMusic = true;
+              const active = player.mlQuests?.find?.((q) => q.id === 'collector' || q.id === 'collector-quest');
+              if (active) {
+                active.progress ??= {};
+                active.progress['talk:sheet music'] = true;
+              }
+              return 'GetSheetMusicConversation';
+            },
+          },
+          { key: 'decline', text: 'No thanks.', next: 'NoSheetMusicConversation' },
+        ],
+      },
+      {
+        id: 'GetSheetMusicConversation',
+        text: 'The impresario hands you a clean copy of the sheet music.',
+        terminal: true,
+      },
+      {
+        id: 'NoGoldForSheetMusicConversation',
+        text: 'You do not have enough gold to buy the sheet music.',
+        terminal: true,
+      },
+      { id: 'NoSheetMusicConversation', text: 'Perhaps another time.', terminal: true },
+    ],
+  };
+}
+
 /** @param {import('@uo/server/src/scripts.js').ScriptAPI} api */
 export default function register(api) {
   const disposers = [];
@@ -453,6 +519,8 @@ export default function register(api) {
   const conv = api.systems?.questConversation ?? api.questConversation;
   if (conv?.registerConversation) {
     for (const tree of CONVERSATION_TREES) conv.registerConversation(tree.id, tree);
+    const music = sheetMusicConversation(api);
+    conv.registerConversation(music.id, music);
   }
 
   api.log?.(`servuo-p1-quest-parity: ${ITEM_TEMPLATES.length} items, ${NPC_TEMPLATES.length} NPCs, ${MONSTER_TEMPLATES.length} monsters, ${quests} quests, ${CONVERSATION_TREES.length} conversations`);

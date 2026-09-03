@@ -217,4 +217,20 @@ describe('vendor NPC behavior', () => {
     expect(delivered[0]).toMatchObject({ itemId: 0x0F0C, name: 'heal potion', amount: 1 });
     expect(messages.at(-1)).toMatch(/paid 50 gp/);
   });
+
+  it('sells functional spellcraft supplies with stable definitions', () => {
+    expect(VENDOR_KINDS.scribe.stock).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        definitionId: 'blank-scroll', itemId: 0x0E34, category: 'blank-scroll',
+      }),
+      expect.objectContaining({
+        definitionId: 'spell-schema-codex', script: 'spell-schema-codex',
+      }),
+    ]));
+    expect(VENDOR_KINDS.mage.stock).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        definitionId: 'spell-schema-codex', script: 'spell-schema-codex',
+      }),
+    ]));
+  });
 });

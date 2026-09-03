@@ -1,0 +1,138 @@
+{
+  "schemaVersion": 1,
+  "description": "ServUO helper classes collapsed into native NodeUO capabilities. Every group names an executable mechanism and its regression test.",
+  "groups": [
+    {
+      "family": "admin-gumps",
+      "classes": ["InterfaceGump"],
+      "mechanism": "apps/scripts/src/gumps/server-gumps.js",
+      "test": "apps/server/test/gump-definition-runtime.test.js"
+    },
+    {
+      "family": "addon-placement",
+      "classes": ["SouthEastGump", "HolidayTreeChoiceGump", "HouseTeleporterTypeGump"],
+      "mechanism": "apps/scripts/src/items/scripts/housing/addon-deed.js",
+      "test": "apps/server/test/house-tools.test.js"
+    },
+    {
+      "family": "equipment-sets",
+      "classes": ["BestialSetHelper", "BerserkTimer", "SetHelper"],
+      "mechanism": "apps/server/src/world/attributes.js",
+      "test": "apps/server/test/modifiers.test.js"
+    },
+    {
+      "family": "writable-books",
+      "classes": ["BookPageInfo", "BookHeader", "BookContent"],
+      "mechanism": "apps/server/src/net/handlers.js",
+      "test": "apps/server/test/book-write-acl.test.js"
+    },
+    {
+      "family": "recipe-scroll-books",
+      "classes": ["RecipeScrollDefinition", "RecipeScrollBuyGump", "RecipeScrollFilter", "RecipeScrollFilterGump", "SpecialScrollBookGump"],
+      "mechanism": "apps/scripts/src/items/scripts/consumables/imbue-recipe-scroll.js",
+      "test": "apps/server/test/item-scripts.test.js"
+    },
+    {
+      "family": "confirm-and-selection-gumps",
+      "classes": ["GorgonLenseWarningGump", "SeedInfoGump", "SliderTrapGump", "MoongateConfirmGump", "PvpWarningGump", "NameChangeConfirmGump", "HairDyeConfirmGump"],
+      "mechanism": "apps/scripts/src/gumps/server-gumps.js",
+      "test": "apps/server/test/gump-security.test.js"
+    },
+    {
+      "family": "lifecycle-timers",
+      "classes": ["FurnitureTimer"],
+      "mechanism": "apps/server/src/world/item-scripts.js",
+      "test": "apps/server/test/item-scripts.test.js"
+    },
+    {
+      "family": "corpse-wire-packets",
+      "classes": ["CorpseEquip", "CorpseContent", "CorpseContent6017"],
+      "mechanism": "apps/server/src/corpse.js",
+      "test": "apps/server/test/corpse-ghost.test.js"
+    },
+    {
+      "family": "weapon-targets",
+      "classes": ["NinjaWeapon", "WandTarget"],
+      "mechanism": "apps/server/src/systems/special-moves.js",
+      "test": "apps/server/test/weapon-abilities.test.js"
+    },
+    {
+      "family": "shrines",
+      "classes": ["Ankhs"],
+      "mechanism": "apps/scripts/src/items/scripts/world/altars.js",
+      "test": "apps/server/test/shrines.test.js"
+    },
+    {
+      "family": "bulletin-board-packets",
+      "classes": ["BBDisplayBoard", "BBMessageHeader", "BBMessageContent"],
+      "mechanism": "apps/server/src/systems/bulletin-board.js",
+      "test": "apps/server/test/bulletin-board.test.js"
+    },
+    {
+      "family": "waypoint-targets",
+      "classes": ["NextPointTarget", "WayPointSeqTarget"],
+      "mechanism": "apps/scripts/src/systems/servuo-p1-multis.js",
+      "test": "apps/server/test/boats.test.js"
+    },
+    {
+      "family": "ai-and-context-menus",
+      "classes": ["AIControlMobileTarget", "PackAnimalBackpackEntry", "VendorBuyEntry", "VendorSellEntry", "AttendantFollowEntry", "ManageBarkeeperEntry"],
+      "mechanism": "apps/scripts/src/npcs/vendors/context-menu.js",
+      "test": "apps/server/test/vendor-ai.test.js"
+    },
+    {
+      "family": "quest-and-party-gumps",
+      "classes": ["TurnInGump", "ChylothPartyGump", "HumilityItemQuestGump", "QuestInfoGump"],
+      "mechanism": "apps/server/src/systems/quests/mlquests.js",
+      "test": "apps/server/test/mlquests.test.js"
+    },
+    {
+      "family": "hairstylist-gumps",
+      "classes": ["HairstylistBuyGump", "ChangeHairHueGump"],
+      "mechanism": "apps/scripts/src/npcs/vendors/hair-stylist.js",
+      "test": "apps/server/test/vendor-ai.test.js"
+    },
+    {
+      "family": "region-triggers",
+      "classes": ["LenleyRegion", "VolcanoRegion"],
+      "mechanism": "apps/server/src/regions.js",
+      "test": "apps/server/test/regions.test.js"
+    },
+    {
+      "family": "mannequin-inspection",
+      "classes": ["MannequinCompareGump", "MannequinStatsGump"],
+      "mechanism": "apps/scripts/src/items/scripts/functional/mannequin.js",
+      "test": "apps/server/test/item-scripts.test.js"
+    },
+    {
+      "family": "barkeeper-and-veterinary",
+      "classes": ["BarkeeperTitleGump", "VetResurrectGump"],
+      "mechanism": "apps/scripts/src/npcs/vendors/vendor.js",
+      "test": "apps/server/test/healer-ai.test.js"
+    },
+    {
+      "family": "item-insurance-gumps",
+      "classes": ["CancelRenewInventoryInsuranceGump", "ItemInsuranceMenuGump", "ItemInsuranceMenuConfirmGump"],
+      "mechanism": "apps/scripts/src/commands/economy/insure.js",
+      "test": "apps/server/test/corpse-onunequip.test.js"
+    },
+    {
+      "family": "bard-objectives",
+      "classes": ["ProvocationObjective"],
+      "mechanism": "apps/scripts/src/commands/economy/bard.js",
+      "test": "apps/server/test/bard-skills.test.js"
+    },
+    {
+      "family": "skill-mastery-gumps",
+      "classes": ["ChooseMasteryGump", "AcceptBodyguardGump", "ChooseTrainingGump", "MasterySelectionGump"],
+      "mechanism": "apps/server/src/systems/mastery-abilities.js",
+      "test": "apps/server/test/mastery-abilities.test.js"
+    },
+    {
+      "family": "special-moves",
+      "classes": ["SamuraiMove", "NinjaMove", "SkillMasteryMove", "FistsOfFurySpell"],
+      "mechanism": "apps/server/src/systems/special-moves.js",
+      "test": "apps/server/test/special-moves.test.js"
+    }
+  ]
+}

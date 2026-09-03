@@ -18,5 +18,24 @@ export default function register(api) {
     },
   });
 
-  return () => api.commands.unregister('spellcomposer');
+  api.commands.register({
+    name: 'schemacodex',
+    help: '[schemacodex — place an Arcane Schema Codex in your backpack.',
+    access: 'Admin',
+    run(ctx) {
+      const item = api.game?.mobile?.giveItem?.(ctx.sender, {
+        definitionId: 'spell-schema-codex', artId: 0x0EFA,
+        name: 'Arcane Schema Codex', hue: 0x0481,
+        script: 'spell-schema-codex', kind: 'book', weight: 3,
+      });
+      ctx.state.sendSystemMessage?.(item
+        ? 'An Arcane Schema Codex has been placed in your backpack.'
+        : 'A backpack is required.');
+    },
+  });
+
+  return () => {
+    api.commands.unregister('spellcomposer');
+    api.commands.unregister('schemacodex');
+  };
 }

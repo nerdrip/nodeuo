@@ -353,6 +353,6 @@ export default function register(api) {
   for (const g of groups) api.spawner.add(g);
 
   return () => {
-    for (const g of groups) api.spawner.remove(g.id);
+    for (const g of groups) api.spawner.remove(g.id, { preserveRuntime: true });
   };
 }

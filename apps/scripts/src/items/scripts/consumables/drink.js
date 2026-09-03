@@ -24,6 +24,31 @@ function isAlcoholic(item) {
 }
 
 export default function buildDrinkScript(api) {
+  const scheduleDecay = (user) => {
+    if (api.statusEffects?.apply) {
+      api.statusEffects.apply(user, {
+        name: 'alcohol-fatigue',
+        durationMs: 101 * 60_000,
+        tickIntervalMs: 60_000,
+        tick(mob) {
+          mob._alcoholFatigue = Math.max(0, (mob._alcoholFatigue | 0) - FATIGUE_DECAY_PER_MIN);
+          if ((mob._alcoholFatigue | 0) === 0) api.statusEffects?.remove?.(mob, 'alcohol-fatigue');
+        },
+      });
+      return;
+    }
+    // Lightweight test/embedding fallback when the shared effect sweeper is
+    // not installed. Production uses one world timer, not one timer/player.
+    if (user._alcoholDecayHandle) return;
+    user._alcoholDecayHandle = setInterval(() => {
+      user._alcoholFatigue = Math.max(0, (user._alcoholFatigue | 0) - FATIGUE_DECAY_PER_MIN);
+      if ((user._alcoholFatigue | 0) === 0 && user._alcoholDecayHandle) {
+        clearInterval(user._alcoholDecayHandle);
+        user._alcoholDecayHandle = null;
+      }
+    }, 60_000);
+    user._alcoholDecayHandle?.unref?.();
+  };
   return {
     name: 'drink',
     onUse(world, item, user) {
@@ -36,23 +61,13 @@ export default function buildDrinkScript(api) {
       }
       // Alcoholic — bump fatigue.
       user._alcoholFatigue = Math.min(100, (user._alcoholFatigue ?? 0) + FATIGUE_PER_SIP);
-      // Schedule decay if it isn't running already.
-      if (!user._alcoholDecayHandle) {
-        user._alcoholDecayHandle = setInterval(() => {
-          user._alcoholFatigue = Math.max(0, (user._alcoholFatigue | 0) - FATIGUE_DECAY_PER_MIN);
-          if ((user._alcoholFatigue | 0) === 0 && user._alcoholDecayHandle) {
-            clearInterval(user._alcoholDecayHandle);
-            user._alcoholDecayHandle = null;
-          }
-        }, 60_000);
-        user._alcoholDecayHandle?.unref?.();
-      }
+      scheduleDecay(user);
       consumeOne(api, world, item, user);
       const lvl = user._alcoholFatigue;
       if (lvl >= PASS_OUT_THRESHOLD) {
         state?.sendSystemMessage?.('The world spins — you collapse, blackout drunk.');
         // 3s paralyze via status-effects framework.
-        try { api.statusEffects?.apply?.(user, { name: 'paralyzed', durationMs: 3000 }); }
+        try { api.statusEffects?.apply?.(user, { name: 'paralyze', durationMs: 3000 }); }
         catch { /* effects optional */ }
         // Sober up a touch on collapse.
         user._alcoholFatigue = Math.max(0, lvl - 30);

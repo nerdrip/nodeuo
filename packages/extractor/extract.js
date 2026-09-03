@@ -82,7 +82,7 @@ const OPTIONAL_SERVUO_REFRESH = [
   'decoration', 'xmlspawner',
   'servuo-bosses', 'servuo-functional', 'servuo-items', 'servuo-monsters',
   'servuo-recipes', 'servuo-vendors', 'servuo-quests', 'servuo-artifacts',
-  'servuo-magic-gen', 'servuo-item-types',
+  'servuo-magic-gen', 'servuo-item-types', 'servuo-mobile-types',
 ];
 
 // Audit rev.4 — `--include-servuo` flag (set by the control-panel
@@ -463,6 +463,9 @@ if (servUOAvailable && only.has('servuo-magic-gen')) {
 }
 if (servUOAvailable && only.has('servuo-item-types')) {
   runChildScript('servuo-item-types', join(HERE, 'servuo-item-types.js'));
+}
+if (servUOAvailable && only.has('servuo-mobile-types')) {
+  runChildScript('servuo-mobile-types', join(HERE, 'servuo-mobile-types.js'));
 }
 
 if (args.ktx2 || only.has('ktx2')) {

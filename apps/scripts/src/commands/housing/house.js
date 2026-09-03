@@ -4,6 +4,15 @@ import { createItem } from '../../_items.js';
 import { demolishMultiWithDeed } from './placemulti.js';
 import { openHouseManagement, syncRegistryHouseToMulti } from './multi-house-bridge.js';
 
+// These ServUO helper classes are represented by command verbs, the house
+// registry transaction and the 0xD8 custom-house packet handler below rather
+// than one JS class per target/gump/packet.
+export const SERVUO_HOUSE_MANAGEMENT_CLASSES = [
+  'HouseKickTarget', 'HouseBanTarget', 'HouseAccessTarget', 'CoOwnerTarget',
+  'HouseFriendTarget', 'HouseOwnerTarget', 'ConfirmCommitGump',
+  'DesignStateGeneral', 'DesignStateDetailed', 'HouseTeleporterTypeGump',
+];
+
 function selectedHouse(api, state, mob, requestedId = null) {
   if (requestedId != null) {
     const id = Number(requestedId) | 0;

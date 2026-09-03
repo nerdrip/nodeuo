@@ -31,6 +31,7 @@ function resolvedBody(body) {
   const alias = mobiles.aliases?.[body];
   const direct = alias?.body ?? alias?.trueBody ?? body;
   if (frameCount(mobiles.bodies?.[direct]) > 0) return { body: direct, via: direct === body ? 'direct' : 'alias' };
+  if (frameCount(mobiles.bodies?.[body]) > 0) return { body, via: 'direct' };
   const fallback = fallbacks.get(body);
   if (fallback != null && frameCount(mobiles.bodies?.[fallback]) > 0) return { body: fallback, via: 'fallback' };
   const generic = body < 200 ? 9 : body < 400 ? 226 : null;
@@ -46,6 +47,7 @@ for (const monster of monsters) {
   else if (resolved.via === 'generic') genericMonsters.push([monster.kind, monster.body, resolved.body]);
 }
 assert.deepEqual(unresolvedMonsters, [], `monster bodies without render path: ${JSON.stringify(unresolvedMonsters.slice(0, 20))}`);
+assert.deepEqual(genericMonsters, [], `monster bodies using generic art: ${JSON.stringify(genericMonsters.slice(0, 20))}`);
 assert.equal(resolvedBody(52)?.body, 51, 'lava snake must resolve to serpent, never daemon');
 assert.notEqual(resolvedBody(238)?.body, 226, 'rat fallback must not be horse-sized');
 

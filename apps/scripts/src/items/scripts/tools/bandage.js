@@ -5,6 +5,7 @@
 export default function buildBandageScript(api) {
   return {
     name: 'bandage',
+    servuoClasses: ['Bandage', 'BandageContext', 'BandageTimerPacket'],
     onUse(_w, item, user) {
       user?.client?.send?.(api.protocol.unicodeMessage?.({ text: '[bandage' }));
       void item;

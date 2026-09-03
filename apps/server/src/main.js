@@ -118,6 +118,7 @@ import * as veteranRewardsSystem from './systems/rewards/veteran-rewards.js';
 import * as doomGauntletSystem from './systems/bosses/doom-gauntlet.js';
 import * as championSkullsSystem from './systems/bosses/champion-skulls.js';
 import * as peerlessBossesSystem from './systems/bosses/peerless-bosses.js';
+import { createPeerlessAddSpawner } from './systems/bosses/peerless-spawn-runtime.js';
 import * as skillMasteriesSystem from './systems/skill-masteries.js';
 import * as specializationsSystem from './systems/specializations.js';
 import { AIBehaviorGraphRegistry } from './world/ai-graphs.js';
@@ -646,6 +647,8 @@ const engineSystems = {
   // objects also makes hot-reload teardown restore a valid capability rather
   // than deleting a service that packet handlers may be reading concurrently.
   serverGumps: {},
+  gumpDefinitions: new Map(),
+  resolveServerGumpOverride: null,
   servuoSpells: {},
   servuoMultis: {},
   servuoP1Services: {},
@@ -1197,73 +1200,10 @@ worldBossTimer.unref();
 
 // Peerless-boss mechanics tick (250ms — phases advance fast enough that
 // players notice within a couple of seconds; cheap loop over mobiles).
-function randomNearBoss(boss) {
-  return {
-    x: boss.x + Math.floor(Math.random() * 5) - 2,
-    y: boss.y + Math.floor(Math.random() * 5) - 2,
-    z: boss.z,
-    map: boss.map,
-  };
-}
-
-function broadcastSpawnedBossAdd(mob) {
-  const equipment = [];
-  const incoming = protocol.mobileIncoming({
-    serial: mob.serial, body: mob.body, x: mob.x, y: mob.y, z: mob.z,
-    direction: mob.direction, hue: mob.hue, flags: mob.flags,
-    notoriety: mob.notoriety, equipment,
-  });
-  const healthPkt = protocol.healthUpdate?.({
-    serial: mob.serial,
-    current: mob.hp ?? mob.hpMax ?? 1,
-    max: mob.hpMax ?? mob.hp ?? 1,
-  });
-  for (const other of query.clientsNear(mob, 18)) {
-    other.client.send(incoming);
-    if (healthPkt) other.client.send(healthPkt);
-  }
-}
-
-function spawnPeerlessAddNear(boss, spec) {
-  const pos = randomNearBoss(boss);
-  if (typeof spec === 'string') {
-    return sharedCtx.spawnFactory?.(world, spec, pos) ?? null;
-  }
-  if (!spec || typeof spec !== 'object') return null;
-  const cfg = spec.kind ? monsters.get(spec.kind) : null;
-  const mob = world.createMobile({
-    name: spec.name ?? cfg?.name ?? 'a summoned creature',
-    body: spec.body ?? cfg?.body ?? 0x0190,
-    hue: spec.hue ?? cfg?.hue ?? 0,
-    x: pos.x, y: pos.y, z: pos.z, map: pos.map,
-    notoriety: spec.notoriety ?? cfg?.notoriety ?? 6,
-    hp: spec.hp ?? cfg?.hp ?? 50,
-    hpMax: spec.hpMax ?? spec.hp ?? cfg?.hp ?? 50,
-    str: spec.str ?? cfg?.str ?? 50,
-    dex: spec.dex ?? cfg?.dex ?? 50,
-    int: spec.int ?? cfg?.int ?? 50,
-    mana: spec.mana ?? cfg?.mana ?? cfg?.manaMax ?? 50,
-    manaMax: spec.manaMax ?? cfg?.manaMax ?? spec.mana ?? 50,
-  });
-  Object.assign(mob, spec);
-  mob.x = pos.x; mob.y = pos.y; mob.z = pos.z; mob.map = pos.map;
-  if (spec.kind) mob.kind = spec.kind;
-  mob.homeX = pos.x; mob.homeY = pos.y;
-  const desiredAi = spec.ai ?? cfg?.ai ?? 'aggressive';
-  const aiBehavior = ai.behaviors.has(desiredAi) ? desiredAi : (ai.behaviors.has('aggressive') ? 'aggressive' : null);
-  if (aiBehavior) {
-    mob.aiBehavior = aiBehavior;
-    try {
-      ai.attach(mob, aiBehavior, {
-        targetSerial: 0, nextAttackAt: 0, nextStepAt: 0, nextCastAt: 0,
-        home: { x: mob.x, y: mob.y },
-        kind: mob.kind,
-      });
-    } catch { /* advisory */ }
-  }
-  broadcastSpawnedBossAdd(mob);
-  return mob;
-}
+const spawnPeerlessAddNear = createPeerlessAddSpawner({
+  world, protocol, query, monsters, ai,
+  spawnKind: (kind, pos) => sharedCtx.spawnFactory?.(world, kind, pos),
+});
 
 let _lastPeerlessAt = Date.now();
 const peerlessBossTimer = setInterval(() => {

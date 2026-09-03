@@ -122,8 +122,6 @@ const lazyPlayerVendorGump = () => import('../ui/gumps/player-vendor-gump.js').t
 const lazyVendorRentalGump = () => import('../ui/gumps/vendor-rental-gump.js');
 const lazyHuntmasterGump   = () => import('../ui/gumps/huntmaster-trophy-gump.js');
 const lazyMapPinsGump      = () => import('../ui/gumps/map-pin-editor-gump.js');
-const lazySpellComposer    = () => import('../ui/gumps/spell-composer-gump.js').then((m) => m.SpellComposerGump);
-const lazySpecializations  = () => import('../ui/gumps/specialization-gump.js').then((m) => m.SpecializationGump);
 import { profile }             from '../managers/profile-manager.js';
 import { containerManager }    from '../managers/container-manager.js';
 import { walker, movementStats, recordMovementTrace } from '../managers/walker.js';
@@ -148,9 +146,8 @@ import { Weather } from '../renderer/weather.js';
 import { DeathScreen } from '../renderer/death-screen.js';
 import { HouseCustomState, houseCustomization } from '../managers/house-customization-manager.js';
 import { spellbookTypeFromKind } from '../shared/spellbook-types.js';
-import {
-  NodeUOSpellComposerMessage, NodeUOSpecializationMessage, NodeUONavalMessage,
-} from '@uo/protocol';
+import { NodeUONavalMessage } from '@uo/protocol';
+import { registerNodeUOAuthoringUi } from './nodeuo-authoring-ui.js';
 
 export class GameScene extends Scene {
   constructor(gc) {
@@ -1115,20 +1112,7 @@ export class GameScene extends Scene {
         return new mod.MapPinEditorGump({ net: this._net ?? net, ...parsed });
       });
     });
-    this._sub('nodeuo:spell-composer', ({ kind, requestId, payload }) => {
-      if (kind !== NodeUOSpellComposerMessage.Open) return;
-      this._toggleGump('spell-composer', async () => {
-        const SpellComposerGump = await lazySpellComposer();
-        return new SpellComposerGump({ requestId, payload });
-      });
-    });
-    this._sub('nodeuo:specializations', ({ kind, requestId, payload }) => {
-      if (kind !== NodeUOSpecializationMessage.Open) return;
-      this._toggleGump('specializations', async () => {
-        const SpecializationGump = await lazySpecializations();
-        return new SpecializationGump({ requestId, payload });
-      });
-    });
+    registerNodeUOAuthoringUi(this);
     // Cooldowns are rendered directly on their action-bar slots. Do not open
     // a second free-floating "Cooldowns" window for every cast; it duplicated
     // the same state and frequently appeared as an empty, inert panel after

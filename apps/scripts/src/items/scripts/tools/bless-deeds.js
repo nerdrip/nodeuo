@@ -81,6 +81,7 @@ function setTargetPrompt(world, user, deed, mode, api) {
 export function buildItemBlessDeed(api) {
   return {
     name: 'item-bless-deed',
+    servuoClasses: ['ItemBlessDeed', 'ItemBlessTarget'],
     onUse(world, item, user) {
       if (!user?.client) return true;
       user.client.sendSystemMessage?.('Target the item to bless (must be in your backpack).');
@@ -93,6 +94,7 @@ export function buildItemBlessDeed(api) {
 export function buildClothingBlessDeed(api) {
   return {
     name: 'clothing-bless-deed',
+    servuoClasses: ['ClothingBlessDeed', 'ClothingBlessTarget'],
     onUse(world, item, user) {
       if (!user?.client) return true;
       user.client.sendSystemMessage?.('Target the clothing to bless (must be in your backpack).');
@@ -105,6 +107,7 @@ export function buildClothingBlessDeed(api) {
 export function buildBlessScroll(api) {
   return {
     name: 'bless-scroll',
+    servuoClasses: ['BlessScroll', 'PersonalBlessTarget'],
     onUse(world, item, user) {
       if (!user?.client) return true;
       user.client.sendSystemMessage?.('Target the item to bless permanently (must be in your backpack).');

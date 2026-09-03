@@ -255,7 +255,7 @@ export default function register(api) {
     }
     disposers.push(() => {
       for (const id of registered) {
-        try { api.spawner.remove?.(id); } catch { /* ignore */ }
+        try { api.spawner.remove?.(id, { preserveRuntime: true }); } catch { /* ignore */ }
       }
     });
     api.log(`quest-content: ${registered.length} quest spawn groups registered`);

@@ -57,6 +57,10 @@ export class Spawner {
     this._groupsBySector = new Map();
     this._sectorsByGroup = new Map();
     this._globalGroups = new Set();
+    // Script hot-reload removes then immediately re-adds definitions. Keep
+    // their live serial sets across that narrow lifecycle so a reload cannot
+    // orphan the old pack and spawn a duplicate one beside it.
+    this._detachedRuntime = new Map();
     this._tickCursor = 0;
     this.maxGroupsPerTick = 256;
   }
@@ -84,7 +88,11 @@ export class Spawner {
 
   /** @param {SpawnGroup} g */
   add(g) {
-    g.spawnedSerials = g.spawnedSerials ?? new Set();
+    const previous = this.groups.get(g.id);
+    const detached = this._detachedRuntime.get(g.id);
+    g.spawnedSerials = g.spawnedSerials ?? previous?.spawnedSerials ?? detached?.spawnedSerials ?? new Set();
+    g.nextSpawnAt = g.nextSpawnAt ?? previous?.nextSpawnAt ?? detached?.nextSpawnAt;
+    this._detachedRuntime.delete(g.id);
     // Validate respawn bounds — bug-hunt #9 #1. A swapped `[hi, lo]` would
     // collapse to `lo` and effectively pin respawn to a single value.
     if (Array.isArray(g.respawnMs) && g.respawnMs[1] < g.respawnMs[0]) {
@@ -106,7 +114,14 @@ export class Spawner {
     return g;
   }
 
-  remove(id) {
+  remove(id, { preserveRuntime = false } = {}) {
+    const group = this.groups.get(id);
+    if (preserveRuntime && group) {
+      this._detachedRuntime.set(id, {
+        spawnedSerials: group.spawnedSerials,
+        nextSpawnAt: group.nextSpawnAt,
+      });
+    } else this._detachedRuntime.delete(id);
     this._unindexGroup(id);
     this.groups.delete(id);
   }
@@ -209,6 +224,7 @@ export class Spawner {
     this._groupsBySector.clear();
     this._sectorsByGroup.clear();
     this._globalGroups.clear();
+    this._detachedRuntime.clear();
     this._tickCursor = 0;
     return { groupsRemoved, trackedMobilesRemoved };
   }

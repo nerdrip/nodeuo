@@ -222,7 +222,7 @@ export function createItem(world, data) {
     'weapon', 'shield', 'ar', 'strReq', 'twoHanded', 'skill', 'minDamage', 'maxDamage', 'speed', 'range', 'ammoId',
     'setId', 'setPieces', 'setAttributes', 'setResist', 'setSelfRepair',
     'equipLayer', 'slot', 'clothing', 'spellbook',
-    'spellFocusing', 'spellCastTargetSerial', 'spellCastCount', 'spellId',
+    'spellFocusing', 'spellCastTargetSerial', 'spellCastCount', 'spellId', 'customSpellId',
     'powerScroll', 'statScroll', 'treasureMap', 'seed',
     'container', 'capacity', 'maxWeight', 'lootTable', 'autoFillLoot', 'cleanupAddonType',
     'contentType', 'fillableType', 'fillableContentType', 'fillableMaxSpawnCount',

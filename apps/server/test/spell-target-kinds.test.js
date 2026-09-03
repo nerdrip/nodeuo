@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { castSpell } from '../src/systems/spells/index.js';
 import { registerSpell } from '../src/systems/spells/registry.js';
 
@@ -66,5 +66,22 @@ describe('central spell target-kind validation', () => {
     });
     expect(result).toMatchObject({ ok: false, reason: 'out-of-range' });
     expect(fired).toBe(false);
+  });
+
+  it('uses the ServUO scroll skill discount inside the authoritative cast pipeline', () => {
+    const { world, caster } = harness();
+    caster.skills[26] = 40;
+    let fired = false;
+    define(9905, () => { fired = true; }, { minSkill: 60, school: 'custom' });
+    expect(castSpell({ caster, target: caster, world, spellId: 9905, instant: true }))
+      .toMatchObject({ ok: false, reason: 'low-skill' });
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0);
+    try {
+      expect(castSpell({ caster, target: caster, world, spellId: 9905, scroll: true, instant: true }).ok)
+        .toBe(true);
+      expect(fired).toBe(true);
+    } finally {
+      random.mockRestore();
+    }
   });
 });

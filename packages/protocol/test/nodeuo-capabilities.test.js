@@ -66,6 +66,7 @@ describe('NodeUO capability envelope', () => {
     const len = (pkt[10] << 8) | pkt[11];
     expect(JSON.parse(new TextDecoder().decode(pkt.subarray(12, 12 + len))))
       .toEqual({ name: 'Arc Flash', mana: 12 });
+    expect(NodeUOSpellComposerMessage.Scribe).toBe(5);
   });
 
   it('encodes a bounded specialization JSON envelope', () => {

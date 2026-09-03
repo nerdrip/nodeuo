@@ -61,7 +61,11 @@ export function advanceConversation({ playerState, npc, input }) {
   // Explicit choice match.
   if (cur.choices?.length) {
     const choice = cur.choices.find((c) => c.key === input);
-    if (choice) nextId = choice.next;
+    if (choice) {
+      nextId = typeof choice.next === 'function'
+        ? choice.next({ playerState, npc, input, conversation: tree, node: cur })
+        : choice.next;
+    }
   }
   // Keyword match (case-insensitive substring).
   if (!nextId && cur.keywords && typeof input === 'string') {

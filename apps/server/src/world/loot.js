@@ -850,16 +850,31 @@ export class LootRegistry {
     let itemId = entry.itemId;
     let hue = entry.hue ?? 0;
     let name = entry.name;
+    let templateData = {};
     if (entry.template) {
       const tmpl = getTemplate(entry.template);
       if (tmpl) {
         itemId = itemId ?? tmpl.itemId;
         if (entry.hue === undefined && tmpl.hue !== undefined) hue = tmpl.hue;
         if (!name && tmpl.label) name = tmpl.label;
+        // A loot roll must preserve the gameplay identity, not just the art.
+        // Otherwise two fragments sharing scroll art lose their unlock payload
+        // and become inert after dropping from a creature.
+        templateData = {
+          definitionId: tmpl.definitionId,
+          script: tmpl.script,
+          kind: tmpl.kind,
+          category: tmpl.category,
+          stackable: tmpl.stackable,
+          weight: tmpl.weight,
+          spellcraftUnlock: tmpl.spellcraftUnlock,
+          spellcraftXp: tmpl.spellcraftXp,
+        };
       }
     }
     if (!Number.isFinite(itemId)) return null;
     return createItem(world, {
+      ...templateData,
       itemId,
       hue,
       amount,

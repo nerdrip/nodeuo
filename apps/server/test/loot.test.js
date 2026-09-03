@@ -75,6 +75,23 @@ describe('LootRegistry', () => {
     expect(items[0].amount).toBe(3);
   });
 
+  it('preserves script and unlock metadata on template loot', () => {
+    registerTemplate({
+      definitionId: 'arcane-fragment-fire', artId: 0x1F2D,
+      name: 'Schema Fragment: Fire', script: 'spellcraft-knowledge',
+      category: 'spellcraft-knowledge', spellcraftUnlock: 'element:fire', spellcraftXp: 75,
+    });
+    const world = new World();
+    const reg = new LootRegistry();
+    reg.register({ name: 'arcane', entries: [{ template: 'arcane-fragment-fire' }] });
+    const corpse = makeCorpse(world);
+    reg.roll(world, corpse, 'arcane', () => 0);
+    expect([...containerChildren(world, corpse.serial)][0]).toMatchObject({
+      definitionId: 'arcane-fragment-fire', script: 'spellcraft-knowledge',
+      spellcraftUnlock: 'element:fire', spellcraftXp: 75,
+    });
+  });
+
   it('guards against infinite recursion', () => {
     const reg = new LootRegistry();
     reg.register({ name: 'a', entries: [{ table: 'b' }] });

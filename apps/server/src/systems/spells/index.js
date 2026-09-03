@@ -33,7 +33,7 @@ function pushMana(mob) {
 }
 import { effectiveSkill } from '../../combat-formulas.js';
 import { effectiveAttributes } from '../../world/attributes.js';
-import { getSpell, registerSpell, allSpells, spellsBySchool } from './registry.js';
+import { getSpell, registerSpell, unregisterSpell, allSpells, spellsBySchool } from './registry.js';
 import { manaCostFor as spellweavingCost, recordSpellweavingCast } from '../spellweaving.js';
 import { tryConsumeReagents } from './reagents.js';
 import { lineOfSight } from '../../world/los.js';
@@ -69,7 +69,7 @@ function targetStillExists(world, target) {
 
 // Re-export registry helpers so legacy callers importing from '../spells.js'
 // (now '../systems/spells/index.js') keep working unchanged.
-export { getSpell, registerSpell, allSpells, spellsBySchool };
+export { getSpell, registerSpell, unregisterSpell, allSpells, spellsBySchool };
 
 /**
  * @typedef {Object} SpellDef
@@ -120,19 +120,35 @@ function castSpellCore(ctx) {
   if (!c || (c.hp ?? 0) <= 0) return { ok: false, reason: 'dead' };
 
   const skill = effectiveSkill(c, def.skillId);
+  const isScroll = !!ctx.scroll;
   // GM/Admin bypass the minimum-skill gate too. The mana/reagent/tithing
   // bypass below already exists; without skill bypass an admin with
   // default 50/30/20 skills couldn't cast circle 8 (Summon Daemon
   // requires Magery 80).
-  const isStaffSkill = ctx.accessLevel === 'GM' || ctx.accessLevel === 'Admin';
-  if (!isStaffSkill && skill < def.minSkill) {
+  const isStaffSkill = ctx.accessLevel === 'GM' || ctx.accessLevel === 'Admin'
+    || ctx.accessLevel === 'Administrator';
+  // ServUO scrolls intentionally let characters invoke a spell up to 20
+  // skill points earlier than its memorised variant. The item-side check
+  // already used this threshold, but this shared pipeline re-applied the
+  // full requirement and rejected the cast afterwards.
+  const requiredSkill = isScroll ? Math.max(0, (def.minSkill | 0) - 20) : def.minSkill;
+  if (!isStaffSkill && skill < requiredSkill) {
     return { ok: false, reason: 'low-skill' };
+  }
+  // Custom spell graphs may attach an additional server-authoritative
+  // progression gate.  Keeping the hook in the shared cast pipeline prevents
+  // clients from bypassing research ranks by invoking the numeric spell id.
+  if (typeof def.canCast === 'function') {
+    const gate = def.canCast(ctx);
+    if (gate === false || gate?.ok === false) {
+      return { ok: false, reason: gate?.reason ?? 'spell-gated', details: gate };
+    }
   }
 
   // Region spell gate — `regions.allowSpellcast` checks `blockedSpells`
   // lists + per-region `onSpell` hook. Town centers / jails / certain
   // dungeons reject specific spells. Bug-hunt #4 A3. Staff bypass.
-  if (!ctx.accessLevel || (ctx.accessLevel !== 'GM' && ctx.accessLevel !== 'Admin')) {
+  if (!isStaffSkill) {
     const regions = ctx.world?.regions;
     if (regions?.allowSpellcast) {
       try {
@@ -150,7 +166,7 @@ function castSpellCore(ctx) {
   // freely chain combat swings + spells holding a 2H halberd. Read the
   // wielded item via `c._weapon` (set by handleEquip when a weapon
   // lands on layer 1 / 2). Staff bypass via accessLevel.
-  if (!ctx.accessLevel || (ctx.accessLevel !== 'GM' && ctx.accessLevel !== 'Admin')) {
+  if (!isStaffSkill) {
     const wpn = c?._weapon;
     if (wpn && !wpn.spellChanneling && !ctx.scroll) {
       c.client?.sendSystemMessage?.('You cannot cast while wielding that weapon.');
@@ -189,8 +205,8 @@ function castSpellCore(ctx) {
   // ctx.scroll: scroll cast bypasses BOTH mana cost AND reagent
   // consumption (the scroll itself is the cost; the dispatcher is
   // expected to consume the scroll item). Mirrors ServUO `Spell.OnScrollCast`.
-  const isStaff = ctx.accessLevel === 'GM' || ctx.accessLevel === 'Admin';
-  const isScroll = !!ctx.scroll;
+  const isStaff = ctx.accessLevel === 'GM' || ctx.accessLevel === 'Admin'
+    || ctx.accessLevel === 'Administrator';
   // Spellweaving cumulative cost — cast charge stacks (manaCostFor inflates).
   // Audit #30 P1 #2 — apply AOS Lower Mana Cost (cap 40 %) and Mind Rot
   // (Necromancy debuff, +50 % cost). Previously only `[cast` chat command

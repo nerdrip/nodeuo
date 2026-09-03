@@ -535,7 +535,8 @@ export function dispatchCastFromMacro(state, spellId) {
   // recovery window. The stamp is set further down after the spell
   // fires; a non-staff caster can't cast again until `_castReadyAt`.
   const isStaffCast = state.account?.accessLevel === 'GM'
-                   || state.account?.accessLevel === 'Admin';
+                   || state.account?.accessLevel === 'Admin'
+                   || state.account?.accessLevel === 'Administrator';
   if (!isStaffCast && (state.mobile?._castReadyAt ?? 0) > Date.now()) {
     state.sendSystemMessage?.('You must wait a moment before casting again.');
     return;
@@ -605,7 +606,8 @@ export function dispatchCastFromMacro(state, spellId) {
   // 1 s base recovery, reduced 150 ms per FCR point (min 250 ms). Stamp
   // BEFORE setTimeout so a fast click while the cursor is up still hits
   // the FCR gate at the top of this function.
-  const recoveryMs = Math.max(250, 1000 - fcr * 150);
+  // Custom graph spells may carry a longer server-approved cooldown.
+  const recoveryMs = Math.max(250, 1000 - fcr * 150, def.cooldownMs | 0);
   if (state.mobile) state.mobile._castReadyAt = Date.now() + scaledDelay + recoveryMs;
   if (state.supportsNodeUO?.(NodeUOCapability.CooldownBars)) {
     state.send(extNodeUOCooldown({
@@ -1864,6 +1866,7 @@ function bringIntoWorld(state, nameOrChoice) {
     }
     // Always end with a backpack on layer 21.
     const backpack = ensureBackpack(world, mob);
+    mob.spellcraft = { version: 1, xp: 0, discoveries: [], lastPracticeAt: 0 };
 
     // Starter loadout — ServUO `CharacterCreation.cs` drops these
     // into the backpack of every fresh character regardless of
@@ -1884,6 +1887,14 @@ function bringIntoWorld(state, nameOrChoice) {
         createItem(world, {
           itemId: 0x0A28, hue: 0, parent: backpack.serial,
           name: 'a candle',
+        });
+        // Every player may research custom spells. The codex is an editor
+        // key, while progression and discoveries remain server-authoritative.
+        createItem(world, {
+          definitionId: 'spell-schema-codex', itemId: 0x0EFA, hue: 0x0481,
+          parent: backpack.serial, name: 'Arcane Schema Codex',
+          script: 'spell-schema-codex', kind: 'book', category: 'spell-schema',
+          movable: true, weight: 3,
         });
         // Spellbook for mage / necromancer starters.
         if (presetName === 'mage' || presetName === 'necromancer') {
@@ -2202,17 +2213,16 @@ function handleExtendedCommand(state, pkt) {
     const kind = r.readU8();
     const requestId = r.readU32();
     const length = r.readU16();
-    if ((kind !== NodeUOSpellComposerMessage.Save && kind !== NodeUOSpellComposerMessage.Publish)
+    if ((kind !== NodeUOSpellComposerMessage.Save
+      && kind !== NodeUOSpellComposerMessage.Publish
+      && kind !== NodeUOSpellComposerMessage.Scribe)
       || length > 32 * 1024 || length > r.remaining) return;
-    const access = state.account?.accessLevel;
-    if (access !== 'Admin' && access !== 'Administrator') {
-      state.sendSystemMessage?.('Spell Composer requires Administrator access.');
-      return;
-    }
     try {
       const json = new TextDecoder().decode(r.readBytes(length));
       const payload = JSON.parse(json);
-      if (kind === NodeUOSpellComposerMessage.Publish) {
+      if (kind === NodeUOSpellComposerMessage.Scribe) {
+        state.ctx?.spellComposer?.scribeDraft?.(state, requestId, payload);
+      } else if (kind === NodeUOSpellComposerMessage.Publish) {
         state.ctx?.spellComposer?.publishDraft?.(state, requestId, payload);
       } else {
         state.ctx?.spellComposer?.acceptDraft?.(state, requestId, payload);
@@ -4293,6 +4303,27 @@ function handleUseSerial(state, serial) {
       // vendor in canon UO is the "buy" gesture, not a paperdoll open.
       vendors.openBuy(state, mob.serial);
       return;
+    }
+    // Native quest-conversation dispatch.  Registered dialogue trees used to
+    // have an advance-on-speech path but no way to begin a session, leaving
+    // the entire system unreachable. Resolve both NodeUO kind ids and ServUO
+    // class identities so generated NPC definitions work without aliases.
+    if (mob !== state.mobile) {
+      const conversations = state.ctx?.systems?.questConversation ?? state.ctx?.questConversation;
+      const conversationKind = [mob.kind, mob.servuoClass, ...(mob.servuoClasses ?? [])]
+        .find((kind) => kind && conversations?.getConversation?.(kind));
+      if (conversationKind) {
+        const payload = conversations.beginConversation?.({
+          playerState: state, npc: mob, kind: conversationKind,
+        });
+        if (payload?.text) {
+          state.sendSystemMessage?.(payload.text);
+          if (payload.choices?.length) {
+            state.sendSystemMessage?.(`Choices: ${payload.choices.map((choice) => choice.key).join(' / ')}`);
+          }
+          return;
+        }
+      }
     }
     // Double-clicking an adjacent controlled pet is the canonical mount
     // gesture. Route through the same player command used by [mount so item

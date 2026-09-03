@@ -388,7 +388,7 @@ const MOBILE_EXT_KEYS = [
   // serial after a save round-trip would silently take over the slot
   // and the account would log in as the spawned NPC. `resolvePlayerMobile`
   // validates BOTH fields before accepting a binding.
-  'isPlayer', 'accountName',
+  'isPlayer', 'accountName', 'spellcraft',
 ];
 const ITEM_EXT_KEYS = [
   // Stable definition identity is separate from the UO art graphic. artId is
@@ -462,7 +462,8 @@ const ITEM_EXT_KEYS = [
   '_spinningWheelSpinningUntil', 'light', 'labelNumber',
   '_logs', '_nextResourceCount', 'waterSourceQuantity',
   // Readable book payloads generated from ServUO BaseBook/Note classes.
-  'tagId', 'kind', 'category', 'resource', 'title', 'author', 'pages', 'writable',
+  'tagId', 'kind', 'category', 'resource', 'title', 'author', 'pages', 'writable', 'customSpellId',
+  'spellcraftUnlock', 'spellcraftXp',
   'readOnly', 'bookContentClilocs', 'bookPageDetails', 'noteString', 'servuoClass', 'servuoClasses', 'servuoPath',
   'bandageHealingBonus',
   'firstAidBelt', 'firstAidMaxBandages', 'firstAidHealingBonus', 'firstAidWeightReduction',

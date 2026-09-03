@@ -53,6 +53,7 @@ const TEMPLATE_RUNTIME_KEYS = [
   'secureLevel',
   'args', 'displayName', 'anniversaryChoice', '_timepiece', '_dailyRare', '_ancientWall',
   '_sphynxFortune',
+  'spellcraftUnlock', 'spellcraftXp',
 ];
 
 /** Register (or replace) a template. Hot-reload friendly. */

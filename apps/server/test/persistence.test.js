@@ -28,13 +28,21 @@ describe('world persistence', () => {
     const w1 = new World();
     const mob = w1.createMobile({ name: 'Alice' });
     mob.x = 100; mob.y = 200; mob.z = 5;
+    mob.spellcraft = {
+      version: 1, xp: 225, discoveries: ['element:fire', 'node:heal'], lastPracticeAt: 12345,
+    };
     const torch = createItem(w1, { itemId: 0x0F0B, x: 101, y: 200, z: 5 });
     const sword = createItem(w1, { itemId: 0x13B9, hue: 0x0058, x: 102, y: 200, z: 5 });
+    const fragment = createItem(w1, {
+      definitionId: 'arcane-fragment-fire', itemId: 0x1F2D,
+      spellcraftUnlock: 'element:fire', spellcraftXp: 75,
+      x: 103, y: 200, z: 5,
+    });
 
     const snap = snapshotWorld(w1);
     expect(snap.version).toBe(1);
     expect(snap.mobiles).toHaveLength(1);
-    expect(snap.items).toHaveLength(2);
+    expect(snap.items).toHaveLength(3);
 
     // Round-trip via JSON.
     const json = JSON.parse(JSON.stringify(snap));
@@ -43,13 +51,17 @@ describe('world persistence', () => {
     restoreWorld(w2, json);
 
     expect(w2.mobiles.size).toBe(1);
-    expect(w2.items.size).toBe(2);
+    expect(w2.items.size).toBe(3);
     const restoredMob = w2.mobiles.get(mob.serial);
     expect(restoredMob.name).toBe('Alice');
     expect(restoredMob.x).toBe(100);
     expect(restoredMob.client).toBeNull();
+    expect(restoredMob.spellcraft).toEqual(mob.spellcraft);
     expect(w2.items.get(torch.serial).itemId).toBe(0x0F0B);
     expect(w2.items.get(sword.serial).hue).toBe(0x0058);
+    expect(w2.items.get(fragment.serial)).toMatchObject({
+      spellcraftUnlock: 'element:fire', spellcraftXp: 75,
+    });
 
     // Serial allocator must not reuse existing serials.
     const newMob = w2.createMobile({ name: 'Bob' });

@@ -8,6 +8,8 @@
 
 import { mobileBySerial } from '../../_entities.js';
 
+export const SERVUO_TRICK_OR_TREAT_CLASSES = ['TrickOrTreat', 'TrickOrTreatTarget'];
+
 /** @param {import('@uo/server/src/scripts.js').ScriptAPI} api */
 export default function register(api) {
   if (!api.commands || !api.targeting) return () => {};

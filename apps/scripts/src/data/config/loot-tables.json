@@ -29,7 +29,11 @@
       { "template": "emerald",      "chance": 0.3 },
       { "template": "diamond",      "chance": 0.15 },
       { "template": "scroll",       "chance": 0.5, "amount": [1, 4] },
-      { "template": "dragon-scale", "chance": 0.9, "amount": [3, 8] }
+      { "template": "dragon-scale", "chance": 0.9, "amount": [3, 8] },
+      { "template": "arcane-research-notes", "chance": 0.12 },
+      { "template": "arcane-fragment-fire", "chance": 0.06 },
+      { "template": "arcane-fragment-cold", "chance": 0.04 },
+      { "template": "arcane-fragment-area", "chance": 0.035 }
     ]
   },
   {
@@ -40,7 +44,11 @@
       { "template": "reagent-nightshade", "chance": 0.5, "amount": [1, 4] },
       { "template": "reagent-mandrake",   "chance": 0.5, "amount": [1, 4] },
       { "template": "reagent-black-pearl","chance": 0.5, "amount": [1, 4] },
-      { "template": "sapphire",  "chance": 0.2 }
+      { "template": "sapphire",  "chance": 0.2 },
+      { "template": "arcane-research-notes", "chance": 0.08 },
+      { "template": "arcane-fragment-healing", "chance": 0.035 },
+      { "template": "arcane-fragment-alteration", "chance": 0.02 },
+      { "template": "arcane-fragment-energy", "chance": 0.01 }
     ]
   },
   {
@@ -57,7 +65,11 @@
       { "template": "scroll",    "chance": 0.8, "amount": [1, 3] },
       { "template": "ruby",      "chance": 0.3 },
       { "template": "emerald",   "chance": 0.3 },
-      { "template": "reagent-black-pearl", "chance": 0.4, "amount": [1, 3] }
+      { "template": "reagent-black-pearl", "chance": 0.4, "amount": [1, 3] },
+      { "template": "arcane-research-notes", "chance": 0.06 },
+      { "template": "arcane-fragment-area", "chance": 0.02 },
+      { "template": "arcane-fragment-cold", "chance": 0.025 },
+      { "template": "arcane-fragment-energy", "chance": 0.01 }
     ]
   },
   {
@@ -136,7 +148,11 @@
     { "template": "scroll", "chance": 0.8, "amount": [2, 5] },
     { "template": "ruby",   "chance": 0.3 },
     { "template": "reagent-sulfurous-ash", "chance": 0.6, "amount": [3, 6] },
-    { "template": "reagent-blood-moss",    "chance": 0.5, "amount": [2, 5] }
+    { "template": "reagent-blood-moss",    "chance": 0.5, "amount": [2, 5] },
+    { "template": "arcane-research-notes", "chance": 0.10 },
+    { "template": "arcane-fragment-fire", "chance": 0.04 },
+    { "template": "arcane-fragment-poison", "chance": 0.025 },
+    { "template": "arcane-fragment-alteration", "chance": 0.02 }
   ]},
   { "name": "balron-common", "entries": [
     { "template": "scroll", "chance": 0.95, "amount": [4, 8] },
@@ -206,7 +222,15 @@
     { "template": "diamond",      "chance": 0.65, "amount": [2, 5] },
     { "template": "scroll",       "chance": 0.95, "amount": [4, 12] },
     { "template": "dragon-scale", "chance": 0.4,  "amount": [4, 10] },
-    { "template": "leather",      "chance": 0.7,  "amount": [10, 25] }
+    { "template": "leather",      "chance": 0.7,  "amount": [10, 25] },
+    { "template": "arcane-research-notes", "chance": 0.35, "amount": [1, 2] },
+    { "template": "arcane-fragment-healing", "chance": 0.16 },
+    { "template": "arcane-fragment-alteration", "chance": 0.10 },
+    { "template": "arcane-fragment-area", "chance": 0.14 },
+    { "template": "arcane-fragment-fire", "chance": 0.18 },
+    { "template": "arcane-fragment-cold", "chance": 0.16 },
+    { "template": "arcane-fragment-poison", "chance": 0.10 },
+    { "template": "arcane-fragment-energy", "chance": 0.08 }
   ]},
   { "name": "champion-hoard", "entries": [
     { "template": "ruby",     "chance": 0.7,  "amount": [2, 6] },
@@ -214,7 +238,14 @@
     { "template": "emerald",  "chance": 0.5,  "amount": [2, 5] },
     { "template": "diamond",  "chance": 0.4,  "amount": [1, 3] },
     { "template": "scroll",   "chance": 0.85, "amount": [3, 8] },
-    { "template": "leather",  "chance": 0.6,  "amount": [5, 15] }
+    { "template": "leather",  "chance": 0.6,  "amount": [5, 15] },
+    { "template": "arcane-research-notes", "chance": 0.20 },
+    { "template": "arcane-fragment-healing", "chance": 0.10 },
+    { "template": "arcane-fragment-area", "chance": 0.08 },
+    { "template": "arcane-fragment-fire", "chance": 0.10 },
+    { "template": "arcane-fragment-cold", "chance": 0.10 },
+    { "template": "arcane-fragment-poison", "chance": 0.06 },
+    { "template": "arcane-fragment-energy", "chance": 0.05 }
   ]},
   { "name": "boss-rare-drop", "entries": [
     { "artifact": true, "unique": true, "tier": ["greater", "lesser"], "chance": 0.05 },
