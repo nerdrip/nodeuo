@@ -15,7 +15,7 @@ import { Combobox } from '../controls/combobox.js';
 import { Button, ButtonAction } from '../controls/button.js';
 import { worldMapEntities } from '../../managers/world-map-entity-manager.js';
 import { packCanvasColor, packedLandRadarColor } from '../../shared/radar-color.js';
-import { acquireSprite, releaseSprite } from '../../renderer/sprite-pool.js';
+import { acquireUiSprite, releaseUiSprite } from '../../renderer/sprite-pool.js';
 import { bus } from '../../core/event-bus.js';
 import { net } from '../../net/net-client.js';
 import { listNodeUOWorldAnnotations, updateNodeUOWorldAnnotation } from '../../net/nodeuo-services.js';
@@ -80,7 +80,7 @@ export class WorldmapGump extends WindowGump {
     this._imgData = this._ctx.createImageData(VIEWPORT_W, VIEWPORT_H);
     this._pixelsU32 = new Uint32Array(this._imgData.data.buffer);
     this._tex = Texture.from(this._canvas);
-    this._sprite = acquireSprite(this._tex);
+    this._sprite = acquireUiSprite(this._tex);
     this._sprite.position.set(10, 28);
     this.node.addChild(this._sprite);
 
@@ -267,7 +267,7 @@ export class WorldmapGump extends WindowGump {
     this._profileBoundSub?.();
     this._facetLoadToken = ((this._facetLoadToken | 0) + 1) >>> 0;
     this._staticRadarToken = ((this._staticRadarToken | 0) + 1) >>> 0;
-    releaseSprite(this._sprite);
+    releaseUiSprite(this._sprite);
     this._sprite = null;
     super.dispose?.();
   }

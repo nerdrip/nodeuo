@@ -1,16 +1,19 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  EffectKind, healthUpdate, huedEffect, playSound,
+  EffectKind, healthUpdate, huedEffect, playSound, removeEntity, containerContentUpdate,
 } from '@uo/protocol';
 import { NodeUOFeature, NodeUOSpellComposerMessage } from '@uo/nodeuo-protocol';
 import { sendNodeUOEvent } from '../../net/handlers/nodeuo-modern.js';
 import { getSpell, registerSpell, unregisterSpell } from './registry.js';
+import { containerChildrenRecursive, destroyItem } from '../../world/items.js';
 
 const MAX_DRAFTS = 2048;
-const MAX_NODES = 32;
-const MAX_EDGES = 64;
-const MAX_EXECUTED_TARGETS = 64;
+const MAX_NODES = 64;
+const MAX_EDGES = 128;
+const MAX_EXECUTED_TARGETS = 512;
+const MAX_SCHEMA_RANGE = 1024;
+const MAX_SCHEMA_RADIUS = 1024;
 const CUSTOM_SPELL_ID_MIN = 10_000;
 const CUSTOM_SPELL_ID_MAX = 19_999;
 const INSCRIPTION_SKILL_ID = 24;
@@ -18,13 +21,20 @@ const PRACTICE_XP_COOLDOWN_MS = 60_000;
 const AUTHORING_SESSION_MS = 30 * 60_000;
 
 const NODE_TYPES = Object.freeze([
-  { id: 'start', label: 'Start', requiredRank: 1 },
-  { id: 'damage', label: 'Damage', requiredRank: 1 },
-  { id: 'heal', label: 'Heal', requiredRank: 2, unlock: 'node:heal' },
-  { id: 'modifier', label: 'Stat modifier', requiredRank: 3, unlock: 'node:modifier' },
-  { id: 'visual', label: 'Visual effect', requiredRank: 1 },
-  { id: 'sound', label: 'Sound', requiredRank: 1 },
-  { id: 'delay', label: 'Delay', requiredRank: 1 },
+  { id: 'start', label: 'Start', category: 'flow', inputs: [], outputs: ['flow'], requiredRank: 1 },
+  { id: 'damage', label: 'Damage', category: 'effect', inputs: ['flow'], outputs: ['flow'], requiredRank: 1 },
+  { id: 'heal', label: 'Heal', category: 'effect', inputs: ['flow'], outputs: ['flow'], requiredRank: 2, unlock: 'node:heal' },
+  { id: 'mana', label: 'Restore mana', category: 'effect', inputs: ['flow'], outputs: ['flow'], requiredRank: 2, unlock: 'node:mana' },
+  { id: 'stamina', label: 'Restore stamina', category: 'effect', inputs: ['flow'], outputs: ['flow'], requiredRank: 2, unlock: 'node:stamina' },
+  { id: 'modifier', label: 'Stat modifier', category: 'effect', inputs: ['flow'], outputs: ['flow'], requiredRank: 3, unlock: 'node:modifier' },
+  { id: 'shield', label: 'Arcane shield', category: 'effect', inputs: ['flow'], outputs: ['flow'], requiredRank: 3, unlock: 'node:shield' },
+  { id: 'poison', label: 'Poison', category: 'effect', inputs: ['flow'], outputs: ['flow'], requiredRank: 3, unlock: 'node:poison' },
+  { id: 'cleanse', label: 'Cleanse', category: 'effect', inputs: ['flow'], outputs: ['flow'], requiredRank: 3, unlock: 'node:cleanse' },
+  { id: 'time-gate', label: 'Time gate', category: 'logic', inputs: ['flow'], outputs: ['flow'], requiredRank: 4, unlock: 'node:time-gate' },
+  { id: 'chance-gate', label: 'Chance gate', category: 'logic', inputs: ['flow'], outputs: ['flow'], requiredRank: 4, unlock: 'node:chance-gate' },
+  { id: 'visual', label: 'Visual effect', category: 'presentation', inputs: ['flow'], outputs: ['flow'], requiredRank: 1 },
+  { id: 'sound', label: 'Sound', category: 'presentation', inputs: ['flow'], outputs: ['flow'], requiredRank: 1 },
+  { id: 'delay', label: 'Delay', category: 'flow', inputs: ['flow'], outputs: ['flow'], requiredRank: 1 },
 ]);
 
 const SPELLCRAFT_RANKS = Object.freeze([
@@ -45,14 +55,25 @@ const SPELLCRAFT_RANKS = Object.freeze([
     maxDamage: 80, maxHealing: 75, maxModifier: 25, maxRadius: 7,
     maxRange: 15, maxDurationMs: 120_000 }),
   Object.freeze({ level: 5, name: 'Grandmaster', xp: 900, inscription: 100,
-    maxDrafts: 20, maxNodes: MAX_NODES, maxEdges: MAX_EDGES, maxImpact: 150,
-    maxDamage: 100, maxHealing: 100, maxModifier: 50, maxRadius: 12,
-    maxRange: 18, maxDurationMs: 300_000 }),
+    maxDrafts: 20, maxNodes: 40, maxEdges: 80, maxImpact: 5000,
+    maxDamage: 500, maxHealing: 500, maxModifier: 100, maxRadius: 32,
+    maxRange: 64, maxDurationMs: 3_600_000 }),
+  Object.freeze({ level: 6, name: 'Archmage', xp: 2500, inscription: 120,
+    maxDrafts: 40, maxNodes: MAX_NODES, maxEdges: MAX_EDGES, maxImpact: 1_000_000,
+    maxDamage: 10_000, maxHealing: 10_000, maxModifier: 500, maxRadius: 256,
+    maxRange: 256, maxDurationMs: 7 * 24 * 60 * 60_000 }),
 ]);
 
 const SPELLCRAFT_DISCOVERIES = Object.freeze({
   'node:heal': Object.freeze({ label: 'Restoration block', requiredRank: 2 }),
   'node:modifier': Object.freeze({ label: 'Alteration block', requiredRank: 3 }),
+  'node:mana': Object.freeze({ label: 'Mana channel block', requiredRank: 2 }),
+  'node:stamina': Object.freeze({ label: 'Vigor channel block', requiredRank: 2 }),
+  'node:shield': Object.freeze({ label: 'Arcane shield block', requiredRank: 3 }),
+  'node:poison': Object.freeze({ label: 'Venom block', requiredRank: 3 }),
+  'node:cleanse': Object.freeze({ label: 'Purification block', requiredRank: 3 }),
+  'node:time-gate': Object.freeze({ label: 'Astral clock block', requiredRank: 4 }),
+  'node:chance-gate': Object.freeze({ label: 'Fate gate block', requiredRank: 4 }),
   'scope:area': Object.freeze({ label: 'Area shaping', requiredRank: 3 }),
   'element:fire': Object.freeze({ label: 'Fire attunement', requiredRank: 2 }),
   'element:cold': Object.freeze({ label: 'Cold attunement', requiredRank: 2 }),
@@ -73,11 +94,12 @@ export const SPELL_COMPOSER_CATALOG = Object.freeze({
   nodeTypes: NODE_TYPES,
   scopes: ['target', 'caster', 'area'],
   elements: ['physical', 'fire', 'cold', 'poison', 'energy'],
-  modifierAttributes: ['str', 'dex', 'int'],
+  modifierAttributes: ['str', 'dex', 'int', 'armor'],
   limits: {
     nodes: MAX_NODES, edges: MAX_EDGES,
-    mana: [0, 100], range: [0, 18], castTimeMs: [0, 10_000],
-    cooldownMs: [0, 600_000], delayMs: [0, 30_000],
+    mana: [0, 10_000], range: [0, MAX_SCHEMA_RANGE], radius: [0, MAX_SCHEMA_RADIUS],
+    castTimeMs: [0, 60_000], cooldownMs: [0, 7 * 24 * 60 * 60_000],
+    delayMs: [0, 24 * 60 * 60_000],
   },
 });
 
@@ -193,7 +215,8 @@ function composerCatalog(profile) {
       ...SPELL_COMPOSER_CATALOG.limits,
       nodes: profile.admin ? MAX_NODES : profile.limits.maxNodes,
       edges: profile.admin ? MAX_EDGES : profile.limits.maxEdges,
-      range: [0, profile.admin ? 18 : profile.limits.maxRange],
+      range: [0, profile.admin ? MAX_SCHEMA_RANGE : profile.limits.maxRange],
+      radius: [0, profile.admin ? MAX_SCHEMA_RADIUS : profile.limits.maxRadius],
     },
   };
 }
@@ -276,24 +299,42 @@ function sanitizeNode(raw, index, errors) {
   let config = {};
   if (type === 'damage') config = {
     scope,
-    amount: clampInt(cfg.amount, 0, 1000),
+    amount: clampInt(cfg.amount, 0, 10_000),
     element: SPELL_COMPOSER_CATALOG.elements.includes(String(cfg.element)) ? String(cfg.element) : 'physical',
   };
-  if (type === 'heal') config = { scope, amount: clampInt(cfg.amount, 0, 1000) };
+  if (type === 'heal') config = { scope, amount: clampInt(cfg.amount, 0, 10_000) };
+  if (type === 'mana' || type === 'stamina') config = {
+    scope, amount: clampInt(cfg.amount, 0, 10_000),
+  };
   if (type === 'modifier') config = {
     scope,
     attribute: SPELL_COMPOSER_CATALOG.modifierAttributes.includes(String(cfg.attribute))
       ? String(cfg.attribute) : 'str',
-    amount: clampInt(cfg.amount, -50, 50),
+    amount: clampInt(cfg.amount, -500, 500),
     durationMs: clampInt(cfg.durationMs, 1000, 300_000),
   };
+  if (type === 'shield') config = {
+    scope,
+    amount: clampInt(cfg.amount, 0, 500),
+    durationMs: clampInt(cfg.durationMs, 1000, 7 * 24 * 60 * 60_000),
+  };
+  if (type === 'poison') config = {
+    scope,
+    amount: clampInt(cfg.amount, 1, 5),
+    durationMs: clampInt(cfg.durationMs, 1000, 60 * 60_000),
+  };
+  if (type === 'cleanse') config = { scope };
+  if (type === 'time-gate') config = {
+    phase: ['day', 'night', 'dawn', 'dusk'].includes(String(cfg.phase)) ? String(cfg.phase) : 'night',
+  };
+  if (type === 'chance-gate') config = { chance: clampInt(cfg.chance ?? cfg.amount, 1, 100) };
   if (type === 'visual') config = {
     scope,
     graphic: clampInt(cfg.graphic, 0, 0xffff),
     hue: clampInt(cfg.hue, 0, 0xffff),
   };
   if (type === 'sound') config = { scope, sound: clampInt(cfg.sound, 0, 0xffff) };
-  if (type === 'delay') config = { ms: clampInt(cfg.ms, 0, 30_000) };
+  if (type === 'delay') config = { ms: clampInt(cfg.ms, 0, 24 * 60 * 60_000) };
   return {
     id, type,
     x: clampInt(raw?.x, 0, 4000),
@@ -324,11 +365,22 @@ function sanitizeGraph(rawGraph, errors) {
   for (const raw of rawEdges.slice(0, MAX_EDGES)) {
     const from = String(raw?.from ?? '');
     const to = String(raw?.to ?? '');
-    const key = `${from}>${to}`;
+    const fromPort = String(raw?.fromPort ?? 'flow');
+    const toPort = String(raw?.toPort ?? 'flow');
+    const key = `${from}.${fromPort}>${to}.${toPort}`;
     if (!ids.has(from) || !ids.has(to)) errors.push(`Connection ${key} references a missing node.`);
     else if (from === to) errors.push(`Node ${from} cannot connect to itself.`);
     else if (edgeKeys.has(key)) errors.push(`Duplicate connection: ${key}.`);
-    else { edgeKeys.add(key); edges.push({ from, to }); }
+    else {
+      const fromType = NODE_TYPES.find((entry) => entry.id === nodes.find((node) => node.id === from)?.type);
+      const toType = NODE_TYPES.find((entry) => entry.id === nodes.find((node) => node.id === to)?.type);
+      if (!fromType?.outputs?.includes(fromPort) || !toType?.inputs?.includes(toPort)) {
+        errors.push(`Connection ${key} uses incompatible or unknown ports.`);
+      } else {
+        edgeKeys.add(key);
+        edges.push({ from, fromPort, to, toPort });
+      }
+    }
   }
 
   if (starts.length === 1 && ids.size === nodes.length) {
@@ -383,13 +435,13 @@ export function validateSpellDraft(raw) {
       id: stableDraftId(raw?.id, name),
       spellId: Number.isInteger(raw?.spellId) ? clampInt(raw.spellId, CUSTOM_SPELL_ID_MIN, CUSTOM_SPELL_ID_MAX) : null,
       name, school, target,
-      mana: clampInt(raw?.mana, 0, 100),
-      range: clampInt(raw?.range, 0, 18),
-      castTimeMs: clampInt(raw?.castTimeMs, 0, 10_000),
-      cooldownMs: clampInt(raw?.cooldownMs, 0, 600_000),
+      mana: clampInt(raw?.mana, 0, 10_000),
+      range: clampInt(raw?.range, 0, MAX_SCHEMA_RANGE),
+      castTimeMs: clampInt(raw?.castTimeMs, 0, 60_000),
+      cooldownMs: clampInt(raw?.cooldownMs, 0, 7 * 24 * 60 * 60_000),
       area: {
         shape: areaShape,
-        radius: areaShape === 'single' ? 0 : clampInt(raw?.area?.radius, 1, 12),
+        radius: areaShape === 'single' ? 0 : clampInt(raw?.area?.radius, 1, MAX_SCHEMA_RADIUS),
         angle: areaShape === 'cone' ? clampInt(raw?.area?.angle, 15, 180) : 0,
       },
       graph,
@@ -406,7 +458,7 @@ function areaFactor(draft) {
 }
 
 function spellMetrics(draft) {
-  let damage = 0, healing = 0, modifiers = 0, delays = 0;
+  let damage = 0, healing = 0, resources = 0, modifiers = 0, delays = 0;
   let maxDamage = 0, maxHealing = 0, maxModifier = 0, maxDurationMs = 0;
   for (const node of draft.graph.nodes) {
     const multiplier = node.config.scope === 'area' ? areaFactor(draft) : 1;
@@ -418,6 +470,19 @@ function spellMetrics(draft) {
       healing += node.config.amount * multiplier;
       maxHealing = Math.max(maxHealing, node.config.amount);
     }
+    if (node.type === 'mana' || node.type === 'stamina') {
+      resources += node.config.amount * multiplier;
+    }
+    if (node.type === 'poison') {
+      damage += node.config.amount * 12 * multiplier;
+      maxDamage = Math.max(maxDamage, node.config.amount * 12);
+      maxDurationMs = Math.max(maxDurationMs, node.config.durationMs);
+    }
+    if (node.type === 'shield') {
+      modifiers += node.config.amount * multiplier * Math.max(1, node.config.durationMs / 10_000);
+      maxModifier = Math.max(maxModifier, node.config.amount);
+      maxDurationMs = Math.max(maxDurationMs, node.config.durationMs);
+    }
     if (node.type === 'modifier') {
       modifiers += Math.abs(node.config.amount) * multiplier * Math.max(1, node.config.durationMs / 10_000);
       maxModifier = Math.max(maxModifier, Math.abs(node.config.amount));
@@ -426,10 +491,45 @@ function spellMetrics(draft) {
     if (node.type === 'delay') delays += node.config.ms;
   }
   return {
-    damage, healing, modifiers, delays,
-    impact: damage + healing * 0.8 + modifiers * 0.7,
+    damage, healing, resources, modifiers, delays,
+    impact: damage + healing * 0.8 + resources * 0.55 + modifiers * 0.7,
     maxDamage, maxHealing, maxModifier, maxDurationMs,
   };
+}
+
+const SCHEMA_MATERIALS = Object.freeze({
+  blank: Object.freeze({ definitionId: 'blank-scroll', artId: 0x0E34, name: 'blank scroll' }),
+  ruby: Object.freeze({ definitionId: 'ruby', artId: 4217, name: 'ruby' }),
+  focus: Object.freeze({ definitionId: 'reagent-black-pearl', artId: 3962, name: 'black pearl' }),
+  fire: Object.freeze({ definitionId: 'reagent-sulfurous-ash', artId: 3980, name: 'sulfurous ash' }),
+  cold: Object.freeze({ definitionId: 'reagent-mandrake', artId: 3974, name: 'mandrake root' }),
+  poison: Object.freeze({ definitionId: 'reagent-nightshade', artId: 3976, name: 'nightshade' }),
+  energy: Object.freeze({ definitionId: 'reagent-spider-silk', artId: 3981, name: "spiders' silk" }),
+});
+
+/** Physical bill paid when a published program is written to a scroll.
+ *  Small utility schemas need only parchment. Large/area/logic programs
+ *  scale into substantial gem and reagent costs instead of being rejected
+ *  by a small arbitrary damage cap. */
+export function schemaScribingRequirements(draft) {
+  const metrics = spellMetrics(draft);
+  const requirements = [{ ...SCHEMA_MATERIALS.blank, amount: 1 }];
+  const scale = Math.floor(Math.max(0, metrics.impact - 50) / 100);
+  if (scale > 0) requirements.push({ ...SCHEMA_MATERIALS.ruby, amount: Math.min(9999, scale) });
+  const logic = draft.graph.nodes.filter((node) => node.type.endsWith('-gate')).length;
+  if (logic) requirements.push({ ...SCHEMA_MATERIALS.focus, amount: logic });
+  const elementalDamage = new Map();
+  for (const node of draft.graph.nodes) {
+    if (node.type !== 'damage' || node.config.element === 'physical') continue;
+    const footprint = node.config.amount * (node.config.scope === 'area' ? areaFactor(draft) : 1);
+    elementalDamage.set(node.config.element,
+      (elementalDamage.get(node.config.element) ?? 0) + footprint);
+  }
+  for (const [element, footprint] of elementalDamage) {
+    const material = SCHEMA_MATERIALS[element];
+    if (material) requirements.push({ ...material, amount: Math.min(9999, Math.max(1, Math.ceil(footprint / 100))) });
+  }
+  return requirements;
 }
 
 export function validateSpellForPublication(raw) {
@@ -439,18 +539,20 @@ export function validateSpellForPublication(raw) {
   const errors = [];
   const { damage, healing, delays, impact } = spellMetrics(draft);
   const complexity = draft.graph.nodes.filter((node) => node.type !== 'start').length;
-  const requiredMana = Math.min(100, Math.ceil(Math.sqrt(impact) * 1.8));
+  const requiredMana = Math.min(10_000, Math.ceil(Math.sqrt(impact) * 2 + complexity));
   // Even cue-only graphs need a small recovery gate; otherwise a zero-mana
   // visual/sound schema can be packet-spammed into a broadcast flood.
-  const requiredRecovery = Math.min(10_000, Math.max(250, Math.ceil(impact * 8 + complexity * 40)));
-  if (damage > 150) errors.push('Published total damage footprint is capped at 150.');
-  if (healing > 100) errors.push('Published total healing footprint is capped at 100.');
-  if (impact > SPELLCRAFT_RANKS.at(-1).maxImpact) {
-    errors.push(`Published power footprint is capped at ${SPELLCRAFT_RANKS.at(-1).maxImpact}.`);
+  const requiredRecovery = Math.min(7 * 24 * 60 * 60_000,
+    Math.max(250, Math.ceil(Math.sqrt(impact) * 90 + complexity * 40)));
+  // Power is governed by resources, not an arbitrary low damage ceiling.
+  // A city-scale graph is legal, but its mana/recovery/material bill grows
+  // with the complete affected footprint and the executor remains bounded.
+  if (draft.mana < requiredMana) {
+    const footprint = damage > 150 ? 'damage footprint' : healing > 100 ? 'healing footprint' : 'graph';
+    errors.push(`The ${footprint} requires at least ${requiredMana} mana.`);
   }
-  if (draft.mana < requiredMana) errors.push(`Mana is too low for this graph (minimum ${requiredMana}).`);
   if (draft.castTimeMs + draft.cooldownMs < requiredRecovery) errors.push(`Cast time plus cooldown is too short (minimum ${requiredRecovery} ms).`);
-  if (delays > 30_000) errors.push('The graph contains more than 30 seconds of delay.');
+  if (delays > 24 * 60 * 60_000) errors.push('The graph contains more than 24 hours of delay.');
   if (draft.target === 'location' && draft.area.shape === 'single'
       && draft.graph.nodes.some((node) => ['damage', 'heal', 'modifier'].includes(node.type))) {
     errors.push('Location-targeted mechanical spells require an area shape.');
@@ -493,8 +595,10 @@ function progressionErrors(draft, profile) {
 function requiredRankForDraft(draft) {
   const metrics = spellMetrics(draft);
   let featureLevel = 1;
-  if (draft.graph.nodes.some((node) => node.type === 'heal')) featureLevel = Math.max(featureLevel, 2);
-  if (draft.graph.nodes.some((node) => node.type === 'modifier')) featureLevel = Math.max(featureLevel, 3);
+  for (const node of draft.graph.nodes) {
+    const descriptor = NODE_TYPES.find((entry) => entry.id === node.type);
+    featureLevel = Math.max(featureLevel, descriptor?.requiredRank ?? 1);
+  }
   if (draft.area.shape !== 'single' || draft.target === 'location'
       || draft.graph.nodes.some((node) => node.config.scope === 'area')) featureLevel = Math.max(featureLevel, 3);
   for (const node of draft.graph.nodes) {
@@ -577,6 +681,13 @@ function runGraphNode(draft, node, ctx) {
       target.hp = Math.min(target.hpMax ?? target.hp ?? 1, (target.hp ?? 0) + node.config.amount);
       sendNear(ctx.world, target, healthUpdate({ serial: target.serial, current: target.hp, max: target.hpMax ?? target.hp }));
     }
+  } else if (node.type === 'mana' || node.type === 'stamina') {
+    const key = node.type === 'mana' ? 'mana' : 'stam';
+    const maxKey = node.type === 'mana' ? 'manaMax' : 'stamMax';
+    for (const target of targets) {
+      target[key] = Math.min(target[maxKey] ?? target[key] ?? 0,
+        (target[key] ?? 0) + node.config.amount);
+    }
   } else if (node.type === 'modifier') {
     for (const target of targets) {
       const attribute = node.config.attribute;
@@ -597,6 +708,40 @@ function runGraphNode(draft, node, ctx) {
         }, node.config.durationMs);
         timer.unref?.();
       }
+    }
+  } else if (node.type === 'shield') {
+    for (const target of targets) {
+      const amount = node.config.amount;
+      target.armor = (target.armor ?? 0) + amount;
+      const remove = (mob) => { mob.armor = Math.max(0, (mob.armor ?? 0) - amount); };
+      const applied = ctx.deps?.statusEffects?.apply?.(target, {
+        name: `${draft.id}:${node.id}`, durationMs: node.config.durationMs,
+        data: { attribute: 'armor', amount }, onRemove: remove,
+      });
+      if (!applied) {
+        const serial = target.serial >>> 0;
+        const timer = setTimeout(() => {
+          const current = ctx.world?.mobiles?.get?.(serial);
+          if (current) remove(current);
+        }, node.config.durationMs);
+        timer.unref?.();
+      }
+    }
+  } else if (node.type === 'poison') {
+    for (const target of targets) {
+      target.poisoned = true;
+      target.poisonLevel = Math.max(target.poisonLevel ?? 0, node.config.amount);
+      const serial = target.serial >>> 0;
+      const timer = setTimeout(() => {
+        const current = ctx.world?.mobiles?.get?.(serial);
+        if (current) { current.poisoned = false; current.poisonLevel = 0; }
+      }, node.config.durationMs);
+      timer.unref?.();
+    }
+  } else if (node.type === 'cleanse') {
+    for (const target of targets) {
+      target.poisoned = false;
+      target.poisonLevel = 0;
     }
   } else if (node.type === 'visual') {
     const visualTargets = targets.length ? targets : [pointOf(ctx.target, ctx.caster)];
@@ -630,12 +775,25 @@ export function executeSpellGraph(draft, ctx) {
   }
   const queue = draft.graph.nodes.filter((node) => incoming.get(node.id).length === 0).map((node) => node.id);
   const at = new Map(queue.map((id) => [id, 0]));
+  const enabled = new Map(queue.map((id) => [id, true]));
   while (queue.length) {
     const id = queue.shift();
     const node = nodes.get(id);
     const ownAt = at.get(id) ?? 0;
     const after = ownAt + (node.type === 'delay' ? node.config.ms : 0);
-    if (node.type !== 'start' && node.type !== 'delay') {
+    const active = enabled.get(id) !== false;
+    let branchOpen = active;
+    if (active && node.type === 'time-gate') {
+      const hour = Number(ctx.world?.gameTime?.hour ?? new Date().getUTCHours()) | 0;
+      const phase = node.config.phase;
+      branchOpen = phase === 'day' ? hour >= 6 && hour < 18
+        : phase === 'night' ? hour < 6 || hour >= 18
+          : phase === 'dawn' ? hour >= 5 && hour < 8
+            : hour >= 17 && hour < 20;
+    } else if (active && node.type === 'chance-gate') {
+      branchOpen = Math.random() * 100 < node.config.chance;
+    }
+    if (active && !['start', 'delay', 'time-gate', 'chance-gate'].includes(node.type)) {
       const invoke = () => {
         const caster = ctx.world?.mobiles?.get?.(ctx.caster.serial >>> 0);
         if (!caster || (caster.hp ?? 0) <= 0) return;
@@ -651,6 +809,7 @@ export function executeSpellGraph(draft, ctx) {
     }
     for (const next of outgoing.get(id)) {
       at.set(next, Math.max(at.get(next) ?? 0, after));
+      enabled.set(next, (enabled.get(next) ?? false) || branchOpen);
       incoming.set(next, incoming.get(next).filter((source) => source !== id));
       if (incoming.get(next).length === 0) queue.push(next);
     }
@@ -743,7 +902,9 @@ export class SpellComposerService {
         // partially recovered file may contain duplicates; registering both
         // would make one scroll silently cast the other draft.
         const spellId = this._allocateSpellId(raw.spellId);
-        const requiredRank = clampInt(raw.requiredRank ?? requiredRankForDraft(result.draft), 1, 5);
+        const requiredRank = clampInt(
+          raw.requiredRank ?? requiredRankForDraft(result.draft), 1, SPELLCRAFT_RANKS.length,
+        );
         const draft = {
           ...result.draft, spellId, published: raw.published === true,
           publishedAt: raw.publishedAt ?? null,
@@ -852,6 +1013,7 @@ export class SpellComposerService {
       researchAwarded: existing?.researchAwarded === true,
       requiredRank: requiredRankForDraft(result.draft),
       minScribeSkill: SPELLCRAFT_RANKS[requiredRankForDraft(result.draft) - 1].inscription,
+      scribingRequirements: schemaScribingRequirements(result.draft),
     };
     return { ok: true, draft, auth, existing };
   }
@@ -982,14 +1144,24 @@ export class SpellComposerService {
       this._sendResult(state, requestId, result);
       return result;
     }
-    const blank = game?.inventory?.findInPack?.(mobile, (item) => (
-      item.definitionId === 'blank-scroll' || item.category === 'blank-scroll'
-        || ((item.itemId | 0) === 0x0E34 && /blank scroll/i.test(String(item.name ?? '')))
-    ));
-    if (!admin && !blank) {
-      const result = { ok: false, errors: ['A blank scroll is required.'] };
-      this._sendResult(state, requestId, result);
-      return result;
+    const requirements = draft.scribingRequirements ?? schemaScribingRequirements(draft);
+    const packSerial = mobile.backpack?.serial ?? mobile.equipment?.get?.(21)?.serial
+      ?? source?.parent ?? mobile.serial;
+    const carried = [...containerChildrenRecursive(world, packSerial)];
+    const matches = (item, material) => item.definitionId === material.definitionId
+      || (item.itemId | 0) === (material.artId | 0)
+      || (material.definitionId === 'blank-scroll' && item.category === 'blank-scroll');
+    if (!admin) {
+      const missing = requirements.filter((material) => carried
+        .filter((item) => matches(item, material))
+        .reduce((sum, item) => sum + Math.max(1, item.amount | 0), 0) < material.amount);
+      if (missing.length) {
+        const result = { ok: false, errors: [`Scribing requires ${missing
+          .map((material) => `${material.amount} ${material.name}`)
+          .join(', ')}.`] };
+        this._sendResult(state, requestId, result);
+        return result;
+      }
     }
     const scroll = game?.mobile?.giveItem?.(mobile, {
       definitionId: 'custom-spell-scroll', artId: 0x1F2D,
@@ -1002,14 +1174,30 @@ export class SpellComposerService {
       this._sendResult(state, requestId, result);
       return result;
     }
-    if (!admin && (blank.amount ?? 1) > 1) {
-      blank.amount -= 1;
-      const packet = state.ctx?.protocol?.containerContentUpdate?.(blank, blank.parent ?? mobile.serial);
-      if (packet) state.send?.(packet);
-    } else if (!admin) {
-      game.item?.destroy?.(blank);
-      const packet = state.ctx?.protocol?.removeEntity?.(blank.serial);
-      if (packet) state.send?.(packet);
+    if (!admin) {
+      // Consume only after the output scroll exists, and only after the full
+      // bill was verified. This makes the transaction atomic from a player's
+      // perspective and supports costs spread across multiple stacks/bags.
+      for (const material of requirements) {
+        let remaining = material.amount;
+        for (const item of carried) {
+          if (remaining <= 0 || !matches(item, material)) continue;
+          const have = Math.max(1, item.amount | 0);
+          const take = Math.min(have, remaining);
+          remaining -= take;
+          if (take >= have) {
+            game.item?.destroy?.(item);
+            if (world.items?.has?.(item.serial)) destroyItem(world, item.serial);
+            const packet = state.ctx?.protocol?.removeEntity?.(item.serial) ?? removeEntity(item.serial);
+            if (packet) state.send?.(packet);
+          } else {
+            item.amount = have - take;
+            const packet = state.ctx?.protocol?.containerContentUpdate?.(item, item.parent ?? packSerial)
+              ?? containerContentUpdate(item, item.parent ?? packSerial);
+            if (packet) state.send?.(packet);
+          }
+        }
+      }
     }
     const result = {
       ok: true, scribed: true, draft, scrollSerial: scroll.serial,

@@ -1,8 +1,19 @@
 import assert from 'node:assert/strict';
 import { Texture } from 'pixi.js';
 import {
-  LandMeshPool, SpritePool, spriteLeaseValid,
+  acquireSprite, acquireUiSprite, LandMeshPool, releaseSprite,
+  releaseUiSprite, SpritePool, spriteLeaseValid,
 } from '../src/renderer/sprite-pool.js';
+
+const worldSprite = acquireSprite(Texture.EMPTY);
+releaseSprite(worldSprite);
+const uiSprite = acquireUiSprite(Texture.EMPTY);
+assert.notEqual(
+  uiSprite,
+  worldSprite,
+  'UI and world pools must never exchange Pixi Sprite instances',
+);
+releaseUiSprite(uiSprite);
 
 const pool = new SpritePool(2, 0);
 const first = pool.acquire(Texture.EMPTY);

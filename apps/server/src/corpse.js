@@ -389,7 +389,7 @@ export function killMobile(world, mob, killer = null) {
   ]);
   const isPlayerCorpse = !!mob.client;
   for (const it of own) {
-    if (it.newbied || it.insured
+    if (it.newbied || it.blessed || it.spellbook || it.accountBound || it.insured
         || (blessAccount && it._personalBlessed === blessAccount)) {
       // Keep on the player; on resurrect they pop right back to layer.
       continue;
@@ -416,7 +416,7 @@ export function killMobile(world, mob, killer = null) {
         ? Array.from(packIdx, (s) => world.items.get(s)).filter(Boolean)
         : [...world.items.values()].filter((it) => it.parent === pack.serial);
       for (const kid of packKids) {
-        if (kid.newbied || kid.insured
+        if (kid.newbied || kid.blessed || kid.spellbook || kid.accountBound || kid.insured
             || (blessAccount && kid._personalBlessed === blessAccount)) continue;
         if (itemsMod?.setItemParent) itemsMod.setItemParent(world, kid, corpse.serial);
         else kid.parent = corpse.serial;

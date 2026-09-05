@@ -1,4 +1,4 @@
-// HealthLinesManager — thin overhead HP bars drawn under every visible
+// HealthLinesManager — thin overhead HP bars drawn above every visible
 // mobile. Mirrors ClassicUO `Game/Managers/HealthLinesManager.cs`.
 //
 // Why: without overhead bars the player has no UI affordance to pick a
@@ -22,7 +22,7 @@ import { bus } from '../core/event-bus.js';
 
 const BAR_W = 32;
 const BAR_H = 3;
-const Y_OFFSET = -56;       // CUO renders ~56 px above the feet anchor
+const FALLBACK_HEAD_Y = -77;
 const NEAR_TILES = 18;      // ClientViewRange default
 
 const COLOR_BG       = 0x000000;
@@ -108,7 +108,17 @@ export class HealthLinesManager {
       const spX = worldToScreenX(m.x, m.y);
       const spY = worldToScreenY(m.x, m.y, m.z);
       const sx = Math.round(spX + (m.offsetX | 0)) - (BAR_W >> 1);
-      const sy = Math.round(spY + (m.offsetY | 0)) + Y_OFFSET;
+      // MobileRenderer publishes the real top of the currently rendered
+      // body frame.  A fixed feet-relative offset put the bar through the
+      // face of tall humans and below the head of short creatures.  Keep
+      // the health line just above the sprite (and therefore above its
+      // overhead name) for every body/animation combination.
+      const headY = Number.isFinite(m._spriteHeadOffset)
+        ? m._spriteHeadOffset
+        : FALLBACK_HEAD_Y;
+      // Names start around headY - 6; keep the HP bar a full text-line above
+      // that anchor instead of drawing both overlays through each other.
+      const sy = Math.round(spY + (m.offsetY | 0) + headY) - 18;
 
       // Fill colour by state. Order matters: poison/yellow override the
       // notoriety/party tint.

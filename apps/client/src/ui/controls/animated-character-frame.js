@@ -7,7 +7,7 @@ import { Control } from '../control.js';
 import { assets } from '../../assets/asset-manager.js';
 import { applyHueTo } from '../../renderer/hue-filter.js';
 import { Action, MobileAnimation } from '../../renderer/mobile-animation.js';
-import { acquireSprite, releaseSprite } from '../../renderer/sprite-pool.js';
+import { acquireUiSprite, releaseUiSprite } from '../../renderer/sprite-pool.js';
 
 const DEFAULT_WIDTH = 160;
 const DEFAULT_HEIGHT = 220;
@@ -107,7 +107,7 @@ export class AnimatedCharacterFrame extends Control {
         if (eq.layer === key) { equipped = true; break; }
       }
       if (!equipped) {
-        releaseSprite(this._equipSprites.get(key));
+        releaseUiSprite(this._equipSprites.get(key));
         this._equipSprites.delete(key);
       }
     }
@@ -168,7 +168,7 @@ export class AnimatedCharacterFrame extends Control {
 
   _ensureBodySprite() {
     if (this._bodySprite) return this._bodySprite;
-    this._bodySprite = acquireSprite();
+    this._bodySprite = acquireUiSprite();
     this._stage.addChildAt(this._bodySprite, 0);
     return this._bodySprite;
   }
@@ -176,7 +176,7 @@ export class AnimatedCharacterFrame extends Control {
   _ensureEquipSprite(layer) {
     let sp = this._equipSprites.get(layer);
     if (sp) return sp;
-    sp = acquireSprite();
+    sp = acquireUiSprite();
     this._equipSprites.set(layer, sp);
     this._stage.addChild(sp);
     return sp;
@@ -234,9 +234,9 @@ export class AnimatedCharacterFrame extends Control {
 
   dispose() {
     Ticker.shared.remove(this._onTick);
-    releaseSprite(this._bodySprite);
+    releaseUiSprite(this._bodySprite);
     this._bodySprite = null;
-    for (const sp of this._equipSprites.values()) releaseSprite(sp);
+    for (const sp of this._equipSprites.values()) releaseUiSprite(sp);
     this._equipSprites.clear();
     super.dispose();
   }

@@ -78,4 +78,28 @@ describe('killMobile fires onUnequip for worn items (PHASE BP)', () => {
     killMobile(w, mob);
     expect(calls.length).toBe(0);
   });
+
+  it('keeps spellbooks, blessed and account-bound codices out of the corpse', () => {
+    const w = new World();
+    const mob = w.createMobile({ name: 'scribe', body: 0x0190, x: 10, y: 10, z: 0, map: 1 });
+    mob.hpMax = 50; mob.hp = 50;
+    mob.client = { send: () => {}, sendSystemMessage: () => {} };
+    const pack = createItem(w, {
+      itemId: 0x0E75, x: 0, y: 0, z: 0, map: 1,
+      parent: mob.serial, layer: 21,
+    });
+    const spellbook = createItem(w, {
+      itemId: 0x0EFA, x: 0, y: 0, z: 0, map: 1,
+      parent: pack.serial, spellbook: true,
+    });
+    const codex = createItem(w, {
+      itemId: 0x0FF0, x: 0, y: 0, z: 0, map: 1,
+      parent: pack.serial, accountBound: true, blessed: true,
+    });
+
+    killMobile(w, mob);
+
+    expect(spellbook.parent).toBe(pack.serial);
+    expect(codex.parent).toBe(pack.serial);
+  });
 });

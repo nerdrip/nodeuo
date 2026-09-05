@@ -86,6 +86,19 @@ describe('trade drag-and-drop', () => {
     expect(session.itemsB.has(apple.serial)).toBe(false);
   });
 
+  it('returns an account-bound item to Alice instead of exposing it in trade', () => {
+    const pack = createItem(world, {
+      itemId: 0x0E75, x: 0, y: 0, z: 0, map: 1,
+      parent: a.mobile.serial, layer: 21, gumpId: 0x003C,
+    });
+    apple.accountBound = true;
+    apple.boundAccount = 'alice';
+    handlers[0x08](a, dropPacket(apple.serial, 20, 30, 0, session.containerA));
+    expect(apple.parent).toBe(pack.serial);
+    expect(a.heldItem).toBeNull();
+    expect(session.itemsA.has(apple.serial)).toBe(false);
+  });
+
   it('commit transfers Alice\'s items into Bob\'s inventory', () => {
     handlers[0x08](a, dropPacket(apple.serial, 10, 10, 0, session.containerA));
     expect(session.itemsA.has(apple.serial)).toBe(true);

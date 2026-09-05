@@ -93,6 +93,21 @@ describe('pickup/drop handlers', () => {
     expect(torch.parent).toBeFalsy();
   });
 
+  it('binds protected items on first lift and rejects a different account', () => {
+    const handlers = buildHandlers();
+    torch.accountBound = true;
+    handlers[0x07](state, pickupPacket(torch.serial));
+    expect(state.heldItem).toBe(torch);
+    expect(torch.boundAccount).toBe('tester');
+
+    state.heldItem = null;
+    torch.parent = null;
+    torch.boundAccount = 'someone-else';
+    handlers[0x07](state, pickupPacket(torch.serial));
+    expect(state.heldItem).toBeNull();
+    expect(state.sentPackets.map((packet) => packet[0])).toContain(0x27);
+  });
+
   it('drops the held item to the ground and broadcasts 0xF3', () => {
     const handlers = buildHandlers();
     handlers[0x07](state, pickupPacket(torch.serial));

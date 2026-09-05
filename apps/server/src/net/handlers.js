@@ -3417,6 +3417,17 @@ function handlePickUp(state, pkt) {
     state.send(bounce(0x00)); // CannotLift
     return;
   }
+  if (item.accountBound) {
+    const actorAccount = String(state.accountName ?? state.account?.username
+      ?? state.mobile.accountName ?? '').trim().toLowerCase();
+    const ownerAccount = String(item.boundAccount ?? '').trim().toLowerCase();
+    if (ownerAccount && actorAccount && ownerAccount !== actorAccount) {
+      state.send(bounce(0x00));
+      state.sendSystemMessage?.('That item is bound to another account.');
+      return;
+    }
+    if (actorAccount && !ownerAccount) item.boundAccount = actorAccount;
+  }
   // Pickup paths:
   //   - Ground (parent == null): map+range check.
   //   - Equipped on self (parent == self mob serial && layer > 0): always
@@ -3755,6 +3766,10 @@ function handleDrop(state, pkt) {
   }
 
   if (container === 0xFFFFFFFF) {
+    if (item.accountBound) {
+      returnAccountBoundItem(state, item, 'Account-bound items cannot be dropped into the world.');
+      return;
+    }
     const dx = Math.abs((x | 0) - (state.mobile.x | 0));
     const dy = Math.abs((y | 0) - (state.mobile.y | 0));
     const standZ = findStandingZ(state.mobile.map, x, y, z);
@@ -3808,6 +3823,10 @@ function handleDrop(state, pkt) {
   // before the normal container-lookup path.
   const tradeSession = tradeByContainer.get(container);
   if (tradeSession) {
+    if (item.accountBound) {
+      returnAccountBoundItem(state, item, 'Account-bound items cannot be traded.');
+      return;
+    }
     handleTradeDrop(state, item, tradeSession, container, x, y, gridLocation);
     return;
   }
@@ -3825,6 +3844,10 @@ function handleDrop(state, pkt) {
   //                       drag-drop hook.
   const targetMob = state.ctx.world.mobiles.get(container);
   if (targetMob) {
+    if (item.accountBound && targetMob !== state.mobile) {
+      returnAccountBoundItem(state, item, 'Account-bound items cannot be given away.');
+      return;
+    }
     const mdx = Math.abs(targetMob.x - state.mobile.x);
     const mdy = Math.abs(targetMob.y - state.mobile.y);
     const outOfRange = Math.max(mdx, mdy) > 2 || targetMob.map !== state.mobile.map;
@@ -3884,6 +3907,13 @@ function handleDrop(state, pkt) {
     return;
   }
   const target = state.ctx.world.items.get(container);
+  if (item.accountBound) {
+    const owner = rootMobileForItem(state.ctx.world, target);
+    if (!owner || (owner.serial >>> 0) !== (state.mobile.serial >>> 0)) {
+      returnAccountBoundItem(state, item, 'Keep account-bound items in your backpack or bank.');
+      return;
+    }
+  }
   // The player's own equipped backpack (or any worn container) doesn't have
   // to have been double-clicked open before they can stuff items into it —
   // the paperdoll lets you drag straight onto the backpack icon. Treat any
@@ -7511,6 +7541,28 @@ function bounceHeldToFeet(state, item) {
     x: item.x, y: item.y, z: item.z, hue: item.hue,
     flags: (item.movable ?? true) ? 0x20 : 0x00,
   }));
+  nudgeItemProperties(state, item);
+}
+
+/** Return a protected held item to its owner's backpack and clear the client
+ * drag cursor. Unlike the general error bounce this never exposes an
+ * account-bound codex/reward on the ground. */
+function returnAccountBoundItem(state, item, message) {
+  const pack = backpackOf(state.ctx.world, state.mobile);
+  if (!pack) {
+    bounceHeldToFeet(state, item);
+    state.sendSystemMessage?.(message);
+    return;
+  }
+  setItemParent(state.ctx.world, item, pack.serial);
+  item.layer = 0;
+  item.gridX = 0; item.gridY = 0; item.gridLocation = 0;
+  state.ctx.world.sectors?.removeItem?.(item.serial);
+  state.heldItem = null;
+  state.send(dropAck(false));
+  state.send(bounce(0x00));
+  state.send(containerContentUpdate(item, pack.serial));
+  state.sendSystemMessage?.(message);
   nudgeItemProperties(state, item);
 }
 

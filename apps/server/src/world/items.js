@@ -200,7 +200,7 @@ export function createItem(world, data) {
     '_spinningWheelSpinningUntil', 'light', 'labelNumber', 'weight', 'stackable',
     'bandageHealingBonus',
     'firstAidBelt', 'firstAidMaxBandages', 'firstAidHealingBonus', 'firstAidWeightReduction',
-    'blessed', 'newbied',
+    'blessed', 'newbied', 'accountBound', 'boundAccount',
     '_logs', '_nextResourceCount', 'waterSourceQuantity',
     'tagId', 'kind', 'category', 'resource', 'title', 'author', 'pages', 'writable',
     'readOnly', 'bookContentClilocs', 'bookPageDetails', 'noteString', 'servuoClass', 'servuoClasses', 'servuoPath',

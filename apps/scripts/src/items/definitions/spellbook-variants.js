@@ -19,6 +19,9 @@ function spellbook(def) {
     layer: 1,                   // off-hand by default; Magery book usually goes 1H
     container: true,
     twoHanded: false,
+    // Spell knowledge is character infrastructure, not corpse loot.
+    newbied: true,
+    blessed: true,
     ...def,
   });
 }

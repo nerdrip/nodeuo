@@ -16,7 +16,7 @@ import { Label } from '../controls/label.js';
 import { world } from '../../world/world.js';
 import { assets } from '../../assets/asset-manager.js';
 import { packCanvasColor, packedLandRadarColor } from '../../shared/radar-color.js';
-import { acquireSprite, releaseSprite } from '../../renderer/sprite-pool.js';
+import { acquireUiSprite, releaseUiSprite } from '../../renderer/sprite-pool.js';
 
 const RADIUS_TILES = 32;     // 64×64 tiles around the player
 const PX_PER_TILE  = 2;      // each tile = 2px square (so map is 128×128)
@@ -47,7 +47,7 @@ export class MinimapGump extends WindowGump {
     this._img = this._ctx?.createImageData(SIZE_PX, SIZE_PX) ?? null;
     this._pixelsU32 = this._img ? new Uint32Array(this._img.data.buffer) : null;
     this._texture = Texture.from(this._canvas);
-    this._sprite = acquireSprite(this._texture);
+    this._sprite = acquireUiSprite(this._texture);
     this._sprite.position.set(10, 28);
     this.node.addChild(this._sprite);
 
@@ -72,7 +72,7 @@ export class MinimapGump extends WindowGump {
   get type() { return 'minimap'; }
 
   dispose() {
-    releaseSprite(this._sprite);
+    releaseUiSprite(this._sprite);
     this._sprite = null;
     super.dispose?.();
   }

@@ -610,6 +610,11 @@ export function createScriptGameApi({
       gridLocation: data.gridLocation ?? 0,
     };
     const item = createItem(desc);
+    if (item?.accountBound && !item.boundAccount) {
+      const account = String(mob.accountName ?? mob.client?.accountName
+        ?? mob.client?.account?.username ?? '').trim().toLowerCase();
+      if (account) item.boundAccount = account;
+    }
     if (item && notify && pack && protocol?.containerContentUpdate && mob.client) {
       trySend(mob.client, protocol.containerContentUpdate(item, pack.serial));
     }

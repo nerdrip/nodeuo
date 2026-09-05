@@ -6,12 +6,12 @@
 // we fall back to a hash-coloured rectangle so the gump still has a
 // visible shape.
 
-import { Texture, Rectangle } from 'pixi.js';
+import { Texture, Rectangle, Sprite } from 'pixi.js';
 import { Control } from '../control.js';
 import { assets } from '../../assets/asset-manager.js';
 import { applyHueTo } from '../../renderer/hue-filter.js';
 import { createShimmer } from '../loading-shimmer.js';
-import { acquireSprite, releaseSprite } from '../../renderer/sprite-pool.js';
+import { retainTexture, releaseTexture } from '../../renderer/sprite-pool.js';
 
 function canvasSourceFromTexture(tex) {
   const src = tex?.source?.resource ?? tex?.source ?? tex?.baseTexture?.resource;
@@ -72,6 +72,7 @@ export class GumpPic extends Control {
     this._showFallback = showFallback !== false;
     /** @type {Sprite | null} the textured sprite, when the atlas resolves */
     this._sprite = null;
+    this._ownedTexture = null;
     /** Gray-silver shimmer placeholder shown while the atlas page loads.
      *  Replaces the per-id hash-coloured rect — the rainbow of bright
      *  fillers used to read as "broken UI" rather than "loading". */
@@ -185,11 +186,7 @@ export class GumpPic extends Control {
     if (next === this.gumpId) return;
     this.gumpId = next;
     this.beginAsyncGeneration();
-    if (this._sprite) {
-      try { this.node.removeChild(this._sprite); } catch { /* already detached */ }
-      releaseSprite(this._sprite);
-      this._sprite = null;
-    }
+    this._disposeSprite();
     this._tex = null;
     this._pxCanvas = null;
     this._pxData = null;
@@ -247,7 +244,15 @@ export class GumpPic extends Control {
         useTex = tex;            // PixiJS version mismatch — fall back
       }
     }
-    this._sprite = acquireSprite(useTex);
+    // UI controls must never share the hot world-sprite pool. Pixi can keep a
+    // submitted draw instruction alive until a later GPU frame; immediately
+    // recycling a closed paperdoll layer as a world static made the old draw
+    // read the new texture/transform. The visible result was equipment at
+    // screen (0,0), flashing mobiles and occasionally screen-sized buildings.
+    // A gump owns its small, dedicated Sprite for its whole lifetime.
+    this._sprite = new Sprite(useTex);
+    retainTexture(useTex);
+    this._ownedTexture = useTex !== tex ? useTex : null;
     this._sprite._uoMissingAsset = !loaded ? { kind: 'gump', id: this.gumpId } : null;
     this._sprite.position.set(0, 0);
     this._sprite.tint = this.tint;
@@ -270,10 +275,25 @@ export class GumpPic extends Control {
   }
 
   dispose() {
-    if (this._sprite) releaseSprite(this._sprite);
-    this._sprite = null;
+    this._disposeSprite();
     this._shimmer?.dispose();
     this._shimmer = null;
     super.dispose();
+  }
+
+  _disposeSprite() {
+    const sprite = this._sprite;
+    const texture = sprite?.texture;
+    if (sprite) {
+      try { sprite.parent?.removeChild(sprite); } catch { /* already detached */ }
+      releaseTexture(texture);
+      try { sprite.texture = Texture.EMPTY; } catch { /* destroyed */ }
+      try { sprite.destroy(); } catch { /* already destroyed */ }
+    }
+    if (this._ownedTexture) {
+      try { this._ownedTexture.destroy(false); } catch { /* Pixi variant */ }
+    }
+    this._ownedTexture = null;
+    this._sprite = null;
   }
 }

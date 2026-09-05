@@ -37,10 +37,10 @@ import { tooltips } from '../../managers/tooltip-manager.js';
 const SLOT_W   = 32;
 const SLOT_H   = 32;
 const ITEM_BOX = 30;
-const GRID_COLS = 7;
-const GRID_ROWS = 6;
-const CONTENT_W = GRID_COLS * SLOT_W;
-const CONTENT_H = GRID_ROWS * SLOT_H;
+const DEFAULT_GRID_COLS = 7;
+const DEFAULT_GRID_ROWS = 6;
+const CONTENT_W = DEFAULT_GRID_COLS * SLOT_W;
+const CONTENT_H = DEFAULT_GRID_ROWS * SLOT_H;
 const PAD       = 8;
 const HEADER_H  = 28;
 
@@ -115,6 +115,27 @@ function resolveContainerInterior(gumpId, naturalW, naturalH) {
     y: inset,
     w: Math.max(0, naturalW  - inset * 2),
     h: Math.max(0, naturalH - inset * 2),
+  };
+}
+
+/** Fit the optional Tibia-style grid into the native container artwork.
+ *  The background is never stretched to a global 7x6 rectangle: backpacks,
+ *  pouches, chests and custom containers retain their native proportions.
+ *  Whole cells are centred horizontally, with room for title and weight. */
+export function resolveContainerGridLayout(naturalW, naturalH) {
+  const w = Math.max(SLOT_W + PAD * 2, naturalW | 0);
+  const h = Math.max(SLOT_H + HEADER_H + 18, naturalH | 0);
+  const cols = Math.max(1, Math.min(12, Math.floor((w - PAD * 2) / SLOT_W)));
+  const rows = Math.max(1, Math.min(10, Math.floor((h - HEADER_H - 16) / SLOT_H)));
+  const contentW = cols * SLOT_W;
+  const contentH = rows * SLOT_H;
+  return {
+    cols,
+    rows,
+    x: Math.max(0, Math.floor((w - contentW) / 2)),
+    y: Math.max(HEADER_H, h - 16 - contentH),
+    w: contentW,
+    h: contentH,
   };
 }
 
@@ -227,7 +248,7 @@ export class ContainerGump extends WindowGump {
     const gridW = PAD * 2 + CONTENT_W;
     const gridH = HEADER_H + PAD * 2 + CONTENT_H;
     const gridMode = profile.get?.('containers.layoutMode') === 'grid';
-    const useNative = !!natural && !gridMode;
+    const useNative = !!natural;
     const useContainerArt = !!natural;
     // When we have native art, render at the sprite's NATURAL size —
     // never stretched. Stretching invalidates the per-gump interior
@@ -236,11 +257,12 @@ export class ContainerGump extends WindowGump {
     // Fallback path (no native art) keeps the parchment 9-patch + grid.
     const w = useNative ? natural.w : gridW;
     const h = useNative ? natural.h : gridH;
+    const gridLayout = resolveContainerGridLayout(w, h);
     super({
       // Native UO container art already contains the visual chrome.
       // Drawing a generic text title over the backpack reads like a
       // duplicate label and, worse, lands on top of the bag art.
-      title: useNative ? '' : containerName.charAt(0).toUpperCase() + containerName.slice(1),
+      title: useNative && !gridMode ? '' : containerName.charAt(0).toUpperCase() + containerName.slice(1),
       width:  w,
       height: h,
       x, y,
@@ -252,14 +274,18 @@ export class ContainerGump extends WindowGump {
     this.containerSerial = containerSerial >>> 0;
     this._gumpId = gumpId;
     this._gridMode = gridMode;
+    this._gridCols = gridLayout.cols;
+    this._gridRows = gridLayout.rows;
     /** Interior rect inside which items live. Resolved against the
      *  per-gump table; falls back to a centred rect with ~16 px
      *  chrome inset for unknown ids (custom-shard containers etc).
      *  When we couldn't load the native art, use the slot grid. */
-    this._interior = useNative
-      ? (resolveContainerInterior(gumpId, w, h) ??
-         { x: PAD, y: HEADER_H + PAD, w: w - PAD * 2, h: h - HEADER_H - PAD * 2 })
-      : { x: PAD, y: HEADER_H + PAD, w: CONTENT_W, h: CONTENT_H };
+    this._interior = gridMode
+      ? gridLayout
+      : (useNative
+        ? (resolveContainerInterior(gumpId, w, h) ??
+           { x: PAD, y: HEADER_H + PAD, w: w - PAD * 2, h: h - HEADER_H - PAD * 2 })
+        : { x: PAD, y: HEADER_H + PAD, w: CONTENT_W, h: CONTENT_H });
     /** @type {Map<number, ItemEntry>} item serial → entry control */
     this._byItem = new Map();
     this._contentsSeen = new Set();
@@ -281,6 +307,8 @@ export class ContainerGump extends WindowGump {
       this._gridDecor = new Graphics();
       this._drawGridDecor();
       this.node.addChildAt(this._gridDecor, Math.min(1, this.node.children.length));
+      const titleW = this._title?.width || containerName.length * 7;
+      this._title?.setPosition(Math.max(4, Math.floor((w - titleW) / 2)), 4);
     }
     this.restorePosition();
     // Audit #39 client P2 #9 — `ui.containerScale` profile flag is the
@@ -357,8 +385,8 @@ export class ContainerGump extends WindowGump {
     const ix = (lx | 0) - this._interior.x;
     const iy = (ly | 0) - this._interior.y;
     if (this._gridMode) {
-      const col = Math.max(0, Math.min(GRID_COLS - 1, Math.floor(ix / SLOT_W)));
-      const visibleRow = Math.max(0, Math.min(GRID_ROWS - 1, Math.floor(iy / SLOT_H)));
+      const col = Math.max(0, Math.min(this._gridCols - 1, Math.floor(ix / SLOT_W)));
+      const visibleRow = Math.max(0, Math.min(this._gridRows - 1, Math.floor(iy / SLOT_H)));
       const row = visibleRow + (this._gridScrollRow | 0);
       return { gx: col * SLOT_W, gy: row * SLOT_H };
     }
@@ -378,9 +406,9 @@ export class ContainerGump extends WindowGump {
   }
 
   _preferredGridSlot(it) {
-    const col = Math.max(0, Math.min(GRID_COLS - 1, Math.floor(Math.max(0, it.gridX | 0) / SLOT_W)));
+    const col = Math.max(0, Math.min(this._gridCols - 1, Math.floor(Math.max(0, it.gridX | 0) / SLOT_W)));
     const row = Math.max(0, Math.floor(Math.max(0, it.gridY | 0) / SLOT_H));
-    return row * GRID_COLS + col;
+    return row * this._gridCols + col;
   }
 
   _assignGridSlot(it) {
@@ -398,7 +426,7 @@ export class ContainerGump extends WindowGump {
   _gridTotalRows() {
     let maxSlot = -1;
     for (const slot of this._gridSlotBySerial.values()) maxSlot = Math.max(maxSlot, slot | 0);
-    return Math.max(GRID_ROWS, Math.floor(maxSlot / GRID_COLS) + 1);
+    return Math.max(this._gridRows, Math.floor(maxSlot / this._gridCols) + 1);
   }
 
   _wireEntry(entry) {
@@ -582,10 +610,10 @@ export class ContainerGump extends WindowGump {
   _reflowGrid() {
     if (!this._gridMode) return;
     const totalRows = this._gridTotalRows();
-    const maxScroll = Math.max(0, totalRows - GRID_ROWS);
+    const maxScroll = Math.max(0, totalRows - this._gridRows);
     this._gridScrollRow = Math.max(0, Math.min(maxScroll, this._gridScrollRow | 0));
-    const firstVisible = this._gridScrollRow * GRID_COLS;
-    const lastVisible = firstVisible + GRID_COLS * GRID_ROWS;
+    const firstVisible = this._gridScrollRow * this._gridCols;
+    const lastVisible = firstVisible + this._gridCols * this._gridRows;
     const placed = [...this._gridSlotBySerial.entries()].sort((a, b) => a[1] - b[1]);
     for (const [serial, absolute] of placed) {
       const entry = this._byItem.get(serial >>> 0);
@@ -595,9 +623,9 @@ export class ContainerGump extends WindowGump {
       entry.node.visible = visible;
       if (!visible) continue;
       const local = absolute - firstVisible;
-      const col = local % GRID_COLS;
-      const row = Math.floor(local / GRID_COLS);
-      const absoluteRow = Math.floor(absolute / GRID_COLS);
+      const col = local % this._gridCols;
+      const row = Math.floor(local / this._gridCols);
+      const absoluteRow = Math.floor(absolute / this._gridCols);
       entry.gridX = col * SLOT_W;
       entry.gridY = absoluteRow * SLOT_H;
       this._positionEntryAtPixel(entry, col * SLOT_W, row * SLOT_H);
@@ -609,8 +637,8 @@ export class ContainerGump extends WindowGump {
     if (!this._gridDecor) return;
     const g = this._gridDecor;
     g.clear();
-    for (let row = 0; row < GRID_ROWS; row++) {
-      for (let col = 0; col < GRID_COLS; col++) {
+    for (let row = 0; row < this._gridRows; row++) {
+      for (let col = 0; col < this._gridCols; col++) {
         g.roundRect(
           this._interior.x + col * SLOT_W,
           this._interior.y + row * SLOT_H,
@@ -620,12 +648,12 @@ export class ContainerGump extends WindowGump {
       }
     }
     const totalRows = this._gridTotalRows();
-    if (totalRows <= GRID_ROWS) return;
+    if (totalRows <= this._gridRows) return;
     const trackX = this._interior.x + this._interior.w - 5;
     const trackY = this._interior.y + 2;
     const trackH = this._interior.h - 4;
-    const thumbH = Math.max(18, Math.round(trackH * GRID_ROWS / totalRows));
-    const maxScroll = totalRows - GRID_ROWS;
+    const thumbH = Math.max(18, Math.round(trackH * this._gridRows / totalRows));
+    const maxScroll = totalRows - this._gridRows;
     const thumbY = trackY + Math.round((trackH - thumbH) * (this._gridScrollRow / maxScroll));
     g.roundRect(trackX, trackY, 4, trackH, 2).fill({ color: 0x05070a, alpha: 0.8 });
     g.roundRect(trackX, thumbY, 4, thumbH, 2).fill({ color: 0xc59b47, alpha: 0.95 });
@@ -635,7 +663,7 @@ export class ContainerGump extends WindowGump {
     if (!this._gridMode) return;
     const direction = deltaY > 0 ? 1 : -1;
     const totalRows = this._gridTotalRows();
-    const next = Math.max(0, Math.min(totalRows - GRID_ROWS, this._gridScrollRow + direction));
+    const next = Math.max(0, Math.min(totalRows - this._gridRows, this._gridScrollRow + direction));
     if (next === this._gridScrollRow) return;
     tooltips.hide();
     this._gridScrollRow = next;

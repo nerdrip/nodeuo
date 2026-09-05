@@ -382,9 +382,10 @@ export const VENDOR_KINDS = {
       { itemId: 0x0EFA, name: 'spellbook',      price: 175 },
       { itemId: 0x1F4D, name: 'scroll',         price: 45 },
       {
-        itemId: 0x0EFA, hue: 0x0481, name: 'Arcane Schema Codex', price: 250,
+        itemId: 0x0FF0, hue: 0x0481, name: 'Arcane Schema Codex', price: 250,
         definitionId: 'spell-schema-codex', script: 'spell-schema-codex',
         kind: 'book', category: 'spell-schema', weight: 3,
+        newbied: true, blessed: true, accountBound: true,
       },
     ],
   },
@@ -505,9 +506,10 @@ export const VENDOR_KINDS = {
       { itemId: 0x0EFC, name: 'gate travel scroll',  price: 95 },
       { itemId: 0x0EFA, name: 'spellbook',           price: 175 },
       {
-        itemId: 0x0EFA, hue: 0x0481, name: 'Arcane Schema Codex', price: 250,
+        itemId: 0x0FF0, hue: 0x0481, name: 'Arcane Schema Codex', price: 250,
         definitionId: 'spell-schema-codex', script: 'spell-schema-codex',
         kind: 'book', category: 'spell-schema', weight: 3,
+        newbied: true, blessed: true, accountBound: true,
       },
     ],
   },

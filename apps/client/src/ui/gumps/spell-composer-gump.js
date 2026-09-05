@@ -7,6 +7,7 @@ import { Combobox } from '../controls/combobox.js';
 import { ScrollArea } from '../controls/scroll-area.js';
 import { net } from '../../net/net-client.js';
 import { bus } from '../../core/event-bus.js';
+import { uiManagerInstance } from '../ui-manager-singleton.js';
 import { NodeUOJsonKind, NodeUOSpellComposerMessage } from '@uo/nodeuo-protocol';
 
 const BUTTON = {
@@ -17,6 +18,8 @@ const NODE_W = 122;
 const NODE_H = 42;
 const NODE_COLORS = {
   start: 0xe6c85c, damage: 0xef735f, heal: 0x62cf85, modifier: 0xc48aff,
+  mana: 0x5c8cff, stamina: 0xe9c45d, shield: 0x80aaff, poison: 0x5faf63,
+  cleanse: 0xc8fff0, 'time-gate': 0xc890ff, 'chance-gate': 0xff9ed8,
   visual: 0x6db7ff, sound: 0x75d3d0, delay: 0xc1a58d,
 };
 
@@ -46,6 +49,13 @@ function nodeSummary(node) {
   const cfg = node.config ?? {};
   if (node.type === 'damage') return `${cfg.amount ?? 0} ${cfg.element ?? 'physical'}`;
   if (node.type === 'heal') return `+${cfg.amount ?? 0} hp`;
+  if (node.type === 'mana') return `+${cfg.amount ?? 0} mana`;
+  if (node.type === 'stamina') return `+${cfg.amount ?? 0} stamina`;
+  if (node.type === 'shield') return `armor +${cfg.amount ?? 0}`;
+  if (node.type === 'poison') return `venom ${cfg.amount ?? 1}`;
+  if (node.type === 'cleanse') return 'remove poison';
+  if (node.type === 'time-gate') return cfg.phase ?? 'night';
+  if (node.type === 'chance-gate') return `${cfg.chance ?? 50}%`;
   if (node.type === 'modifier') return `${cfg.attribute ?? 'str'} ${cfg.amount >= 0 ? '+' : ''}${cfg.amount ?? 0}`;
   if (node.type === 'visual') return `gfx 0x${(cfg.graphic ?? 0).toString(16)}`;
   if (node.type === 'sound') return `sound 0x${(cfg.sound ?? 0).toString(16)}`;
@@ -60,6 +70,13 @@ function progressionSummary(profile) {
     ? `next R${profile.next.level}: ${profile.next.xp} research + ${profile.next.inscription} Inscription`
     : 'maximum rank';
   return `R${profile.level} ${profile.rank} · ${profile.xp} research · Inscription ${profile.inscription} · ${next}`;
+}
+
+function scribingSummary(draft) {
+  const materials = Array.isArray(draft?.scribingRequirements) ? draft.scribingRequirements : [];
+  return materials.length
+    ? ` Scribe cost: ${materials.map((entry) => `${entry.amount}× ${entry.name}`).join(', ')}.`
+    : '';
 }
 
 export class SpellComposerGump extends WindowGump {
@@ -99,26 +116,31 @@ export class SpellComposerGump extends WindowGump {
     this._name = this._input('Name', 'Arc Flash', 198, 74, 180, 40);
     this._school = this._combo(this.catalog.schools ?? ['custom'], 'custom', 388, 90, 100);
     this._target = this._combo(this.catalog.availableTargets ?? this.catalog.targets ?? ['mobile'], 'mobile', 498, 90, 100);
-    this._mana = this._input('Mana', '20', 608, 74, 48, 3);
+    this._mana = this._input('Mana', '20', 608, 74, 48, 5);
     this._range = this._input(
-      'Range', String(Math.min(10, this.catalog.limits?.range?.[1] ?? 10)), 666, 74, 48, 2,
+      'Range', String(Math.min(10, this.catalog.limits?.range?.[1] ?? 10)), 666, 74, 48, 4,
     );
     this._castTime = this._input('Cast ms', '750', 724, 74, 76, 5);
 
     this._section(12, 124, 562, 482);
     this._label('Graph canvas', 22, 132, 0xffdf88);
-    this._label('Select source → Connect → destination. Repeat a connection to remove it.', 122, 133, 0xa99f8b);
+    this._label('Drag blocks. Drag ● output → ● input to wire; repeat to disconnect.', 122, 133, 0xa99f8b);
     this._canvas = new ScrollArea({ width: 542, height: 438, contentHeight: 420 });
     this.addContent(this._canvas, 22, 158);
 
     this._section(584, 124, 224, 482);
     this._label('Block palette', 596, 132, 0xffdf88);
     const nodeKinds = (this.catalog.nodeTypes ?? []).filter((entry) => entry.id !== 'start');
+    this._palette = new ScrollArea({ width: 202, height: 82,
+      contentHeight: Math.max(82, Math.ceil(nodeKinds.length / 2) * 27) });
+    this.addContent(this._palette, 594, 154);
     nodeKinds.forEach((entry, index) => {
-      const label = entry.unlocked ? `+ ${entry.id}` : `🔒 ${entry.id} R${entry.requiredRank}`;
-      const add = this._button(label, 594 + (index % 2) * 104, 154 + Math.floor(index / 2) * 27, 98, 22,
-        () => this._addNode(entry.id));
+      const label = entry.unlocked ? `+ ${entry.label ?? entry.id}` : `🔒 ${entry.id} R${entry.requiredRank}`;
+      const add = new Button({ ...BUTTON, label, width: 96, height: 22 });
+      add.setPosition((index % 2) * 100, Math.floor(index / 2) * 27);
+      add.onClick = () => this._addNode(entry.id);
       add.enabled = !!this.permissions.edit && entry.unlocked !== false;
+      this._palette.add(add);
     });
 
     this._selectedTitle = this._label('Selected: Start', 596, 246, 0xffdf88);
@@ -133,7 +155,7 @@ export class SpellComposerGump extends WindowGump {
     );
     this._amount = this._input('Amount', '20', 596, 332, 86, 5);
     this._asset = this._input('Graphic / sound', '0x36BD', 694, 332, 98, 8);
-    this._duration = this._input('Duration / delay ms', '10000', 596, 378, 116, 6);
+    this._duration = this._input('Duration / delay ms', '10000', 596, 378, 116, 9);
     this._hue = this._input('Hue', '0', 724, 378, 68, 8);
 
     const apply = this._button('Apply block', 596, 430, 94, 23, () => this._applyInspector());
@@ -149,9 +171,9 @@ export class SpellComposerGump extends WindowGump {
       this.catalog.availableAreaShapes ?? this.catalog.areaShapes ?? ['single'],
       'single', 596, 510, 94,
     );
-    this._radius = this._input('Radius', '3', 700, 494, 42, 2);
+    this._radius = this._input('Radius', '3', 700, 494, 42, 4);
     this._angle = this._input('Cone °', '90', 750, 494, 42, 3);
-    this._cooldown = this._input('Cooldown ms', '1500', 596, 542, 112, 6);
+    this._cooldown = this._input('Cooldown ms', '1500', 596, 542, 112, 9);
     this._areaPreview = new Graphics(); this.node.addChild(this._areaPreview);
     this._shape.onChange = () => this._drawAreaPreview();
     this._radius.onChange = () => this._drawAreaPreview();
@@ -186,7 +208,7 @@ export class SpellComposerGump extends WindowGump {
       this._draftPicker.setValues(['New spell', ...this.drafts.map((draft) => draft.name)]);
       this._draftPicker.setValue(saved.name, { silent: true });
       this._status.setText(message.payload.published
-        ? `Published ${saved.name} as spell #${saved.spellId}. +${message.payload.xpGained ?? 0} research. ${progressionSummary(this.progression)}`
+        ? `Published ${saved.name} as spell #${saved.spellId}. +${message.payload.xpGained ?? 0} research. ${progressionSummary(this.progression)}${scribingSummary(saved)}`
         : `Saved ${saved.name}. Publish it before scribing.`);
     });
 
@@ -241,16 +263,19 @@ export class SpellComposerGump extends WindowGump {
     const id = `${type}-${this._nextNode++}`;
     const config = type === 'damage' ? { scope: 'target', amount: 10, element: 'physical' }
       : type === 'heal' ? { scope: 'target', amount: 10 }
+        : type === 'mana' || type === 'stamina' ? { scope: 'target', amount: 10 }
         : type === 'modifier' ? { scope: 'target', attribute: 'str', amount: 5, durationMs: 10000 }
+          : type === 'shield' ? { scope: 'target', amount: 10, durationMs: 10000 }
+            : type === 'poison' ? { scope: 'target', amount: 1, durationMs: 10000 }
+              : type === 'cleanse' ? { scope: 'target' }
+                : type === 'time-gate' ? { phase: 'night' }
+                  : type === 'chance-gate' ? { chance: 50 }
           : type === 'visual' ? { scope: 'target', graphic: 0x36BD, hue: 0 }
             : type === 'sound' ? { scope: 'target', sound: 0x0207 }
               : { ms: 500 };
     const index = this._graph.nodes.length;
     const node = { id, type, x: 20 + (index % 3) * 170, y: 40 + Math.floor(index / 3) * 85, config };
     this._graph.nodes.push(node);
-    if (this._selectedId && this._graph.edges.length < (this.catalog.limits?.edges ?? 64)) {
-      this._graph.edges.push({ from: this._selectedId, to: id });
-    }
     this._selectedId = id;
     this._rebuildGraph(); this._selectNode(id);
   }
@@ -258,18 +283,6 @@ export class SpellComposerGump extends WindowGump {
   _selectNode(id) {
     const node = this._node(id);
     if (!node) return;
-    if (this._connectFrom && this._connectFrom !== id) {
-      const duplicate = this._graph.edges.some((edge) => edge.from === this._connectFrom && edge.to === id);
-      if (duplicate) {
-        this._graph.edges = this._graph.edges
-          .filter((edge) => edge.from !== this._connectFrom || edge.to !== id);
-        this._status.setText(`Disconnected ${this._connectFrom} → ${id}.`);
-      } else if (this._graph.edges.length < (this.catalog.limits?.edges ?? 64)) {
-        this._graph.edges.push({ from: this._connectFrom, to: id });
-        this._status.setText(`Connected ${this._connectFrom} → ${id}.`);
-      }
-      this._connectFrom = null;
-    }
     this._selectedId = id;
     this._selectedTitle.setText(`Selected: ${node.type} (${node.id})`);
     const cfg = node.config ?? {};
@@ -278,9 +291,13 @@ export class SpellComposerGump extends WindowGump {
       this._variant.setValues(this.catalog.availableElements ?? this.catalog.elements ?? ['physical']);
     } else if (node.type === 'modifier') {
       this._variant.setValues(this.catalog.modifierAttributes ?? ['str', 'dex', 'int']);
+    } else if (node.type === 'time-gate') {
+      this._variant.setValues(['day', 'night', 'dawn', 'dusk']);
+    } else {
+      this._variant.setValues(['physical']);
     }
-    this._variant.setValue(cfg.element ?? cfg.attribute ?? 'physical', { silent: true });
-    this._amount.setValue(String(cfg.amount ?? 0));
+    this._variant.setValue(cfg.element ?? cfg.attribute ?? cfg.phase ?? 'physical', { silent: true });
+    this._amount.setValue(String(cfg.chance ?? cfg.amount ?? 0));
     this._asset.setValue(`0x${(cfg.graphic ?? cfg.sound ?? 0).toString(16)}`);
     this._duration.setValue(String(cfg.durationMs ?? cfg.ms ?? 0));
     this._hue.setValue(`0x${(cfg.hue ?? 0).toString(16)}`);
@@ -294,6 +311,9 @@ export class SpellComposerGump extends WindowGump {
     const scope = this._scope._value;
     if (node.type === 'damage') node.config = { scope, amount: this._number(this._amount), element: this._variant._value };
     if (node.type === 'heal') node.config = { scope, amount: this._number(this._amount) };
+    if (node.type === 'mana' || node.type === 'stamina') {
+      node.config = { scope, amount: this._number(this._amount) };
+    }
     if (node.type === 'modifier') node.config = {
       scope, attribute: this._variant._value, amount: this._number(this._amount),
       durationMs: this._number(this._duration),
@@ -303,6 +323,12 @@ export class SpellComposerGump extends WindowGump {
     };
     if (node.type === 'sound') node.config = { scope, sound: this._number(this._asset) };
     if (node.type === 'delay') node.config = { ms: this._number(this._duration) };
+    if (node.type === 'shield' || node.type === 'poison') node.config = {
+      scope, amount: this._number(this._amount), durationMs: this._number(this._duration),
+    };
+    if (node.type === 'cleanse') node.config = { scope };
+    if (node.type === 'time-gate') node.config = { phase: this._variant._value };
+    if (node.type === 'chance-gate') node.config = { chance: this._number(this._amount) };
     this._status.setText(`Updated ${node.id}.`);
     this._rebuildGraph();
   }
@@ -310,7 +336,81 @@ export class SpellComposerGump extends WindowGump {
   _beginConnect() {
     if (!this.permissions.edit || !this._selectedId) return;
     this._connectFrom = this._selectedId;
-    this._status.setText(`Connecting from ${this._selectedId}: click the destination block.`);
+    this._status.setText(`Wiring ${this._selectedId}: click or drag to a block's left input port.`);
+  }
+
+  _toggleConnection(from, to) {
+    if (!this.permissions.edit || !from || !to || from === to) return false;
+    const duplicate = this._graph.edges.some((edge) => edge.from === from && edge.to === to);
+    if (duplicate) {
+      this._graph.edges = this._graph.edges.filter((edge) => edge.from !== from || edge.to !== to);
+      this._status.setText(`Disconnected ${from} → ${to}.`);
+    } else if (this._graph.edges.length < (this.catalog.limits?.edges ?? 64)) {
+      this._graph.edges.push({ from, fromPort: 'flow', to, toPort: 'flow' });
+      this._status.setText(`Connected ${from}.flow → ${to}.flow.`);
+    } else {
+      this._status.setText('This schema has reached its connection limit.');
+      return false;
+    }
+    this._connectFrom = null;
+    this._rebuildGraph();
+    return true;
+  }
+
+  _contentPoint(screenX, screenY) {
+    const ui = uiManagerInstance.get();
+    const point = ui?.screenToLogical?.(screenX, screenY) ?? { x: screenX, y: screenY };
+    return {
+      x: point.x - this.x - this._canvas.x,
+      y: point.y - this.y - this._canvas.y + this._canvas.scrollY,
+    };
+  }
+
+  _startNodeDrag(node, button, btn, localX) {
+    if (!this.permissions.edit || btn !== 0) return;
+    this._nodeDragCleanup?.();
+    const ui = uiManagerInstance.get();
+    const press = ui?._pressed;
+    const start = this._contentPoint(press?.sx ?? 0, press?.sy ?? 0);
+    const x0 = node.x, y0 = node.y;
+    const wire = localX >= NODE_W - 18;
+    if (wire) {
+      this._connectFrom = node.id;
+      this._status.setText(`Drag ${node.id}.flow to a left input port.`);
+    }
+    const onMove = (event) => {
+      const point = this._contentPoint(event.clientX, event.clientY);
+      if (wire) {
+        this._drawEdges(point);
+        return;
+      }
+      node.x = Math.max(0, Math.min(4000, Math.round(x0 + point.x - start.x)));
+      node.y = Math.max(0, Math.min(4000, Math.round(y0 + point.y - start.y)));
+      button.setPosition(node.x, node.y);
+      this._drawEdges();
+    };
+    const cleanup = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      this._nodeDragCleanup = null;
+    };
+    const onUp = (event) => {
+      cleanup();
+      if (wire) {
+        const hit = ui?.pickAtScreen?.(event.clientX, event.clientY);
+        const targetId = hit?.control?._schemaNodeId;
+        if (targetId && targetId !== node.id && (hit.lx ?? NODE_W) <= 22) {
+          this._toggleConnection(node.id, targetId);
+          return;
+        }
+        this._connectFrom = null;
+        this._status.setText('Wire cancelled: release over a left input port.');
+      }
+      this._rebuildGraph();
+    };
+    this._nodeDragCleanup = cleanup;
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp, { once: true });
   }
 
   _deleteSelected() {
@@ -331,39 +431,56 @@ export class SpellComposerGump extends WindowGump {
     this._rebuildGraph();
   }
 
-  _rebuildGraph() {
-    for (const control of this._nodeControls.splice(0)) {
-      this._canvas.remove(control); control.dispose?.();
-    }
+  _drawEdges(pointer = null) {
     if (this._edgeGraphic) {
-      this._canvas.content.removeChild(this._edgeGraphic);
+      try { this._canvas.content.removeChild(this._edgeGraphic); } catch { /* detached */ }
       this._edgeGraphic.destroy();
     }
     const edges = new Graphics();
     const byId = new Map(this._graph.nodes.map((node) => [node.id, node]));
-    for (const edge of this._graph.edges) {
-      const from = byId.get(edge.from), to = byId.get(edge.to);
-      if (!from || !to) continue;
-      const x1 = from.x + NODE_W, y1 = from.y + NODE_H / 2;
-      const x2 = to.x, y2 = to.y + NODE_H / 2;
+    const drawWire = (x1, y1, x2, y2, temporary = false) => {
       const mid = x1 + (x2 - x1) / 2;
       edges.moveTo(x1, y1).bezierCurveTo(mid, y1, mid, y2, x2, y2)
-        .stroke({ width: 2, color: 0xd3b76d, alpha: 0.8 });
-      edges.moveTo(x2, y2).lineTo(x2 - 7, y2 - 4).lineTo(x2 - 7, y2 + 4).closePath()
-        .fill({ color: 0xd3b76d, alpha: 0.9 });
+        .stroke({ width: temporary ? 1 : 2, color: temporary ? 0x80cfff : 0xd3b76d, alpha: 0.9 });
+      if (!temporary) edges.moveTo(x2, y2).lineTo(x2 - 7, y2 - 4)
+        .lineTo(x2 - 7, y2 + 4).closePath().fill({ color: 0xd3b76d, alpha: 0.9 });
+    };
+    for (const edge of this._graph.edges) {
+      const from = byId.get(edge.from), to = byId.get(edge.to);
+      if (from && to) drawWire(from.x + NODE_W, from.y + NODE_H / 2, to.x, to.y + NODE_H / 2);
     }
+    const from = pointer && byId.get(this._connectFrom);
+    if (from) drawWire(from.x + NODE_W, from.y + NODE_H / 2, pointer.x, pointer.y, true);
     this._edgeGraphic = edges;
     this._canvas.addContent(edges);
+  }
+
+  _rebuildGraph() {
+    for (const control of this._nodeControls.splice(0)) {
+      this._canvas.remove(control); control.dispose?.();
+    }
+    this._drawEdges();
     for (const node of this._graph.nodes) {
       const selected = node.id === this._selectedId ? '◆ ' : '';
       const button = new Button({
         ...BUTTON, width: NODE_W, height: NODE_H,
         label: `${selected}${node.type}\n${nodeSummary(node)}`,
       });
+      button._schemaNodeId = node.id;
       button.setPosition(node.x, node.y);
-      button.onClick = () => this._selectNode(node.id);
+      button.onClick = (_btn, lx) => {
+        if (lx >= NODE_W - 18) {
+          this._selectedId = node.id;
+          this._beginConnect();
+        } else if (lx <= 22 && this._connectFrom) {
+          this._toggleConnection(this._connectFrom, node.id);
+        } else this._selectNode(node.id);
+      };
+      button.onDragStart = (btn, lx) => this._startNodeDrag(node, button, btn, lx);
       const tint = new Graphics();
       tint.roundRect(2, 2, NODE_W - 4, 4, 2).fill({ color: NODE_COLORS[node.type] ?? 0xffffff, alpha: 0.95 });
+      tint.circle(4, NODE_H / 2, 4).fill({ color: 0x80cfff }).stroke({ width: 1, color: 0xffffff });
+      tint.circle(NODE_W - 4, NODE_H / 2, 4).fill({ color: 0xffd66d }).stroke({ width: 1, color: 0xffffff });
       button.node.addChild(tint);
       this._canvas.add(button); this._nodeControls.push(button);
     }
@@ -435,7 +552,9 @@ export class SpellComposerGump extends WindowGump {
     this._selectedId = this._graph.nodes[0]?.id ?? 'start';
     this._connectFrom = null;
     this._rebuildGraph(); this._selectNode(this._selectedId); this._drawAreaPreview();
-    this._status.setText(draft.published ? `Published spell #${draft.spellId}.` : 'Draft loaded.');
+    this._status.setText(draft.published
+      ? `Published spell #${draft.spellId}.${scribingSummary(draft)}`
+      : 'Draft loaded.');
   }
 
   _clear() {
@@ -472,6 +591,7 @@ export class SpellComposerGump extends WindowGump {
 
   dispose() {
     bus.emit('spell-composer:range-preview', null);
+    this._nodeDragCleanup?.();
     this._unsub?.();
     super.dispose?.();
   }

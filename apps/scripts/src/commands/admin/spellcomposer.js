@@ -31,9 +31,11 @@ export default function register(api) {
     access: 'Admin',
     run(ctx) {
       const item = api.game?.mobile?.giveItem?.(ctx.sender, {
-        definitionId: 'spell-schema-codex', artId: 0x0EFA,
+        definitionId: 'spell-schema-codex', artId: 0x0FF0,
         name: 'Arcane Schema Codex', hue: 0x0481,
         script: 'spell-schema-codex', kind: 'book', weight: 3,
+        newbied: true, blessed: true, accountBound: true,
+        boundAccount: String(ctx.state.accountName ?? ctx.state.account?.username ?? '').trim().toLowerCase(),
       });
       ctx.state.sendSystemMessage?.(item
         ? 'An Arcane Schema Codex has been placed in your backpack.'

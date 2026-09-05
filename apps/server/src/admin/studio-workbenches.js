@@ -308,7 +308,7 @@
     const width = clamp(num(value.width, 320), 40, 1600), height = clamp(num(value.height, 240), 40, 1200);
     const selected = controls[local.selectedControl];
     return `<div class="domain-workbench special-editor" data-special-editor="gump">
-      ${sourceLinked ? `<div class="special-section"><h5>Server source link</h5><div class="quick-grid">${quickField('Enable JSON layout override', 'enabled', value.enabled ?? false, 'boolean')}${quickField('Source module', 'source', value.source)}${quickField('Source line', 'sourceLine', value.sourceLine ?? 0, 'number')}${quickField('Stable gump ID', 'gumpId', value.gumpId ?? 0, 'number')}</div><div class="row" style="margin-top:8px"><button data-open-server-gump-source>Edit functional server source</button><span class="muted">When enabled and controls are present, the JSON layout replaces source layout for a unique gumpId. The standard UO packet is unchanged.</span></div></div>` : ''}
+      ${sourceLinked ? `<div class="special-section"><h5>Server source link</h5><div class="quick-grid">${quickField('Enable visual layout override', 'enabled', value.enabled ?? false, 'boolean')}${quickField('Source module', 'source', value.source)}${quickField('Source line', 'sourceLine', value.sourceLine ?? 0, 'number')}${quickField('Optional stable gump ID', 'gumpId', value.gumpId, 'number')}</div><div class="row" style="margin-top:8px"><button data-open-server-gump-source>Edit functional server source</button>${controls.length === 0 ? '<button class="primary" data-create-gump-override>Create editable visual override</button>' : ''}<span class="muted">The definition ID links this editor to the existing server gump. A numeric gump ID is optional and no longer shown as a fake 0.</span></div></div>` : ''}
       <div class="special-section"><h5>Definition</h5><div class="quick-grid">
         ${quickField('Definition ID', 'definitionId', value.definitionId ?? value.id)}${quickField('Name', 'name', value.name)}
         ${quickField('X', 'x', value.x ?? 100, 'number')}${quickField('Y', 'y', value.y ?? 100, 'number')}
@@ -780,7 +780,23 @@
       local.selectedControl = Number(node.dataset.selectControl ?? node.dataset.gumpControl);
       ctx.rerender();
     }));
-    ctx.root.querySelectorAll('[data-add-control]').forEach((button) => button.onclick = () => { ctx.beforeMutate(); controls.push(defaultControl(button.dataset.addControl, ctx.value)); local.selectedControl = controls.length - 1; rerender(); });
+    ctx.root.querySelectorAll('[data-add-control]').forEach((button) => button.onclick = () => {
+      ctx.beforeMutate();
+      if (ctx.value.scope === 'server' && ctx.value.mode === 'source-linked') ctx.value.enabled = true;
+      controls.push(defaultControl(button.dataset.addControl, ctx.value));
+      local.selectedControl = controls.length - 1;
+      rerender();
+    });
+    ctx.root.querySelector('[data-create-gump-override]')?.addEventListener('click', () => {
+      ctx.beforeMutate();
+      ctx.value.enabled = true;
+      controls.push(
+        defaultControl('panel', ctx.value),
+        { ...defaultControl('label', ctx.value), x: 18, y: 14, text: ctx.value.name ?? 'New visual layout' },
+      );
+      local.selectedControl = 1;
+      rerender();
+    });
     ctx.root.querySelectorAll('[data-control-field]').forEach((input) => {
       input.disabled = !ctx.canEdit;
       input.onchange = () => {

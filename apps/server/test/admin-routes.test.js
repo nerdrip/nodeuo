@@ -97,7 +97,7 @@ describe('admin route safety and editor behavior', () => {
     expect(source.content).toContain('export class NpcDialogGump');
   });
 
-  it('keeps internal ServUO parity metadata out of the authoring catalogue', async () => {
+  it('keeps internal parity metadata out while exposing the visual multi workbench', async () => {
     const { route, scriptsDir } = fixture();
     fs.writeFileSync(path.join(scriptsDir, 'data', 'config', 'housedata.json'), '{"walls":[]}');
     fs.mkdirSync(path.join(scriptsDir, 'data', 'world'), { recursive: true });
@@ -109,7 +109,9 @@ describe('admin route safety and editor behavior', () => {
     expect(catalog.domains.find((domain) => domain.id === 'housing')).toMatchObject({
       files: ['config/housedata.json'], preview: 'housing',
     });
-    expect(catalog.domains.some((domain) => domain.id === 'multis')).toBe(false);
+    expect(catalog.domains.find((domain) => domain.id === 'multis')).toMatchObject({
+      preview: 'multi', workbench: '/assets-workbench?kind=multi&embedded=1',
+    });
     expect(catalog.domains.find((domain) => domain.id === 'world')).toMatchObject({
       files: ['world/xmlspawners.json'], preview: 'world',
     });

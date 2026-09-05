@@ -493,7 +493,7 @@ const ITEM_EXT_KEYS = [
   // payload data various scripts read.
   'script', 'equipLayer', 'clothing', 'slot', 'weight', 'stackable',
   '_sigilTown', '_worldContentSeed',
-  'blessed', 'newbied',
+  'blessed', 'newbied', 'accountBound', 'boundAccount',
   '_xmlAttach', '_xmlData', '_xmlSpawnerEntry',
   'spellSlug', 'linkSerial', 'owner', 'addonName', 'addonNames',
   'training', 'craftingStation', 'addonCraftSystem', 'addonToolTurnedOn',

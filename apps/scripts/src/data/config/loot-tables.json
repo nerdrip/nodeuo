@@ -230,7 +230,14 @@
     { "template": "arcane-fragment-fire", "chance": 0.18 },
     { "template": "arcane-fragment-cold", "chance": 0.16 },
     { "template": "arcane-fragment-poison", "chance": 0.10 },
-    { "template": "arcane-fragment-energy", "chance": 0.08 }
+    { "template": "arcane-fragment-energy", "chance": 0.08 },
+    { "template": "arcane-fragment-mana", "chance": 0.10 },
+    { "template": "arcane-fragment-stamina", "chance": 0.10 },
+    { "template": "arcane-fragment-shield", "chance": 0.07 },
+    { "template": "arcane-fragment-venom", "chance": 0.06 },
+    { "template": "arcane-fragment-purification", "chance": 0.06 },
+    { "template": "arcane-fragment-astral-clock", "chance": 0.025 },
+    { "template": "arcane-fragment-fate", "chance": 0.025 }
   ]},
   { "name": "champion-hoard", "entries": [
     { "template": "ruby",     "chance": 0.7,  "amount": [2, 6] },

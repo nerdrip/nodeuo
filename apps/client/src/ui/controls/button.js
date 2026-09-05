@@ -16,7 +16,7 @@ import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { Control } from '../control.js';
 import { assets } from '../../assets/asset-manager.js';
 import { createShimmer } from '../loading-shimmer.js';
-import { acquireSprite, releaseSprite } from '../../renderer/sprite-pool.js';
+import { acquireUiSprite, releaseUiSprite } from '../../renderer/sprite-pool.js';
 import { UI_FONT_FAMILY, UI_TEXT_RESOLUTION } from '../text-quality.js';
 
 export const ButtonAction = Object.freeze({
@@ -100,7 +100,7 @@ export class Button extends Control {
     if (!this.asyncGenerationValid(generation)) return;
     if (this._sprite) return;
     const tex = loaded ?? assets.placeholderTexture('gump', this.width || 22, this.height || 22);
-    const sp = acquireSprite(tex);
+    const sp = acquireUiSprite(tex);
     sp._uoMissingAsset = !loaded ? { kind: 'gump', id } : null;
     sp.position.set(0, 0);
     this._wrap.addChildAt(sp, 0);
@@ -204,7 +204,7 @@ export class Button extends Control {
 
   dispose() {
     this._faceToken++;
-    if (this._sprite) releaseSprite(this._sprite);
+    if (this._sprite) releaseUiSprite(this._sprite);
     this._sprite = null;
     this._shimmer?.dispose();
     this._shimmer = null;

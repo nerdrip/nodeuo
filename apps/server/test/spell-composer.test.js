@@ -8,6 +8,7 @@ import {
   executeSpellGraph,
   getSpellcraftProfile,
   learnSpellcraft,
+  schemaScribingRequirements,
   SpellComposerService,
   validateSpellDraft,
   validateSpellForPublication,
@@ -229,6 +230,26 @@ describe('visual spell graph composer', () => {
     const area = validDraft({ area: { shape: 'circle', radius: 12 } });
     area.graph.nodes[2].config.scope = 'area';
     expect(validateSpellForPublication(area).errors.join(' ')).toContain('damage footprint');
+  });
+
+  it('allows archmage-scale effects when their mana, recovery and materials pay for the footprint', () => {
+    const worldSpell = validDraft({
+      name: 'Worldbreaker', mana: 10_000, range: 256,
+      castTimeMs: 60_000, cooldownMs: 7 * 24 * 60 * 60_000,
+      area: { shape: 'circle', radius: 256 },
+    });
+    worldSpell.graph.nodes[2].config = { scope: 'area', amount: 10_000, element: 'energy' };
+    worldSpell.graph.edges = [
+      { from: 'start', fromPort: 'flow', to: 'fx', toPort: 'flow' },
+      { from: 'fx', fromPort: 'flow', to: 'hit', toPort: 'flow' },
+    ];
+    const result = validateSpellForPublication(worldSpell);
+    expect(result.ok).toBe(true);
+    expect(result.draft.graph.edges[0]).toMatchObject({ fromPort: 'flow', toPort: 'flow' });
+    expect(schemaScribingRequirements(result.draft)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ definitionId: 'ruby', amount: 9999 }),
+      expect.objectContaining({ definitionId: 'reagent-spider-silk', amount: 9999 }),
+    ]));
   });
 
   it('executes the graph once and resolves targets through the world', () => {

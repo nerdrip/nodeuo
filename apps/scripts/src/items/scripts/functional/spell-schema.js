@@ -27,6 +27,9 @@ export function buildSpellSchemaCodexScript(api) {
     name: 'spell-schema-codex',
     onCreate(_world, item) {
       normalizeCodexArt(api, item);
+      item.newbied = true;
+      item.blessed = true;
+      item.accountBound = true;
     },
     onUse(_world, item, user) {
       if (!user?.client) return true;
@@ -34,6 +37,16 @@ export function buildSpellSchemaCodexScript(api) {
       // dedicated graphic. This deliberately checks the script/definition
       // path, never the old 0x0EFA artwork shared with Magery spellbooks.
       normalizeCodexArt(api, item, user);
+      const account = String(user.accountName ?? user.client.accountName
+        ?? user.client.account?.username ?? '').trim().toLowerCase();
+      if (item.boundAccount && account && item.boundAccount !== account) {
+        user.client.sendSystemMessage?.('This Arcane Schema Codex is bound to another account.');
+        return true;
+      }
+      if (account && !item.boundAccount) item.boundAccount = account;
+      item.newbied = true;
+      item.blessed = true;
+      item.accountBound = true;
       if (!api.game?.inventory?.isInPack?.(item, user)) {
         user.client.sendSystemMessage?.('Place the Arcane Schema Codex in your backpack first.');
         return true;
@@ -87,12 +100,17 @@ export function buildCustomSpellScrollScript(api) {
         }
         const result = api.systems.spells.castSpell({
           caster: user, spellId: draft.spellId, world, target,
-          scroll: true, instant: true, deps: castDeps(api),
+          // A Schema scroll stores the authored program, not the energy that
+          // executes it. Unlike an ordinary spell scroll it must still pay
+          // the graph's mana and casting time; the rubies/reagents were the
+          // separate, up-front material cost of writing the program.
+          scroll: false, schemaScroll: true, instant: false, deps: castDeps(api),
           accessLevel: access,
         });
         if (!result?.ok) {
           const messages = {
             'low-skill': 'You do not have the skill to read this schema.',
+            'low-mana': 'You do not have enough mana to power this schema.',
             'out-of-range': 'That target is too far away.',
             'no-los': 'That target cannot be seen.',
             'region-blocks-spell': 'This schema cannot be invoked here.',

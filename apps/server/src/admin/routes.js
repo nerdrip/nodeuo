@@ -275,6 +275,9 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
     { id:'books', label:'Books, BOD & collections', icon:'📚', files:['world/books-extended.json','world/books.servuo.generated.json','world/anniversary-tiers.json'], preview:'book', tags:['book','bod','collection','achievement'] },
     { id:'environment', label:'Weather, seasons & events', icon:'🌦️', files:['world/seasonal-events.json','world/camps.json','world/revamped-dungeons.json'], preview:'environment', tags:['weather','season','day','night','calendar','scheduler'] },
     { id:'world', label:'Regions, spawners & world', icon:'🗺️', files:['world/xmlspawners.json'], preview:'world', tags:['region','geometry','guards','music','spawner','spawn area','mobile'] },
+    { id:'multis', label:'Multis & buildings', icon:'🏛️', files:[], preview:'multi',
+      workbench:'/assets-workbench?kind=multi&embedded=1',
+      tags:['multi','house','boat','building','isometric','doors','windows','override','blueprint'] },
     { id:'gumps', label:'Gumps & layouts', icon:'🪟', files:['config/gumps.json','config/server-gump-catalog.json','@client/client-gumps.json'], preview:'gump', tags:['layout','drag','resize','overflow','dialog','client-preview','server-source','json'] },
     { id:'game-systems', label:'Game systems', icon:'🎲', files:['config/game-systems.json'], preview:'game-system', tags:['activity','stages','events','rewards','client','compatibility'] },
   ];

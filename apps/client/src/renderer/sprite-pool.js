@@ -225,6 +225,13 @@ class SpritePool {
 // Module-level singleton — most callers want the global pool. Tests can
 // instantiate their own SpritePool() if they need isolation.
 export const spritePool = new SpritePool();
+// UI controls and world entities must never exchange the same Sprite object.
+// Pixi can retain a submitted draw instruction beyond removal from the UI
+// tree; rebinding that object as a land/static/mobile sprite then lets the old
+// instruction observe the new world texture and transform.  That manifested
+// as paperdoll equipment at (0, 0) and screen-sized roofs after reopening a
+// gump.  A separate pool preserves reuse without crossing render domains.
+export const uiSpritePool = new SpritePool(1024);
 export { SpritePool };
 
 /** Convenience: replace `new Sprite(tex)` everywhere with `acquireSprite(tex)`. */
@@ -232,6 +239,10 @@ export function acquireSprite(texture) { return spritePool.acquire(texture); }
 
 /** Convenience: replace `sp.destroy()` everywhere with `releaseSprite(sp)`. */
 export function releaseSprite(sp) { spritePool.release(sp); }
+
+export function acquireUiSprite(texture) { return uiSpritePool.acquire(texture); }
+
+export function releaseUiSprite(sp) { uiSpritePool.release(sp); }
 
 class LandMeshPool {
   constructor(

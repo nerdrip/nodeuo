@@ -72,6 +72,7 @@ const { CroppedText } = await import('../src/ui/controls/cropped-text.js');
 const { HtmlControl } = await import('../src/ui/controls/html-control.js');
 const { CheckerTrans } = await import('../src/ui/controls/checker-trans.js');
 const { GumpPic } = await import('../src/ui/controls/gump-pic.js');
+const { resolveContainerGridLayout } = await import('../src/ui/gumps/container-gump.js');
 const { Label } = await import('../src/ui/controls/label.js');
 const { OptionsGump } = await import('../src/ui/gumps/options-gump.js');
 const { SpellbookGump } = await import('../src/ui/gumps/spellbook-gump.js');
@@ -96,6 +97,19 @@ fixed32.dispose();
 const natural = new GumpPic(0x08AC);
 assert(natural._explicitSize === false, 'size-less gump art should use natural atlas bounds');
 natural.dispose();
+
+// Grid mode must fit the native bag/chest art rather than stretching every
+// background to the old global 7x6 template. Whole cells stay centred and
+// leave a header/footer strip for the title and weight labels.
+const backpackGrid = resolveContainerGridLayout(230, 204);
+assert(backpackGrid.cols === 6 && backpackGrid.rows === 5,
+  '230x204 backpack art should receive a centred 6x5 grid');
+assert(backpackGrid.x === 19 && backpackGrid.y === 28,
+  'backpack grid should be centred inside the native artwork');
+const pouchGrid = resolveContainerGridLayout(180, 170);
+assert(pouchGrid.x >= 0 && pouchGrid.y >= 28
+  && pouchGrid.x + pouchGrid.w <= 180 && pouchGrid.y + pouchGrid.h <= 170,
+  'small native container grids must remain inside their artwork');
 
 // Explicitly authored button bounds must remain stable after its native art
 // resolves. The old implementation guessed intent from `50x22`, causing

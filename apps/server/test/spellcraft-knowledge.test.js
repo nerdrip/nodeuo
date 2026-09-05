@@ -89,6 +89,9 @@ describe('spellcraft knowledge items', () => {
     script.onUse(world, first, user);
     script.onUse(world, second, user);
     expect(castSpell).toHaveBeenCalledOnce();
+    expect(castSpell).toHaveBeenCalledWith(expect.objectContaining({
+      scroll: false, schemaScroll: true, instant: false,
+    }));
     expect(world.items.has(first.serial)).toBe(false);
     expect(world.items.has(second.serial)).toBe(true);
     expect(user._castReadyAt).toBeGreaterThan(Date.now());

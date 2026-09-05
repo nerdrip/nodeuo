@@ -3,7 +3,7 @@ const DEFINITIONS = [
     definitionId: 'spell-schema-codex', artId: 0x0FF0,
     name: 'Arcane Schema Codex', hue: 0x0481,
     kind: 'book', category: 'spell-schema', script: 'spell-schema-codex',
-    movable: true, weight: 3,
+    movable: true, weight: 3, newbied: true, blessed: true, accountBound: true,
   },
   {
     definitionId: 'custom-spell-scroll', artId: 0x1F2D,
@@ -28,6 +28,48 @@ const DEFINITIONS = [
     name: 'Schema Fragment: Alteration', hue: 0x0493,
     kind: 'consumable', category: 'spellcraft-knowledge', script: 'spellcraft-knowledge',
     spellcraftUnlock: 'node:modifier', spellcraftXp: 100, stackable: false, movable: true, weight: 1,
+  },
+  {
+    definitionId: 'arcane-fragment-mana', artId: 0x1F2D,
+    name: 'Schema Fragment: Mana Channel', hue: 0x0481,
+    kind: 'consumable', category: 'spellcraft-knowledge', script: 'spellcraft-knowledge',
+    spellcraftUnlock: 'node:mana', spellcraftXp: 75, stackable: false, movable: true, weight: 1,
+  },
+  {
+    definitionId: 'arcane-fragment-stamina', artId: 0x1F2D,
+    name: 'Schema Fragment: Vigor Channel', hue: 0x0035,
+    kind: 'consumable', category: 'spellcraft-knowledge', script: 'spellcraft-knowledge',
+    spellcraftUnlock: 'node:stamina', spellcraftXp: 75, stackable: false, movable: true, weight: 1,
+  },
+  {
+    definitionId: 'arcane-fragment-shield', artId: 0x1F2D,
+    name: 'Schema Fragment: Arcane Shield', hue: 0x0482,
+    kind: 'consumable', category: 'spellcraft-knowledge', script: 'spellcraft-knowledge',
+    spellcraftUnlock: 'node:shield', spellcraftXp: 110, stackable: false, movable: true, weight: 1,
+  },
+  {
+    definitionId: 'arcane-fragment-venom', artId: 0x1F2D,
+    name: 'Schema Fragment: Venom', hue: 0x0044,
+    kind: 'consumable', category: 'spellcraft-knowledge', script: 'spellcraft-knowledge',
+    spellcraftUnlock: 'node:poison', spellcraftXp: 110, stackable: false, movable: true, weight: 1,
+  },
+  {
+    definitionId: 'arcane-fragment-purification', artId: 0x1F2D,
+    name: 'Schema Fragment: Purification', hue: 0x0059,
+    kind: 'consumable', category: 'spellcraft-knowledge', script: 'spellcraft-knowledge',
+    spellcraftUnlock: 'node:cleanse', spellcraftXp: 110, stackable: false, movable: true, weight: 1,
+  },
+  {
+    definitionId: 'arcane-fragment-astral-clock', artId: 0x1F2D,
+    name: 'Schema Fragment: Astral Clock', hue: 0x052D,
+    kind: 'consumable', category: 'spellcraft-knowledge', script: 'spellcraft-knowledge',
+    spellcraftUnlock: 'node:time-gate', spellcraftXp: 150, stackable: false, movable: true, weight: 1,
+  },
+  {
+    definitionId: 'arcane-fragment-fate', artId: 0x1F2D,
+    name: 'Schema Fragment: Fate Gate', hue: 0x048D,
+    kind: 'consumable', category: 'spellcraft-knowledge', script: 'spellcraft-knowledge',
+    spellcraftUnlock: 'node:chance-gate', spellcraftXp: 150, stackable: false, movable: true, weight: 1,
   },
   {
     definitionId: 'arcane-fragment-area', artId: 0x1F2D,

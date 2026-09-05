@@ -12,7 +12,7 @@ import { Control } from '../control.js';
 import { assets } from '../../assets/asset-manager.js';
 import { applyHueTo } from '../../renderer/hue-filter.js';
 import { createShimmer } from '../loading-shimmer.js';
-import { acquireSprite, releaseSprite } from '../../renderer/sprite-pool.js';
+import { acquireUiSprite, releaseUiSprite } from '../../renderer/sprite-pool.js';
 import { displayItemIdForAmount } from '../../shared/stack-graphics.js';
 
 export class ItemPic extends Control {
@@ -63,7 +63,7 @@ export class ItemPic extends Control {
     this._displayItemId = nextDisplayId;
     if (nextDisplayId === oldDisplayId) return;
     this.beginAsyncGeneration();
-    if (this._sprite) releaseSprite(this._sprite);
+    if (this._sprite) releaseUiSprite(this._sprite);
     this._sprite = null;
     if (!this._shimmer) {
       this._shimmer = createShimmer(this.width || 22, this.height || 22);
@@ -77,7 +77,7 @@ export class ItemPic extends Control {
     const loaded = await assets.staticTexture(this._displayItemId);
     if (!this.asyncGenerationValid(generation)) return;
     const tex = loaded ?? assets.placeholderTexture('static', this.maxWidth || this.width || 22, this.maxHeight || this.height || 22);
-    this._sprite = acquireSprite(tex);
+    this._sprite = acquireUiSprite(tex);
     this._sprite._uoMissingAsset = !loaded ? { kind: 'static', id: this._displayItemId } : null;
     this._sprite.position.set(0, 0);
     // Adopt the sprite's natural size when no explicit bounds were
@@ -109,7 +109,7 @@ export class ItemPic extends Control {
   }
 
   dispose() {
-    if (this._sprite) releaseSprite(this._sprite);
+    if (this._sprite) releaseUiSprite(this._sprite);
     this._sprite = null;
     this._shimmer?.dispose();
     this._shimmer = null;

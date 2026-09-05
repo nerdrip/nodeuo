@@ -1713,6 +1713,7 @@ export class GameScene extends Scene {
     document.addEventListener('mouseleave', this._onMouseLeave);
     document.addEventListener('mousedown',  this._onMouseDown);
     document.addEventListener('mouseup',    this._onMouseUp);
+    document.addEventListener('dblclick',   this._onDoubleClick);
     document.addEventListener('contextmenu', this._onContextMenu);
     window.addEventListener('pointermove',  this._onResizeMove);
     window.addEventListener('pointerup',    this._onResizeEnd);
@@ -1773,6 +1774,7 @@ export class GameScene extends Scene {
     document.removeEventListener('mouseleave', this._onMouseLeave);
     document.removeEventListener('mousedown',  this._onMouseDown);
     document.removeEventListener('mouseup',    this._onMouseUp);
+    document.removeEventListener('dblclick',   this._onDoubleClick);
     document.removeEventListener('contextmenu', this._onContextMenu);
     document.removeEventListener('touchstart',  this._onTouchStart);
     document.removeEventListener('touchmove',   this._onTouchMove);
@@ -2678,6 +2680,29 @@ export class GameScene extends Scene {
     else if (e.button === 2) this._onRightDown(e);
   };
 
+  // Browser-native fallback for slower OS double-click settings. The normal
+  // mousedown classifier fires first; `_sendWorldUse` deduplicates the later
+  // DOM dblclick event. This specifically keeps NPC/vendor/banker interaction
+  // reliable even when the two picked animation frames have slightly
+  // different alpha bounds.
+  _onDoubleClick = (e) => {
+    if (e.button !== 0 || targetManager.active || dragDrop.isHolding()) return;
+    if (e.target instanceof HTMLElement && e.target.closest('.uo-panel')) return;
+    if (this._ui?.pickAtScreen(e.clientX, e.clientY)) return;
+    if (!this._isInsideGameViewport(e.clientX, e.clientY)) return;
+    const hit = this._pickWorldEntity(e.clientX, e.clientY)
+      ?? this._pickWorldItem(e.clientX, e.clientY);
+    const armed = this._dcPoint
+      && Math.hypot(e.clientX - this._dcPoint.x, e.clientY - this._dcPoint.y) <= 12
+      ? this._dcSerial
+      : 0;
+    const serial = hit?.serial || armed;
+    if (!serial) return;
+    this._clearDoubleClick();
+    this._sendWorldUse(serial);
+    e.preventDefault?.();
+  };
+
   /** True when modifier+button match the dragSelect profile binding. */
   _isDragSelectActivator(e) {
     try {
@@ -2912,13 +2937,13 @@ export class GameScene extends Scene {
     if (hit?.serial) {
       if (this._isDoubleClick(hit.serial)) {
         this._clearDoubleClick();
-        net.send(buildUseReq(hit.serial));
+        this._sendWorldUse(hit.serial);
         return;
       }
       net.send(buildLookReq(hit.serial));
       targetManager.selectEntity?.(hit.serial);
       this._namesRequested.add(hit.serial >>> 0);
-      this._armDoubleClick(hit.serial);
+      this._armDoubleClick(hit.serial, e.clientX, e.clientY);
       // CUO drag-from-mobile gesture: arm a "potential drag" so a
       // press-then-move >5 px spawns a HealthBarGump (Shift+drag spawns
       // a mini StatusGump). Final dispatch lives in `_onMouseUp` /
@@ -2942,7 +2967,7 @@ export class GameScene extends Scene {
     if (itemHit) {
       if (this._isDoubleClick(itemHit.serial)) {
         this._clearDoubleClick();
-        net.send(buildUseReq(itemHit.serial));
+        this._sendWorldUse(itemHit.serial);
         return;
       }
       // Movable: drag now (no lift delay). Caller has 250 ms to issue a
@@ -2961,7 +2986,7 @@ export class GameScene extends Scene {
       // Non-movable: arm DC watch and emit a single LookReq so the
       // overhead text still works on doors / signposts.
       net.send(buildLookReq(itemHit.serial));
-      this._armDoubleClick(itemHit.serial);
+      this._armDoubleClick(itemHit.serial, e.clientX, e.clientY);
       return;
     }
     // Empty ground click — no-op for LMB. Walk is bound to RMB-hold
@@ -2971,7 +2996,7 @@ export class GameScene extends Scene {
     void e;
   }
 
-  /** Double-click classifier (250 ms threshold, CUO default). The first
+  /** Double-click classifier (500 ms threshold, matching native UO). The first
    *  click arms `_dcSerial` + `_dcExpireAt`; a second click on the same
    *  serial within the window returns true and the caller upgrades the
    *  gesture to UseReq. Non-aliased serials clear the prior arm so a
@@ -2980,13 +3005,27 @@ export class GameScene extends Scene {
     const s = serial >>> 0;
     return this._dcSerial === s && performance.now() < (this._dcExpireAt ?? 0);
   }
-  _armDoubleClick(serial) {
+  _armDoubleClick(serial, x = null, y = null) {
     this._dcSerial = serial >>> 0;
-    this._dcExpireAt = performance.now() + 250;
+    // 250 ms was shorter than the OS/browser double-click interval on most
+    // systems.  Speech interaction therefore worked while an ordinary human
+    // double-click never emitted UseReq.  Native clients accept 500 ms.
+    this._dcExpireAt = performance.now() + 500;
+    this._dcPoint = Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
   }
   _clearDoubleClick() {
     this._dcSerial = 0;
     this._dcExpireAt = 0;
+    this._dcPoint = null;
+  }
+
+  _sendWorldUse(serial) {
+    const value = serial >>> 0;
+    const now = performance.now();
+    if (this._lastWorldUseSerial === value && now - (this._lastWorldUseAt ?? 0) < 180) return;
+    this._lastWorldUseSerial = value;
+    this._lastWorldUseAt = now;
+    net.send(buildUseReq(value));
   }
 
   /** Auto-LookReq (0x09) for any mobile we don't yet have a name for.

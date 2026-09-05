@@ -10,7 +10,7 @@
 import { Control } from '../control.js';
 import { assets } from '../../assets/asset-manager.js';
 import { createShimmer } from '../loading-shimmer.js';
-import { acquireSprite, releaseSprite } from '../../renderer/sprite-pool.js';
+import { acquireUiSprite, releaseUiSprite } from '../../renderer/sprite-pool.js';
 
 export class ResizePic extends Control {
   constructor(gumpId, w = 100, h = 80) {
@@ -47,7 +47,7 @@ export class ResizePic extends Control {
     if (!this.asyncGenerationValid(generation)) return;
     for (const { i, tex } of results) {
       if (!tex) continue;
-      const sp = acquireSprite(tex);
+      const sp = acquireUiSprite(tex);
       this._slices[i] = sp;
       this._sizes[i]  = { w: tex.width, h: tex.height };
       this.node.addChild(sp);
@@ -61,7 +61,7 @@ export class ResizePic extends Control {
 
   dispose() {
     for (let i = 0; i < this._slices.length; i++) {
-      if (this._slices[i]) releaseSprite(this._slices[i]);
+      if (this._slices[i]) releaseUiSprite(this._slices[i]);
       this._slices[i] = null;
     }
     this._shimmer?.dispose();

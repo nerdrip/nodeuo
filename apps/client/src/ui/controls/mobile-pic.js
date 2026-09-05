@@ -6,7 +6,7 @@
 import { Control } from '../control.js';
 import { assets } from '../../assets/asset-manager.js';
 import { applyHueTo } from '../../renderer/hue-filter.js';
-import { acquireSprite, releaseSprite } from '../../renderer/sprite-pool.js';
+import { acquireUiSprite, releaseUiSprite } from '../../renderer/sprite-pool.js';
 import { Action, resolveRenderableGroup } from '../../renderer/mobile-animation.js';
 import { createShimmer } from '../loading-shimmer.js';
 
@@ -30,7 +30,7 @@ export class MobilePic extends Control {
     const group = resolveRenderableGroup(this.body, Action.Idle, {}, this.direction);
     const frame = await assets.mobileFrameTexture(this.body, group, this.direction, 0);
     if (!this.asyncGenerationValid(generation) || !frame) return;
-    const sp = acquireSprite(frame.texture);
+    const sp = acquireUiSprite(frame.texture);
     const fit = Math.min(
       (this.width - 4) / Math.max(1, frame.w),
       (this.height - 4) / Math.max(1, frame.h + Math.max(0, frame.cy)),
@@ -53,7 +53,7 @@ export class MobilePic extends Control {
   }
 
   dispose() {
-    if (this._sprite) releaseSprite(this._sprite);
+    if (this._sprite) releaseUiSprite(this._sprite);
     this._sprite = null;
     this._shimmer?.dispose();
     this._shimmer = null;
