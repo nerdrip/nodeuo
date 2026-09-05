@@ -66,6 +66,31 @@ describe('spellcraft knowledge items', () => {
     expect(world.items.has(item.serial)).toBe(true);
   });
 
+  it('stores a discovered block by dropping its item into the account-bound Codex', () => {
+    const world = new World();
+    const user = world.createMobile({ name: 'Scribe', x: 1, y: 1, z: 0, map: 1 });
+    user.accountName = 'ScribeAccount';
+    user.client = { sendSystemMessage: vi.fn(), account: { username: 'ScribeAccount' } };
+    const codex = createItem(world, {
+      itemId: 0x0FF0, script: 'spell-schema-codex', accountBound: true,
+      boundAccount: 'scribeaccount',
+    });
+    const fragment = createItem(world, {
+      itemId: 0x1F2D, category: 'spellcraft-knowledge',
+      spellcraftUnlock: 'node:shield', spellcraftXp: 110,
+    });
+    const learn = vi.fn(() => ({
+      ok: true, discovered: true, leveledUp: false, xpGained: 110,
+      profile: { rank: 'Adept' },
+    }));
+    const api = { spellComposer: { profile: () => ({ admin: false }), learn } };
+    const result = buildSpellSchemaCodexScript(api).onDrop(world, codex, fragment, user);
+    expect(result).toBe(true);
+    expect(learn).toHaveBeenCalledWith(user, 'node:shield', 110);
+    expect(codex.schemaDiscoveries).toEqual(['node:shield']);
+    expect(world.items.has(fragment.serial)).toBe(false);
+  });
+
   it('enforces the published cooldown when schema scrolls are invoked directly', () => {
     const world = new World();
     const user = world.createMobile({ name: 'Scribe', x: 1, y: 1, z: 0, map: 1 });

@@ -1,4 +1,5 @@
 import { itemBySerial, mobileBySerial } from '../../../_entities.js';
+import { destroyItemBySerial } from '../../../_items.js';
 import { consumeOne } from '../_shared/consume.js';
 
 function castDeps(api) {
@@ -12,6 +13,19 @@ function castDeps(api) {
 }
 
 const CODEX_ART_ID = 0x0FF0;
+
+function accountOf(user) {
+  return String(user?.accountName ?? user?.client?.accountName
+    ?? user?.client?.account?.username ?? '').trim().toLowerCase();
+}
+
+function discoveryMessage(user, result) {
+  const discovery = result.discovered ? ' You discovered a new spellcraft block.' : '';
+  const rank = result.leveledUp ? ` Your rank advances to ${result.profile.rank}.` : '';
+  user?.client?.sendSystemMessage?.(
+    `You gain ${result.xpGained} arcane research.${discovery}${rank}`,
+  );
+}
 
 function normalizeCodexArt(api, item, user = null) {
   if (!item || (item.artId | 0) === CODEX_ART_ID) return;
@@ -37,8 +51,7 @@ export function buildSpellSchemaCodexScript(api) {
       // dedicated graphic. This deliberately checks the script/definition
       // path, never the old 0x0EFA artwork shared with Magery spellbooks.
       normalizeCodexArt(api, item, user);
-      const account = String(user.accountName ?? user.client.accountName
-        ?? user.client.account?.username ?? '').trim().toLowerCase();
+      const account = accountOf(user);
       if (item.boundAccount && account && item.boundAccount !== account) {
         user.client.sendSystemMessage?.('This Arcane Schema Codex is bound to another account.');
         return true;
@@ -47,6 +60,12 @@ export function buildSpellSchemaCodexScript(api) {
       item.newbied = true;
       item.blessed = true;
       item.accountBound = true;
+      // The Codex is the durable library. Rehydrate discoveries onto the
+      // character before opening so a restored/migrated Codex retains every
+      // physical block previously inserted into it.
+      for (const discovery of item.schemaDiscoveries ?? []) {
+        api.spellComposer?.learn?.(user, discovery, 0);
+      }
       if (!api.game?.inventory?.isInPack?.(item, user)) {
         user.client.sendSystemMessage?.('Place the Arcane Schema Codex in your backpack first.');
         return true;
@@ -63,6 +82,39 @@ export function buildSpellSchemaCodexScript(api) {
           );
         }
       }
+      return true;
+    },
+    onDrop(world, item, dropped, user) {
+      if (!dropped?.spellcraftUnlock || dropped.category !== 'spellcraft-knowledge') {
+        user?.client?.sendSystemMessage?.('Only an Arcane Schema block can be stored in this Codex.');
+        return { handled: true, consumeHeld: false };
+      }
+      const account = accountOf(user);
+      if (item.boundAccount && account && item.boundAccount !== account) {
+        user?.client?.sendSystemMessage?.('This Arcane Schema Codex is bound to another account.');
+        return { handled: true, consumeHeld: false };
+      }
+      if (account && !item.boundAccount) item.boundAccount = account;
+      const before = api.spellComposer?.profile?.(user);
+      if (!before || before.admin) {
+        user?.client?.sendSystemMessage?.(before?.admin
+          ? 'Administrators already understand every spellcraft schema.'
+          : 'Arcane research is currently unavailable.');
+        return { handled: true, consumeHeld: false };
+      }
+      const result = api.spellComposer.learn(
+        user, dropped.spellcraftUnlock, dropped.spellcraftXp ?? 0,
+      );
+      if (!result?.ok) {
+        user?.client?.sendSystemMessage?.('That block is already recorded in this Codex.');
+        return { handled: true, consumeHeld: false };
+      }
+      item.schemaDiscoveries = [...new Set([
+        ...(Array.isArray(item.schemaDiscoveries) ? item.schemaDiscoveries : []),
+        dropped.spellcraftUnlock,
+      ])];
+      destroyItemBySerial({ ...api, world }, dropped.serial);
+      discoveryMessage(user, result);
       return true;
     },
   };
@@ -169,11 +221,7 @@ export function buildSpellcraftKnowledgeScript(api) {
         return true;
       }
       consumeOne(api, world, item, user);
-      const discovery = result.discovered ? ' You discovered a new spellcraft block.' : '';
-      const rank = result.leveledUp ? ` Your rank advances to ${result.profile.rank}.` : '';
-      user.client.sendSystemMessage?.(
-        `You gain ${result.xpGained} arcane research.${discovery}${rank}`,
-      );
+      discoveryMessage(user, result);
       return true;
     },
   };
