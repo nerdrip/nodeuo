@@ -2,7 +2,9 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { World } from '../src/world/world.js';
 import { createItem, destroyItem } from '../src/world/items.js';
 import { applyNavalImpact, placeCannon } from '../src/systems/cannons.js';
-import { placeGalleon, startBoatSystem } from '../src/systems/boats.js';
+import {
+  boatPlacementForMultiId, placeCanonicalBoat, placeGalleon, removeEditorBoat, startBoatSystem,
+} from '../src/systems/boats.js';
 
 const running = [];
 
@@ -31,6 +33,20 @@ function makeApi() {
 }
 
 describe('boat system parity', () => {
+  it('maps every canonical editor boat family to a playable hull and removes an unchanged placement', () => {
+    const api = makeApi();
+    expect(boatPlacementForMultiId(0x06)).toMatchObject({ kind: 'smallDragon', facing: 'S', multiId: 0x06 });
+    expect(boatPlacementForMultiId(0x3F)).toMatchObject({ kind: 'rowboat', facing: 'W', multiId: 0x3F });
+    expect(boatPlacementForMultiId(0x47)).toMatchObject({ kind: 'britannian', facing: 'W', multiId: 0x43 });
+    expect(boatPlacementForMultiId(0x64)).toBeNull();
+
+    const boat = placeCanonicalBoat(api, { multiId: 0x06, x: 100, y: 100, z: 0, map: 1, ownerSerial: 7 });
+    expect(boat).toMatchObject({ multiId: 0x06, boat: { hullKind: 'smallDragon', facing: 'S', anchored: true } });
+    const result = removeEditorBoat(api, boat.serial);
+    expect(result).toMatchObject({ ok: true, removed: 2, expected: 2, failed: [] });
+    expect(api.world.items.size).toBe(0);
+  });
+
   it('places galleon cannons and planks as attached world objects', () => {
     const api = makeApi();
 

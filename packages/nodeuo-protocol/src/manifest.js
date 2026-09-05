@@ -2,7 +2,7 @@
  * in this module depends on Node.js APIs, so the exact same validation and
  * fingerprints run in the browser and on the shard. */
 
-export const NODEUO_SCHEMA_VERSION = 7;
+export const NODEUO_SCHEMA_VERSION = 8;
 export const NODEUO_JSON_SCHEMA_DIALECT = 'https://json-schema.org/draft/2020-12/schema';
 
 export const NODEUO_FEATURE_DEPENDENCIES = Object.freeze({
@@ -87,6 +87,7 @@ export const NODEUO_FEATURE_DEPENDENCIES = Object.freeze({
   'world.codex': Object.freeze(['world.components']),
   'party.loot-policy': Object.freeze(['social.state', 'trade.receipts']),
   'ui.safe-schema': Object.freeze(['ui.structured', 'protocol.command-schema']),
+  'game.systems': Object.freeze(['ui.structured', 'world.events']),
 });
 
 const BASE_GAMEPLAY = Object.freeze([
@@ -108,7 +109,8 @@ const BASE_GAMEPLAY = Object.freeze([
   'inventory.views', 'world.environment', 'quest.guidance', 'moderation.case',
   'protocol.policy', 'protocol.subscription-leases', 'protocol.resumable-streams',
   'protocol.retry-policy', 'protocol.cost-hints', 'protocol.compatibility-fallbacks',
-  'world.layers', 'world.codex', 'party.loot-policy', 'ui.safe-schema',
+  'world.layers', 'world.codex', 'world.events', 'party.loot-policy', 'ui.safe-schema',
+  'game.systems',
 ]);
 
 export const NODEUO_FEATURE_PROFILES = Object.freeze({
@@ -248,6 +250,7 @@ export const NODEUO_FEATURE_LIFECYCLE = Object.freeze({
   'world.codex': Object.freeze({ status: 'experimental', since: '2.6', replacement: null }),
   'party.loot-policy': Object.freeze({ status: 'experimental', since: '2.6', replacement: null }),
   'ui.safe-schema': Object.freeze({ status: 'experimental', since: '2.6', replacement: null }),
+  'game.systems': Object.freeze({ status: 'stable', since: '2.7', replacement: null }),
 });
 
 /** Payload schemas focus on stable interoperability boundaries. Feature-
@@ -420,6 +423,10 @@ export const NODEUO_PAYLOAD_SCHEMAS = Object.freeze({
   'world.codex': schema([], { operation: STRING, entryId: STRING, entry: OBJECT, query: STRING }),
   'party.loot-policy': schema([], { operation: STRING, policy: OBJECT, expectedRevision: INTEGER }),
   'ui.safe-schema': schema([], { operation: STRING, formId: STRING, values: OBJECT }),
+  'game.systems': schema([], {
+    operation: STRING, systemId: STRING, instanceId: STRING, actionId: STRING,
+    command: STRING, category: STRING, query: STRING, data: OBJECT, amount: INTEGER, limit: INTEGER,
+  }),
 });
 
 function canonical(value) {

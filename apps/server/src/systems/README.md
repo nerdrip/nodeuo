@@ -18,6 +18,9 @@ Cross-cutting verification services include:
 - `platform-operations.js`: atomically persisted moderation cases, independent
   approvals, incident history and live-event definitions, plus memory-isolated
   preview sessions and cached script event-contract discovery.
+- `game-systems.js`: bounded data-driven lifecycle for the 100-system activity
+  catalog, including indexed event progress, parties, teams, rewards,
+  persistence, Classic UO presentation, and negotiated NodeUO presentation.
 
 They expose narrow snapshots to the admin API. None changes the classic UO
 wire path, and none grants the enhanced client authority over world state.

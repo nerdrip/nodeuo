@@ -10,6 +10,7 @@
     font: 12px/1.45 Inter, 'Segoe UI', system-ui, sans-serif;
     color: #ddd6c6; background: var(--ink); }
   #root { display: grid; grid-template-columns: minmax(0,1fr) 380px; height: 100vh; }
+  #root.side-collapsed{grid-template-columns:minmax(0,1fr) 0}#root.side-collapsed #side{padding:0;border:0;overflow:hidden}
   #stage { position: relative; overflow: hidden; background: radial-gradient(circle at 50% 40%,#11100d,#050608 70%); }
   canvas { display: block; image-rendering: pixelated; cursor: crosshair; }
   #side {
@@ -90,7 +91,9 @@
   }
   details summary { cursor: pointer; padding: 4px 0; color: #ffd070; }
   #editor-toast{position:absolute;top:58px;left:50%;transform:translateX(-50%) translateY(-8px);z-index:20;padding:8px 13px;border:1px solid var(--line);border-radius:7px;background:rgba(10,13,16,.94);color:#d9d2c2;box-shadow:0 8px 30px #0008;opacity:0;pointer-events:none;transition:.18s ease}#editor-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}#editor-toast.ok{border-color:rgba(101,184,130,.45);color:#9ed0ae}#editor-toast.error{border-color:rgba(220,105,91,.45);color:#e69a8e}
+  dialog.editor-modal{width:min(780px,calc(100vw - 32px));max-height:min(82vh,820px);overflow:auto;color:#ddd6c6;background:#10151a;border:1px solid rgba(217,173,99,.42);border-radius:12px;box-shadow:0 28px 100px #000c;padding:0}dialog.editor-modal::backdrop{background:#030507c9;backdrop-filter:blur(3px)}.editor-modal header{position:sticky;top:0;z-index:2;display:flex;align-items:center;padding:14px 18px;background:#151b21;border-bottom:1px solid var(--line)}.editor-modal header h2{margin:0;color:var(--gold2);font-size:17px}.editor-modal .modal-body{padding:16px 18px}.editor-modal footer{position:sticky;bottom:0;display:flex;justify-content:flex-end;gap:7px;padding:12px 18px;background:#151b21;border-top:1px solid var(--line)}.modal-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px}.modal-card{padding:10px;text-align:left;border:1px solid var(--line);border-radius:8px;background:#0b0f13}.modal-card.active{border-color:var(--gold);box-shadow:inset 3px 0 var(--gold)}.modal-card small{display:block;color:var(--muted);margin-top:3px}.selection-actions{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}.selection-actions button{padding:4px}.draft-state{color:var(--muted);font-size:10px}
   @media(max-width:1000px){#root{grid-template-columns:minmax(0,1fr) 330px}.topbar #goto-loc{width:140px!important}}
+  @media(max-width:760px){#root{grid-template-columns:1fr}#side{position:absolute;right:0;top:48px;bottom:0;width:min(92vw,380px);z-index:12;box-shadow:-15px 0 40px #000b}#root.side-collapsed #side{display:none}.topbar #goto-loc{display:none}}
 </style>
 <script src="/admin-assets/admin-core.js"></script>
 </head>
@@ -99,6 +102,7 @@
   <div id="stage">
     <div class="topbar">
       <a href="/">← Admin</a>
+      <button id="side-toggle" type="button" title="Toggle editor tools">☰ Tools</button>
       <span class="spacer"></span>
       <span>Facet:</span>
       <select id="facet" aria-label="Map facet">
@@ -139,9 +143,18 @@
       <button data-tool="pick">🎯 Pick</button>
       <button data-tool="tp">🚀 TP</button>
       <button data-tool="inspect">👁 Inspect</button>
+      <button data-tool="select">▱ Select / transform</button>
+      <button data-tool="path">〰 Draw path</button>
+      <button data-tool="placePrefab">▦ Place prefab</button>
+      <button data-tool="placeMulti">⌂ Place house / multi</button>
+    </div>
+    <div class="selection-actions" style="margin-top:6px">
+      <button onclick="ed.nudgeSelection(-1,0)" title="Move west">←</button><button onclick="ed.nudgeSelection(0,-1)" title="Move north">↑</button><button onclick="ed.nudgeSelection(0,1)" title="Move south">↓</button><button onclick="ed.nudgeSelection(1,0)" title="Move east">→</button>
+      <button onclick="ed.rotateSelection()">↻ Rotate</button><button onclick="ed.mirrorSelection()">⇋ Mirror</button><button onclick="ed.duplicateSelection()">⧉ Copy</button><button onclick="ed.deleteSelection()">⌫ Delete</button>
+      <button onclick="ed.adjustSelectionElevation(-1)" title="Lower selected statics one Z unit">Z−</button><button onclick="ed.adjustSelectionElevation(1)" title="Raise selected statics one Z unit">Z+</button><button onclick="ed.editSelectionProperties()" title="Set hue or adjust elevation">⚙ Properties</button><button onclick="ed.clearSelection()" title="Clear selection">× Clear</button>
     </div>
     <div style="font-size:10px;opacity:.6;margin-top:4px">
-      <span class="kbd">WASD</span> pan · <span class="kbd">+/-</span> zoom · <span class="kbd">middle-drag</span> pan · <span class="kbd">RMB</span> = remove · <span class="kbd">B</span> place · <span class="kbd">M</span> paint · <span class="kbd">space</span> toggle mob layer
+      <span class="kbd">WASD</span> pan · <span class="kbd">+/-</span> zoom · <span class="kbd">middle-drag</span> pan · <span class="kbd">RMB</span> remove · <span class="kbd">B/M</span> static/land · <span class="kbd">V</span> select · <span class="kbd">L</span> path (<span class="kbd">Alt</span> waypoint) · <span class="kbd">F</span> prefab · <span class="kbd">H</span> house · <span class="kbd">space</span> mobs
     </div>
 
     <h3>Brush</h3>
@@ -188,6 +201,8 @@
         <option value="containers">Containers</option><option value="signs">Signs & banners</option>
         <option value="misc">Miscellaneous</option>
       </select>
+      <span>Spacing</span>
+      <input id="brush-spacing" aria-label="Path spacing" type="number" min="1" max="16" value="1" style="width:56px" />
     </div>
     <div class="palette-kind">
       <label><input type="radio" name="kind" value="land" checked /> Land</label>
@@ -212,6 +227,7 @@
       <button id="redo-btn" onclick="ed.redoPending()" disabled>↷ Redo</button>
       <button onclick="ed.discardAll()">↶ Discard</button>
     </div>
+    <div id="draft-state" class="draft-state">Draft: clean</div>
     <div style="font-size:10px;opacity:.6;margin-top:4px">
       Edits stay client-side as a pending overlay until Save. Discard reverts to the on-disk state. Baked map statics (from the source <code>statics*.bin</code>) are read-only — Remove only marks runtime items + your pending additions.
     </div>
@@ -237,6 +253,12 @@
       <label><input type="checkbox" id="show-spawners" checked /> Spawners</label>
       <label><input type="checkbox" id="show-regions" checked /> Regions</label>
     </div>
+    <div class="row">
+      <label><input type="checkbox" id="z-slice-enabled" /> Floor slice</label>
+      <label>Z <input id="z-slice-center" aria-label="Floor slice center Z" type="number" min="-128" max="127" value="0" style="width:62px"></label>
+      <label>± <select id="z-slice-range" aria-label="Floor slice tolerance"><option value="0">0</option><option value="2">2</option><option value="5" selected>5</option><option value="10">10</option><option value="20">20</option></select></label>
+    </div>
+    <div style="font-size:10px;opacity:.6;margin-top:2px">Floor slice hides other elevations and makes placement snap to its Z. <span class="kbd">PgUp/PgDn</span> moves one five-Z floor.</div>
     <details open>
       <summary>Layer opacity & legend</summary>
       <div id="layer-opacity" style="display:grid;grid-template-columns:70px 1fr 34px;gap:5px;align-items:center;margin-top:6px">
@@ -271,12 +293,19 @@
     <div class="row">
       <button onclick="ed.savePrefab()">💾 Save selection</button>
       <button onclick="ed.browsePrefabs()">📂 Browse</button>
+      <button onclick="ed.browseMultis()">⌂ Houses & multis</button>
     </div>
     <div style="font-size:10px;opacity:.6">
       Hold <span class="kbd">shift</span> and drag in the canvas to mark a rectangle for the next prefab save (or rect-fill paint).
     </div>
   </div>
 </div>
+
+<dialog id="editor-dialog" class="editor-modal" aria-labelledby="editor-dialog-title">
+  <header><h2 id="editor-dialog-title">Editor</h2></header>
+  <div id="editor-dialog-body" class="modal-body"></div>
+  <footer id="editor-dialog-actions"></footer>
+</dialog>
 
 <script type="module">
 'use strict';
@@ -520,6 +549,41 @@ function safeStoredArray(key) {
   } catch { return []; }
 }
 
+function editorDialog({ title, html, confirmLabel = 'Continue', cancelLabel = 'Cancel', danger = false }) {
+  const dialog = document.getElementById('editor-dialog');
+  document.getElementById('editor-dialog-title').textContent = title;
+  document.getElementById('editor-dialog-body').innerHTML = html;
+  const actions = document.getElementById('editor-dialog-actions');
+  actions.innerHTML = `<button type="button" data-dialog-cancel>${escapeHtml(cancelLabel)}</button><button type="button" class="${danger ? 'danger' : 'primary'}" data-dialog-confirm>${escapeHtml(confirmLabel)}</button>`;
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return; settled = true;
+      dialog.close(); resolve(value);
+    };
+    actions.querySelector('[data-dialog-cancel]').onclick = () => finish(false);
+    actions.querySelector('[data-dialog-confirm]').onclick = () => finish(true);
+    dialog.oncancel = (event) => { event.preventDefault(); finish(false); };
+    dialog.showModal();
+  });
+}
+
+// Mirror in source space, then rotate clockwise around the prefab bounds.
+// Keeping this as one pure helper guarantees that the cyan ghost and queued
+// world coordinates cannot disagree for non-square 90/270-degree prefabs.
+function transformPrefabOffset(dx, dy, width, height, rotation, mirror) {
+  const x = mirror ? width - 1 - dx : dx;
+  const turn = ((rotation | 0) % 4 + 4) % 4;
+  if (turn === 1) return [height - 1 - dy, x];
+  if (turn === 2) return [width - 1 - x, height - 1 - dy];
+  if (turn === 3) return [dy, width - 1 - x];
+  return [x, dy];
+}
+
+function validWorldXY(x, y) {
+  return Number.isInteger(x) && Number.isInteger(y) && x >= 0 && y >= 0 && x <= 0xffff && y <= 0xffff;
+}
+
 const ed = window.ed = {
   // Persist the facet across reloads — operator picks Felucca once,
   // every subsequent boot reopens on it. Without this the select
@@ -542,8 +606,9 @@ const ed = window.ed = {
   brushHue: 0,
   brushZOverride: false,
   brushSize: 1,
+  brushSpacing: 1,
 
-  tool: 'paintLand',   // paintLand | placeStatic | remove | pick | tp | inspect
+  tool: 'paintLand',   // paintLand | placeStatic | remove | pick | tp | inspect | select | path | placePrefab | placeMulti
 
   // Slice cache: tiles[i] for land + cells for statics, indexed by dx|dy.
   tiles: null,
@@ -565,12 +630,17 @@ const ed = window.ed = {
   // removal — they're read-only at this layer. The Remove tool only
   // accepts runtime items or pending adds (which are unstaged in-place).
   pendingLand: [],
+  pendingLandByCell: new Map(),
   pendingAdds: [],
   pendingRemoves: new Set(),     // serials (string '0x…')
   pendingAddSeq: 0,              // increments per add so each entry has a stable temp id
   undoStack: [],
   redoStack: [],
-  historyLimit: 100,
+  // Snapshots make undo deterministic across mixed land/static gestures, but
+  // an unbounded stack multiplies every large selection. Keep both a gesture
+  // cap and an operation budget so memory remains predictable on large maps.
+  historyLimit: 24,
+  historyOperationBudget: 100_000,
 
   // Frame coalescer — render() schedules a RAF and drains once per
   // frame. Multiple state changes between frames batch into a single
@@ -591,6 +661,14 @@ const ed = window.ed = {
 
   // Camera pan via middle-mouse-drag.
   panDrag: null,
+  paintDrag: false,
+  paintDragKey: '',
+  pathStart: null,
+  pathSegments: 0,
+  activePrefab: null,
+  activeMulti: null,
+  selectedMultiOwner: 0,
+  _draftTimer: null,
 
   // Toggles
   showGrid: false,
@@ -599,6 +677,9 @@ const ed = window.ed = {
   showMultis: true,
   showSpawners: true,
   showRegions: true,
+  zSliceEnabled: false,
+  zSliceCenter: 0,
+  zSliceRange: 5,
   regions: [],
   opacity: { terrain: 1, statics: 1, items: 1, multis: 1, mobs: 1, spawners: 1, regions: .75 },
   bookmarks: safeStoredArray('uo-editor-bookmarks'),
@@ -659,6 +740,7 @@ const ed = window.ed = {
     this.recordHistory();
     this.facet = Number.isInteger(payload.facet) ? payload.facet : this.facet;
     this.pendingLand = payload.land.slice(0, 16384).map((entry) => ({ ...entry }));
+    this.reindexPendingLand();
     this.pendingAdds = payload.statics.slice(0, 16384).map((entry) => ({ ...entry, _id: ++this.pendingAddSeq }));
     this.pendingRemoves = new Set((payload.removes || []).slice(0, 16384));
     this.updatePendingHud(); this.reloadSlice(true);
@@ -672,36 +754,56 @@ const ed = window.ed = {
     this.reloadSliceSoon(60);  // settle ~60 ms after the click
   },
   pendingSnapshot() {
-    return {
+    const snapshot = {
       land: this.pendingLand.map((entry) => ({ ...entry })),
       adds: this.pendingAdds.map((entry) => ({ ...entry })),
       removes: [...this.pendingRemoves],
       seq: this.pendingAddSeq,
     };
+    snapshot._cost = snapshot.land.length + snapshot.adds.length + snapshot.removes.length;
+    return snapshot;
   },
   restorePending(snapshot) {
     this.pendingLand = snapshot.land.map((entry) => ({ ...entry }));
+    this.reindexPendingLand();
     this.pendingAdds = snapshot.adds.map((entry) => ({ ...entry }));
     this.pendingRemoves = new Set(snapshot.removes);
     this.pendingAddSeq = snapshot.seq;
     this.updatePendingHud();
     this.reloadSlice(true);
   },
+  reindexPendingLand() {
+    this.pendingLandByCell = new Map(this.pendingLand.map((entry) => [`${entry.x}|${entry.y}`, entry]));
+  },
+  setPendingLand(entry) {
+    const key = `${entry.x}|${entry.y}`;
+    const existing = this.pendingLandByCell.get(key);
+    if (existing) Object.assign(existing, entry);
+    else { this.pendingLand.push(entry); this.pendingLandByCell.set(key, entry); }
+  },
   recordHistory() {
     this.undoStack.push(this.pendingSnapshot());
-    if (this.undoStack.length > this.historyLimit) this.undoStack.shift();
+    this.trimHistory(this.undoStack);
     this.redoStack = [];
     this.updateHistoryButtons();
+  },
+  trimHistory(stack) {
+    let cost = stack.reduce((sum, snapshot) => sum + Number(snapshot?._cost ?? 0), 0);
+    while (stack.length > 1 && (stack.length > this.historyLimit || cost > this.historyOperationBudget)) {
+      cost -= Number(stack.shift()?._cost ?? 0);
+    }
   },
   undoPending() {
     if (!this.undoStack.length) return;
     this.redoStack.push(this.pendingSnapshot());
+    this.trimHistory(this.redoStack);
     this.restorePending(this.undoStack.pop());
     this.updateHistoryButtons();
   },
   redoPending() {
     if (!this.redoStack.length) return;
     this.undoStack.push(this.pendingSnapshot());
+    this.trimHistory(this.undoStack);
     this.restorePending(this.redoStack.pop());
     this.updateHistoryButtons();
   },
@@ -712,39 +814,54 @@ const ed = window.ed = {
     if (redo) redo.disabled = this.redoStack.length === 0;
   },
   async saveAll() {
-    const summary = [];
-    if (this.pendingLand.length) {
-      const r = await api('POST', '/api/map/edit', {
-        facet: this.facet, edits: this.pendingLand,
-      });
-      if (r.error) { alert('Land save failed: ' + r.error); return; }
-      summary.push(`${this.pendingLand.length} land paints`);
-      this.pendingLand = [];
-    }
-    if (this.pendingAdds.length || this.pendingRemoves.size) {
-      const additions = this.pendingAdds.map(({ x, y, z, itemId, hue }) => ({ x, y, z, itemId, hue }));
-      const removals = [...this.pendingRemoves];
-      const result = await api('POST', '/api/statics/batch', {
-        facet: this.facet, additions, removals,
-      }).catch(() => ({ error: 'network' }));
+    const total = this.pendingLand.length + this.pendingAdds.length + this.pendingRemoves.size;
+    if (!total) return editorToast('Nothing to save.');
+    const accepted = await editorDialog({ title: 'Review world transaction',
+      html: `<div class="modal-grid"><div class="modal-card"><b>${this.pendingLand.length}</b><small>land changes</small></div><div class="modal-card"><b>${this.pendingAdds.length}</b><small>static additions</small></div><div class="modal-card"><b>${this.pendingRemoves.size}</b><small>static removals</small></div></div><p>Facet ${this.facet}. The server validates complete batches before mutation and retains rejected operations for retry.</p>`,
+      confirmLabel: `Save ${total} operations` });
+    if (!accepted) return;
+    let savedLand = 0, savedAdds = 0, savedRemoves = 0;
+    while (this.pendingLand.length) {
+      const edits = this.pendingLand.slice(0, 4096);
+      const result = await api('POST', '/api/map/edit', { facet: this.facet, edits })
+        .catch(() => ({ error: 'network' }));
       if (result.error) {
-        alert(`Static batch was not applied: ${result.error}. All ${additions.length + removals.length} operations remain queued.`);
-        return;
+        this.undoStack = []; this.redoStack = []; this.updateHistoryButtons();
+        this.updatePendingHud();
+        return editorToast(`Land save stopped after ${savedLand} operation(s): ${result.error}. Uncommitted operations remain queued.`, 'error');
       }
-      summary.push(`${result.added}/${additions.length} statics placed`);
-      summary.push(`${result.removed}/${removals.length} statics removed`);
-      this.pendingAdds = [];
-      this.pendingRemoves.clear();
+      this.pendingLand.splice(0, edits.length); this.reindexPendingLand(); savedLand += edits.length;
     }
-    if (!summary.length) { alert('Nothing to save.'); return; }
+    while (this.pendingAdds.length || this.pendingRemoves.size) {
+      const addCount = Math.min(4096, this.pendingAdds.length);
+      const additions = this.pendingAdds.slice(0, addCount)
+        .map(({ x, y, z, itemId, hue }) => ({ x, y, z, itemId, hue }));
+      const removalBudget = 4096 - additions.length;
+      const removals = [...this.pendingRemoves].slice(0, removalBudget);
+      const result = await api('POST', '/api/statics/batch', { facet: this.facet, additions, removals })
+        .catch(() => ({ error: 'network' }));
+      if (result.error) {
+        this.undoStack = []; this.redoStack = []; this.updateHistoryButtons();
+        this.updatePendingHud();
+        return editorToast(`Static save stopped after ${savedAdds + savedRemoves} operation(s): ${result.error}. Uncommitted operations remain queued.`, 'error');
+      }
+      this.pendingAdds.splice(0, additions.length);
+      for (const serial of removals) this.pendingRemoves.delete(serial);
+      savedAdds += result.added ?? additions.length;
+      savedRemoves += result.removed ?? removals.length;
+    }
     this.updatePendingHud();
     this.undoStack = []; this.redoStack = []; this.updateHistoryButtons();
     this.reloadSlice(true);
-    const retryCount = this.pendingAdds.length + this.pendingRemoves.size;
-    alert('Saved: ' + summary.join(', ') + (retryCount ? `. ${retryCount} failed operation(s) remain queued for retry.` : ''));
+    editorToast(`Saved: ${savedLand} land paint(s), ${savedAdds} static(s) placed, ${savedRemoves} static(s) removed.`, 'ok');
   },
   async discardAll() {
+    const total = this.pendingLand.length + this.pendingAdds.length + this.pendingRemoves.size;
+    if (!total) return;
+    const accepted = await editorDialog({ title: 'Discard draft?', html: `<p>Discard ${total} pending world operation(s)? This cannot be undone after the draft is cleared.</p>`, confirmLabel: 'Discard draft', danger: true });
+    if (!accepted) return;
     this.pendingLand = [];
+    this.pendingLandByCell.clear();
     this.pendingAdds = [];
     this.pendingRemoves.clear();
     this.undoStack = []; this.redoStack = []; this.updateHistoryButtons();
@@ -752,9 +869,9 @@ const ed = window.ed = {
     await this.reloadSlice(true);
   },
   async resetLandOverlay() {
-    if (!confirm('Wipe ALL land overlay edits server-wide?')) return;
+    if (!await editorDialog({ title: 'Wipe all land overlays?', html: '<p>This removes every persisted land override on every facet. Runtime statics and multis are not affected.</p>', confirmLabel: 'Wipe overlays', danger: true })) return;
     const r = await api('POST', '/api/map/reset', {});
-    alert('Cleared ' + r.cleared + ' overlay tiles.');
+    editorToast('Cleared ' + r.cleared + ' overlay tiles.', 'ok');
     await this.reloadSlice(true);
   },
   async tpAdminHere() {
@@ -797,27 +914,97 @@ const ed = window.ed = {
   },
   async savePrefab() {
     const r = this.rectBounds();
-    if (!r) { alert('Hold shift and drag to mark a rectangle first.'); return; }
-    const name = prompt('Prefab name (alphanumeric, _, -):', 'prefab-' + (Date.now() % 100000));
-    if (!name) return;
+    if (!r) return editorToast('Select a rectangle first.', 'error');
+    const accepted = await editorDialog({ title: 'Save selection as prefab',
+      html: `<label>Name<input id="prefab-save-name" value="prefab-${Date.now() % 100000}" maxlength="64" style="width:100%"></label><label style="display:block;margin-top:10px"><input id="prefab-save-fixed" type="checkbox"> Include baked map statics</label><p class="draft-state">Runtime statics are portable. Baked statics may be included as editable copies.</p>`, confirmLabel: 'Save prefab' });
+    if (!accepted) return;
+    const name = document.getElementById('prefab-save-name').value.trim();
     const res = await api('POST', '/api/statics/save-prefab', {
       facet: this.facet, x0: r.x0, y0: r.y0, x1: r.x1, y1: r.y1, name,
+      includeFixed: document.getElementById('prefab-save-fixed').checked,
     });
-    if (res.error) { alert('Save failed: ' + res.error); return; }
-    alert('Saved ' + res.tileCount + ' tiles as "' + res.name + '"');
+    if (res.error) return editorToast('Save failed: ' + res.error, 'error');
+    editorToast('Saved ' + res.tileCount + ' tiles as "' + res.name + '"', 'ok');
   },
   async browsePrefabs() {
     const r = await api('GET', '/api/statics/prefabs');
-    if (!r.prefabs?.length) { alert('No prefabs saved yet.'); return; }
-    const lines = r.prefabs.map((p) => `${p.name} (${p.sizeX}×${p.sizeY}, ${p.tileCount} tiles)`).join('\n');
-    const pick = prompt(`Prefabs available:\n${lines}\n\nEnter name to place at editor center:`);
-    if (!pick) return;
-    const res = await api('POST', '/api/statics/import-prefab', {
-      name: pick.trim(), facet: this.facet, x: this.cx, y: this.cy,
-    });
-    if (res.error) { alert('Place failed: ' + res.error); return; }
-    alert('Placed ' + res.placed + ' / ' + res.total + ' tiles.');
-    this.reloadSlice(true);
+    if (!r.prefabs?.length) return editorToast('No prefabs saved yet.');
+    const decision = editorDialog({ title: 'Prefab library',
+      html: `<div class="modal-grid" id="prefab-cards">${r.prefabs.map((p, index) => `<button type="button" class="modal-card ${index === 0 ? 'active' : ''}" data-prefab-name="${escapeHtml(p.name)}"><b>${escapeHtml(p.name)}</b><small>${p.sizeX}×${p.sizeY} · ${p.tileCount} tiles · ${escapeHtml(p.savedAt ?? '')}</small></button>`).join('')}</div><div class="row" style="margin-top:12px"><label>Rotation <select id="prefab-rotation"><option value="0">0°</option><option value="1">90°</option><option value="2">180°</option><option value="3">270°</option></select></label><label><input id="prefab-mirror" type="checkbox"> Mirror</label></div>`, confirmLabel: 'Use placement cursor' });
+    const cards = [...document.querySelectorAll('[data-prefab-name]')];
+    for (const card of cards) card.onclick = () => { for (const peer of cards) peer.classList.toggle('active', peer === card); };
+    const accepted = await decision;
+    if (!accepted) return;
+    const chosen = cards.find((card) => card.classList.contains('active'))?.dataset.prefabName ?? r.prefabs[0].name;
+    const res = await api('GET', `/api/statics/prefabs/${encodeURIComponent(chosen)}`);
+    if (res.error) return editorToast(res.error, 'error');
+    this.activePrefab = { ...res.prefab, rotation: Number(document.getElementById('prefab-rotation').value) | 0,
+      mirror: document.getElementById('prefab-mirror').checked };
+    this.setTool('placePrefab');
+    editorToast(`Click the map to queue ${chosen}.`, 'ok');
+  },
+  async browseMultis() {
+    const initial = await api('GET', '/api/world-editor/multis?kind=all&limit=1');
+    if (initial.error) return editorToast(initial.error, 'error');
+    if (!initial.owners?.length) return editorToast('An owner character must be online before placing a house or multi.', 'error');
+    let selected = null;
+    let offset = 0;
+    let requestGeneration = 0;
+    const pageSize = 80;
+    const decision = editorDialog({ title: 'Canonical houses & multis',
+      html: `<div class="row"><label>Owner <select id="multi-owner">${initial.owners.map((owner) => `<option value="${owner.serial}">${escapeHtml(owner.name)} · map ${owner.map}</option>`).join('')}</select></label><label>Kind <select id="multi-kind"><option value="all">All</option><option value="house">Houses</option><option value="boat">Boats</option><option value="other">Custom / other</option></select></label><label style="flex:1">Search <input id="multi-search" maxlength="96" placeholder="name or hexadecimal id" style="width:100%"></label></div><div class="draft-state" id="multi-page-state">Loading canonical multi catalog…</div><div class="modal-grid" id="multi-cards"></div><div class="row" style="justify-content:flex-end;margin-top:10px"><button type="button" id="multi-prev">← Previous</button><button type="button" id="multi-next">Next →</button></div>`, confirmLabel: 'Preview placement' });
+    const cardsRoot = document.getElementById('multi-cards');
+    const state = document.getElementById('multi-page-state');
+    const previous = document.getElementById('multi-prev');
+    const next = document.getElementById('multi-next');
+    const confirm = document.querySelector('#editor-dialog-actions [data-dialog-confirm]');
+    if (confirm) confirm.disabled = true;
+    const loadPage = async (nextOffset = 0) => {
+      const generation = ++requestGeneration;
+      const kind = document.getElementById('multi-kind')?.value ?? 'all';
+      const q = document.getElementById('multi-search')?.value.trim() ?? '';
+      if (state) state.textContent = 'Loading canonical multi catalog…';
+      const result = await api('GET', `/api/world-editor/multis?kind=${encodeURIComponent(kind)}&q=${encodeURIComponent(q)}&offset=${Math.max(0, nextOffset)}&limit=${pageSize}`);
+      if (generation !== requestGeneration) return;
+      if (result.error) {
+        selected = null; if (confirm) confirm.disabled = true;
+        if (state) state.textContent = result.error;
+        cardsRoot.innerHTML = '';
+        return;
+      }
+      offset = Math.max(0, nextOffset);
+      selected = result.multis?.[0] ?? null;
+      cardsRoot.innerHTML = (result.multis ?? []).map((entry, index) => `<button type="button" class="modal-card ${index === 0 ? 'active' : ''}" data-multi-index="${index}"><b>${escapeHtml(entry.name)}</b><small>0x${entry.id.toString(16)} · ${entry.kind} · ${entry.tileCount} components · ${entry.bounds[2]-entry.bounds[0]+1}×${entry.bounds[3]-entry.bounds[1]+1}</small></button>`).join('') || '<p>No multis match this filter.</p>';
+      const page = result.multis ?? [];
+      for (const card of cardsRoot.querySelectorAll('[data-multi-index]')) card.onclick = () => {
+        for (const peer of cardsRoot.querySelectorAll('[data-multi-index]')) peer.classList.toggle('active', peer === card);
+        selected = page[Number(card.dataset.multiIndex)];
+      };
+      if (state) state.textContent = result.total
+        ? `Showing ${offset + 1}–${Math.min(offset + page.length, result.total)} of ${result.total} canonical entries.`
+        : 'No multis match this filter.';
+      previous.disabled = offset === 0;
+      next.disabled = offset + page.length >= result.total;
+      if (confirm) confirm.disabled = !selected;
+    };
+    let searchTimer = 0;
+    document.getElementById('multi-search').oninput = () => {
+      clearTimeout(searchTimer); searchTimer = setTimeout(() => loadPage(0), 180);
+    };
+    document.getElementById('multi-kind').onchange = () => loadPage(0);
+    previous.onclick = () => loadPage(Math.max(0, offset - pageSize));
+    next.onclick = () => loadPage(offset + pageSize);
+    await loadPage(0);
+    const accepted = await decision;
+    clearTimeout(searchTimer);
+    if (!accepted || !selected) return;
+    this.activeMulti = selected;
+    this.selectedMultiOwner = Number(document.getElementById('multi-owner').value) >>> 0;
+    const preview = await api('GET', `/api/world-editor/multis/${this.activeMulti.id}`);
+    if (preview.error) return editorToast(preview.error, 'error');
+    this.activeMulti.tiles = preview.tiles;
+    this.setTool('placeMulti');
+    editorToast(`Click the map to validate and place ${this.activeMulti.name}.`, 'ok');
   },
 
   // ---- internals -------------------------------------------------------
@@ -843,6 +1030,7 @@ const ed = window.ed = {
     document.getElementById('pend-land').textContent = this.pendingLand.length;
     document.getElementById('pend-add').textContent  = this.pendingAdds.length;
     document.getElementById('pend-rem').textContent  = this.pendingRemoves.size;
+    this.scheduleDraft();
   },
 
   // RAF-batched paint. Anywhere that mutates render-affecting state
@@ -888,6 +1076,193 @@ const ed = window.ed = {
       x0: Math.min(a.x, b.x), y0: Math.min(a.y, b.y),
       x1: Math.max(a.x, b.x), y1: Math.max(a.y, b.y),
     };
+  },
+
+  scheduleDraft() {
+    clearTimeout(this._draftTimer);
+    const count = this.pendingLand.length + this.pendingAdds.length + this.pendingRemoves.size;
+    const label = document.getElementById('draft-state');
+    if (label) label.textContent = count ? `Draft: ${count} pending operation(s) · autosaving…` : 'Draft: clean';
+    this._draftTimer = setTimeout(() => {
+      try {
+        if (!count) localStorage.removeItem('uo-editor-draft');
+        else localStorage.setItem('uo-editor-draft', JSON.stringify({ version: 1, facet: this.facet,
+          camera: [this.cx, this.cy], savedAt: Date.now(), ...this.pendingSnapshot() }));
+        if (label && count) label.textContent = `Draft: ${count} pending operation(s) · recovered after reload`;
+      } catch { if (label) label.textContent = 'Draft: browser storage unavailable'; }
+    }, 350);
+  },
+
+  restoreDraft() {
+    let draft;
+    try { draft = JSON.parse(localStorage.getItem('uo-editor-draft') || 'null'); } catch { return false; }
+    if (!draft || draft.version !== 1 || !Array.isArray(draft.land) || !Array.isArray(draft.adds)) return false;
+    this.facet = Number(draft.facet) | 0;
+    [this.cx, this.cy] = Array.isArray(draft.camera) ? draft.camera.map(Number) : [this.cx, this.cy];
+    const facetSelect = document.getElementById('facet'); if (facetSelect) facetSelect.value = String(this.facet);
+    this.restorePending(draft);
+    editorToast(`Recovered ${draft.land.length + draft.adds.length + (draft.removes?.length ?? 0)} unsaved operations.`, 'ok');
+    return true;
+  },
+
+  selectionItems({ detachRuntime = false } = {}) {
+    const bounds = this.rectBounds();
+    if (!bounds) return [];
+    const inside = (x, y) => x >= bounds.x0 && x <= bounds.x1 && y >= bounds.y0 && y <= bounds.y1;
+    const selected = this.pendingAdds.filter((item) => inside(item.x, item.y) && this.zVisible(item.z));
+    for (const [cellKey, stack] of Object.entries(this.cells ?? {})) {
+      const [dx, dy] = cellKey.split('|').map(Number);
+      const x = this.sliceX0 + dx, y = this.sliceY0 + dy;
+      if (!inside(x, y)) continue;
+      for (const item of stack) {
+        if (item.source !== 'item' || item.editable !== true || !item.serial
+            || this.pendingRemoves.has(item.serial) || !this.zVisible(item.z)) continue;
+        const copy = { x, y, z: item.z | 0, itemId: item.tileId | 0, hue: item.hue | 0 };
+        if (detachRuntime) { copy._id = ++this.pendingAddSeq; this.pendingRemoves.add(item.serial); this.pendingAdds.push(copy); selected.push(copy); }
+        else selected.push(copy);
+      }
+    }
+    return selected;
+  },
+
+  nudgeSelection(dx, dy) {
+    const bounds = this.rectBounds();
+    if (!bounds) return editorToast('Select a rectangle first.', 'error');
+    if (!validWorldXY(bounds.x0 + dx, bounds.y0 + dy) || !validWorldXY(bounds.x1 + dx, bounds.y1 + dy)) {
+      return editorToast('The transformed selection would leave the map.', 'error');
+    }
+    this.recordHistory();
+    for (const item of this.selectionItems({ detachRuntime: true })) { item.x += dx; item.y += dy; }
+    this.rectStart.x += dx; this.rectStart.y += dy; this.rectEnd.x += dx; this.rectEnd.y += dy;
+    this.updatePendingHud(); this.requestRender();
+  },
+
+  adjustSelectionElevation(delta) {
+    if (!this.rectBounds()) return editorToast('Select a rectangle first.', 'error');
+    const selected = this.selectionItems();
+    if (!selected.length) return editorToast('The selection has no editable statics on the visible floor.', 'error');
+    this.recordHistory();
+    const items = this.selectionItems({ detachRuntime: true });
+    for (const item of items) item.z = Math.max(-128, Math.min(127, (item.z | 0) + (delta | 0)));
+    this.updatePendingHud(); this.requestRender();
+    editorToast(`Adjusted ${items.length} static(s) by ${delta > 0 ? '+' : ''}${delta} Z.`, 'ok');
+  },
+
+  async editSelectionProperties() {
+    if (!this.rectBounds()) return editorToast('Select a rectangle first.', 'error');
+    const count = this.selectionItems().length;
+    if (!count) return editorToast('The selection has no editable statics on the visible floor.', 'error');
+    const accepted = await editorDialog({ title: `Edit ${count} selected static(s)`,
+      html: '<label>Relative Z offset<input id="selection-dz" type="number" min="-255" max="255" value="0" style="width:100%"></label><label style="display:block;margin-top:10px">Hue (blank keeps each current hue)<input id="selection-hue" type="number" min="0" max="65535" placeholder="preserve" style="width:100%"></label><p class="draft-state">The operation remains in the pending draft and is one undo gesture.</p>',
+      confirmLabel: 'Apply to selection' });
+    if (!accepted) return;
+    const dz = Math.max(-255, Math.min(255, Number(document.getElementById('selection-dz').value) | 0));
+    const hueInput = document.getElementById('selection-hue').value.trim();
+    const hue = hueInput === '' ? null : Math.max(0, Math.min(0xffff, Number(hueInput) | 0));
+    this.recordHistory();
+    const items = this.selectionItems({ detachRuntime: true });
+    for (const item of items) {
+      item.z = Math.max(-128, Math.min(127, (item.z | 0) + dz));
+      if (hue != null) item.hue = hue;
+    }
+    this.updatePendingHud(); this.requestRender();
+    editorToast(`Updated ${items.length} selected static(s).`, 'ok');
+  },
+
+  clearSelection() {
+    this.rectStart = null; this.rectEnd = null; this.requestRender();
+  },
+
+  rotateSelection() {
+    const bounds = this.rectBounds();
+    if (!bounds) return editorToast('Select a rectangle first.', 'error');
+    const width = bounds.x1 - bounds.x0 + 1;
+    if (!validWorldXY(bounds.x0 + (bounds.y1 - bounds.y0), bounds.y0 + width - 1)) {
+      return editorToast('The rotated selection would leave the map.', 'error');
+    }
+    this.recordHistory();
+    const items = this.selectionItems({ detachRuntime: true });
+    for (const item of items) {
+      const dx = item.x - bounds.x0, dy = item.y - bounds.y0;
+      item.x = bounds.x0 + dy; item.y = bounds.y0 + width - 1 - dx;
+    }
+    this.rectStart = { x: bounds.x0, y: bounds.y0 };
+    this.rectEnd = { x: bounds.x0 + (bounds.y1 - bounds.y0), y: bounds.y0 + width - 1 };
+    this.updatePendingHud(); this.requestRender();
+  },
+
+  mirrorSelection() {
+    const bounds = this.rectBounds();
+    if (!bounds) return editorToast('Select a rectangle first.', 'error');
+    this.recordHistory();
+    for (const item of this.selectionItems({ detachRuntime: true })) item.x = bounds.x0 + bounds.x1 - item.x;
+    this.updatePendingHud(); this.requestRender();
+  },
+
+  duplicateSelection() {
+    if (!this.rectBounds()) return editorToast('Select a rectangle first.', 'error');
+    const originals = this.selectionItems();
+    if (originals.some((item) => !validWorldXY(item.x + 1, item.y + 1))) {
+      return editorToast('The copied selection would leave the map.', 'error');
+    }
+    this.recordHistory();
+    const copies = originals.map((item) => ({ ...item, _id: ++this.pendingAddSeq, x: item.x + 1, y: item.y + 1 }));
+    this.pendingAdds.push(...copies);
+    this.updatePendingHud(); this.requestRender();
+    editorToast(`Queued ${copies.length} copied static(s).`, 'ok');
+  },
+
+  deleteSelection() {
+    const bounds = this.rectBounds();
+    if (!bounds) return editorToast('Select a rectangle first.', 'error');
+    this.recordHistory();
+    const inside = (x, y) => x >= bounds.x0 && x <= bounds.x1 && y >= bounds.y0 && y <= bounds.y1;
+    this.pendingAdds = this.pendingAdds.filter((item) => !inside(item.x, item.y) || !this.zVisible(item.z));
+    for (const [cellKey, stack] of Object.entries(this.cells ?? {})) {
+      const [dx, dy] = cellKey.split('|').map(Number); const x = this.sliceX0 + dx, y = this.sliceY0 + dy;
+      if (!inside(x, y)) continue;
+      for (const item of stack) if (item.source === 'item' && item.editable === true
+          && item.serial && this.zVisible(item.z)) this.pendingRemoves.add(item.serial);
+    }
+    this.updatePendingHud(); this.requestRender();
+  },
+
+  queuePrefabAt(point) {
+    if (!this.activePrefab?.tiles?.length) return editorToast('Choose a prefab first.', 'error');
+    const prefab = this.activePrefab;
+    const rotation = prefab.rotation | 0;
+    const width = prefab.sizeX | 0, height = prefab.sizeY | 0;
+    const queued = [];
+    for (const tile of prefab.tiles) {
+      if (tile.source === 'static' && prefab.skipFixed !== false) continue;
+      const [dx, dy] = transformPrefabOffset(tile.dx | 0, tile.dy | 0,
+        width, height, rotation, prefab.mirror);
+      const row = { x: point.x + dx, y: point.y + dy,
+        z: point.z + (tile.dz ?? tile.z ?? 0), itemId: tile.itemId | 0, hue: tile.hue | 0 };
+      if (!validWorldXY(row.x, row.y) || row.z < -128 || row.z > 127) {
+        return editorToast('The transformed prefab would leave valid world coordinates.', 'error');
+      }
+      queued.push(row);
+    }
+    if (!queued.length) return editorToast('This prefab has no portable runtime statics.', 'error');
+    this.recordHistory();
+    this.pendingAdds.push(...queued.map((row) => ({ ...row, _id: ++this.pendingAddSeq })));
+    this.updatePendingHud(); this.requestRender();
+    editorToast(`Prefab ${prefab.name} queued.`, 'ok');
+  },
+
+  async placeActiveMulti(point) {
+    const multi = this.activeMulti;
+    if (!multi) return this.browseMultis();
+    const ok = await editorDialog({ title: `Place ${multi.name}`,
+      html: `<p>Place <b>${escapeHtml(multi.name)}</b> (0x${multi.id.toString(16)}) at ${point.x}, ${point.y}, ${point.z}?</p><p class="draft-state">The canonical placement validator checks terrain, blockers, mobiles, multis and house rules before committing atomically.</p>`,
+      confirmLabel: 'Validate & place' });
+    if (!ok) return;
+    const result = await api('POST', '/api/world-editor/multis/place', { multiId: multi.id,
+      ownerSerial: this.selectedMultiOwner, facet: this.facet, x: point.x, y: point.y, z: point.z, hue: this.brushHue });
+    if (result.error) return editorToast(result.error, 'error');
+    editorToast(`${multi.name}: ${result.placed} component(s) placed.`, 'ok');
+    this.reloadSlice(true);
   },
 
   async reloadSlice(force = false) {
@@ -992,10 +1367,11 @@ const ed = window.ed = {
     const changed = t !== this.tool;
     if (changed) this._sliceAbort?.abort();
     this.tool = t;
+    if (t !== 'path') { this.pathStart = null; this.pathSegments = 0; }
     for (const b of document.querySelectorAll('#side [data-tool]')) {
       b.classList.toggle('primary', b.dataset.tool === t);
     }
-    document.getElementById('toolname').textContent = t;
+    document.getElementById('toolname').textContent = ({ paintLand:'Paint land', placeStatic:'Place static', remove:'Remove', pick:'Pick', tp:'Teleport', inspect:'Inspect', select:'Select / transform', path:'Draw path', placePrefab:'Place prefab', placeMulti:'Place house / multi' })[t] ?? t;
     // Switch brushKind hint based on tool so the palette matches
     // what the tool actually uses.
     if (t === 'paintLand') this.setBrushKind('land');
@@ -1237,6 +1613,7 @@ const ed = window.ed = {
       for (const s of stack) {
         if (s.source === 'item' && !this.showItems) continue;
         if (s.source === 'multi' && !this.showMultis) continue;
+        if (!this.zVisible(s.z)) continue;
         const flagged = s.serial && this.pendingRemoves.has(s.serial);
         draws.push({
           wx, wy, z: s.z | 0, src: s.source, tileId: s.tileId,
@@ -1249,6 +1626,7 @@ const ed = window.ed = {
     // by their declared z just like a real static.
     for (const a of this.pendingAdds) {
       if (a.x < visMinX || a.x >= visMaxX || a.y < visMinY || a.y >= visMaxY) continue;
+      if (!this.zVisible(a.z)) continue;
       draws.push({
         wx: a.x, wy: a.y, z: a.z | 0, src: 'pending', tileId: a.itemId,
         hue: a.hue | 0, serial: null, flagged: false,
@@ -1319,7 +1697,7 @@ const ed = window.ed = {
       for (let dy = 0; dy < h; dy++) {
         for (let dx = 0; dx < w; dx++) {
           const wx = x0 + dx, wy = y0 + dy;
-          const z = this.zAtWorld(wx, wy);
+          const z = this.zSliceEnabled ? this.zSliceCenter : this.zAtWorld(wx, wy);
           const sp = worldToScreen(wx, wy, z);
           const sx = ox + sp.x * zoom, sy = oy + sp.y * zoom;
           ctx.beginPath();
@@ -1348,6 +1726,37 @@ const ed = window.ed = {
       ctx.stroke();
     }
 
+    // Placement ghosts use cheap footprint diamonds instead of decoding full
+    // multi art. The committed object is still a canonical UO multi anchor;
+    // this preview is editor-only and bounded for large castles.
+    const ghostTiles = [];
+    if (this.hover.x != null && this.tool === 'placePrefab' && this.activePrefab?.tiles) {
+      const prefab = this.activePrefab, width = prefab.sizeX | 0, height = prefab.sizeY | 0;
+      for (const tile of prefab.tiles.slice(0, 1200)) {
+        const [dx, dy] = transformPrefabOffset(tile.dx | 0, tile.dy | 0,
+          width, height, prefab.rotation, prefab.mirror);
+        ghostTiles.push([this.hover.x + dx, this.hover.y + dy, this.hover.z + (tile.dz ?? tile.z ?? 0)]);
+      }
+    } else if (this.hover.x != null && this.tool === 'placeMulti' && this.activeMulti?.tiles) {
+      for (const tile of this.activeMulti.tiles.slice(0, 1200)) ghostTiles.push([this.hover.x + tile.x, this.hover.y + tile.y, this.hover.z + tile.z]);
+    }
+    if (ghostTiles.length) {
+      ctx.save(); ctx.strokeStyle = '#63e6ff'; ctx.fillStyle = 'rgba(60,210,255,.09)'; ctx.lineWidth = 1;
+      for (const [x, y, z] of ghostTiles) {
+        const sp = worldToScreen(x, y, z), sx = ox + sp.x * zoom, sy = oy + sp.y * zoom;
+        ctx.beginPath(); ctx.moveTo(sx, sy - TILE_HALF_H * zoom); ctx.lineTo(sx + half, sy);
+        ctx.lineTo(sx, sy + TILE_HALF_H * zoom); ctx.lineTo(sx - half, sy); ctx.closePath(); ctx.fill(); ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    if (this.pathStart && this.hover.x != null) {
+      const from = worldToScreen(this.pathStart.x, this.pathStart.y, this.pathStart.z);
+      const to = worldToScreen(this.hover.x, this.hover.y, this.hover.z);
+      ctx.strokeStyle = '#c89cff'; ctx.lineWidth = 3; ctx.setLineDash([7, 5]);
+      ctx.beginPath(); ctx.moveTo(ox + from.x * zoom, oy + from.y * zoom); ctx.lineTo(ox + to.x * zoom, oy + to.y * zoom); ctx.stroke(); ctx.setLineDash([]);
+    }
+
     // ---- RECT PREVIEW ------------------------------------------------
     if (this.rectStart && this.rectEnd) {
       const r = this.rectBounds();
@@ -1355,7 +1764,7 @@ const ed = window.ed = {
       ctx.lineWidth = 2;
       for (let y = r.y0; y <= r.y1; y++) {
         for (let x = r.x0; x <= r.x1; x++) {
-          const z = this.zAtWorld(x, y);
+          const z = this.zSliceEnabled ? this.zSliceCenter : this.zAtWorld(x, y);
           const sp = worldToScreen(x, y, z);
           const sx = ox + sp.x * zoom, sy = oy + sp.y * zoom;
           ctx.beginPath();
@@ -1390,6 +1799,7 @@ const ed = window.ed = {
       for (const m of this.mobiles) {
         if (m.map !== this.facet) continue;
         if (m.x < x0 || m.x >= x0 + w || m.y < y0 || m.y >= y0 + h) continue;
+        if (!this.zVisible(m.z)) continue;
         const sp = worldToScreen(m.x, m.y, m.z | 0);
         const sx = ox + sp.x * zoom, sy = oy + sp.y * zoom;
         const notColors = { 1: '#80c0ff', 2: '#80ff80', 3: '#a0a0a0', 4: '#a0a0a0', 5: '#ff8030', 6: '#ff5050', 7: '#ffff80' };
@@ -1564,6 +1974,16 @@ const ed = window.ed = {
     return t ? (t[1] | 0) : 0;
   },
 
+  zVisible(z) {
+    return !this.zSliceEnabled || Math.abs((Number(z) | 0) - this.zSliceCenter) <= this.zSliceRange;
+  },
+
+  placementZAtWorld(wx, wy) {
+    if (this.brushZOverride) return this.brushZ;
+    if (this.zSliceEnabled) return this.zSliceCenter;
+    return this.zAtWorld(wx, wy);
+  },
+
   // Mouse → world tile via inverse iso, accounting for the tile's z.
   // We can't know z without first guessing the tile, so iterate twice:
   // pick using z=0, then re-pick using that tile's z. Good enough for
@@ -1581,14 +2001,16 @@ const ed = window.ed = {
     // Inverse iso, screen-space (after camera).
     let wx0 = (sx - ox) / zoom;
     let wy0 = (sy - oy) / zoom;
-    // First pass — assume z=0.
-    let p = screenToWorld(wx0, wy0, 0);
+    // In floor mode the chosen plane is authoritative; otherwise begin at
+    // ground level and refine from the sampled terrain tile.
+    const firstZ = this.zSliceEnabled ? this.zSliceCenter : 0;
+    let p = screenToWorld(wx0, wy0, firstZ);
     let tx = Math.floor(p.x + 0.5), ty = Math.floor(p.y + 0.5);
     // Second pass — re-run using the z of the tile we picked.
-    const tz = this.zAtWorld(tx, ty);
+    const tz = this.zSliceEnabled ? this.zSliceCenter : this.zAtWorld(tx, ty);
     p = screenToWorld(wx0, wy0, tz);
     tx = Math.floor(p.x + 0.5); ty = Math.floor(p.y + 0.5);
-    return { x: tx, y: ty, z: this.zAtWorld(tx, ty) };
+    return { x: tx, y: ty, z: this.zSliceEnabled ? this.zSliceCenter : this.zAtWorld(tx, ty) };
   },
 };
 
@@ -1726,6 +2148,10 @@ function setup() {
     if (ed.rectStart && (e.buttons & 1)) {
       ed.rectEnd = { x: t.x, y: t.y };
     }
+    if (ed.paintDrag && (e.buttons & 1) && key !== ed.paintDragKey) {
+      ed.paintDragKey = key;
+      void doTool(ed.tool, t, { skipHistory: true });
+    }
     ed.requestRender();
   });
 
@@ -1741,7 +2167,7 @@ function setup() {
       ed.panDrag = { x: e.clientX, y: e.clientY, cx: ed.cx, cy: ed.cy };
       return;
     }
-    if (e.shiftKey) {
+    if (e.button === 0 && (e.shiftKey || ed.tool === 'select')) {
       const t = ed.mouseToTile(e);
       ed.rectStart = { x: t.x, y: t.y };
       ed.rectEnd = { x: t.x, y: t.y };
@@ -1758,10 +2184,14 @@ function setup() {
     }
     // Tool dispatch on left click.
     const t = ed.mouseToTile(e);
-    await doTool(ed.tool, t);
+    if (e.button === 0 && ['paintLand', 'placeStatic'].includes(ed.tool)) {
+      ed.recordHistory(); ed.paintDrag = true; ed.paintDragKey = `${t.x}|${t.y}|${t.z}`;
+      await doTool(ed.tool, t, { skipHistory: true });
+    } else await doTool(ed.tool, t, { continuePath: e.altKey });
   });
 
   cv.addEventListener('mouseup', async (e) => {
+    ed.paintDrag = false; ed.paintDragKey = '';
     if (e.button === 1) { ed.panDrag = null; return; }
     if (ed.rectStart && ed.rectEnd) {
       // Rect-fill paint when in land paint tool; otherwise leave the
@@ -1769,13 +2199,17 @@ function setup() {
       if (ed.tool === 'paintLand') {
         const r = ed.rectBounds();
         if (r) {
+          const total = (r.x1 - r.x0 + 1) * (r.y1 - r.y0 + 1);
+          if (total > 4096) {
+            editorToast('Rectangle exceeds the 4096-tile transaction limit.', 'error');
+            ed.rectStart = null; ed.rectEnd = null; ed.requestRender(); return;
+          }
           ed.recordHistory();
           for (let y = r.y0; y <= r.y1; y++) {
             for (let x = r.x0; x <= r.x1; x++) {
-              const oldZ = ed.zAtWorld(x, y);
-              const z = ed.brushZOverride ? ed.brushZ : oldZ;
-              ed.pendingLand = ed.pendingLand.filter((p) => !(p.x === x && p.y === y));
-              ed.pendingLand.push({ x, y, tileId: ed.brushId, z });
+              if (!validWorldXY(x, y)) continue;
+              const z = ed.placementZAtWorld(x, y);
+              ed.setPendingLand({ x, y, tileId: ed.brushId, z });
               // Also mutate local slice for instant feedback (writes
               // into the same offset model the slope-warp lookup uses).
               const dxL = x - ed.sliceX0, dyL = y - ed.sliceY0;
@@ -1794,15 +2228,14 @@ function setup() {
         const r = ed.rectBounds();
         const total = (r.x1 - r.x0 + 1) * (r.y1 - r.y0 + 1);
         if (total > 4096) {
-          if (!confirm(`Queue ${total} pending statics? (Discard will undo, but the list will be heavy.)`)) {
-            ed.rectStart = null; ed.rectEnd = null; ed.requestRender(); return;
-          }
+          editorToast('Rectangle exceeds the 4096-static transaction limit.', 'error');
+          ed.rectStart = null; ed.rectEnd = null; ed.requestRender(); return;
         }
         ed.recordHistory();
         for (let y = r.y0; y <= r.y1; y++) {
           for (let x = r.x0; x <= r.x1; x++) {
-            const oldZ = ed.zAtWorld(x, y);
-            const z = ed.brushZOverride ? ed.brushZ : oldZ;
+            if (!validWorldXY(x, y)) continue;
+            const z = ed.placementZAtWorld(x, y);
             ed.pendingAdds.push({
               _id: ++ed.pendingAddSeq,
               x, y, z, itemId: ed.brushId, hue: ed.brushHue,
@@ -1856,6 +2289,19 @@ function setup() {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
       e.preventDefault(); ed.redoPending(); return;
     }
+    if (e.key === 'Escape') {
+      if (ed.pathStart) { ed.pathStart = null; ed.pathSegments = 0; editorToast('Path cancelled.'); }
+      else ed.clearSelection();
+      ed.requestRender(); return;
+    }
+    if (e.key === 'PageUp' || e.key === 'PageDown') {
+      e.preventDefault();
+      ed.zSliceEnabled = true;
+      ed.zSliceCenter = Math.max(-128, Math.min(127, ed.zSliceCenter + (e.key === 'PageUp' ? 5 : -5)));
+      document.getElementById('z-slice-enabled').checked = true;
+      document.getElementById('z-slice-center').value = ed.zSliceCenter;
+      ed.requestRender(); return;
+    }
     heldKeys.add(e.key.toLowerCase());
     if (e.key === 'b') ed.setTool('placeStatic');
     if (e.key === 'm') ed.setTool('paintLand');
@@ -1863,6 +2309,10 @@ function setup() {
     if (e.key === 'p') ed.setTool('pick');
     if (e.key === 'i') ed.setTool('inspect');
     if (e.key === 't') ed.setTool('tp');
+    if (e.key === 'v') ed.setTool('select');
+    if (e.key === 'l') ed.setTool('path');
+    if (e.key === 'f') ed.activePrefab ? ed.setTool('placePrefab') : ed.browsePrefabs();
+    if (e.key === 'h') ed.activeMulti ? ed.setTool('placeMulti') : ed.browseMultis();
     if (e.key === '+' || e.key === '=') ed.zoom(1.2);
     if (e.key === '-') ed.zoom(0.83);
     if (e.key === ' ') {
@@ -1914,6 +2364,11 @@ function setup() {
     ed.brushZOverride = e.target.checked);
   document.getElementById('brush-size').addEventListener('change', (e) =>
     ed.brushSize = Number(e.target.value) | 0);
+  document.getElementById('brush-spacing').addEventListener('change', (e) =>
+    ed.brushSpacing = Math.max(1, Math.min(16, Number(e.target.value) | 0)));
+  document.getElementById('side-toggle').addEventListener('click', () => {
+    document.getElementById('root').classList.toggle('side-collapsed'); resize();
+  });
   document.getElementById('show-grid').addEventListener('change', (e) => {
     ed.showGrid = e.target.checked; ed.requestRender();
   });
@@ -1933,6 +2388,15 @@ function setup() {
   document.getElementById('show-regions').addEventListener('change', (e) => {
     ed.showRegions = e.target.checked; ed.requestRender();
     if (ed.showRegions) ed.refreshRegions();
+  });
+  document.getElementById('z-slice-enabled').addEventListener('change', (e) => {
+    ed.zSliceEnabled = e.target.checked; ed.requestRender();
+  });
+  document.getElementById('z-slice-center').addEventListener('input', (e) => {
+    ed.zSliceCenter = Math.max(-128, Math.min(127, Number(e.target.value) | 0)); ed.requestRender();
+  });
+  document.getElementById('z-slice-range').addEventListener('change', (e) => {
+    ed.zSliceRange = Math.max(0, Math.min(20, Number(e.target.value) | 0)); ed.requestRender();
   });
   document.querySelectorAll('[data-opacity]').forEach((input) => {
     input.addEventListener('input', () => {
@@ -2013,12 +2477,72 @@ function setup() {
   });
 }
 
-async function doTool(tool, t) {
+function applyLandBrush(t) {
+  const start = -Math.floor((ed.brushSize - 1) / 2), end = start + ed.brushSize;
+  for (let oy = start; oy < end; oy++) for (let ox = start; ox < end; ox++) {
+    const x = t.x + ox, y = t.y + oy;
+    if (!validWorldXY(x, y)) continue;
+    const z = ed.placementZAtWorld(x, y);
+    ed.setPendingLand({ x, y, tileId: ed.brushId, z });
+    const dx = x - ed.sliceX0, dy = y - ed.sliceY0;
+    if (dx >= 0 && dy >= 0 && dx < ed.sliceW && dy < ed.sliceH) ed.tiles[dy * ed.sliceW + dx] = [ed.brushId, z];
+  }
+}
+
+function applyStaticBrush(t) {
+  const start = -Math.floor((ed.brushSize - 1) / 2), end = start + ed.brushSize;
+  for (let oy = start; oy < end; oy++) for (let ox = start; ox < end; ox++) {
+    const x = t.x + ox, y = t.y + oy;
+    if (!validWorldXY(x, y)) continue;
+    const z = ed.placementZAtWorld(x, y);
+    ed.pendingAdds.push({ _id: ++ed.pendingAddSeq, x, y, z, itemId: ed.brushId, hue: ed.brushHue });
+  }
+}
+
+function lineTiles(from, to) {
+  const points = [];
+  let x = from.x | 0, y = from.y | 0;
+  const dx = Math.abs((to.x | 0) - x), sx = x < to.x ? 1 : -1;
+  const dy = -Math.abs((to.y | 0) - y), sy = y < to.y ? 1 : -1;
+  let error = dx + dy;
+  while (true) {
+    points.push({ x, y, z: ed.zAtWorld(x, y) });
+    if (x === (to.x | 0) && y === (to.y | 0)) break;
+    const twice = 2 * error;
+    if (twice >= dy) { error += dy; x += sx; }
+    if (twice <= dx) { error += dx; y += sy; }
+  }
+  return points;
+}
+
+async function doTool(tool, t, { skipHistory = false, continuePath = false } = {}) {
   if (tool === 'tp') {
     await ed.teleportTo(t.x, t.y, t.z);
     return;
   }
   if (tool === 'inspect') return;
+  if (tool === 'select') return;
+  if (tool === 'placePrefab') { ed.queuePrefabAt(t); return; }
+  if (tool === 'placeMulti') { await ed.placeActiveMulti(t); return; }
+  if (tool === 'path') {
+    if (!ed.pathStart) { ed.pathStart = { ...t }; ed.pathSegments = 0; ed.requestRender(); editorToast('Path start set. Alt-click adds a waypoint; a normal click finishes.', 'ok'); return; }
+    ed.recordHistory();
+    let segment = lineTiles(ed.pathStart, t);
+    if (ed.pathSegments > 0) segment = segment.slice(1);
+    const points = segment.filter((_point, index) => index % ed.brushSpacing === 0);
+    if (points.length * ed.brushSize * ed.brushSize > 4096) {
+      return editorToast('This path segment exceeds the 4096-operation gesture limit. Increase spacing or shorten it.', 'error');
+    }
+    for (const point of points) {
+      if (ed.brushKind === 'land') applyLandBrush(point); else applyStaticBrush(point);
+    }
+    ed.pathSegments++;
+    if (continuePath) ed.pathStart = { ...t };
+    else { ed.pathStart = null; ed.pathSegments = 0; }
+    ed.updatePendingHud(); ed.requestRender();
+    editorToast(`Queued ${points.length} path point(s)${continuePath ? '; continue to the next waypoint.' : '.'}`, 'ok');
+    return;
+  }
   if (tool === 'pick') {
     // Sample stack: prefer runtime item, else topmost static, else land.
     const dx = t.x - ed.sliceX0, dy = t.y - ed.sliceY0;
@@ -2044,36 +2568,15 @@ async function doTool(tool, t) {
   }
   if (tool === 'remove') { removeUnderCursorPending(t); return; }
   if (tool === 'paintLand') {
-    ed.recordHistory();
-    // Brush-size aware paint. Writes into the slice (with margin) so
-    // slope warping picks up the new corner Zs immediately.
-    const r = (ed.brushSize - 1) >> 1;
-    for (let oy = -r; oy <= r; oy++) {
-      for (let ox = -r; ox <= r; ox++) {
-        const x = t.x + ox, y = t.y + oy;
-        const oldZ = ed.zAtWorld(x, y);
-        const z = ed.brushZOverride ? ed.brushZ : oldZ;
-        ed.pendingLand = ed.pendingLand.filter((p) => !(p.x === x && p.y === y));
-        ed.pendingLand.push({ x, y, tileId: ed.brushId, z });
-        const dxL = x - ed.sliceX0, dyL = y - ed.sliceY0;
-        if (dxL >= 0 && dyL >= 0 && dxL < ed.sliceW && dyL < ed.sliceH) {
-          ed.tiles[dyL * ed.sliceW + dxL] = [ed.brushId, z];
-        }
-      }
-    }
+    if (!skipHistory) ed.recordHistory();
+    applyLandBrush(t);
     ed.updatePendingHud();
     ed.requestRender();
     return;
   }
   if (tool === 'placeStatic') {
-    ed.recordHistory();
-    const oldZ = ed.zAtWorld(t.x, t.y);
-    const z = ed.brushZOverride ? ed.brushZ : oldZ;
-    // Pending-add — no immediate POST. Save batches everything.
-    ed.pendingAdds.push({
-      _id: ++ed.pendingAddSeq,
-      x: t.x, y: t.y, z, itemId: ed.brushId, hue: ed.brushHue,
-    });
+    if (!skipHistory) ed.recordHistory();
+    applyStaticBrush(t);
     ed.updatePendingHud();
     ed.requestRender();
   }
@@ -2104,7 +2607,7 @@ function removeUnderCursorPending(tHint) {
   const dx = t.x - ed.sliceX0, dy = t.y - ed.sliceY0;
   const stack = ed.cells?.[`${dx}|${dy}`] ?? [];
   const top = [...stack].reverse().find((s) =>
-    s.source === 'item' && !ed.pendingRemoves.has(s.serial));
+    s.source === 'item' && s.editable === true && !ed.pendingRemoves.has(s.serial));
   if (top) {
     ed.recordHistory();
     ed.pendingRemoves.add(top.serial);
@@ -2168,6 +2671,7 @@ function escapeHtml(s) {
   ed.recomputeView();
   ed.setTool('paintLand');
   setup();
+  ed.restoreDraft();
   // setTool() already starts the palette request; stream the map in
   // parallel instead of issuing a duplicate palette query and awaiting it.
   msg.textContent = 'world slice'; bar.style.width = '92%';
@@ -2369,7 +2873,7 @@ function escapeHtml(s) {
 
   $('sp-delete').addEventListener('click', async () => {
     if (!editingId) return;
-    if (!confirm(`Delete spawner "${editingId}"? Active mobs survive their lifecycle.`)) return;
+    if (!await editorDialog({ title: 'Delete spawner?', html: `<p>Delete <b>${escapeHtml(editingId)}</b>? Active mobs survive their normal lifecycle.</p>`, confirmLabel: 'Delete spawner', danger: true })) return;
     try {
       await fetch(`/api/spawners/${encodeURIComponent(editingId)}`, { method: 'DELETE' });
       close();

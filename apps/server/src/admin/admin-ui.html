@@ -142,6 +142,7 @@
   <button data-tab="assets" data-min-rank="3" style="color:#f0c878">Assets</button>
   <button data-tab="studio" data-min-rank="3" style="color:#f0c878">Content Studio</button>
   <button data-tab="scriptstudio" data-min-rank="3" style="color:#f0c878">Script Studio</button>
+  <button data-tab="game-systems" data-min-rank="3" style="color:#e7b8ff">Game Systems</button>
   <button data-tab="platform" data-min-rank="3" style="color:#9de5c6">Platform</button>
   <button data-tab="docs" style="color:#72d5e8">Docs</button>
   <button data-tab="scripts" data-min-rank="3">Scripts</button>
@@ -1149,6 +1150,38 @@ Object.assign(window,{loadAnimationBody,restartAnimation,validateAnimations});
 
 // ---------------------------- Logs ----------------------------------------
 let logTimer = null;
+// ---------------------- Game-system operations ----------------------------
+let gameSystemCatalog=[];
+registerTab('game-systems', async () => {
+  document.getElementById('main').innerHTML=`
+    <div class="card"><div class="toolbar"><h2 style="margin-right:auto">Game Systems</h2><a href="/studio#game-systems">Edit definitions</a><a href="/docs#authoring">Authoring tutorial</a><button onclick="gameSystemsReload()">Validate & reload</button></div>
+      <p class="muted">One authoritative server runtime powers Classic UO gumps and the negotiated NodeUO JSON workbench. Definitions, live instances, rewards, and compatibility are visible here.</p>
+      <div class="toolbar"><input id="gs-query" placeholder="Search 100 systems" oninput="gameSystemsFilter()"><select id="gs-category" onchange="gameSystemsFilter()"><option value="">All categories</option><option>world</option><option>pve</option><option>narrative</option><option>economy</option><option>pvp</option><option>culture</option><option>progression</option></select><select id="gs-system"></select><button class="primary" onclick="gameSystemsStart()">Start selected</button><button onclick="gameSystemsSimulate()">Simulate balance</button></div>
+      <div id="gs-catalog" style="height:430px;min-height:260px"></div>
+    </div>
+    <div class="card"><h2>Live instances</h2><div id="gs-instances"></div></div>
+    <div class="card"><h2>Balance telemetry & adapter health</h2><div id="gs-telemetry"></div></div>`;
+  await gameSystemsRefresh();
+});
+async function gameSystemsRefresh(){
+  const [catalog,live,telemetry]=await Promise.all([api('GET','/api/game-systems/catalog'),api('GET','/api/game-systems/instances'),api('GET','/api/game-systems/telemetry')]);
+  gameSystemCatalog=catalog.systems??[];
+  const select=document.getElementById('gs-system');if(select)select.innerHTML=gameSystemCatalog.map(row=>`<option value="${esc(row.id)}">${esc(row.name)}</option>`).join('');
+  gameSystemsFilter();
+  const host=document.getElementById('gs-instances');if(host)host.innerHTML=`<table><thead><tr><th>System / instance</th><th>Stage</th><th>Players</th><th>Status</th><th>Control</th></tr></thead><tbody>${(live.instances??[]).map(row=>`<tr><td>${esc(row.systemId)}<br><span class="muted">${esc(row.id)}</span></td><td>${row.stageIndex+1} · ${row.progress}</td><td>${row.participants?.length??0}</td><td>${esc(row.status)}</td><td>${['completed','failed','cancelled'].includes(row.status)?'—':`<button onclick="gameSystemsTransition('${esc(row.id)}','${row.status==='paused'?'active':'paused'}')">${row.status==='paused'?'Resume':'Pause'}</button> <button onclick="gameSystemsTransition('${esc(row.id)}','completed')">Complete</button> <button class="danger" onclick="gameSystemsTransition('${esc(row.id)}','cancelled')">Cancel</button>`}</td></tr>`).join('')||'<tr><td colspan="5">No activity instances yet.</td></tr>'}</tbody></table>`;
+  const metrics=document.getElementById('gs-telemetry');if(metrics)metrics.innerHTML=`<table><thead><tr><th>System</th><th>Started / completed</th><th>Join / leave</th><th>Progress</th><th>Rejected</th><th>Active</th></tr></thead><tbody>${(telemetry.rows??[]).filter(row=>row.started||row.active).map(row=>`<tr><td>${esc(row.name)} <span class="muted">v${row.version}</span></td><td>${row.started??0} / ${row.completed??0} (${Math.round((row.completionRate??0)*100)}%)</td><td>${row.joined??0} / ${row.left??0}</td><td>${row.progress??0}</td><td>${(row.rateLimited??0)+(row.duplicateEvents??0)+(row.specialRejected??0)}</td><td>${row.active??0}</td></tr>`).join('')||'<tr><td colspan="6">Telemetry appears after the first activity starts.</td></tr>'}</tbody></table><details><summary>Adapter health</summary><pre>${esc(JSON.stringify(telemetry.adapters??[],null,2))}</pre></details>`;
+}
+function gameSystemsFilter(){
+  const host=document.getElementById('gs-catalog');if(!host)return;const q=(document.getElementById('gs-query')?.value??'').toLowerCase(),category=document.getElementById('gs-category')?.value??'';
+  const rows=gameSystemCatalog.filter(row=>(!category||row.category===category)&&(!q||`${row.id} ${row.name} ${row.summary}`.toLowerCase().includes(q)));
+  host.innerHTML=`<table><thead><tr><th>System</th><th>Loop</th><th>Client</th><th>Rules</th></tr></thead><tbody>${rows.map(row=>`<tr><td><b>${esc(row.name)}</b><br><span class="muted">${esc(row.id)} · ${esc(row.category)} · ${esc(row.archetype)}</span></td><td>${(row.stages??[]).map((stage,index)=>`${index+1}. ${esc(stage.name)}`).join('<br>')}<br><span class="muted">${esc(row.summary)}</span></td><td><span class="pill ${row.clientMode==='enhanced'?'':'online'}">${esc(row.clientMode)}</span><br>${row.adapter?`<span class="muted">adapter: ${esc(row.adapter)}</span>`:''}</td><td>difficulty ${row.difficulty}/10<br>${row.party.min}-${row.party.max} players · ${row.party.teams} team(s)<br>${row.durationMinutes} min · ${row.reward.gold}g + ${row.reward.tokens} tokens</td></tr>`).join('')||'<tr><td colspan="4">No matching systems.</td></tr>'}</tbody></table>`;
+}
+async function gameSystemsStart(){const systemId=document.getElementById('gs-system').value,r=await api('POST','/api/game-systems/instances',{systemId});flashToast(r.ok?(r.existing?'Already active':'Activity started'):r.error);await gameSystemsRefresh()}
+async function gameSystemsTransition(id,status){const r=await api('POST',`/api/game-systems/instances/${encodeURIComponent(id)}/transition`,{status});flashToast(r.ok?`Activity ${status}`:r.error);await gameSystemsRefresh()}
+async function gameSystemsReload(){const r=await api('POST','/api/game-systems/reload',{});flashToast(r.ok?`${r.count} systems validated and reloaded`:r.error);await gameSystemsRefresh()}
+function gameSystemsSimulate(){const systemId=document.getElementById('gs-system').value;showModal('Balance simulation',`<label>Skill value (0–120)<input id="gs-sim-skill" type="number" min="0" max="120" value="70" style="width:100%"></label><p class="muted">This is a read-only deterministic preview; it does not modify a player or live activity.</p>`,[{label:'Run simulation',primary:true,action:async()=>{const skill=Math.max(0,Math.min(120,Number(document.getElementById('gs-sim-skill').value)||0));const r=await api('POST','/api/game-systems/simulate',{systemId,skill});const tactics=(r.tactics??[]).map(row=>`<tr><td>${esc(row.tactic)}</td><td>${Math.round(row.successChance*100)}%</td><td>${row.expectedContribution}</td><td>${row.tactic==='execute'?'highest progress; consumes focus':row.tactic==='support'?'builds team momentum':'half stamina; builds focus'}</td></tr>`).join('');const stages=(r.stageGoals??[]).map(row=>`<tr><td>${esc(row.id)}</td><td>${row.goal}</td><td>${esc(row.event)}</td></tr>`).join('');setTimeout(()=>showModal('Game-system balance simulation',r.ok?`<h3>Skill ${r.skill}</h3><table><thead><tr><th>Tactic</th><th>Success</th><th>Expected progress / base unit</th><th>Role</th></tr></thead><tbody>${tactics}</tbody></table><h3>Stages</h3><table><thead><tr><th>Stage</th><th>Goal</th><th>Source</th></tr></thead><tbody>${stages}</tbody></table><details><summary>Entry, anti-exploit and rewards</summary><pre>${esc(JSON.stringify({entry:r.entry,availability:r.availability,antiExploit:r.antiExploit,reward:r.reward},null,2))}</pre></details>`:`<p class="error">${esc(r.error??'Simulation failed')}</p>`),0)}},{label:'Cancel'}])}
+Object.assign(window,{gameSystemsRefresh,gameSystemsFilter,gameSystemsStart,gameSystemsTransition,gameSystemsReload,gameSystemsSimulate});
+
 // ---------------------- Platform safety workbench -------------------------
 let platformPreviewId='';
 registerTab('platform', async () => {

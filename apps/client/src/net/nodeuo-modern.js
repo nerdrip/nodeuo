@@ -514,6 +514,13 @@ export function handleNodeUOJsonMessage(net, message) {
     bus.emit('nodeuo:subscriptions', payload);
     return true;
   }
+  if (message.feature === 'game.systems') {
+    world.nodeUOGameSystems = payload.operation === 'update'
+      ? { ...(world.nodeUOGameSystems ?? {}), lastUpdate: payload }
+      : payload;
+    bus.emit('game:systems', payload);
+    return true;
+  }
   if (message.feature === 'movement.hints') {
     const hint = payload.data ?? payload;
     if (world.player) world.player.encumbrance = hint;
@@ -892,7 +899,7 @@ export function resetNodeUOModernState() {
     'nodeUOSectorCursor', 'nodeUOSchemaRegistry', 'nodeUOWave3', 'combatTelegraphs']) delete world[key];
   for (const key of ['nodeUOFeatureHealth', 'nodeUOPerformanceHints', 'nodeUOContentRelease',
     'nodeUOInteractionCatalog', 'nodeUORegionPrefetch', 'nodeUOConsent', 'nodeUOSectorDigests',
-    'nodeUOReleaseCompatibility', 'nodeUOWave6']) delete world[key];
+    'nodeUOReleaseCompatibility', 'nodeUOWave6', 'nodeUOGameSystems']) delete world[key];
 }
 
 function messageFormatOptions(source) {

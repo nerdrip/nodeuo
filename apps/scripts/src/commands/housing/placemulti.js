@@ -35,7 +35,7 @@ import { createItem, destroyItemBySerial } from '../../_items.js';
 import { findBackpack } from '../../_inventory.js';
 import { allItems, allMobiles } from '../../_spatial.js';
 import { itemBySerial, mobileBySerial } from '../../_entities.js';
-import { isCustomHouseMulti, isHouseMulti, nameForMulti } from './multi-catalog.js';
+import { isBoatMulti, isCustomHouseMulti, isHouseMulti, nameForMulti } from './multi-catalog.js';
 import {
   ensureHouseForMulti, isHousingStaff, openHouseManagement, registerMultiHouse,
   neutralizeHouseMultiHues, syncMultiAclToRegistry, syncRegistryHouseToMulti,
@@ -49,6 +49,7 @@ const __PM_FILE = fileURLToPath(import.meta.url);
 const __PM_DIR  = dirname(__PM_FILE);
 
 let _multiCache = null;
+let _multiMetadataCache = null;
 function loadMultis(api) {
   if (_multiCache) return _multiCache;
   // This file lives at `apps/scripts/src/commands/housing/placemulti.js`
@@ -71,6 +72,7 @@ function loadMultis(api) {
     try {
       const raw = JSON.parse(readFileSync(path, 'utf8'));
       _multiCache = raw.multis ?? raw;
+      _multiMetadataCache = null;
       api.log?.(`[placemulti] loaded ${Object.keys(_multiCache).length} multis from ${path}`);
       return _multiCache;
     } catch (e) {
@@ -188,7 +190,7 @@ export default function register(api) {
   };
   const removeSignHook = api.templates?.addUseItemHook?.(signHook) ?? (() => {});
   const removeAssetListener = api.world?.events?.on?.('assets:changed', (change) => {
-    if (change?.kind === 'multi') _multiCache = null;
+    if (change?.kind === 'multi') { _multiCache = null; _multiMetadataCache = null; }
   }) ?? (() => {});
 
   // `[signinfo` — target any item and dump its tile id + flags so we
@@ -461,6 +463,8 @@ export default function register(api) {
           if (result?.instanceId != null) {
             destroyMultiByBrandDetailed(api, multiId, user.map ?? 1, result.instanceId, {
               extraSerials: result.items?.map((created) => created.serial) ?? [],
+              removeRegistry: true,
+              registryId: house?.id ?? null,
             });
           }
           api.log?.(`[house-deed] placement transaction rolled back: ${error.message}`);
@@ -526,11 +530,15 @@ export default function register(api) {
         ctx.state.sendSystemMessage('That tile is not part of a placed multi.');
         return;
       }
-      const removed = destroyMultiByBrand(
-        api, it._multi, it.map ?? 1, multiInstanceId(it),
+      const result = destroyMultiByBrandDetailed(
+        api, it._multi, it.map ?? 1, multiInstanceId(it), { removeRegistry: true },
       );
-      ctx.state.sendSystemMessage(`Demolished multi 0x${(it._multi|0).toString(16)} — ${removed} tiles removed.`);
-      api.log?.(`[${commandName}] ${ctx.sender?.name ?? 'admin'} demolished 0x${(it._multi|0).toString(16)} on facet ${it.map}: ${removed} tiles`);
+      if (result.failed.length) {
+        ctx.state.sendSystemMessage(`Demolition incomplete: ${result.removed}/${result.expected} structure items removed. The housing registry was preserved.`);
+      } else {
+        ctx.state.sendSystemMessage(`Demolished multi 0x${(it._multi|0).toString(16)} — ${result.removed} tiles removed${result.registryRemoved ? ' and housing record cleared' : ''}.`);
+      }
+      api.log?.(`[${commandName}] ${ctx.sender?.name ?? 'admin'} demolished 0x${(it._multi|0).toString(16)} on facet ${it.map}: ${result.removed}/${result.expected} tiles; registry=${result.registryRemoved}`);
     }, { kind: 0 });
   }
 
@@ -608,6 +616,98 @@ export default function register(api) {
     },
   });
 
+  // Typed admin-editor bridge. The ISO editor uses the same catalogue,
+  // collision validation, compact anchor representation and HouseRegistry
+  // registration as deeds/[placemulti; it never duplicates multi placement
+  // rules in an HTTP route.
+  api.systems ??= {};
+  const previousMultiEditor = api.systems.multiEditor;
+  api.systems.multiEditor = {
+    catalog() {
+      if (_multiMetadataCache) return _multiMetadataCache;
+      const catalogue = loadMultis(api) ?? {};
+      _multiMetadataCache = Object.entries(catalogue).map(([id, tiles]) => {
+        const multiId = Number(id) | 0;
+        let x1 = 0, y1 = 0, x2 = 0, y2 = 0;
+        for (const tile of tiles ?? []) {
+          x1 = Math.min(x1, tile.x | 0); y1 = Math.min(y1, tile.y | 0);
+          x2 = Math.max(x2, tile.x | 0); y2 = Math.max(y2, tile.y | 0);
+        }
+        return { id: multiId, name: nameForMulti(multiId) || `Multi 0x${multiId.toString(16)}`,
+          kind: isHouseMulti(multiId) ? 'house' : isBoatMulti(multiId) ? 'boat' : 'other',
+          tileCount: tiles?.length ?? 0, bounds: [x1, y1, x2, y2] };
+      });
+      return _multiMetadataCache;
+    },
+    preview(multiId) {
+      const tiles = loadMultis(api)?.[Number(multiId) | 0] ?? null;
+      if (!tiles) return null;
+      return tiles.slice(0, 16_384).map((tile) => ({ id: Number(tile.id ?? tile.itemId) | 0,
+        x: tile.x | 0, y: tile.y | 0, z: tile.z | 0, visible: tile.visible !== false }));
+    },
+    place(owner, { multiId, hue = 0, x, y, z = 0, map = 1 } = {}) {
+      if (!owner?.serial) return { ok: false, error: 'An online owner character is required.' };
+      const id = Number(multiId) | 0;
+      const tiles = loadMultis(api)?.[id];
+      if (!tiles) return { ok: false, error: `Unknown multi 0x${id.toString(16)}.` };
+      if (isBoatMulti(id)) {
+        if (!api.boats?.placeCanonical) return { ok: false, error: 'The authoritative boat placement service is unavailable.' };
+        try {
+          const boat = api.boats.placeCanonical(api, { multiId: id, x: x | 0, y: y | 0,
+            z: z | 0, map: map | 0, ownerSerial: owner.serial >>> 0, name: nameForMulti(id) });
+          boat.hue = hue | 0;
+          const attachments = [...(boat.boat?.cannons ?? []), ...(boat.boat?.planks ?? [])]
+            .map((serial) => itemBySerial(api, serial)).filter(Boolean);
+          broadcastPlacedMulti(api, [boat, ...attachments], map | 0);
+          return { ok: true, multiId: boat.multiId | 0, requestedMultiId: id,
+            placed: tiles.length, serial: boat.serial >>> 0, houseId: null, kind: 'boat' };
+        } catch (error) {
+          return { ok: false, error: `Boat placement failed safely: ${error?.message ?? error}` };
+        }
+      }
+      const placement = canPlaceMultiAt(api, tiles, x | 0, y | 0, z | 0, map | 0, { house: isHouseMulti(id) });
+      if (!placement.ok) return { ok: false, error: placement.reason };
+      let result = null;
+      try {
+        result = stampMultiAt(api, id, hue | 0, tiles, x | 0, y | 0, z | 0, map | 0);
+        const house = isHouseMulti(id)
+          ? registerMultiHouse(api, result.anchor, owner, { source: 'iso-editor' })
+          : null;
+        if (isHouseMulti(id) && !house) {
+          throw new Error('The house registry rejected the new structure.');
+        }
+        return { ok: true, multiId: id, placed: result.placed,
+          serial: result.anchor.serial >>> 0, houseId: house?.id ?? null };
+      } catch (error) {
+        // stampMultiAt is atomic internally.  Registration happens after the
+        // stamp, however, so roll the exact instance back if HouseRegistry
+        // rejects or throws.  This also sends normal removal packets for a
+        // structure that may already have been broadcast to nearby clients.
+        let rollback = null;
+        if (result?.instanceId) {
+          rollback = destroyMultiByBrandDetailed(api, id, map | 0, result.instanceId, {
+            extraSerials: result.items?.map((item) => item.serial) ?? [],
+            removeRegistry: isHouseMulti(id),
+          });
+        }
+        return { ok: false,
+          error: `Multi placement rolled back: ${error?.message ?? error}`,
+          rollback };
+      }
+    },
+    remove({ multiId, map = 1, instanceId, houseId = null } = {}) {
+      const placed = itemBySerial(api, Number(instanceId) >>> 0);
+      if (placed?.boat) {
+        const result = api.boats?.removeEditorBoat?.(placed.serial)
+          ?? { ok: false, error: 'The authoritative boat removal service is unavailable.', expected: 0, removed: 0, failed: [] };
+        return { ...result, reason: result.error, notificationErrors: 0,
+          registryFound: false, registryRemoved: false };
+      }
+      return destroyMultiByBrandDetailed(api, Number(multiId) | 0, Number(map) | 0,
+        Number(instanceId) >>> 0 || null, { removeRegistry: true, registryId: houseId });
+    },
+  };
+
   return () => {
     // Without unsubscribing, hot-reload piled up old listeners that
     // re-fired `placeMultiInteractive` 2×/3×/… and stale targetCallbacks
@@ -624,6 +724,8 @@ export default function register(api) {
     api.commands.unregister('housedeed');
     api.commands.unregister('housedecay');
     try { api.itemScripts?.unregister?.('house-deed'); } catch { /* ignore */ }
+    if (previousMultiEditor) api.systems.multiEditor = previousMultiEditor;
+    else delete api.systems.multiEditor;
   };
 }
 
@@ -1303,7 +1405,8 @@ function countMultiTiles(api, multiId, facet, instanceId = null) {
  *  the sprite via the `entity:removed` listener (mirrors the per-tile
  *  worldItemSA fan-out the placement path uses). */
 export function destroyMultiByBrandDetailed(
-  api, multiId, facet, instanceId = null, { extraSerials = [] } = {},
+  api, multiId, facet, instanceId = null,
+  { extraSerials = [], removeRegistry = false, registryId = null } = {},
 ) {
   const victims = [];
   const seen = new Set();
@@ -1320,7 +1423,14 @@ export function destroyMultiByBrandDetailed(
     seen.add(serial);
     victims.push(item);
   }
-  if (!victims.length) return { expected: 0, removed: 0, failed: [], notificationErrors: 0 };
+  const house = removeRegistry
+    ? (registryId != null ? api.houses?.get?.(registryId) : null)
+      ?? (instanceId != null ? api.houses?.houseByMultiInstance?.(Number(instanceId) >>> 0) : null)
+      ?? victims.map((item) => api.houses?.houseByMultiSerial?.(item.serial)).find(Boolean)
+      ?? null
+    : null;
+  if (!victims.length) return { expected: 0, removed: 0, failed: [], notificationErrors: 0,
+    registryFound: Boolean(house), registryRemoved: false };
   // Bounding box for the broadcast range filter — cheaper than a full
   // world.mobiles walk per tile. House footprints are tiny vs. the world
   // so a 24-tile pad around the bbox covers every client that could
@@ -1373,11 +1483,50 @@ export function destroyMultiByBrandDetailed(
       api.log?.(`[destroymulti] remove packet failed for 0x${it.serial.toString(16)}: ${error.message}`);
     }
   }
-  return { expected: victims.length, removed, failed, notificationErrors };
+  const registryRemoved = Boolean(house && failed.length === 0 && removed === victims.length
+    && api.houses?.remove?.(house.id));
+  return { expected: victims.length, removed, failed, notificationErrors,
+    registryFound: Boolean(house), registryRemoved };
 }
 
 export function destroyMultiByBrand(api, multiId, facet, instanceId = null) {
   return destroyMultiByBrandDetailed(api, multiId, facet, instanceId).removed;
+}
+
+function placeStaffMulti(api, owner, multiId, hue, tiles, x, y, z, map) {
+  if (isBoatMulti(multiId)) {
+    if (!api.boats?.placeCanonical) return { ok: false, error: 'The authoritative boat placement service is unavailable.' };
+    try {
+      const boat = api.boats.placeCanonical(api, { multiId, x, y, z, map,
+        ownerSerial: owner.serial >>> 0, name: nameForMulti(multiId) });
+      boat.hue = hue | 0;
+      const attachments = [...(boat.boat?.cannons ?? []), ...(boat.boat?.planks ?? [])]
+        .map((serial) => itemBySerial(api, serial)).filter(Boolean);
+      broadcastPlacedMulti(api, [boat, ...attachments], map);
+      return { ok: true, placed: tiles.length, serial: boat.serial >>> 0, kind: 'boat' };
+    } catch (error) { return { ok: false, error: error?.message ?? String(error) }; }
+  }
+  const placement = canPlaceMultiAt(api, tiles, x, y, z, map, {
+    house: isHouseMulti(multiId), allowRestrictedRegions: true,
+  });
+  if (!placement.ok) return { ok: false, error: placement.reason };
+  let result = null;
+  let house = null;
+  try {
+    result = stampMultiAt(api, multiId, hue, tiles, x, y, z, map, { broadcast: false });
+    if (isHouseMulti(multiId)) {
+      house = registerMultiHouse(api, result.anchor, owner, { source: 'staff-placement' });
+      if (!house) throw new Error('house registry rejected the structure');
+    }
+    broadcastPlacedMulti(api, result.visibleItems, map);
+    return { ok: true, placed: result.placed, serial: result.instanceId, houseId: house?.id ?? null };
+  } catch (error) {
+    if (result?.instanceId) destroyMultiByBrandDetailed(api, multiId, map, result.instanceId, {
+      extraSerials: result.items?.map((item) => item.serial) ?? [],
+      removeRegistry: isHouseMulti(multiId), registryId: house?.id ?? null,
+    });
+    return { ok: false, error: error?.message ?? String(error) };
+  }
 }
 
 /** Open the multi-targeting cursor on the user's client and stamp the
@@ -1389,16 +1538,9 @@ function placeMultiInteractive(api, state, mob, multiId, hue, tiles) {
   if (!proto?.multiPlacementRequest) {
     // Protocol builder missing — fall back to stamping at the player's
     // feet, no ghost preview. Still useful when running headless.
-    const placement = canPlaceMultiAt(api, tiles, mob.x | 0, mob.y | 0, mob.z | 0, mob.map ?? 1);
-    if (!placement.ok) {
-      state?.sendSystemMessage?.(`Placement blocked: ${placement.reason}.`);
-      return;
-    }
-    const result = stampMultiAt(
-      api, multiId, hue, tiles,
-      mob.x | 0, mob.y | 0, mob.z | 0, mob.map ?? 1,
-    );
-    if (isHouseMulti(multiId)) registerMultiHouse(api, result.anchor, mob, { source: 'staff-placement' });
+    const result = placeStaffMulti(api, mob, multiId, hue, tiles,
+      mob.x | 0, mob.y | 0, mob.z | 0, mob.map ?? 1);
+    if (!result.ok) { state?.sendSystemMessage?.(`Placement blocked: ${result.error}.`); return; }
     state?.sendSystemMessage?.(
       `Multi placed at your feet (${result.placed} components, no preview).`,
     );
@@ -1416,13 +1558,8 @@ function placeMultiInteractive(api, state, mob, multiId, hue, tiles) {
     }
     const x = picked.x | 0, y = picked.y | 0, z = picked.z | 0;
     const map = mob.map ?? 1;
-    const placement = canPlaceMultiAt(api, tiles, x, y, z, map);
-    if (!placement.ok) {
-      state?.sendSystemMessage?.(`Placement blocked: ${placement.reason}.`);
-      return;
-    }
-    const result = stampMultiAt(api, multiId, hue, tiles, x, y, z, map);
-    if (isHouseMulti(multiId)) registerMultiHouse(api, result.anchor, mob, { source: 'staff-placement' });
+    const result = placeStaffMulti(api, mob, multiId, hue, tiles, x, y, z, map);
+    if (!result.ok) { state?.sendSystemMessage?.(`Placement blocked: ${result.error}.`); return; }
     state?.sendSystemMessage?.(`Placed ${result.placed}/${tiles.length} components of multi 0x${multiId.toString(16)} at (${x},${y},${z}).`);
     api.log?.(`[placemulti] ${mob.name} stamped 0x${multiId.toString(16)} at (${x},${y},${z})  hue=${hue}`);
   });

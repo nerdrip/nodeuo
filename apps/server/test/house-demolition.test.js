@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   consumePlacedHouseDeed,
   demolishMultiWithDeed,
@@ -86,6 +86,37 @@ describe('house demolition transaction', () => {
     expect(result.notificationErrors).toBeGreaterThan(0);
     expect(world.items.has(0x4001)).toBe(false);
     expect(world.items.has(0x4002)).toBe(false);
+  });
+
+  it('removes the housing registry record only after complete editor undo', () => {
+    const { api, world } = demolitionFixture();
+    const remove = vi.fn(() => true);
+    api.houses = {
+      houseByMultiInstance: vi.fn(() => ({ id: 77 })),
+      remove,
+    };
+
+    const result = destroyMultiByBrandDetailed(api, 0x006E, 1, 0x4001, {
+      removeRegistry: true,
+    });
+
+    expect(result).toMatchObject({ expected: 2, removed: 2, failed: [], registryRemoved: true });
+    expect(api.houses.houseByMultiInstance).toHaveBeenCalledWith(0x4001);
+    expect(remove).toHaveBeenCalledWith(77);
+    expect(world.items.size).toBe(1); // only the backpack fixture remains
+  });
+
+  it('keeps the housing registry record when structure removal is incomplete', () => {
+    const { api } = demolitionFixture({ failSerial: 0x4002 });
+    const remove = vi.fn(() => true);
+    api.houses = { houseByMultiInstance: () => ({ id: 77 }), remove };
+
+    const result = destroyMultiByBrandDetailed(api, 0x006E, 1, 0x4001, {
+      removeRegistry: true,
+    });
+
+    expect(result).toMatchObject({ expected: 2, removed: 1, failed: [0x4002], registryRemoved: false });
+    expect(remove).not.toHaveBeenCalled();
   });
 
   it('reveals the returned deed only after every house part is gone', () => {

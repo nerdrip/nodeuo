@@ -421,6 +421,10 @@ const MOBILE_EXT_KEYS = [
   // and the account would log in as the spawned NPC. `resolvePlayerMobile`
   // validates BOTH fields before accepting a binding.
   'isPlayer', 'accountName', 'spellcraft',
+  // Cross-restart activity tokens, completion counts, and earned titles.
+  // Live instances are stored once in worldMeta; only personal progression
+  // belongs on the mobile row.
+  'gameSystems',
 ];
 const ITEM_EXT_KEYS = [
   'nodeUOWorldLayer',
@@ -826,6 +830,7 @@ export function serializeWorldMeta(world) {
     // The old houses.json writer remains only as a one-time migration source.
     houses: world._houseRegistry?.snapshot?.() ?? world._persistedHouses ?? null,
     auctionHouse,
+    gameSystems: world._gameSystemRuntime?.serialize?.() ?? world._persistedGameSystems ?? null,
   };
 }
 
@@ -1260,6 +1265,7 @@ export function restoreWorld(world, snap) {
   // `worldMeta: undefined` so this branch is a no-op for those.
   if (snap.worldMeta && typeof snap.worldMeta === 'object') {
     world._persistedHouses = snap.worldMeta.houses ?? null;
+    world._persistedGameSystems = snap.worldMeta.gameSystems ?? null;
     if (Object.prototype.hasOwnProperty.call(snap.worldMeta, 'createWorldDone')) {
       world._createWorldDone = snap.worldMeta.createWorldDone === true;
     }

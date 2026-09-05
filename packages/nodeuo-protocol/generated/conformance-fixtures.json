@@ -1,17 +1,17 @@
 {
-  "schemaVersion": 7,
-  "fingerprint": "fnv1a64:c40d1396ee05e631",
+  "schemaVersion": 8,
+  "fingerprint": "fnv1a64:a84ce5d5fee8ba94",
   "fixtures": [
     {
       "feature": "accessibility.spatial-cues",
-      "schema": "fnv1a64:cbac74e670e057dd",
+      "schema": "fnv1a64:cbb674e670e8ac62",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "admin.config-transactions",
-      "schema": "fnv1a64:b100a4c9951578f5",
+      "schema": "fnv1a64:b0d4a4c994f03e0a",
       "payload": {
         "operation": "example"
       },
@@ -20,21 +20,21 @@
     },
     {
       "feature": "ai.inspector",
-      "schema": "fnv1a64:f600d0bfc5d35b3d",
+      "schema": "fnv1a64:f60ad0bfc5dbafc2",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "animation.semantic",
-      "schema": "fnv1a64:f47b4850bdd48683",
+      "schema": "fnv1a64:f4924850bde76564",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "assets.chunks",
-      "schema": "fnv1a64:18e2be3ab9aacd88",
+      "schema": "fnv1a64:18e5be3ab9ad035f",
       "payload": {
         "operation": "example",
         "name": "example"
@@ -44,77 +44,77 @@
     },
     {
       "feature": "assets.client-profile",
-      "schema": "fnv1a64:56786dcfde97e301",
+      "schema": "fnv1a64:569d6dcfdeb6ff3e",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "assets.content-addressed",
-      "schema": "fnv1a64:4efc501288da1d82",
+      "schema": "fnv1a64:4ef1501288d015fd",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "assets.patchsets",
-      "schema": "fnv1a64:96e0c2822b11c84d",
+      "schema": "fnv1a64:96eac2822b1a1cd2",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "assets.streaming",
-      "schema": "fnv1a64:b34c00ed7a9d0815",
+      "schema": "fnv1a64:b32000ed7a77cd2a",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "character.specializations",
-      "schema": "fnv1a64:09a04b9857b9950a",
+      "schema": "fnv1a64:09cc4b9857decff5",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "character.virtues",
-      "schema": "fnv1a64:807a95859506eb46",
+      "schema": "fnv1a64:808b958595155e79",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "cinematic.timeline",
-      "schema": "fnv1a64:34a82eb6a8f25a66",
+      "schema": "fnv1a64:34b92eb6a900cd99",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "client.performance-hints",
-      "schema": "fnv1a64:89e383f94157336d",
+      "schema": "fnv1a64:89ed83f9415f87f2",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "clock.sync",
-      "schema": "fnv1a64:67c4b74a4cc498cd",
+      "schema": "fnv1a64:67ceb74a4ccced52",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "combat.cooldowns",
-      "schema": "fnv1a64:5359faf8fab3345d",
+      "schema": "fnv1a64:5363faf8fabb88e2",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "combat.preflight",
-      "schema": "fnv1a64:3fd2ade9c129b876",
+      "schema": "fnv1a64:3fe3ade9c1382ba9",
       "payload": {
         "targetSerial": 0
       },
@@ -123,42 +123,42 @@
     },
     {
       "feature": "combat.telegraphs",
-      "schema": "fnv1a64:f976d1e4c6402244",
+      "schema": "fnv1a64:f95ed1e4c62b9063",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "combat.timeline",
-      "schema": "fnv1a64:d67d21f32d7dff24",
+      "schema": "fnv1a64:d66521f32d696d43",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "container.delta",
-      "schema": "fnv1a64:30995ddd0a7b986c",
+      "schema": "fnv1a64:30b75ddd0a9495fb",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "content.dependencies",
-      "schema": "fnv1a64:8d68a9bc98368e2a",
+      "schema": "fnv1a64:8d94a9bc985bc915",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "content.preflight",
-      "schema": "fnv1a64:580a9032aa895233",
+      "schema": "fnv1a64:58229032aa9de414",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "content.preview-session",
-      "schema": "fnv1a64:09547b8edb845cbc",
+      "schema": "fnv1a64:09727b8edb9d5a4b",
       "payload": {
         "operation": "example"
       },
@@ -167,63 +167,63 @@
     },
     {
       "feature": "content.release",
-      "schema": "fnv1a64:837d1e4f216513d4",
+      "schema": "fnv1a64:83651e4f215081f3",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "crafting.plan",
-      "schema": "fnv1a64:6e7b65a6745413d0",
+      "schema": "fnv1a64:6e4865a67428ba37",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "crafting.workbench",
-      "schema": "fnv1a64:67d7b678b0734e0b",
+      "schema": "fnv1a64:67b8b678b0589d7c",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "debug.time-travel",
-      "schema": "fnv1a64:f1ab83f1e345193f",
+      "schema": "fnv1a64:f1a883f1e342e368",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "diagnostics.client-frame",
-      "schema": "fnv1a64:c23c6030287e2b73",
+      "schema": "fnv1a64:c25460302892bd54",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "diagnostics.live",
-      "schema": "fnv1a64:d71f3008fc86210c",
+      "schema": "fnv1a64:d73e3008fca0d19b",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "diagnostics.trace",
-      "schema": "fnv1a64:9b039ba07b4282a3",
+      "schema": "fnv1a64:9b1b9ba07b571484",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "economy.market-stream",
-      "schema": "fnv1a64:61001ec95429d575",
+      "schema": "fnv1a64:60d41ec954049a8a",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "editor.collaboration",
-      "schema": "fnv1a64:f5dd8ce093acbe22",
+      "schema": "fnv1a64:f5d38ce093a4699d",
       "payload": {
         "operation": "example"
       },
@@ -232,7 +232,7 @@
     },
     {
       "feature": "editor.transactions",
-      "schema": "fnv1a64:9e25bac7b332d291",
+      "schema": "fnv1a64:9e4bbac7b353a1ce",
       "payload": {
         "operation": "example"
       },
@@ -241,49 +241,56 @@
     },
     {
       "feature": "effects.structured",
-      "schema": "fnv1a64:f6a437d33a877267",
+      "schema": "fnv1a64:f6d637d33ab11900",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "flow.qos",
-      "schema": "fnv1a64:181d0f8bd0fdb11d",
+      "schema": "fnv1a64:18270f8bd10605a2",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "game.systems",
+      "schema": "fnv1a64:04ab7fe11ba38b00",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "housing.collaboration",
-      "schema": "fnv1a64:d9a997d0789edb46",
+      "schema": "fnv1a64:d9ba97d078ad4e79",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "housing.tools",
-      "schema": "fnv1a64:2359455bb8e4c519",
+      "schema": "fnv1a64:2348455bb8d651e6",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "instance.handoff",
-      "schema": "fnv1a64:162247cfa5c6aae2",
+      "schema": "fnv1a64:161847cfa5be565d",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "instance.live-handoff",
-      "schema": "fnv1a64:88c6f6148b912fb6",
+      "schema": "fnv1a64:88d7f6148b9fa2e9",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "interaction.catalog",
-      "schema": "fnv1a64:32648a43479a66b1",
+      "schema": "fnv1a64:328a8a4347bb35ee",
       "payload": {
         "targetSerial": 0
       },
@@ -292,7 +299,7 @@
     },
     {
       "feature": "inventory.transactions",
-      "schema": "fnv1a64:2b3636036283f1cc",
+      "schema": "fnv1a64:2b553603629ea25b",
       "payload": {
         "operation": "example"
       },
@@ -301,56 +308,56 @@
     },
     {
       "feature": "inventory.views",
-      "schema": "fnv1a64:808d7f0fdb14755d",
+      "schema": "fnv1a64:80977f0fdb1cc9e2",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "localization.message-format",
-      "schema": "fnv1a64:6afa39e9f448d3e0",
+      "schema": "fnv1a64:6ac739e9f41d7a47",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "map.prefetch",
-      "schema": "fnv1a64:8e47d03ca66409c4",
+      "schema": "fnv1a64:8e2fd03ca64f77e3",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "moderation.case",
-      "schema": "fnv1a64:7538912d6071dc7f",
+      "schema": "fnv1a64:7535912d606fa6a8",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "mods.channels",
-      "schema": "fnv1a64:24e6283ca69e5663",
+      "schema": "fnv1a64:24fe283ca6b2e844",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "mods.permissions",
-      "schema": "fnv1a64:e901cff8f7d7335c",
+      "schema": "fnv1a64:e920cff8f7f1e3eb",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "movement.hints",
-      "schema": "fnv1a64:25f49dcb147cc3a5",
+      "schema": "fnv1a64:25c89dcb145788ba",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "movement.reconciliation",
-      "schema": "fnv1a64:81c4a07199b9dfca",
+      "schema": "fnv1a64:81f1a07199e0cdb5",
       "payload": {
         "inputSequence": 0,
         "accepted": false
@@ -360,56 +367,56 @@
     },
     {
       "feature": "naval.preview",
-      "schema": "fnv1a64:b9c8b33be14122eb",
+      "schema": "fnv1a64:b9a9b33be126725c",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "network.path-selection",
-      "schema": "fnv1a64:11ee9798215b9a0f",
+      "schema": "fnv1a64:11eb979821596438",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "npc.dialog",
-      "schema": "fnv1a64:244ab593356976f5",
+      "schema": "fnv1a64:241eb59335443c0a",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "npc.generative",
-      "schema": "fnv1a64:7cdb7edafaebb2eb",
+      "schema": "fnv1a64:7cbc7edafad1025c",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "npc.relationships",
-      "schema": "fnv1a64:69fee8e38f5dd3d0",
+      "schema": "fnv1a64:69cbe8e38f327a37",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "party.loot-policy",
-      "schema": "fnv1a64:c2cc6bfbad616793",
+      "schema": "fnv1a64:c2e46bfbad75f974",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "party.markers",
-      "schema": "fnv1a64:a2a99bc29a13ce88",
+      "schema": "fnv1a64:a2ac9bc29a16045f",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "party.tactics",
-      "schema": "fnv1a64:872da9f0cea67de1",
+      "schema": "fnv1a64:8753a9f0cec74d1e",
       "payload": {
         "operation": "example"
       },
@@ -418,112 +425,112 @@
     },
     {
       "feature": "properties.structured",
-      "schema": "fnv1a64:8d70f11b29814698",
+      "schema": "fnv1a64:8d74f11b29852f6f",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "protocol.batch",
-      "schema": "fnv1a64:915900edcf90c3d4",
+      "schema": "fnv1a64:914100edcf7c31f3",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "protocol.causality",
-      "schema": "fnv1a64:f75d5262ff0c8dbb",
+      "schema": "fnv1a64:f73e5262fef1dd2c",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "protocol.command-schema",
-      "schema": "fnv1a64:6459105189f1c51c",
+      "schema": "fnv1a64:647710518a0ac2ab",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "protocol.compatibility-fallbacks",
-      "schema": "fnv1a64:5bbb8c0dcf9a6d63",
+      "schema": "fnv1a64:5bd38c0dcfaeff44",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "protocol.conformance",
-      "schema": "fnv1a64:17b0ff031b4bfcdd",
+      "schema": "fnv1a64:17baff031b545162",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "protocol.consent",
-      "schema": "fnv1a64:da24820cbeecfe33",
+      "schema": "fnv1a64:da3c820cbf019014",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "protocol.cost-hints",
-      "schema": "fnv1a64:5bbb8c0dcf9a6d63",
+      "schema": "fnv1a64:5bd38c0dcfaeff44",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "protocol.errors",
-      "schema": "fnv1a64:0484b7ddd62de312",
+      "schema": "fnv1a64:047ab7ddd6258e8d",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "protocol.feature-health",
-      "schema": "fnv1a64:adad231c56b99af2",
+      "schema": "fnv1a64:ada3231c56b1466d",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "protocol.manifest",
-      "schema": "fnv1a64:4dc4147c23e91e15",
+      "schema": "fnv1a64:4d98147c23c3e32a",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "protocol.policy",
-      "schema": "fnv1a64:5bbb8c0dcf9a6d63",
+      "schema": "fnv1a64:5bd38c0dcfaeff44",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "protocol.preconditions",
-      "schema": "fnv1a64:63ce00c6bed72916",
+      "schema": "fnv1a64:63df00c6bee59c49",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "protocol.privacy-contract",
-      "schema": "fnv1a64:5f11d0e378531185",
+      "schema": "fnv1a64:5ee5d0e3782dd69a",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "protocol.privacy-labels",
-      "schema": "fnv1a64:5bbb8c0dcf9a6d63",
+      "schema": "fnv1a64:5bd38c0dcfaeff44",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "protocol.renegotiate",
-      "schema": "fnv1a64:efc9d8fa812a2468",
+      "schema": "fnv1a64:efccd8fa812c5a3f",
       "payload": {
         "operation": "example"
       },
@@ -532,21 +539,21 @@
     },
     {
       "feature": "protocol.resumable-streams",
-      "schema": "fnv1a64:0f3dc77aa9e6d10d",
+      "schema": "fnv1a64:0f47c77aa9ef2592",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "protocol.retry-policy",
-      "schema": "fnv1a64:6beb69e8344cfd68",
+      "schema": "fnv1a64:6bee69e8344f333f",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "protocol.rpc",
-      "schema": "fnv1a64:4a6d20675047952c",
+      "schema": "fnv1a64:4a8c2067506245bb",
       "payload": {
         "targetFeature": "example",
         "method": "example"
@@ -556,42 +563,42 @@
     },
     {
       "feature": "protocol.schema-lifecycle",
-      "schema": "fnv1a64:80e47f5447ccaaad",
+      "schema": "fnv1a64:80ee7f5447d4ff32",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "protocol.schema-registry",
-      "schema": "fnv1a64:781712772b69616b",
+      "schema": "fnv1a64:77f812772b4eb0dc",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "protocol.signed-content",
-      "schema": "fnv1a64:fc69394b940b27c7",
+      "schema": "fnv1a64:fc9c394b94368160",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "protocol.state-repair",
-      "schema": "fnv1a64:4895f596de7ee534",
+      "schema": "fnv1a64:487df596de6a5353",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "protocol.subscription-leases",
-      "schema": "fnv1a64:bcd88a3e3c657033",
+      "schema": "fnv1a64:bcf08a3e3c7a0214",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "protocol.subscriptions",
-      "schema": "fnv1a64:597a432c4dd8dfb2",
+      "schema": "fnv1a64:5970432c4dd08b2d",
       "payload": {
         "target": "example"
       },
@@ -600,7 +607,7 @@
     },
     {
       "feature": "protocol.transactions",
-      "schema": "fnv1a64:5ac75c3f9d4d2532",
+      "schema": "fnv1a64:5abd5c3f9d44d0ad",
       "payload": {
         "operation": "example"
       },
@@ -609,56 +616,56 @@
     },
     {
       "feature": "quest.graph",
-      "schema": "fnv1a64:2caeab220bd259aa",
+      "schema": "fnv1a64:2cdaab220bf79495",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "quest.guidance",
-      "schema": "fnv1a64:2caeab220bd259aa",
+      "schema": "fnv1a64:2cdaab220bf79495",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "quest.journal",
-      "schema": "fnv1a64:2caeab220bd259aa",
+      "schema": "fnv1a64:2cdaab220bf79495",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "release.compatibility",
-      "schema": "fnv1a64:ed90408233ea1237",
+      "schema": "fnv1a64:edc3408234156bd0",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "script.catalog",
-      "schema": "fnv1a64:4157bb522689f1bf",
+      "schema": "fnv1a64:4154bb522687bbe8",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "session.resume",
-      "schema": "fnv1a64:6b808cbe30d384d8",
+      "schema": "fnv1a64:6b838cbe30d5baaf",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "skills.insights",
-      "schema": "fnv1a64:3b961cfcdf09f784",
+      "schema": "fnv1a64:3b7e1cfcdef565a3",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "social.pings",
-      "schema": "fnv1a64:4bed1e1df3ed09cb",
+      "schema": "fnv1a64:4bcf1e1df3d40c3c",
       "payload": {
         "operation": "example"
       },
@@ -667,126 +674,126 @@
     },
     {
       "feature": "social.state",
-      "schema": "fnv1a64:64fec674c0c1633f",
+      "schema": "fnv1a64:64fbc674c0bf2d68",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "spectator.full-stream",
-      "schema": "fnv1a64:c2fd8e5a31235a82",
+      "schema": "fnv1a64:c2f28e5a311952fd",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "spectator.replay",
-      "schema": "fnv1a64:010e98a164be9d92",
+      "schema": "fnv1a64:010498a164b6490d",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "spell.composer",
-      "schema": "fnv1a64:4807cd1b87174290",
+      "schema": "fnv1a64:47d4cd1b86ebe8f7",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "support.evidence",
-      "schema": "fnv1a64:13d7428cabb15507",
+      "schema": "fnv1a64:140a428cabdcaea0",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "trade.audit",
-      "schema": "fnv1a64:11f2aff48d388c26",
+      "schema": "fnv1a64:1203aff48d46ff59",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "trade.receipts",
-      "schema": "fnv1a64:ff93ae203fb1c52b",
+      "schema": "fnv1a64:ff75ae203f98c79c",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "transactions.idempotent",
-      "schema": "fnv1a64:2a904bd7431f54c1",
+      "schema": "fnv1a64:2ab54bd7433e70fe",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "transport.webtransport",
-      "schema": "fnv1a64:0ce86a2a0b6bec1f",
+      "schema": "fnv1a64:0ce46a2a0b680348",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "ui.accessibility",
-      "schema": "fnv1a64:9925105b0040897a",
+      "schema": "fnv1a64:9951105b0065c465",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "ui.rich-gumps",
-      "schema": "fnv1a64:bc570c7e33b289f3",
+      "schema": "fnv1a64:bc6f0c7e33c71bd4",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "ui.safe-schema",
-      "schema": "fnv1a64:bd84fa52592513db",
+      "schema": "fnv1a64:bd65fa52590a634c",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "ui.structured",
-      "schema": "fnv1a64:3142537f48850e4f",
+      "schema": "fnv1a64:313e537f48812578",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "vendor.insights",
-      "schema": "fnv1a64:e23db61be6886621",
+      "schema": "fnv1a64:e262b61be6a7825e",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "vendor.search",
-      "schema": "fnv1a64:85bf844fed2da0f5",
+      "schema": "fnv1a64:8593844fed08660a",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "voice.authorization",
-      "schema": "fnv1a64:bc34cd6bb7c217a6",
+      "schema": "fnv1a64:bc45cd6bb7d08ad9",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "voice.spatial-state",
-      "schema": "fnv1a64:8579b7b9efa55a36",
+      "schema": "fnv1a64:858ab7b9efb3cd69",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "world.annotations",
-      "schema": "fnv1a64:2d2e2c7629eb2da0",
+      "schema": "fnv1a64:2cfb2c7629bfd407",
       "payload": {
         "operation": "example"
       },
@@ -795,42 +802,42 @@
     },
     {
       "feature": "world.audio-scene",
-      "schema": "fnv1a64:cbac74e670e057dd",
+      "schema": "fnv1a64:cbb674e670e8ac62",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "world.champion",
-      "schema": "fnv1a64:f349fddc64ee029d",
+      "schema": "fnv1a64:f353fddc64f65722",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "world.codex",
-      "schema": "fnv1a64:4d9f23adcb604d91",
+      "schema": "fnv1a64:4dc523adcb811cce",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "world.components",
-      "schema": "fnv1a64:cb2db0b649f6ff75",
+      "schema": "fnv1a64:cb01b0b649d1c48a",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "world.delta",
-      "schema": "fnv1a64:cb2db0b649f6ff75",
+      "schema": "fnv1a64:cb01b0b649d1c48a",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "world.editing",
-      "schema": "fnv1a64:c9ac3eac40b9de69",
+      "schema": "fnv1a64:c99b3eac40ab6b36",
       "payload": {
         "operation": "example"
       },
@@ -839,63 +846,63 @@
     },
     {
       "feature": "world.environment",
-      "schema": "fnv1a64:5f11d0e378531185",
+      "schema": "fnv1a64:5ee5d0e3782dd69a",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "world.events",
-      "schema": "fnv1a64:d67d21f32d7dff24",
+      "schema": "fnv1a64:d66521f32d696d43",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "world.layers",
-      "schema": "fnv1a64:0e3e17b7d3313a51",
+      "schema": "fnv1a64:0e6317b7d350568e",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "world.live-event-director",
-      "schema": "fnv1a64:6ba13fe242b08b5b",
+      "schema": "fnv1a64:6b823fe24295dacc",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "world.progressive-snapshot",
-      "schema": "fnv1a64:777c6cb69cf60f9b",
+      "schema": "fnv1a64:775d6cb69cdb5f0c",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "world.region-prefetch",
-      "schema": "fnv1a64:f45043ce9a72439c",
+      "schema": "fnv1a64:f46e43ce9a8b412b",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "world.sector-digest",
-      "schema": "fnv1a64:454266be305007fa",
+      "schema": "fnv1a64:456e66be307542e5",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "world.sector-stream",
-      "schema": "fnv1a64:c58125dbea0334da",
+      "schema": "fnv1a64:c5ad25dbea286fc5",
       "payload": {},
       "valid": true,
       "errors": []
     },
     {
       "feature": "world.timeline",
-      "schema": "fnv1a64:d67d21f32d7dff24",
+      "schema": "fnv1a64:d66521f32d696d43",
       "payload": {},
       "valid": true,
       "errors": []

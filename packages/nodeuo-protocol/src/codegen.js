@@ -34,7 +34,7 @@ export function generateNodeUOTypeDefinitions() {
     'export interface NodeUOPayloadByFeature {',
   ];
   for (const id of ids) lines.push(`  readonly ${JSON.stringify(id)}: ${tsType(NODEUO_PAYLOAD_SCHEMAS[id])};`);
-  lines.push('}', 'export type NodeUOPayload<F extends NodeUOFeatureId> = NodeUOPayloadByFeature[F];', '');
+  lines.push('}', 'export type NodeUOPayload<F extends NodeUOFeatureId> = NodeUOPayloadByFeature[F];');
   return `${lines.join('\n')}\n`;
 }
 

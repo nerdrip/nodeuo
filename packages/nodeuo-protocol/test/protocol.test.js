@@ -133,6 +133,19 @@ describe('NodeUO JSON Protocol v2', () => {
     expect(manifest.features.find((row) => row.id === 'world.region-prefetch')?.maximum).toBe(2);
   });
 
+  it('negotiates the game-system workbench without consuming a binary capability bit', () => {
+    const manifest = buildNodeUOManifest(advertisedFeatureList());
+    expect(NodeUOFeature.GameSystems).toBe('game.systems');
+    expect(manifest.version).toBeGreaterThanOrEqual(8);
+    expect(manifest.features.find((row) => row.id === 'game.systems')).toMatchObject({
+      dependencies: ['ui.structured', 'world.events'],
+      lifecycle: { status: 'stable', since: '2.7' },
+    });
+    expect(validateFeaturePayload('game.systems', {
+      operation: 'action', systemId: 'regional-invasions', instanceId: 'instance:1', actionId: 'scout',
+    }).ok).toBe(true);
+  });
+
   it('builds bounded cancellable RPC envelopes without changing the UO transport', () => {
     const request = createNodeUORpcRequest({ id: 'c.9', targetFeature: 'vendor.search',
       method: 'search', params: { query: 'sword' }, timeoutMs: 90_000 });

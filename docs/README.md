@@ -28,6 +28,10 @@ This directory keeps documentation that is larger than the root quickstart.
 | [architecture/nodeuo-extensions.md](architecture/nodeuo-extensions.md) | NodeUO JSON v2, classic UO fallbacks and compatibility matrix |
 | [architecture/platform-operations.md](architecture/platform-operations.md) | moderation, approvals, previews, live events and operational safety |
 | [architecture/multis-housing-boats.md](architecture/multis-housing-boats.md) | multi representation, housing, custom foundations, boats and classic compatibility |
+| [game-systems/overview.md](game-systems/overview.md) | architecture and shipped 100-system catalog |
+| [game-systems/authoring-tutorial.md](game-systems/authoring-tutorial.md) | add, edit, validate, publish, and extend an activity |
+| [game-systems/compatibility.md](game-systems/compatibility.md) | Classic UO fallback and NodeUO enhanced-view rules |
+| [game-systems/runtime-api.md](game-systems/runtime-api.md) | script, event, admin, and persistence contracts |
 | [audits/gameplay-systems-audit-2026-09-05.md](audits/gameplay-systems-audit-2026-09-05.md) | death, ghosts, skills, magic, crafting, NPC AI, and merchant audit |
 | [../apps/scripts/SCRIPTING.md](../apps/scripts/SCRIPTING.md) | script package notes |
 | [../apps/scripts/src/skills/README.md](../apps/scripts/src/skills/README.md) | skill command mapping |

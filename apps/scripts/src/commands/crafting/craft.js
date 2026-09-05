@@ -298,7 +298,12 @@ function scheduleAttempt(api, crafting, ctx, recipe, onComplete) {
       material: senderRef._craftMaterial ?? null,
     });
     stateRef.sendSystemMessage(resultMessage(recipe, result));
-    if (result.ok) recordCraftingHistory(stateRef, recipe, result);
+    if (result.ok) {
+      recordCraftingHistory(stateRef, recipe, result);
+      api.events?.emit?.('craft:completed', {
+        player: senderRef, crafter: senderRef, recipe, result,
+      });
+    }
     onComplete?.(result);
   }, delayMs);
   return true;

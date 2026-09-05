@@ -2,6 +2,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { validateGameSystemCatalog } from '../systems/game-systems.js';
 
 // ---- snapshot helpers ----------------------------------------------------
 
@@ -82,6 +83,14 @@ export function validateStudioDraft(domain, data, catalogs = {}) {
   const errors = [];
   const warnings = [];
   const records = studioDraftRecords(data);
+  if (domain === 'game-systems') {
+    const validation = validateGameSystemCatalog(records);
+    const compatibilityWarnings = validation.definitions
+      .filter((record) => record.clientMode === 'enhanced')
+      .map((record) => `${record.id}: Classic UO clients will see the explicit NodeUO-required fallback gump.`);
+    return { ok: validation.ok, errors: validation.errors,
+      warnings: [...validation.warnings, ...compatibilityWarnings], records: records.length, domain };
+  }
   const identities = new Map();
   const finite = (value) => Number.isFinite(Number(value));
   const duplicate = (identity, index) => {

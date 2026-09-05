@@ -124,6 +124,93 @@
     </div>`;
   }
 
+  function renderGameSystem(value) {
+    const party = value.party ?? {};
+    const reward = value.reward ?? {};
+    const entry = value.entry ?? {};
+    const availability = value.availability ?? {};
+    const anti = value.antiExploit ?? {};
+    const stages = Array.isArray(value.stages) ? value.stages : [];
+    const rewardItems = Array.isArray(reward.items) ? reward.items : [];
+    const stageCard = (rawStage, index) => {
+      const stage = typeof rawStage === 'string' ? { name: rawStage } : rawStage ?? {};
+      return `<details class="game-system-stage" open data-stage-card="${index}"><summary>Stage ${index + 1} · ${esc(stage.name ?? 'Untitled')}</summary>
+        <div class="quick-grid">
+          ${quickField('Stage ID', `stages.${index}.id`, stage.id ?? `stage-${index + 1}`)}
+          ${quickField('Name', `stages.${index}.name`, stage.name ?? `Stage ${index + 1}`)}
+          ${quickField('Description', `stages.${index}.description`, stage.description ?? stage.name ?? '')}
+          ${quickField('Goal', `stages.${index}.goal`, stage.goal ?? 10, 'number')}
+          ${quickField('World event', `stages.${index}.event`, stage.event ?? 'activity:action')}
+          ${quickField('Skill', `stages.${index}.skill`, stage.skill ?? value.skill ?? 'Tactics')}
+          ${quickField('Actions (comma separated)', `stages.${index}.actions`, stage.actions ?? ['attempt'], 'csv')}
+          ${quickField('Contribution cap', `stages.${index}.contributionCap`, stage.contributionCap ?? 100, 'number')}
+          ${quickField('Unique targets', `stages.${index}.uniqueTargets`, stage.uniqueTargets ?? 0, 'number')}
+          ${quickField('Manual action allowed', `stages.${index}.allowManual`, stage.allowManual !== false, 'boolean')}
+          ${quickField('Maps (comma separated)', `stages.${index}.maps`, stage.maps ?? [], 'csv')}
+          ${quickField('Regions (comma separated)', `stages.${index}.regions`, stage.regions ?? [], 'csv')}
+          ${quickField('Target kinds', `stages.${index}.targetKinds`, stage.targetKinds ?? [], 'csv')}
+          ${quickField('Source kinds', `stages.${index}.sourceKinds`, stage.sourceKinds ?? [], 'csv')}
+        </div><div class="row" style="margin-top:8px">
+          <button type="button" data-stage-up="${index}" ${index === 0 ? 'disabled' : ''}>↑ Earlier</button>
+          <button type="button" data-stage-down="${index}" ${index === stages.length - 1 ? 'disabled' : ''}>↓ Later</button>
+          <button type="button" data-stage-duplicate="${index}">⧉ Duplicate</button>
+          <button type="button" class="danger" data-stage-delete="${index}" ${stages.length <= 3 ? 'disabled title="At least three stages are required"' : ''}>Delete</button>
+        </div><p class="muted">Branch targets (<code>nextStageByAction</code>) remain available in structured fields and are validated against stage IDs on reload.</p></details>`;
+    };
+    const rewardCard = (item, index) => `<details open><summary>Reward item ${index + 1} · ${esc(item.name ?? item.id ?? 'Untitled')}</summary><div class="quick-grid">
+      ${quickField('Reward ID', `reward.items.${index}.id`, item.id ?? `${value.id ?? 'system'}-reward-${index + 1}`)}
+      ${quickField('Item name', `reward.items.${index}.name`, item.name ?? 'Activity reward')}
+      ${visualField('Art ID', `reward.items.${index}.artId`, item.artId ?? 5360, 'item')}
+      ${visualField('Hue', `reward.items.${index}.hue`, item.hue ?? 0, 'hue')}
+      ${quickField('Amount', `reward.items.${index}.amount`, item.amount ?? 1, 'number')}
+      ${quickField('Chance per 1000', `reward.items.${index}.chancePermille`, item.chancePermille ?? 1000, 'number')}
+      ${quickField('Account bound', `reward.items.${index}.accountBound`, item.accountBound !== false, 'boolean')}
+      </div><button type="button" class="danger" data-reward-delete="${index}">Delete reward item</button></details>`;
+    return `<div class="domain-workbench special-editor" data-special-editor="game-system">
+      <div class="special-section"><h5>Identity and compatibility</h5><div class="quick-grid">
+        ${quickField('System ID', 'id', value.id)}${quickField('Display name', 'name', value.name)}
+        ${quickField('Definition version', 'version', value.version ?? 1, 'number')}
+        ${quickField('Category', 'category', value.category, 'select', ['world','pve','narrative','economy','pvp','culture','progression'])}
+        ${quickField('Archetype', 'archetype', value.archetype, 'select', ['campaign','raid','hunt','defense','competition','pvp','crafting','economy','trade','exploration','expedition','narrative','social','puzzle','collection','simulation','creative'])}
+        ${quickField('Client mode', 'clientMode', value.clientMode ?? 'hybrid', 'select', ['classic','hybrid','enhanced'])}
+        ${quickField('Enhanced view', 'enhancedView', value.enhancedView ?? value.archetype)}
+        ${quickField('Enabled', 'enabled', value.enabled ?? true, 'boolean')}${quickField('Existing adapter', 'adapter', value.adapter ?? '')}
+      </div><p class="muted"><b>classic</b> and <b>hybrid</b> are playable by ordinary UO clients. Use <b>enhanced</b> only when the interaction cannot be represented by a standard server gump; Classic users then receive the required-client notice.</p></div>
+      <div class="special-section"><h5>Rules and rewards</h5><div class="quick-grid">
+        ${quickField('Difficulty 1-10', 'difficulty', value.difficulty ?? 3, 'number')}${quickField('Primary skill', 'skill', value.skill ?? 'Tactics')}
+        ${quickField('Duration minutes', 'durationMinutes', value.durationMinutes ?? 60, 'number')}${quickField('Action cooldown seconds', 'cooldownSeconds', value.cooldownSeconds ?? 2, 'number')}
+        ${quickField('Stamina cost', 'staminaCost', value.staminaCost ?? 1, 'number')}${quickField('Minimum players', 'party.min', party.min ?? 1, 'number')}
+        ${quickField('Maximum players', 'party.max', party.max ?? 8, 'number')}${quickField('Teams', 'party.teams', party.teams ?? 1, 'number')}
+        ${quickField('Reward gold', 'reward.gold', reward.gold ?? (value.difficulty ?? 3) * 100, 'number')}${quickField('Reward tokens', 'reward.tokens', reward.tokens ?? (value.difficulty ?? 3) * 5, 'number')}
+        ${quickField('Reward title', 'reward.title', reward.title ?? '')}${quickField('Reputation', 'reward.reputation', reward.reputation ?? 0, 'number')}
+        ${quickField('Entry gold', 'entry.gold', entry.gold ?? 0, 'number')}${quickField('Entry tokens', 'entry.tokens', entry.tokens ?? 0, 'number')}
+      </div></div>
+      <div class="special-section"><h5>Reward items</h5>${rewardItems.map(rewardCard).join('') || '<p class="muted">No physical reward item configured.</p>'}
+        <button type="button" data-reward-add ${rewardItems.length >= 16 ? 'disabled' : ''}>＋ Reward item</button></div>
+      <div class="special-section"><h5>Availability and anti-exploit</h5><div class="quick-grid">
+        ${quickField('Maps (comma separated)', 'availability.maps', availability.maps ?? [], 'csv')}${quickField('Regions (comma separated)', 'availability.regions', availability.regions ?? [], 'csv')}
+        ${quickField('Days UTC (0=Sun)', 'availability.daysOfWeek', availability.daysOfWeek ?? [], 'csv')}${quickField('Required unlocks', 'reward.unlocks', reward.unlocks ?? [], 'csv')}
+        ${quickField('Start hour UTC', 'availability.startHourUtc', availability.startHourUtc ?? 0, 'number')}${quickField('End hour UTC', 'availability.endHourUtc', availability.endHourUtc ?? 24, 'number')}
+        ${quickField('Minimum account age (days)', 'availability.minAccountAgeDays', availability.minAccountAgeDays ?? 0, 'number')}
+        ${quickField('Completion cooldown (minutes)', 'antiExploit.completionCooldownMinutes', anti.completionCooldownMinutes ?? 0, 'number')}
+        ${quickField('Daily completion limit', 'antiExploit.dailyCompletionLimit', anti.dailyCompletionLimit ?? 0, 'number')}
+        ${quickField('Actions per minute', 'antiExploit.maxActionsPerMinute', anti.maxActionsPerMinute ?? 30, 'number')}
+        ${quickField('Maximum event contribution', 'antiExploit.maxEventContribution', anti.maxEventContribution ?? 100, 'number')}
+        ${quickField('Minimum participation %', 'antiExploit.minParticipationPercent', anti.minParticipationPercent ?? 10, 'number')}
+        ${quickField('Unique event targets', 'antiExploit.requireUniqueEventTarget', anti.requireUniqueEventTarget ?? false, 'boolean')}
+        ${quickField('One character per account', 'antiExploit.accountWide', anti.accountWide ?? true, 'boolean')}
+      </div><p class="muted">Completion prerequisites and action-based branches remain editable in the structured fields below.</p></div>
+      <div class="special-section"><h5>Playable loop · ${stages.length} stages</h5>
+        ${stages.map(stageCard).join('')}
+        <button type="button" data-stage-add ${stages.length >= 12 ? 'disabled' : ''}>＋ Add stage</button>
+        <p class="muted">Each published system requires 3–12 validated stages. World-event stages should disable manual actions so players cannot replace gameplay with a button click.</p></div>
+      <div class="special-section"><h5>Player-facing summary</h5>
+        ${quickField('Summary', 'summary', value.summary ?? '')}
+        <div class="row" style="margin-top:8px"><a class="button" href="/docs#authoring">Authoring tutorial</a><a class="button" href="/docs#compatibility">Compatibility rules</a></div>
+      </div>
+    </div>`;
+  }
+
   function renderProperties(properties) {
     const entries = Object.entries(properties && typeof properties === 'object' && !Array.isArray(properties) ? properties : {});
     return `<div data-property-list>${entries.map(([key, value], index) => `<div class="quick-grid" data-property="${index}" style="margin-bottom:5px"><label>Key<input data-property-key value="${esc(key)}"></label><label>Value<input data-property-value value="${esc(typeof value === 'object' ? JSON.stringify(value) : value)}"></label><button data-remove-property title="Remove property">×</button></div>`).join('') || '<p class="muted">No custom properties.</p>'}</div>`;
@@ -262,6 +349,7 @@
     if (domain === 'mobiles') return renderMobile(value);
     if (domain === 'items') return renderItem(value);
     if (domain === 'spells') return renderSpell(value);
+    if (domain === 'game-systems') return renderGameSystem(value);
     if (domain === 'create') {
       if (value?.body != null) return renderMobile(value);
       if (value?.artId != null || value?.itemId != null) return renderItem(value);
@@ -663,10 +751,63 @@
     });
   }
 
+  function wireGameSystem(ctx) {
+    const stages = ctx.value.stages ?? (ctx.value.stages = []);
+    const reward = ctx.value.reward ?? (ctx.value.reward = {});
+    const items = reward.items ?? (reward.items = []);
+    const mutate = (fn) => {
+      if (!ctx.canEdit) return;
+      ctx.beforeMutate(); fn(); ctx.mutated({ rerender: true });
+    };
+    ctx.root.querySelectorAll('[data-stage-up]').forEach((button) => button.onclick = () => mutate(() => {
+      const index = Number(button.dataset.stageUp);
+      if (index > 0) [stages[index - 1], stages[index]] = [stages[index], stages[index - 1]];
+    }));
+    ctx.root.querySelectorAll('[data-stage-down]').forEach((button) => button.onclick = () => mutate(() => {
+      const index = Number(button.dataset.stageDown);
+      if (index >= 0 && index < stages.length - 1) [stages[index], stages[index + 1]] = [stages[index + 1], stages[index]];
+    }));
+    ctx.root.querySelectorAll('[data-stage-duplicate]').forEach((button) => button.onclick = () => mutate(() => {
+      if (stages.length >= 12) return;
+      const index = Number(button.dataset.stageDuplicate), source = stages[index];
+      if (!source) return;
+      const copy = structuredClone(typeof source === 'string' ? { name: source } : source);
+      copy.id = `${String(copy.id ?? 'stage').slice(0, 48)}-copy-${Date.now().toString(36)}`;
+      copy.name = `${copy.name ?? 'Stage'} copy`;
+      stages.splice(index + 1, 0, copy);
+    }));
+    ctx.root.querySelectorAll('[data-stage-delete]').forEach((button) => button.onclick = () => mutate(() => {
+      if (stages.length > 3) stages.splice(Number(button.dataset.stageDelete), 1);
+    }));
+    ctx.root.querySelector('[data-stage-add]')?.addEventListener('click', () => mutate(() => {
+      if (stages.length >= 12) return;
+      const index = stages.length;
+      stages.push({ id: `stage-${Date.now().toString(36)}`, name: `Stage ${index + 1}`,
+        description: 'Describe the authoritative player objective.', goal: 10,
+        event: 'activity:action', skill: ctx.value.skill ?? 'Tactics', actions: ['attempt'],
+        allowManual: true, targetKinds: [], sourceKinds: [], regions: [], maps: [],
+        uniqueTargets: 0, contributionCap: 100, nextStageByAction: {} });
+    }));
+    ctx.root.querySelectorAll('[data-reward-delete]').forEach((button) => button.onclick = () => mutate(() => {
+      items.splice(Number(button.dataset.rewardDelete), 1);
+    }));
+    ctx.root.querySelector('[data-reward-add]')?.addEventListener('click', () => mutate(() => {
+      if (items.length >= 16) return;
+      items.push({ id: `${ctx.value.id ?? 'system'}-reward-${Date.now().toString(36)}`,
+        name: 'Activity reward', artId: 5360, hue: 0, amount: 1,
+        chancePermille: 1000, accountBound: true });
+    }));
+    ctx.root.querySelectorAll('[data-stage-up],[data-stage-down],[data-stage-duplicate],[data-stage-delete],'
+      + '[data-stage-add],[data-reward-delete],[data-reward-add]').forEach((button) => {
+      if (!ctx.canEdit) button.disabled = true;
+    });
+  }
+
   function wire(ctx) {
     wireQuickFields(ctx);
     wireAssetPickers(ctx);
     if (ctx.domain === 'gumps') ctx.value?.scope === 'client' ? wireClientGump(ctx) : wireGump(ctx);
+    if (ctx.domain === 'game-systems') wireGameSystem(ctx);
     if (ctx.domain === 'items' || (ctx.domain === 'create' && ctx.value?.body == null)) wireProperties(ctx);
     if (ctx.domain === 'items' || ctx.domain === 'mobiles' || ctx.domain === 'spells' || ctx.domain === 'create') wireScripts(ctx);
   }
@@ -676,6 +817,7 @@
     if (domain === 'gumps') return { definitionId: `new-gump-${Date.now().toString(36)}`, name: 'New gump', width: 320, height: 240, x: 100, y: 100, controls: [{ type: 'panel', x: 0, y: 0, width: 320, height: 240, artId: 5054 }] };
     if (domain === 'items') return { definitionId: `new-item-${Date.now().toString(36)}`, artId: 0, name: 'New item', hue: 0, weight: 1, movable: true, script: null };
     if (domain === 'mobiles') return { kind: `new-mobile-${Date.now().toString(36)}`, name: 'New mobile', body: 400, hue: 0, hp: 50, str: 50, dex: 50, int: 50, dmgMin: 1, dmgMax: 4, ai: 'wander' };
+    if (domain === 'game-systems') return { id: `new-system-${Date.now().toString(36)}`, version: 1, name: 'New game system', category: 'world', archetype: 'campaign', summary: 'Describe the complete player-facing loop.', difficulty: 3, skill: 'Tactics', durationMinutes: 60, cooldownSeconds: 2, staminaCost: 1, clientMode: 'hybrid', enhancedView: 'campaign', enabled: true, party: { min: 1, max: 8, teams: 1 }, entry: { gold: 0, tokens: 0 }, availability: { maps: [], regions: [], daysOfWeek: [], startHourUtc: 0, endHourUtc: 24, minAccountAgeDays: 0, requiredCompletions: {} }, antiExploit: { completionCooldownMinutes: 15, dailyCompletionLimit: 10, maxActionsPerMinute: 30, maxEventContribution: 100, minParticipationPercent: 10, requireUniqueEventTarget: false, accountWide: true }, reward: { gold: 300, tokens: 15, title: '', reputation: 6, unlocks: [], items: [{ id: 'activity-sigil', name: 'Activity Sigil', artId: 5360, hue: 0, amount: 1, chancePermille: 200, accountBound: true }] }, stages: [{ id: 'discover', name: 'Discover the objective', description: 'Find and validate the objective.', goal: 10, event: 'activity:action', skill: 'Tactics', actions: ['investigate'], allowManual: true, targetKinds: [], sourceKinds: [], regions: [], maps: [], uniqueTargets: 0, contributionCap: 100, nextStageByAction: {} }, { id: 'challenge', name: 'Complete the central challenge', description: 'Complete the authoritative gameplay objective.', goal: 20, event: 'activity:action', skill: 'Tactics', actions: ['engage'], allowManual: true, targetKinds: [], sourceKinds: [], regions: [], maps: [], uniqueTargets: 0, contributionCap: 100, nextStageByAction: {} }, { id: 'resolve', name: 'Resolve and claim the outcome', description: 'Resolve the activity and claim rewards.', goal: 10, event: 'activity:action', skill: 'Tactics', actions: ['resolve'], allowManual: true, targetKinds: [], sourceKinds: [], regions: [], maps: [], uniqueTargets: 0, contributionCap: 100, nextStageByAction: {} }] };
     return { name: 'New record' };
   }
 

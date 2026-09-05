@@ -35,6 +35,18 @@ describe('world persistence', () => {
     expect(restored._createWorldVersion).toBe(0);
   });
 
+  it('round-trips game-system world state and personal progression', () => {
+    const source = new World();
+    const player = source.createMobile({ name: 'Adventurer' });
+    player.gameSystems = { tokens: 25, completions: { 'regional-invasions': 2 }, titles: ['Defender'], lastPlayedAt: 123 };
+    source._gameSystemRuntime = { serialize: () => ({ version: 1, nextInstanceId: 8, instances: [{ id: 'regional-invasions:a:1' }], history: [] }) };
+    const restored = new World();
+    restoreWorld(restored, JSON.parse(JSON.stringify(snapshotWorld(source))));
+    expect(restored.mobiles.get(player.serial)?.gameSystems).toEqual(player.gameSystems);
+    expect(restored._persistedGameSystems).toMatchObject({ version: 1, nextInstanceId: 8,
+      instances: [{ id: 'regional-invasions:a:1' }] });
+  });
+
   it('snapshot + restore round-trips mobiles and items', () => {
     const w1 = new World();
     const mob = w1.createMobile({ name: 'Alice' });

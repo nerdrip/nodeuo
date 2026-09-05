@@ -17,22 +17,36 @@ function normalizeLandMutations(source) {
   if (source.length > 4096) throw new Error('too many mutations (max 4096)');
   const mutations = [];
   for (const row of source) {
-    if ((row?.kind ?? 'land') !== 'land' || !Number.isFinite(Number(row?.x))
-        || !Number.isFinite(Number(row?.y)) || !Number.isFinite(Number(row?.tileId))) {
+    const facet = row?.facet ?? 0;
+    const z = row?.z ?? 0;
+    if ((row?.kind ?? 'land') !== 'land'
+        || !Number.isInteger(facet) || facet < 0 || facet > 5
+        || !Number.isInteger(row?.x) || row.x < 0 || row.x > 0xffff
+        || !Number.isInteger(row?.y) || row.y < 0 || row.y > 0xffff
+        || !Number.isInteger(row?.tileId) || row.tileId < 0 || row.tileId > 0x3fff
+        || !Number.isInteger(z) || z < -128 || z > 127) {
       throw new Error('only valid land mutations are supported');
     }
     const mutation = {
-      kind: 'land', facet: Math.max(0, Math.min(5, Number(row.facet) | 0)),
-      x: Number(row.x) | 0, y: Number(row.y) | 0,
-      tileId: Number(row.tileId) & 0x3fff,
-      z: Math.max(-128, Math.min(127, Number(row.z) | 0)),
+      kind: 'land', facet,
+      x: row.x, y: row.y,
+      tileId: row.tileId,
+      z,
     };
-    if (mutation.x < 0 || mutation.y < 0 || mutation.x > 0xffff || mutation.y > 0xffff) {
-      throw new Error('land mutation coordinate is outside the map');
-    }
     mutations.push(mutation);
   }
   return mutations;
+}
+
+function landCellExists(provider, mutation) {
+  const meta = provider.metaFor?.(mutation.facet);
+  if (meta) {
+    const width = Number(meta.blocksWide) * 8;
+    const height = Number(meta.blocksTall) * 8;
+    return Number.isSafeInteger(width) && Number.isSafeInteger(height)
+      && mutation.x < width && mutation.y < height;
+  }
+  return provider.landAt(mutation.facet, mutation.x, mutation.y) != null;
 }
 
 function broadcastLandMutations(state, mutations) {
@@ -97,10 +111,17 @@ export function handleEditorTransaction(state, operation, payload) {
     let incoming;
     try { incoming = normalizeLandMutations(payload.mutations); }
     catch (error) { return { ok: false, error: error.message }; }
-    if (transaction.mutations.length + incoming.length > 4096) {
+    // Repainting a cell inside one transaction is last-write-wins. Besides
+    // matching editor semantics, this keeps long brush strokes compact and
+    // guarantees that rollback snapshots each cell exactly once.
+    const merged = new Map(transaction.mutations.map((row) => [
+      `${row.facet}|${row.x}|${row.y}`, row,
+    ]));
+    for (const row of incoming) merged.set(`${row.facet}|${row.x}|${row.y}`, row);
+    if (merged.size > 4096) {
       return { ok: false, error: 'transaction mutation limit exceeded' };
     }
-    transaction.mutations.push(...incoming);
+    transaction.mutations = [...merged.values()];
     transaction.expiresAt = now + 5 * 60_000;
     return { ok: true, transactionId: requestedId, staged: transaction.mutations.length,
       expiresAt: transaction.expiresAt };
@@ -116,6 +137,9 @@ export function handleEditorTransaction(state, operation, payload) {
   if (transaction.baseRevision !== currentRevision) return {
     ok: false, error: 'map revision conflict', baseRevision: transaction.baseRevision, currentRevision,
   };
+  if (!transaction.mutations.every((row) => landCellExists(provider, row))) {
+    return { ok: false, error: 'land mutation is outside the loaded map' };
+  }
   const existing = new Map([...(provider.iterEdits?.() ?? [])].map((row) => [
     `${row.facet}|${row.x}|${row.y}`, row,
   ]));
@@ -140,8 +164,14 @@ export function handleEditorTransaction(state, operation, payload) {
         provider.setLandTile(row.facet, row.x, row.y, row.previous.tileId, row.previous.z);
       } else provider.clearLandTile?.(row.facet, row.x, row.y);
     }
-    provider.saveEditsSync(path.join(saveDir, 'map-edits.json'));
-    return { ok: false, error: `transaction commit failed: ${error.message}` };
+    let rollbackPersistError = null;
+    try {
+      const rollbackPersist = provider.saveEditsSync(path.join(saveDir, 'map-edits.json'));
+      if (rollbackPersist?.error) rollbackPersistError = rollbackPersist.error;
+    } catch (persistError) { rollbackPersistError = persistError.message; }
+    return { ok: false, error: `transaction commit failed: ${error.message}`,
+      rollbackComplete: rollbackPersistError == null,
+      ...(rollbackPersistError ? { rollbackPersistError } : {}) };
   }
 }
 

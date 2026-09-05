@@ -149,6 +149,10 @@ export default function register(api) {
         api.systems?.maginciaBazaar?.deserializeStalls?.([]);
         api.systems?.bulletinBoard?.deserializeBoards?.({ nextPostSerial: 1, boards: [] });
         api.systems?.itemHistory?.clearAll?.();
+        if (typeof api.systems?.gameSystems?.reset === 'function') {
+          api.systems.gameSystems.reset({ preserveProfiles: true });
+          runtimeSystemsReset++;
+        }
       } catch (e) { api.log?.(`[wipeworld] runtime systems: ${e.message}`); }
 
       // 2) Kill every NPC mobile (anything without `isPlayer`). Their

@@ -14,7 +14,7 @@ data/
 │   └── items.json, item-types.json, magic-properties.json, loot-*.json,
 │       recipes.json, skills.json, spells.json,
 │       poison-levels.json, vendor-inventory.json, store-catalogue.json,
-│       housedata.json, sfx-table.js, magincia-recipes.json
+│       housedata.json, game-systems.json, sfx-table.js, magincia-recipes.json
 └── world/             (B — placement data + quest content)
     ├── decorations.json, signs.json, teleporters.json,
     ├── regional-npcs.json, xmlspawners.json, camps.json, addons.json,
@@ -74,6 +74,7 @@ craft, drop, or skill check after the next script reload.
 | `store-catalogue.json` | UO Store premium currency item definitions. | `systems/economy/ultima-store.js` |
 | `housedata.json` | House component catalog (wall pieces, doors, floors, stairs, roofs by category). | `data.js` → `housedata` accessor (shared with client) |
 | `sfx-table.js` | Sound effect ID lookup (spell sfx, weapon hit, ambient). | spell + combat sfx broadcast |
+| `game-systems.json` | Extensible activity catalog: compatibility, stages, events, parties, difficulty, rewards, and links to established subsystem adapters. The shipped catalog has 100 complete loops. | `GameSystemRuntime`, Classic `[activities` gump, NodeUO workbench, and Admin Content Studio |
 
 ---
 

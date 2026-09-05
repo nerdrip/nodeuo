@@ -166,6 +166,7 @@ export const NODEUO_FEATURE_CATALOG = Object.freeze([
   feature('world.codex', { channel: 'quest' }),
   feature('party.loot-policy', { channel: 'social' }),
   feature('ui.safe-schema', { channel: 'interface' }),
+  feature('game.systems', { channel: 'quest' }),
 ]);
 
 export const NODEUO_FEATURES = Object.freeze(Object.fromEntries(
@@ -205,6 +206,7 @@ export const NodeUOFeature = Object.freeze({
   VendorSearch: 'vendor.search',
   ModChannels: 'mods.channels',
   TransportUpgrade: 'transport.webtransport',
+  GameSystems: 'game.systems',
 });
 
 // Logical message values live with the JSON protocol. They are strings or

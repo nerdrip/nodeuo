@@ -625,6 +625,135 @@
     "controlOverrides": []
   },
   {
+    "definitionId": "client:game-systems-gump",
+    "scope": "client",
+    "name": "Game Systems",
+    "className": "GameSystemsGump",
+    "type": "game-systems",
+    "source": "game-systems-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": true,
+      "x": 0,
+      "y": 0,
+      "width": 850,
+      "height": 520,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": true,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": [
+      {
+        "controlId": "window-background",
+        "x": 0,
+        "y": 0,
+        "width": 850,
+        "height": 520
+      },
+      {
+        "controlId": "window-title",
+        "x": 10,
+        "y": 4,
+        "width": 260,
+        "height": 18,
+        "previewType": "label"
+      },
+      {
+        "controlId": "surface",
+        "x": 16,
+        "y": 38,
+        "width": 818,
+        "height": 464,
+        "previewType": "panel"
+      },
+      {
+        "controlId": "search",
+        "x": 28,
+        "y": 50,
+        "width": 270,
+        "height": 25,
+        "previewType": "label"
+      },
+      {
+        "controlId": "summary",
+        "x": 28,
+        "y": 82,
+        "width": 290,
+        "height": 18,
+        "previewType": "label"
+      },
+      {
+        "controlId": "catalog",
+        "x": 28,
+        "y": 105,
+        "width": 300,
+        "height": 380,
+        "previewType": "panel"
+      },
+      {
+        "controlId": "detail-panel",
+        "x": 330,
+        "y": 50,
+        "width": 492,
+        "height": 435,
+        "previewType": "panel"
+      },
+      {
+        "controlId": "system-name",
+        "x": 348,
+        "y": 67,
+        "width": 450,
+        "height": 24,
+        "previewType": "label"
+      },
+      {
+        "controlId": "system-meta",
+        "x": 348,
+        "y": 94,
+        "width": 450,
+        "height": 18,
+        "previewType": "label"
+      },
+      {
+        "controlId": "system-description",
+        "x": 348,
+        "y": 120,
+        "width": 450,
+        "height": 65,
+        "previewType": "label"
+      },
+      {
+        "controlId": "system-stage",
+        "x": 348,
+        "y": 195,
+        "width": 450,
+        "height": 105,
+        "previewType": "label"
+      },
+      {
+        "controlId": "participants",
+        "x": 348,
+        "y": 310,
+        "width": 450,
+        "height": 80,
+        "previewType": "label"
+      },
+      {
+        "controlId": "status",
+        "x": 348,
+        "y": 455,
+        "width": 450,
+        "height": 18,
+        "previewType": "label"
+      }
+    ]
+  },
+  {
     "definitionId": "client:grid-loot-gump",
     "scope": "client",
     "name": "Grid Loot",
@@ -748,43 +877,265 @@
       "canCloseWithRMB": true
     },
     "controlOverrides": [
-      { "controlId": "window-title", "x": 14, "y": 6, "width": 180, "height": 18 },
-      { "controlId": "house-title", "x": 22, "y": 34, "width": 500, "height": 25 },
-      { "controlId": "house-meta", "x": 22, "y": 64, "width": 670, "height": 18 },
-      { "controlId": "house-storage", "x": 22, "y": 86, "width": 670, "height": 17 },
-      { "controlId": "actions-panel", "x": 14, "y": 112, "width": 692, "height": 78 },
-      { "controlId": "actions-heading", "x": 26, "y": 122, "width": 130, "height": 17 },
-      { "controlId": "lockdown-button", "x": 26, "y": 149, "width": 122, "height": 28 },
-      { "controlId": "release-button", "x": 158, "y": 149, "width": 114, "height": 28 },
-      { "controlId": "secure-button", "x": 282, "y": 149, "width": 136, "height": 28 },
-      { "controlId": "unsecure-button", "x": 428, "y": 149, "width": 104, "height": 28 },
-      { "controlId": "customize-button", "x": 542, "y": 149, "width": 150, "height": 28 },
-      { "controlId": "classic-house-note", "x": 534, "y": 154, "width": 158, "height": 16 },
-      { "controlId": "ownership-panel", "x": 14, "y": 202, "width": 692, "height": 146 },
-      { "controlId": "ownership-heading", "x": 26, "y": 213, "width": 120, "height": 17 },
-      { "controlId": "house-name-label", "x": 26, "y": 239, "width": 130, "height": 16 },
-      { "controlId": "house-name-input", "x": 26, "y": 258, "width": 220, "height": 28 },
-      { "controlId": "rename-button", "x": 256, "y": 258, "width": 100, "height": 28 },
-      { "controlId": "transfer-label", "x": 380, "y": 239, "width": 220, "height": 16 },
-      { "controlId": "transfer-input", "x": 380, "y": 258, "width": 190, "height": 28 },
-      { "controlId": "transfer-button", "x": 580, "y": 258, "width": 112, "height": 28 },
-      { "controlId": "demolition-panel", "x": 24, "y": 298, "width": 672, "height": 40 },
-      { "controlId": "demolition-heading", "x": 36, "y": 309, "width": 90, "height": 17 },
-      { "controlId": "demolition-hint", "x": 132, "y": 309, "width": 390, "height": 17 },
-      { "controlId": "demolish-button", "x": 536, "y": 305, "width": 148, "height": 28 },
-      { "controlId": "access-panel", "x": 14, "y": 362, "width": 692, "height": 220 },
-      { "controlId": "access-heading", "x": 26, "y": 373, "width": 130, "height": 17 },
-      { "controlId": "friends-heading", "x": 26, "y": 388, "width": 150, "height": 18 },
-      { "controlId": "friends-input", "x": 26, "y": 540, "width": 152, "height": 25 },
-      { "controlId": "friends-add", "x": 186, "y": 540, "width": 50, "height": 25 },
-      { "controlId": "coowners-heading", "x": 255, "y": 388, "width": 150, "height": 18 },
-      { "controlId": "coowners-input", "x": 255, "y": 540, "width": 152, "height": 25 },
-      { "controlId": "coowners-add", "x": 415, "y": 540, "width": 50, "height": 25 },
-      { "controlId": "banned-heading", "x": 484, "y": 388, "width": 150, "height": 18 },
-      { "controlId": "banned-input", "x": 484, "y": 540, "width": 152, "height": 25 },
-      { "controlId": "banned-add", "x": 644, "y": 540, "width": 50, "height": 25 },
-      { "controlId": "visitor-panel", "x": 14, "y": 204, "width": 692, "height": 104 },
-      { "controlId": "visitor-message", "x": 28, "y": 235, "width": 650, "height": 20 }
+      {
+        "controlId": "window-title",
+        "x": 14,
+        "y": 6,
+        "width": 180,
+        "height": 18
+      },
+      {
+        "controlId": "house-title",
+        "x": 22,
+        "y": 34,
+        "width": 500,
+        "height": 25
+      },
+      {
+        "controlId": "house-meta",
+        "x": 22,
+        "y": 64,
+        "width": 670,
+        "height": 18
+      },
+      {
+        "controlId": "house-storage",
+        "x": 22,
+        "y": 86,
+        "width": 670,
+        "height": 17
+      },
+      {
+        "controlId": "actions-panel",
+        "x": 14,
+        "y": 112,
+        "width": 692,
+        "height": 78
+      },
+      {
+        "controlId": "actions-heading",
+        "x": 26,
+        "y": 122,
+        "width": 130,
+        "height": 17
+      },
+      {
+        "controlId": "lockdown-button",
+        "x": 26,
+        "y": 149,
+        "width": 122,
+        "height": 28
+      },
+      {
+        "controlId": "release-button",
+        "x": 158,
+        "y": 149,
+        "width": 114,
+        "height": 28
+      },
+      {
+        "controlId": "secure-button",
+        "x": 282,
+        "y": 149,
+        "width": 136,
+        "height": 28
+      },
+      {
+        "controlId": "unsecure-button",
+        "x": 428,
+        "y": 149,
+        "width": 104,
+        "height": 28
+      },
+      {
+        "controlId": "customize-button",
+        "x": 542,
+        "y": 149,
+        "width": 150,
+        "height": 28
+      },
+      {
+        "controlId": "classic-house-note",
+        "x": 534,
+        "y": 154,
+        "width": 158,
+        "height": 16
+      },
+      {
+        "controlId": "ownership-panel",
+        "x": 14,
+        "y": 202,
+        "width": 692,
+        "height": 146
+      },
+      {
+        "controlId": "ownership-heading",
+        "x": 26,
+        "y": 213,
+        "width": 120,
+        "height": 17
+      },
+      {
+        "controlId": "house-name-label",
+        "x": 26,
+        "y": 239,
+        "width": 130,
+        "height": 16
+      },
+      {
+        "controlId": "house-name-input",
+        "x": 26,
+        "y": 258,
+        "width": 220,
+        "height": 28
+      },
+      {
+        "controlId": "rename-button",
+        "x": 256,
+        "y": 258,
+        "width": 100,
+        "height": 28
+      },
+      {
+        "controlId": "transfer-label",
+        "x": 380,
+        "y": 239,
+        "width": 220,
+        "height": 16
+      },
+      {
+        "controlId": "transfer-input",
+        "x": 380,
+        "y": 258,
+        "width": 190,
+        "height": 28
+      },
+      {
+        "controlId": "transfer-button",
+        "x": 580,
+        "y": 258,
+        "width": 112,
+        "height": 28
+      },
+      {
+        "controlId": "demolition-panel",
+        "x": 24,
+        "y": 298,
+        "width": 672,
+        "height": 40
+      },
+      {
+        "controlId": "demolition-heading",
+        "x": 36,
+        "y": 309,
+        "width": 90,
+        "height": 17
+      },
+      {
+        "controlId": "demolition-hint",
+        "x": 132,
+        "y": 309,
+        "width": 390,
+        "height": 17
+      },
+      {
+        "controlId": "demolish-button",
+        "x": 536,
+        "y": 305,
+        "width": 148,
+        "height": 28
+      },
+      {
+        "controlId": "access-panel",
+        "x": 14,
+        "y": 362,
+        "width": 692,
+        "height": 220
+      },
+      {
+        "controlId": "access-heading",
+        "x": 26,
+        "y": 373,
+        "width": 130,
+        "height": 17
+      },
+      {
+        "controlId": "friends-heading",
+        "x": 26,
+        "y": 388,
+        "width": 150,
+        "height": 18
+      },
+      {
+        "controlId": "friends-input",
+        "x": 26,
+        "y": 540,
+        "width": 152,
+        "height": 25
+      },
+      {
+        "controlId": "friends-add",
+        "x": 186,
+        "y": 540,
+        "width": 50,
+        "height": 25
+      },
+      {
+        "controlId": "coowners-heading",
+        "x": 255,
+        "y": 388,
+        "width": 150,
+        "height": 18
+      },
+      {
+        "controlId": "coowners-input",
+        "x": 255,
+        "y": 540,
+        "width": 152,
+        "height": 25
+      },
+      {
+        "controlId": "coowners-add",
+        "x": 415,
+        "y": 540,
+        "width": 50,
+        "height": 25
+      },
+      {
+        "controlId": "banned-heading",
+        "x": 484,
+        "y": 388,
+        "width": 150,
+        "height": 18
+      },
+      {
+        "controlId": "banned-input",
+        "x": 484,
+        "y": 540,
+        "width": 152,
+        "height": 25
+      },
+      {
+        "controlId": "banned-add",
+        "x": 644,
+        "y": 540,
+        "width": 50,
+        "height": 25
+      },
+      {
+        "controlId": "visitor-panel",
+        "x": 14,
+        "y": 204,
+        "width": 692,
+        "height": 104
+      },
+      {
+        "controlId": "visitor-message",
+        "x": 28,
+        "y": 235,
+        "width": 650,
+        "height": 20
+      }
     ]
   },
   {

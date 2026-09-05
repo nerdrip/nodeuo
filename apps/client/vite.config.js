@@ -12,6 +12,7 @@ const PUBLIC_ROOT = path.join(HERE, 'public');
 const DIST_ROOT = path.join(HERE, 'dist');
 const PUBLIC_MANIFEST = path.join(DIST_ROOT, '.nodeuo-public-assets.json');
 const BUNDLE_MANIFEST = path.join(DIST_ROOT, '.nodeuo-bundle-files.json');
+const APP_VERSION = JSON.parse(fs.readFileSync(path.join(HERE, 'package.json'), 'utf8')).version;
 
 // Mime/text-ish assets where compression is worth it. Pre-compressed binary
 // (PNG, mp3, br/gz already), source maps, and giant UO binary blobs are
@@ -190,6 +191,9 @@ function incrementalPublicPlugin() {
 export default defineConfig(({ command, mode }) => ({
   root: '.',
   publicDir: command === 'build' ? false : 'public',
+  define: {
+    __APP_VERSION__: JSON.stringify(APP_VERSION),
+  },
   server: {
     port: 5173,
     strictPort: true,

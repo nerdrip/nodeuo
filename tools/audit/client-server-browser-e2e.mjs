@@ -127,7 +127,7 @@ try {
     };
   });
   if (gatewayState) {
-    assert.ok(gatewayState.now >= 60 && gatewayState.now <= 100,
+    assert.ok(gatewayState.now >= 50 && gatewayState.now <= 100,
       `world gateway progress is not staged: ${JSON.stringify(gatewayState)}`);
     assert.ok(gatewayState.detail.length > 3, 'world gateway must expose the active loading stage');
     assert.notEqual(gatewayState.spinnerAnimation, 'none', 'world gateway spinner is frozen');

@@ -659,6 +659,53 @@ describe('NodeUO modern negotiated channels', () => {
     expect(provider.saveEditsSync).toHaveBeenCalledOnce();
   });
 
+  it('strictly validates, bounds-checks and deduplicates editor land mutations', () => {
+    const overlay = new Map();
+    const provider = {
+      metaFor: () => ({ blocksWide: 2, blocksTall: 2 }),
+      landAt: (_facet, x, y) => overlay.get(`${x}|${y}`) ?? { tileId: 1, z: 0 },
+      setLandTile: (facet, x, y, tileId, z) => overlay.set(`${x}|${y}`, { facet, x, y, tileId, z }),
+      clearLandTile: (_facet, x, y) => overlay.delete(`${x}|${y}`),
+      iterEdits: () => overlay.values(),
+      saveEditsSync: vi.fn(() => ({ written: overlay.size })),
+    };
+    const state = { account: { accessLevel: 'GM' },
+      ctx: { landProvider: provider, saveDir: 'test-save', connections: new Set() } };
+    const begin = handleAdvancedFeature(state, { feature: 'editor.transactions',
+      payload: { operation: 'begin' } });
+
+    expect(handleAdvancedFeature(state, { feature: 'editor.transactions', payload: {
+      operation: 'stage', transactionId: begin.transactionId,
+      mutations: [{ facet: 9, x: 1, y: 1, tileId: 1, z: 0 }],
+    } })).toMatchObject({ ok: false, error: 'only valid land mutations are supported' });
+    expect(handleAdvancedFeature(state, { feature: 'editor.transactions', payload: {
+      operation: 'stage', transactionId: begin.transactionId,
+      mutations: [{ facet: 1, x: 1.5, y: 1, tileId: 1, z: 0 }],
+    } })).toMatchObject({ ok: false });
+
+    expect(handleAdvancedFeature(state, { feature: 'editor.transactions', payload: {
+      operation: 'stage', transactionId: begin.transactionId,
+      mutations: [
+        { facet: 1, x: 2, y: 3, tileId: 10, z: 1 },
+        { facet: 1, x: 2, y: 3, tileId: 11, z: 2 },
+      ],
+    } })).toMatchObject({ ok: true, staged: 1 });
+    expect(handleAdvancedFeature(state, { feature: 'editor.transactions', payload: {
+      operation: 'commit', transactionId: begin.transactionId,
+    } })).toMatchObject({ ok: true, committed: 1 });
+    expect(overlay.get('2|3')).toMatchObject({ tileId: 11, z: 2 });
+
+    const outside = handleAdvancedFeature(state, { feature: 'editor.transactions',
+      payload: { operation: 'begin' } });
+    handleAdvancedFeature(state, { feature: 'editor.transactions', payload: {
+      operation: 'stage', transactionId: outside.transactionId,
+      mutations: [{ facet: 1, x: 16, y: 1, tileId: 1, z: 0 }],
+    } });
+    expect(handleAdvancedFeature(state, { feature: 'editor.transactions', payload: {
+      operation: 'commit', transactionId: outside.transactionId,
+    } })).toMatchObject({ ok: false, error: 'land mutation is outside the loaded map' });
+  });
+
   it('never sends private data when a JSON feature was not negotiated', () => {
     const { state, sent } = fixture();
     state.nodeUOFeatures.clear();

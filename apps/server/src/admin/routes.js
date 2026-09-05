@@ -40,6 +40,7 @@ import { registerOperationsInsightRoutes } from './operations-insights.js';
 import { registerAlertRoutes } from './alert-routes.js';
 import { registerVerificationRoutes } from './verification-routes.js';
 import { registerPlatformRoutes } from './platform-routes.js';
+import { registerGameSystemRoutes } from './game-system-routes.js';
 import { resolveAdminCharacters } from './admin-characters.js';
 import { notifyNodeUOAssetChanged } from '../net/handlers/nodeuo-modern.js';
 import {
@@ -195,6 +196,7 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
     { id:'world', label:'Regions & world design', icon:'🗺️', files:['world/decorations.json','world/decoratives.json','world/xmlspawners.json'], preview:'world', tags:['region','geometry','guards','music','spawner'] },
     { id:'gumps', label:'Gumps & layouts', icon:'🪟', files:['config/gumps.json','config/server-gump-catalog.json','@client/client-gumps.json'], preview:'gump', tags:['layout','drag','resize','overflow','dialog','client-preview','server-source','json'] },
     { id:'create', label:'Create catalogue', icon:'➕', files:['config/items.json','config/monsters.json','config/housedata.json'], preview:'create', tags:['item','mobile','mount','multi','favorite','recent'] },
+    { id:'game-systems', label:'Game systems', icon:'🎲', files:['config/game-systems.json'], preview:'game-system', tags:['activity','stages','events','rewards','client','compatibility'] },
   ];
 
   const scriptingDocPages = [
@@ -205,6 +207,11 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
     { id:'config', title:'Configuration', icon:'config', kicker:'identity and publishing', source:'docs/scripting/configuration.md' },
     { id:'examples', title:'Examples', icon:'examples', kicker:'complete patterns', source:'docs/scripting/examples.md' },
     { id:'data', title:'Data catalog', icon:'data', kicker:'complete file taxonomy', source:'apps/scripts/src/data/README.md' },
+    { id:'systems', title:'Game systems', icon:'systems', kicker:'architecture and complete catalog', source:'docs/game-systems/overview.md' },
+    { id:'authoring', title:'System tutorial', icon:'authoring', kicker:'add, edit, validate, and publish', source:'docs/game-systems/authoring-tutorial.md' },
+    { id:'compatibility', title:'Client compatibility', icon:'compatibility', kicker:'Classic UO and NodeUO behavior', source:'docs/game-systems/compatibility.md' },
+    { id:'runtime', title:'Systems API', icon:'runtime', kicker:'scripts, events, persistence, and admin', source:'docs/game-systems/runtime-api.md' },
+    { id:'iso-world-editor', title:'ISO world editor', icon:'world', kicker:'terrain, statics, paths, prefabs, houses, and multis', source:'docs/admin/iso-world-editor.md' },
   ];
 
   const countFiles = (root, extension) => {
@@ -593,6 +600,24 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
       if (mutation.usedAt) return { error: 'undo operation was already consumed', conflict: true };
       if (mutation.actor && mutation.actor !== String(session?.account ?? '').toLowerCase()) {
         return { error: 'undo operation belongs to another administrator', conflict: true };
+      }
+      if (mutation.kind === 'world-editor.multi-place') {
+        const result = sharedCtx?.systems?.multiEditor?.remove?.({ multiId: mutation.multiId,
+          map: mutation.facet, instanceId: mutation.instanceId, houseId: mutation.houseId });
+        if (!result || result.removed == null) return { error: result?.reason ?? 'multi editor bridge is unavailable' };
+        if (result.expected < 1) {
+          return { error: 'world changed since this operation; the multi instance no longer exists', conflict: true };
+        }
+        if (result.removed !== result.expected || result.failed?.length) {
+          return { error: 'multi removal was incomplete; the housing registry was preserved',
+            conflict: true, removed: result.removed, expected: result.expected, failed: result.failed ?? [] };
+        }
+        if (mutation.houseId != null && result.registryRemoved !== true) {
+          return { error: 'multi was removed but its housing registry record could not be removed', conflict: true };
+        }
+        mutation.usedAt = Date.now();
+        return { ok: true, undoId: mutation.id, removed: result.removed,
+          before: { multiId: mutation.multiId, instanceId: mutation.instanceId }, after: { removed: result.removed } };
       }
       if (mutation.kind !== 'statics.batch') return { error: 'mutation kind is not undoable' };
       const create = sharedCtx?.items?.createItem;
@@ -1248,6 +1273,7 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
   registerAlertRoutes(routes, { saveDir });
   registerVerificationRoutes(routes, { sharedCtx, world });
   registerPlatformRoutes(routes, { sharedCtx });
+  registerGameSystemRoutes(routes, { sharedCtx });
 
 
   // ---- Scripts (read / edit / create / delete) -------------------------

@@ -84,7 +84,9 @@ import * as attributes from './world/attributes.js';
 import { extendTargeting } from './world/targeting.js';
 import * as statusEffects from './status-effects.js';
 import * as protocol from '@uo/protocol';
-import { NODEUO_JSON_SUBPROTOCOL, NodeUOFeature, NodeUONavalMessage } from '@uo/nodeuo-protocol';
+import { NODEUO_JSON_SUBPROTOCOL, NodeUOFeature, NodeUOJsonKind, NodeUONavalMessage } from '@uo/nodeuo-protocol';
+import { sendNodeUOFeature } from './net/handlers/nodeuo-modern.js';
+import { createGameSystemRuntime } from './systems/game-systems.js';
 import { publishNodeUOWorldEvent } from './net/handlers/nodeuo-features.js';
 import { createGameWebSocketServer } from './net/websocket-server.js';
 import { tickPetHunger, sweepBondingPromotions } from './systems/pets/pet-hunger.js';
@@ -703,6 +705,9 @@ const engineSystems = {
   resolveServerGumpOverride: null,
   servuoSpells: {},
   servuoMultis: {},
+  // Populated by the canonical placemulti script. The stable namespace must
+  // exist before ScriptRuntime performs its capability audit on a clean boot.
+  multiEditor: {},
   servuoP1Services: {},
   servuoContextMenus: {},
   servuoP2Admin: {},
@@ -710,6 +715,19 @@ const engineSystems = {
   // Scripts add entries during activation; the stable Map survives hot reload.
   worldContentSeeds: new Map(),
 };
+const gameSystems = createGameSystemRuntime({
+  world,
+  scheduler: runtimeScheduler,
+  skills,
+  systems: engineSystems,
+  sourceFile: path.join(scriptsDir, 'data/config/game-systems.json'),
+  publish: (state, payload) => sendNodeUOFeature(state, {
+    feature: NodeUOFeature.GameSystems,
+    kind: NodeUOJsonKind.Event,
+    payload,
+  }),
+});
+engineSystems.gameSystems = gameSystems;
 const sharedCtx = {
   world, authKeys, accounts, config, handlers, commands, ai, aiGraphs, partyRegistry, scheduler: runtimeScheduler,
   guildRegistry, dayNight, regions, corpse, spawner, loot, monsters,
@@ -723,7 +741,7 @@ const sharedCtx = {
   // PHASE DC: net handlers can reach into systems for ad-hoc pushes
   // (e.g. login-time virtue snapshot, paragon broadcast).
   systems: engineSystems,
-  connections: new Set(), nodeUOSettings, protocolCosts, globalTrafficGovernor,
+  connections: new Set(), events: world.events, nodeUOSettings, protocolCosts, globalTrafficGovernor,
   featureRollouts, contentReleases,
   ...verificationSuite.services,
   landProvider, saveDir,
@@ -1032,8 +1050,11 @@ aggressionTimer.unref();
 // `quest-chains.json` definitions that include
 // `{ kind: 'visit', region: <name> }` actually advance.
 regionOnEnter.onAnyEnter((mob, ctx) => {
-  if (!mob?.activeQuests || !ctx.next) return;
-  try { questSystem.notifyEvent(mob, { kind: 'visit', target: ctx.next }); }
+  if (!mob || !ctx.next) return;
+  try {
+    if (mob.activeQuests) questSystem.notifyEvent(mob, { kind: 'visit', target: ctx.next });
+    gameSystems.notifyRegion(mob, ctx.next);
+  }
   catch { /* advisory */ }
 });
 
@@ -1742,6 +1763,7 @@ function safeStringify(v) {
 const SHUTDOWN_DEADLINE_MS = Math.max(10_000,
   Number(process.env.UO_SHUTDOWN_DEADLINE_MS) || 30_000);
 function stopPeriodicSubsystems() {
+  try { gameSystems.dispose(); } catch (e) { console.error(`[uo-node] gameSystems.dispose failed: ${e.message}`); }
   nodeUOReplication.close();
   nodeUOWorldEventsUnsubscribe();
   try { ai.stop(); } catch (e) { console.error(`[uo-node] ai.stop failed: ${e.message}`); }

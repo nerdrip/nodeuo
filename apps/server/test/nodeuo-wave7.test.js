@@ -56,7 +56,7 @@ describe('NodeUO schema v7 services', () => {
       .toMatchObject({ ok: true, hints: [{ feature: 'world.layers', measuredAvgMs: 0.2 }] });
     expect(handleNodeUOWave7Feature(state, request('protocol.conformance', {
       probes: ['world.layers'], nonce: 'probe-1',
-    }))).toMatchObject({ ok: true, nonce: 'probe-1', schemaVersion: 7,
+    }))).toMatchObject({ ok: true, nonce: 'probe-1', schemaVersion: 8,
       fixtures: [{ feature: 'world.layers', valid: true }] });
   });
 

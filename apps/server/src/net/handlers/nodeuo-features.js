@@ -452,6 +452,11 @@ export function handleNodeUOFeatureRequest(state, message, options = {}) {
   const wave3 = handleNodeUOWave3Feature(state, { ...message, payload });
   if (wave3 !== undefined) return wave3;
 
+  if (message.feature === 'game.systems') {
+    return state.ctx?.systems?.gameSystems?.handleRequest?.(state, { ...payload, operation })
+      ?? { ok: false, error: 'Game systems are unavailable on this shard.' };
+  }
+
   if (message.feature === 'spell.composer') {
     const eventKind = Number(envelope.eventKind);
     if (!operation) operation = eventKind === NodeUOSpellComposerMessage.Publish ? 'publish'

@@ -153,6 +153,24 @@ for (const requiredId of npcDialogRequiredIds.filter((id) => !id.startsWith('act
 if (!npcDialogSource.includes('button.setLayoutId(`action-${index + 1}`)')) {
   failures.push('NPC Dialog source is missing stable dynamic action slot IDs');
 }
+const gameSystemsDefinition = runtimeById.get('client:game-systems-gump');
+const gameSystemsControlIds = new Set((gameSystemsDefinition?.controlOverrides ?? []).map((entry) => entry.controlId));
+if (!gameSystemsDefinition?.frame?.enabled) failures.push('Game Systems must use its JSON frame definition');
+if (gameSystemsDefinition?.frame?.width !== 850 || gameSystemsDefinition?.frame?.height !== 520) {
+  failures.push('Game Systems JSON must preserve the complete default frame size');
+}
+const gameSystemsRequiredIds = [
+  'window-background', 'window-title', 'surface', 'search', 'summary', 'catalog',
+  'detail-panel', 'system-name', 'system-meta', 'system-description', 'system-stage',
+  'participants', 'status',
+];
+for (const requiredId of gameSystemsRequiredIds) {
+  if (!gameSystemsControlIds.has(requiredId)) failures.push(`Game Systems JSON is missing stable control '${requiredId}'`);
+}
+const gameSystemsSource = readFileSync(join(gumpRoot, 'game-systems-gump.js'), 'utf8');
+for (const requiredId of gameSystemsRequiredIds) {
+  if (!gameSystemsSource.includes(`'${requiredId}'`)) failures.push(`Game Systems source is missing layoutId '${requiredId}'`);
+}
 
 if (process.argv.includes('--write')) {
   const output = join(appRoot, '.generated', 'gump-catalog.json');

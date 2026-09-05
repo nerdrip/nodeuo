@@ -13,7 +13,7 @@ describe('NodeUO schema-derived tooling', () => {
     expect(declarations).toContain('"protocol.subscription-leases"');
     expect(declarations).toContain('"world.live-event-director"');
     const fixtures = buildNodeUOConformanceFixtures();
-    expect(fixtures.schemaVersion).toBe(7);
+    expect(fixtures.schemaVersion).toBe(8);
     expect(fixtures.fixtures).toHaveLength(NODEUO_FEATURE_CATALOG.length);
     expect(fixtures.fixtures.every((fixture) => fixture.valid)).toBe(true);
     expect(fixtures.fingerprint).toMatch(/^fnv1a64:[0-9a-f]{16}$/u);

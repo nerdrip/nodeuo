@@ -173,8 +173,12 @@ function backpackOf(world, mob) {
 export const BOAT_HULLS = Object.freeze({
   // Canonical ServUO BaseMulti ids, not static-art component ids.
   small:    { multiBase: 0x00, hpMax: 1000, armor: 0.05, speedMultiplier: 1.15, plankCount: 1, label: 'small ship' },
+  smallDragon: { multiBase: 0x04, hpMax: 1100, armor: 0.06, speedMultiplier: 1.12, plankCount: 1, label: 'small dragon ship' },
   medium:   { multiBase: 0x08, hpMax: 1500, armor: 0.10, speedMultiplier: 1.05, plankCount: 2, label: 'medium ship' },
+  mediumDragon: { multiBase: 0x0C, hpMax: 1650, armor: 0.11, speedMultiplier: 1.02, plankCount: 2, label: 'medium dragon ship' },
   large:    { multiBase: 0x10, hpMax: 2000, armor: 0.15, speedMultiplier: 0.95, plankCount: 2, label: 'large ship' },
+  largeDragon: { multiBase: 0x14, hpMax: 2200, armor: 0.17, speedMultiplier: 0.92, plankCount: 2, label: 'large dragon ship' },
+  rowboat:  { multiBase: 0x3C, hpMax: 450, armor: 0.02, speedMultiplier: 1.25, plankCount: 1, label: 'rowboat' },
   galleon:  { multiBase: 0x40, hpMax: 3000, armor: 0.20, speedMultiplier: 0.90, plankCount: 2, label: 'galleon' },
   // SA Galleons. graphic ids match ServUO Multis/Boats/BaseGalleon.cs
   // (each hull mounts 6 cannons broadside — 3 per side — except Orc
@@ -220,6 +224,32 @@ function hullForBoat(boat) {
 function multiIdForFacing(hull, facing) {
   const index = Math.max(0, FACINGS.indexOf(facing));
   return (hull.multiBase | 0) + index;
+}
+
+/** Resolve every canonical boat multi (including damaged galleon visual
+ * variants) to a playable hull and cardinal facing. Editor placement uses
+ * the pristine facing graphic; damage remains authoritative runtime state. */
+export function boatPlacementForMultiId(multiId) {
+  const id = Number(multiId) | 0;
+  const ranges = [
+    [0x00, 0x03, 'small'], [0x04, 0x07, 'smallDragon'],
+    [0x08, 0x0B, 'medium'], [0x0C, 0x0F, 'mediumDragon'],
+    [0x10, 0x13, 'large'], [0x14, 0x17, 'largeDragon'],
+    [0x18, 0x23, 'orc'], [0x24, 0x2F, 'gargish'],
+    [0x30, 0x3B, 'tokuno'], [0x3C, 0x3F, 'rowboat'],
+    [0x40, 0x4B, 'britannian'],
+  ];
+  const match = ranges.find(([first, last]) => id >= first && id <= last);
+  if (!match) return null;
+  const [base, , kind] = match;
+  return Object.freeze({ kind, facing: FACINGS[(id - base) & 3], requestedMultiId: id,
+    multiId: BOAT_HULLS[kind].multiBase + ((id - base) & 3) });
+}
+
+export function placeCanonicalBoat(api, opts) {
+  const placement = boatPlacementForMultiId(opts?.multiId);
+  if (!placement) throw new Error(`multi 0x${(Number(opts?.multiId) | 0).toString(16)} is not a canonical boat`);
+  return placeGalleon(api, { ...opts, kind: placement.kind, facing: placement.facing });
 }
 
 function normalizeBoatState(boat) {
@@ -457,6 +487,57 @@ export function dryDockGalleon(api, boat, ownerMob) {
     catch { /* reconnect will receive authoritative backpack contents */ }
   }
   return { ok: true, deedSerial: deed?.serial };
+}
+
+/** Undo a boat created by the ISO editor without minting a deed. Refuse once
+ * players have sailed, boarded, keyed, crewed, or loaded the hull: at that
+ * point an audit-token undo would destroy legitimate later state. */
+export function removeEditorBoat(api, boatOrSerial) {
+  const boat = typeof boatOrSerial === 'object'
+    ? boatOrSerial : api.world?.items?.get?.(Number(boatOrSerial) >>> 0);
+  const normalized = normalizeBoatState(boat);
+  if (!normalized) return { ok: false, error: 'boat no longer exists', expected: 0, removed: 0, failed: [] };
+  const state = normalized.b;
+  if (!state.anchored || state.sailState !== 'stop' || state.riders.size
+      || (state.keys?.length ?? 0) || state.tillermanSerial) {
+    return { ok: false, error: 'boat changed after placement; dry-dock it through the normal boat workflow',
+      expected: 0, removed: 0, failed: [] };
+  }
+  const attachments = new Set([...(state.cannons ?? []), ...(state.planks ?? [])].map((serial) => serial >>> 0));
+  const hullCells = new Set(footprintForMulti(boat.multiId ?? boat.itemId)
+    .map(([dx, dy]) => `${(boat.x | 0) + dx}:${(boat.y | 0) + dy}`));
+  for (const item of api.world?.items?.values?.() ?? []) {
+    if ((item.serial >>> 0) === (boat.serial >>> 0) || attachments.has(item.serial >>> 0)
+        || item.parent != null || item.map !== boat.map) continue;
+    if (hullCells.has(`${item.x | 0}:${item.y | 0}`)
+        && Math.abs((item.z | 0) - (boat.z | 0)) <= 20) {
+      return { ok: false, error: 'boat has cargo or deck objects; dry-dock it through the normal boat workflow',
+        expected: 0, removed: 0, failed: [] };
+    }
+  }
+  for (const mobile of api.world?.mobiles?.values?.() ?? []) {
+    if (mobile.map !== boat.map) continue;
+    if (hullCells.has(`${mobile.x | 0}:${mobile.y | 0}`)
+        && Math.abs((mobile.z | 0) - (boat.z | 0)) <= 20) {
+      return { ok: false, error: 'boat has a passenger; dry-dock it through the normal boat workflow',
+        expected: 0, removed: 0, failed: [] };
+    }
+  }
+  const victims = [...attachments].map((serial) => api.world.items.get(serial)).filter(Boolean);
+  victims.push(boat);
+  const failed = [];
+  let removed = 0;
+  for (const item of victims) {
+    try {
+      broadcastRemoval(api, item);
+      destroyWorldItem(api, item.serial);
+      if (api.world.items.has(item.serial >>> 0)) failed.push(item.serial >>> 0);
+      else removed++;
+    } catch { failed.push(item.serial >>> 0); }
+  }
+  if (!failed.length) api.world._boats?.delete?.(boat.serial >>> 0);
+  return { ok: failed.length === 0, expected: victims.length, removed, failed,
+    error: failed.length ? 'boat removal was incomplete' : '' };
 }
 
 /** Pick the right tillerman speech line for a sailing event. */
@@ -1034,6 +1115,12 @@ export function startBoatSystem(api) {
      *  module-export does the cannon-mount work. */
     placeGalleon(callerApi, opts) {
       return placeGalleon(callerApi, opts);
+    },
+    placeCanonical(callerApi, opts) {
+      return placeCanonicalBoat(callerApi, opts);
+    },
+    removeEditorBoat(serial) {
+      return removeEditorBoat(api, serial);
     },
     dryDockGalleon(callerApi, boat, ownerMob) {
       return dryDockGalleon(callerApi ?? api, boat, ownerMob);

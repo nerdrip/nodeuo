@@ -1,13 +1,37 @@
-# Ultima Online Node
+# NodeUO
 
-Node/Web implementation of an Ultima Online shard and browser client. The
-project started as a functional migration from ServUO and ClassicUO patterns,
-but the goal is an independent codebase: compatible with the UO protocol where
-that is useful, and designed for Node.js, WebSocket, PixiJS, and modern browser
-rendering.
+A modern Node.js Ultima Online shard, browser client, compatibility bridge,
+asset pipeline, and administration suite. NodeUO preserves the classic binary
+UO boundary while adding an independently negotiated JSON protocol for features
+shared only by the NodeUO server and client.
+
+**Current release: `v1.0.0` · NodeUO JSON protocol package: `2.1.0`**
 
 This repository does not include game files. You generate runtime assets
 locally from your own legal Ultima Online Classic installation.
+
+## Release 1.0
+
+NodeUO 1.0 is the first tagged, end-to-end release of the complete workspace:
+
+- a server-authoritative shard with SQLite WAL persistence, spatial indexes,
+  scripting, AI, combat, crafting, skills, magic, housing, boats, quests,
+  vendors, death, ghosts, and world-generation workflows;
+- a PixiJS browser client with the classic UO experience plus negotiated
+  NodeUO interfaces, including visual-novel NPC interaction;
+- standard-client interoperability in both directions through the untouched UO
+  binary protocol and the TCP/WebSocket bridge;
+- one hundred persistent game-system definitions, including six dedicated
+  enhanced engines and Classic UO gump fallbacks for the other ninety-four;
+- a consolidated admin suite with Content Studio, documentation, asset tools,
+  live operations, and the transactional ISO world editor;
+- bounded caches, batched persistence and broadcasts, atomic editor mutations,
+  rollback paths, performance budgets, and automated compatibility audits.
+
+Application releases follow semantic versioning from the root `package.json`.
+The private `@uo/nodeuo-protocol` package is versioned independently because
+its schema evolves without changing the product or classic UO wire version.
+See [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 ## Public Repository Status
 
@@ -252,6 +276,8 @@ safe operations; scripts register content and behavior.
 - NPC/mobile templates, vendors, and AI;
 - skills, spells, crafting, loot tables;
 - quests, regions, spawns, and events;
+- a 100-system activity catalog shared by Classic UO gumps, NodeUO views, and
+  the admin authoring/operations workbenches;
 - JSON data in `apps/scripts/src/data`.
 
 The canonical guide for the current API is:
@@ -353,12 +379,14 @@ asset pipeline.
 | --- | --- |
 | `QUICKSTART.md` | short setup and launch guide |
 | `CONTRIBUTING.md` | contribution, testing, and licensing rules |
+| `CHANGELOG.md` | version history and release highlights |
 | `LICENSE` | full AGPL license text |
 | `CODE_OF_CONDUCT.md` | behavior rules for the public project |
 | `docs/README.md` | repository documentation index |
 | `docs/server-scripting.md` | current server scripting rules |
 | `docs/scripting/gumps.md` | server/client gumps and JSON authoring |
 | `docs/scripting/configuration.md` | config identity and data publishing |
+| `docs/game-systems/authoring-tutorial.md` | tutorial for activity authoring, scripting, compatibility, and publishing |
 | Admin `/docs` | searchable Scriptbook rendered from the canonical Markdown files |
 | `tools/README.md` | launchers, Control Panel, bridge, and environment variables |
 | `apps/server/src/content/ARCHITECTURE.md` | engine vs scripts split |

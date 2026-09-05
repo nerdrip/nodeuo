@@ -299,7 +299,7 @@ try {
   // Regression: renderState() used to replace the records host while the
   // cached VirtualList kept rendering into its detached viewport. The first
   // domain loaded, every later domain/file remained on "Loading records…".
-  for (const domain of ['items', 'spells', 'crafting', 'mobiles']) {
+  for (const domain of ['items', 'spells', 'crafting', 'game-systems', 'mobiles']) {
     await page.click(`[data-domain="${domain}"]`);
     await page.waitForFunction((id) => {
       const active = document.querySelector(`[data-domain="${id}"]`)?.classList.contains('active');
@@ -316,6 +316,16 @@ try {
       await page.waitForSelector('.modal-bg [data-script-choice]');
       assert.ok(await page.locator('.modal-bg [data-script-choice] option').count(), 'spell script catalogue rendered empty');
       await page.click('.modal-bg [data-close]');
+    }
+    if (domain === 'game-systems') {
+      assert.equal(await page.locator('[data-special-editor="game-system"]').count(), 1,
+        'specialized game-system workbench missing');
+      assert.ok(await page.locator('[data-stage-card]').count() >= 3,
+        'game-system stage designer rendered fewer than three stages');
+      assert.ok(await page.locator('[data-stage-add]').count(), 'game-system add-stage action missing');
+      assert.ok(await page.locator('[data-reward-add]').count(), 'game-system reward editor missing');
+      assert.ok(await page.locator('[data-quick-path$=".event"]').count() >= 3,
+        'game-system world-event bindings are not editable');
     }
   }
   const sourceOptions = await page.locator('#source option').evaluateAll((options) => options.map((option) => option.value));
@@ -420,6 +430,12 @@ try {
     paletteMemory: !!document.querySelector('#palette-memory'),
     hueVariants: document.querySelectorAll('#brush-hue-preset option').length,
     patchIo: !!document.querySelector('#patch-file'),
+    selectionTool: !!document.querySelector('[data-tool="select"]'),
+    pathTool: !!document.querySelector('[data-tool="path"]'),
+    prefabTool: !!document.querySelector('[data-tool="placePrefab"]'),
+    multiTool: !!document.querySelector('[data-tool="placeMulti"]'),
+    floorSlice: !!document.querySelector('#z-slice-enabled') && !!document.querySelector('#z-slice-center'),
+    selectionProperties: [...document.querySelectorAll('.selection-actions button')].some((button) => button.textContent.includes('Properties')),
     workerMetrics: document.querySelector('#map-perf')?.textContent ?? '',
     overflow: document.documentElement.scrollWidth - innerWidth,
   }));
@@ -430,6 +446,12 @@ try {
   assert.equal(editor.paletteMemory, true);
   assert.ok(editor.hueVariants >= 8, 'iso editor hue variants are missing');
   assert.equal(editor.patchIo, true);
+  assert.equal(editor.selectionTool, true);
+  assert.equal(editor.pathTool, true);
+  assert.equal(editor.prefabTool, true);
+  assert.equal(editor.multiTool, true);
+  assert.equal(editor.floorSlice, true, 'iso editor floor slicing is missing');
+  assert.equal(editor.selectionProperties, true, 'iso editor selection property tools are missing');
   assert.match(editor.workerMetrics, /ms/, 'iso editor worker timing is missing');
   assert.ok(editor.overflow <= 2, `iso editor horizontal overflow ${editor.overflow}px`);
   const history = await page.evaluate(() => {
@@ -443,6 +465,40 @@ try {
     return { afterUndo, afterRedo: ed.pendingAdds.length };
   });
   assert.deepEqual(history, { afterUndo: 0, afterRedo: 1 });
+  const prefabTransform = await page.evaluate(() => {
+    ed.pendingAdds = []; ed.undoStack = []; ed.redoStack = [];
+    ed.activePrefab = { name: 'non-square', sizeX: 3, sizeY: 2, rotation: 1, mirror: false,
+      tiles: [{ dx: 0, dy: 0, dz: 0, itemId: 1, hue: 0 }, { dx: 2, dy: 1, dz: 2, itemId: 2, hue: 0 }] };
+    ed.queuePrefabAt({ x: 100, y: 200, z: 5 });
+    return ed.pendingAdds.map(({ x, y, z, itemId }) => ({ x, y, z, itemId }));
+  });
+  assert.deepEqual(prefabTransform, [
+    { x: 101, y: 200, z: 5, itemId: 1 },
+    { x: 100, y: 202, z: 7, itemId: 2 },
+  ], 'non-square prefab 90-degree transform is inconsistent');
+  const floorEditing = await page.evaluate(() => {
+    ed.pendingAdds = [{ _id: 1, x: 10, y: 10, z: 0, itemId: 1, hue: 0 },
+      { _id: 2, x: 10, y: 10, z: 20, itemId: 2, hue: 0 }];
+    ed.pendingRemoves = new Set(); ed.undoStack = []; ed.redoStack = [];
+    ed.rectStart = { x: 10, y: 10 }; ed.rectEnd = { x: 10, y: 10 };
+    ed.zSliceEnabled = true; ed.zSliceCenter = 20; ed.zSliceRange = 0;
+    const visibleBefore = ed.selectionItems().map((item) => item.z);
+    ed.adjustSelectionElevation(1);
+    const elevations = ed.pendingAdds.map((item) => item.z);
+    const placementZ = ed.placementZAtWorld(10, 10);
+    ed.pendingAdds = []; ed.undoStack = []; ed.redoStack = [];
+    for (let index = 0; index < 40; index++) {
+      ed.pendingAdds.push({ _id: index, x: index, y: 0, z: 0, itemId: 1, hue: 0 });
+      ed.recordHistory();
+    }
+    return { visibleBefore, elevations, placementZ, historySize: ed.undoStack.length,
+      historyCost: ed.undoStack.reduce((sum, row) => sum + row._cost, 0) };
+  });
+  assert.deepEqual(floorEditing.visibleBefore, [20]);
+  assert.deepEqual(floorEditing.elevations, [0, 21]);
+  assert.equal(floorEditing.placementZ, 20);
+  assert.ok(floorEditing.historySize <= 24, `iso history gesture budget exceeded: ${floorEditing.historySize}`);
+  assert.ok(floorEditing.historyCost <= 100_000, `iso history operation budget exceeded: ${floorEditing.historyCost}`);
   await auditAccessibility('editor:iso');
   await page.setViewportSize({ width: 1024, height: 768 });
   await page.waitForTimeout(100);

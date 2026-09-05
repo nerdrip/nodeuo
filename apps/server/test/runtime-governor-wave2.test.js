@@ -154,6 +154,8 @@ describe('wave 2 spatial indexes', () => {
     item.x = 11; sectors.moveItem(item);
     expect([...sectors.itemSerialsAt(1, 10, 20)]).toEqual([]);
     expect([...sectors.itemSerialsAt(1, 11, 20)]).toEqual([item.serial]);
+    expect([...sectors.itemSerialsInRect(1, 8, 18, 12, 22)]).toEqual([item.serial]);
+    expect([...sectors.itemSerialsInRect(1, 100, 18, 120, 22)]).toEqual([]);
     expect(sectors.revision).toBeGreaterThan(revision, 'same-sector item movement invalidates visibility/path caches');
     sectors._itAt.set(item.serial, 123);
     expect(sectors.validate(world).ok).toBe(false);

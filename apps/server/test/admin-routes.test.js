@@ -41,11 +41,18 @@ function fixture(extraCtx = {}) {
 }
 
 describe('admin route safety and editor behavior', () => {
+  it('keeps the main admin workbench inline module syntactically valid', () => {
+    const html = fs.readFileSync(new URL('../src/admin/admin-ui.html', import.meta.url), 'utf8');
+    const source = /<script>\s*([\s\S]*?)\s*<\/script>/.exec(html)?.[1];
+    expect(source).toBeTruthy();
+    expect(() => new Function(source)).not.toThrow();
+  });
+
   it('serves the canonical scripting documentation catalogue', async () => {
     const { route } = fixture();
     const docs = await route('GET', '/api/docs/scripting').run({});
     expect(docs).toMatchObject({ version: 1, pages: expect.any(Array), inventory: expect.any(Object) });
-    expect(docs.pages.map((page) => page.id)).toEqual(expect.arrayContaining(['start', 'api', 'gumps', 'config', 'examples', 'data']));
+    expect(docs.pages.map((page) => page.id)).toEqual(expect.arrayContaining(['start', 'api', 'gumps', 'config', 'examples', 'data', 'systems', 'authoring', 'compatibility', 'runtime']));
     expect(docs.pages.find((page) => page.id === 'gumps')?.content).toContain('client-gumps.json');
     expect(docs.pages.find((page) => page.id === 'api')?.content).toContain('api.gumps.send');
   });
@@ -67,6 +74,16 @@ describe('admin route safety and editor behavior', () => {
     ]));
     expect(new Set(controlIds).size).toBe(controlIds.length);
 
+    const gameSystems = catalogue.data.find((entry) => entry.definitionId === 'client:game-systems-gump');
+    expect(gameSystems).toMatchObject({
+      scope: 'client', className: 'GameSystemsGump', type: 'game-systems',
+      frame: { enabled: true, width: 850, height: 520 },
+      behavior: { enabled: true },
+    });
+    expect(gameSystems.controlOverrides.map((entry) => entry.controlId)).toEqual(expect.arrayContaining([
+      'window-background', 'search', 'catalog', 'detail-panel', 'system-stage', 'status',
+    ]));
+
     const source = await route('GET', '/api/studio/client-gump-source').run({
       query: new URLSearchParams({ path: npcDialog.source }),
     });
@@ -79,6 +96,7 @@ describe('admin route safety and editor behavior', () => {
     const catalog = await route('GET', '/api/studio/catalog').run({});
     expect(catalog.domains.some((domain) => domain.id === 'commands')).toBe(false);
     expect(catalog.domains.find((domain) => domain.id === 'gumps')).toMatchObject({ preview: 'gump' });
+    expect(catalog.domains.find((domain) => domain.id === 'game-systems')).toMatchObject({ preview: 'game-system' });
   });
 
   it('blocks self-demotion and self-deletion using the string session account', async () => {
@@ -232,6 +250,15 @@ describe('admin route safety and editor behavior', () => {
     expect(mobiles.ok).toBe(false);
     expect(mobiles.errors.join(' ')).toContain('dmgMin');
     expect(mobiles.warnings.join(' ')).toContain("AI behavior 'unknown'");
+
+    const gameSystems = await route('POST', '/api/studio/validate').run({ body: {
+      domain: 'game-systems', data: [{ id: 'bad id', name: '', summary: '', clientMode: 'magic',
+        difficulty: 99, party: { min: 8, max: 2 }, stages: [{ name: '', goal: 0 }] }],
+    } });
+    expect(gameSystems.ok).toBe(false);
+    expect(gameSystems.errors.join(' ')).toContain('invalid id');
+    expect(gameSystems.errors.join(' ')).toContain('at least three playable stages');
+    expect(gameSystems.errors.join(' ')).toContain('party.min cannot exceed party.max');
   });
 
   it('catalogues editable AI/item/spell scripts and rejects invalid source before overwrite', async () => {
@@ -359,6 +386,43 @@ describe('admin route safety and editor behavior', () => {
     expect(result.cells['0|0']).toContainEqual(expect.objectContaining({
       tileId: 0x1234, serial: '0x40000001', source: 'item',
     }));
+  });
+
+  it('exports prefabs through exact rectangle indexes for runtime and baked statics', async () => {
+    const baked = { x: 101, y: 200, tileId: 0x2222, z: 7, hue: 4 };
+    const landProvider = {
+      landAt: () => ({ tileId: 1, z: 5 }),
+      staticsInRect: vi.fn(() => [baked]),
+    };
+    const { route, world } = fixture({ landProvider });
+    const item = { serial: 0x40000001, itemId: 0x1234, x: 100, y: 200, z: 6, map: 1, parent: null };
+    world.items.set(item.serial, item);
+    world.items.values = () => { throw new Error('full item scan used'); };
+    world.sectors = {
+      itemsIndexed: () => 1,
+      itemSerialsInRect: vi.fn(function* itemSerialsInRect() { yield item.serial; }),
+    };
+
+    const result = await route('POST', '/api/statics/save-prefab').run({ body: {
+      facet: 1, x0: 100, y0: 200, x1: 103, y1: 201, name: 'indexed', includeFixed: true,
+    } });
+
+    expect(result).toMatchObject({ ok: true, tileCount: 2, sizeX: 4, sizeY: 2 });
+    expect(world.sectors.itemSerialsInRect).toHaveBeenCalledWith(1, 100, 200, 103, 201);
+    expect(landProvider.staticsInRect).toHaveBeenCalledWith(1, 100, 200, 4, 2);
+  });
+
+  it('does not report a decoration removed when the item service rejects it', async () => {
+    const destroyItem = vi.fn(() => false);
+    const { route, world } = fixture({ items: { destroyItem } });
+    const item = { serial: 0x40000002, itemId: 0x1234, x: 100, y: 200, z: 0,
+      map: 1, parent: null, isDecoration: true, script: 'static' };
+    world.items.set(item.serial, item);
+
+    const result = await route('POST', '/api/statics/remove').run({ body: { serial: item.serial } });
+
+    expect(result).toMatchObject({ error: expect.stringContaining('remained') });
+    expect(world.items.has(item.serial)).toBe(true);
   });
 
   it('decodes baked statics through one rectangle query when supported', async () => {

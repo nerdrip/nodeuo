@@ -114,6 +114,29 @@ export function requestNodeUONpcRelationships(net, npcSerial = 0) {
     { ttlMs: 5000 });
 }
 
+/** Authoritative activity catalog and actions. This feature is deliberately
+ * JSON-only because the ordinary UO client uses the server's classic gump
+ * facade instead of understanding this document shape. */
+export function requestNodeUOGameSystems(net, operation = 'open', options = {}) {
+  return requestFeature(net, NodeUOFeature.GameSystems ?? 'game.systems', {
+    operation: String(operation).slice(0, 32),
+    systemId: options.systemId ? String(options.systemId).slice(0, 64) : undefined,
+    instanceId: options.instanceId ? String(options.instanceId).slice(0, 160) : undefined,
+    actionId: options.actionId ? String(options.actionId).slice(0, 32) : undefined,
+    command: options.command ? String(options.command).slice(0, 32) : undefined,
+    data: options.data && typeof options.data === 'object' ? options.data : undefined,
+    category: options.category ? String(options.category).slice(0, 32) : undefined,
+    query: options.query ? String(options.query).slice(0, 96) : undefined,
+    amount: options.amount == null ? undefined : Math.max(1, Math.min(1000, Number(options.amount) | 0)),
+    limit: options.limit == null ? undefined : Math.max(1, Math.min(100, Number(options.limit) | 0)),
+  }, {
+    ttlMs: 5000,
+    idempotencyKey: ['join', 'leave', 'action', 'special'].includes(operation)
+      ? `game-system:${operation}:${options.instanceId ?? options.systemId ?? ''}:${options.actionId ?? ''}:${Date.now()}`
+      : undefined,
+  });
+}
+
 export function updateNodeUOAccessibility(net, preferences = null) {
   return requestFeature(net, 'ui.accessibility', {
     operation: preferences ? 'update' : 'get', preferences: preferences ?? undefined,

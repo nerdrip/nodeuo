@@ -375,6 +375,26 @@ export class SectorIndex {
     } finally { this._finishQuery(started, candidates); }
   }
 
+  /** Yield grounded-item serials from the sectors intersecting an exact
+   *  axis-aligned rectangle. This avoids turning a long, narrow editor
+   *  selection into an enormous square `itemSerialsNear` query. Callers
+   *  still filter exact item coordinates because edge sectors overlap. */
+  *itemSerialsInRect(map, x0, y0, x1, y1) {
+    const started = this._beginQuery('itemCalls');
+    let candidates = 0;
+    const sx0 = Math.max(0, Math.floor(Math.min(x0, x1) / SECTOR_SIZE));
+    const sy0 = Math.max(0, Math.floor(Math.min(y0, y1) / SECTOR_SIZE));
+    const sx1 = Math.min(0x7ff, Math.floor(Math.max(x0, x1) / SECTOR_SIZE));
+    const sy1 = Math.min(0x7ff, Math.floor(Math.max(y0, y1) / SECTOR_SIZE));
+    try {
+      for (let sx = sx0; sx <= sx1; sx++) for (let sy = sy0; sy <= sy1; sy++) {
+        const bucket = this._buckets.get(key(map, sx, sy));
+        if (!bucket) continue;
+        for (const serial of bucket.items) { candidates++; yield serial; }
+      }
+    } finally { this._finishQuery(started, candidates); }
+  }
+
   /** Single-tile lookup for runtimeSolidAt-style hot paths. */
   *itemSerialsAt(map, x, y) {
     const started = this._beginQuery('tileCalls');

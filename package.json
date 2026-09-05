@@ -1,7 +1,7 @@
 {
   "name": "ultima-online",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "Ultima Online shard (ServUO port) + browser client (ClassicUO port), Node.js + WebSocket",
   "license": "AGPL-3.0-or-later",
   "type": "module",
@@ -43,6 +43,8 @@
     "audit:performance:full": "node tools/audit/performance-regression.mjs --full",
     "audit:gameplay-performance": "node tools/audit/nodeuo-gameplay-benchmark.mjs",
     "audit:gameplay-performance:full": "node tools/audit/nodeuo-gameplay-benchmark.mjs --full",
+    "audit:game-systems-performance": "node tools/audit/game-systems-performance.mjs",
+    "audit:game-systems-performance:full": "node tools/audit/game-systems-performance.mjs --full",
     "catalog:gumps:server": "node tools/audit/server-gump-catalog.mjs --write"
   },
   "devDependencies": {

@@ -151,6 +151,7 @@ import { NodeUONavalMessage } from '@uo/nodeuo-protocol';
 import { registerNodeUOAuthoringUi } from './nodeuo-authoring-ui.js';
 import { installNpcDialogUi } from './npc-dialog-ui.js';
 import { installStructuredUi } from './structured-ui.js';
+import { installGameSystemsUi } from './game-systems-ui.js';
 
 export class GameScene extends Scene {
   constructor(gc) {
@@ -654,6 +655,7 @@ export class GameScene extends Scene {
     this._sub('shop:sell',        (info) => this._toggleGump(`sell:${info.vendor >>> 0}`, () => new SellShopGump(info)));
     installNpcDialogUi(this);
     installStructuredUi(this);
+    installGameSystemsUi(this);
     // Auto-open the trade window on 0x6F action 0x00 (server starts trade).
     this._sub('trade:event',      (e) => {
       if (e.action !== 0x00) return;
