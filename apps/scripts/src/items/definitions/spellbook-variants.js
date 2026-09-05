@@ -15,6 +15,7 @@ const __PENDING__ = [];
 function spellbook(def) {
   __PENDING__.push({
     kind: 'spellbook',
+    spellbook: true,
     layer: 1,                   // off-hand by default; Magery book usually goes 1H
     container: true,
     twoHanded: false,

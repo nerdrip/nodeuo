@@ -39,7 +39,42 @@ describe('content data integrity', () => {
       expect(it.artId).toBeGreaterThan(0);
       expect(it.artId).toBeLessThan(0x10000);
       expect(Object.hasOwn(it, 'itemId')).toBe(false);
+      expect(Object.hasOwn(it, 'script')).toBe(true);
+      expect(it.script === null || (typeof it.script === 'string' && it.script.length > 0)).toBe(true);
     }
+  });
+
+  it('allows any number of definitions to share art without sharing identity', () => {
+    const byArt = new Map();
+    for (const item of items) {
+      const variants = byArt.get(item.artId) ?? [];
+      variants.push(item);
+      byArt.set(item.artId, variants);
+    }
+    const shared = [...byArt.values()].filter((variants) => variants.length > 1);
+    expect(shared.length).toBeGreaterThan(0);
+    for (const variants of shared) {
+      expect(new Set(variants.map((item) => item.definitionId)).size).toBe(variants.length);
+    }
+  });
+
+  it('gives every wearable item an explicit layer and paperdoll appearance', () => {
+    const wearables = items.filter((item) => item.clothing || Number(item.equipLayer) > 0);
+    expect(wearables.length).toBeGreaterThan(0);
+    for (const item of wearables) {
+      expect(item.equipLayer, item.definitionId).toBeGreaterThan(0);
+      expect(item.paperdollGumpId, item.definitionId).toBeGreaterThan(0);
+      expect(item.paperdollMaleGumpId, item.definitionId).toBeGreaterThan(0);
+      expect(item.paperdollFemaleGumpId, item.definitionId).toBeGreaterThan(0);
+    }
+  });
+
+  it('keeps the Arcane Schema Codex distinct from a magery spellbook', () => {
+    const codex = items.find((item) => item.definitionId === 'spell-schema-codex');
+    const spellbook = items.find((item) => item.definitionId === 'spellbook');
+    expect(codex).toMatchObject({ script: 'spell-schema-codex', artId: 0x0FF0 });
+    expect(spellbook).toMatchObject({ script: null, artId: 0x0EFA, spellbook: true });
+    expect(codex.artId).not.toBe(spellbook.artId);
   });
 
   it('every loot table entry references an existing item template', () => {
@@ -58,9 +93,13 @@ describe('content data integrity', () => {
     const tableNames = new Set(lootTables.map((t) => t.name));
     const kinds = new Set();
     for (const m of monsters) {
-      expect(typeof m.kind).toBe('string');
-      expect(kinds.has(m.kind)).toBe(false);
-      kinds.add(m.kind);
+      expect(typeof m.definitionId).toBe('string');
+      expect(kinds.has(m.definitionId)).toBe(false);
+      kinds.add(m.definitionId);
+      expect(Number.isInteger(m.bodyId)).toBe(true);
+      expect(m.bodyId).toBeGreaterThan(0);
+      expect(m.kind).toBeUndefined();
+      expect(m.body).toBeUndefined();
       // `loot` may be: undefined | string (table name) | array (inline
       // drop entries) | array of strings (multiple tables). spawnAggressive
       // handles all three forms; we only validate string references.
@@ -80,7 +119,7 @@ describe('content data integrity', () => {
   });
 
   it('dungeon-revamp encounter commands reference spawnable monster templates', () => {
-    const kinds = new Set(monsters.map((m) => m.kind));
+    const kinds = new Set(monsters.map((m) => m.definitionId));
     const missing = [];
     for (const enc of dungeonRevampBosses.encounters ?? []) {
       const refs = [
@@ -95,7 +134,7 @@ describe('content data integrity', () => {
   });
 
   it('scripted summons and boss adds reference spawnable monster templates', () => {
-    const kinds = new Set(monsters.map((m) => m.kind));
+    const kinds = new Set(monsters.map((m) => m.definitionId));
     const refs = [
       // Necromancy Animate Dead table + fallback.
       'skeletal-mage',
@@ -124,7 +163,7 @@ describe('content data integrity', () => {
   });
 
   it('hire command roles have spawnable monster templates', () => {
-    const kinds = new Set(monsters.map((m) => m.kind));
+    const kinds = new Set(monsters.map((m) => m.definitionId));
     const refs = [
       'hireling-warrior',
       'hireling-archer',
@@ -150,7 +189,7 @@ describe('content data integrity', () => {
   });
 
   it('Righting Wrong quest chain references spawnable Wrong monsters', () => {
-    const kinds = new Set(monsters.map((m) => m.kind));
+    const kinds = new Set(monsters.map((m) => m.definitionId));
     const wrong = questChains['righting-wrong'];
     const refs = (wrong?.stages ?? [])
       .flatMap((stage) => stage.objectives ?? [])
@@ -160,14 +199,16 @@ describe('content data integrity', () => {
     expect(missing).toEqual([]);
   });
 
-  it('every npc has a unique kind and valid body', () => {
+  it('every npc has a unique definitionId and reusable bodyId', () => {
     const kinds = new Set();
     for (const n of npcs) {
-      expect(typeof n.kind).toBe('string');
-      expect(kinds.has(n.kind)).toBe(false);
-      kinds.add(n.kind);
-      expect(Number.isInteger(n.body)).toBe(true);
-      expect(n.body).toBeGreaterThan(0);
+      expect(typeof n.definitionId).toBe('string');
+      expect(kinds.has(n.definitionId)).toBe(false);
+      kinds.add(n.definitionId);
+      expect(Number.isInteger(n.bodyId)).toBe(true);
+      expect(n.bodyId).toBeGreaterThan(0);
+      expect(n.kind).toBeUndefined();
+      expect(n.body).toBeUndefined();
     }
   });
 

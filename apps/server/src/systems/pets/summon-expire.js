@@ -84,9 +84,11 @@ export function tickSummons(world, deps = {}) {
     }
     // Notify the summoner.
     const master = world.mobiles.get((m.controlMaster || m.summonedBy) >>> 0);
-    const slots = m._followerCost | 0;
-    if (master && slots > 0) {
-      master.followers = Math.max(0, (master.followers | 0) - slots);
+    if (typeof world.releaseFollowerSlots === 'function') world.releaseFollowerSlots(m);
+    else {
+      const slots = m._followerCost | 0;
+      if (master && slots > 0) master.followers = Math.max(0, (master.followers | 0) - slots);
+      m._followerCost = 0;
     }
     if (master?.client?.sendSystemMessage) {
       master.client.sendSystemMessage(`Your ${m.name ?? 'summon'} fades away.`);

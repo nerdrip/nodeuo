@@ -24,6 +24,13 @@
     target[parts.at(-1)] = value;
   }
 
+  function deletePath(host, path) {
+    const parts = String(path).split('.');
+    let target = host;
+    for (let i = 0; i < parts.length - 1; i++) target = target?.[parts[i]];
+    if (target && typeof target === 'object') delete target[parts.at(-1)];
+  }
+
   function quickField(label, path, value, type = 'text', options = []) {
     if (type === 'select') return `<label>${esc(label)}<select data-quick-path="${esc(path)}">${options.map((option) => `<option value="${esc(option)}" ${String(value ?? '') === String(option) ? 'selected' : ''}>${esc(option || '—')}</option>`).join('')}</select></label>`;
     if (type === 'boolean') return `<label><span>${esc(label)}</span><input type="checkbox" data-quick-path="${esc(path)}" data-quick-type="boolean" ${value ? 'checked' : ''}></label>`;
@@ -31,11 +38,14 @@
     return `<label>${esc(label)}<input data-quick-path="${esc(path)}" data-quick-type="${esc(type)}" type="${type === 'number' ? 'number' : 'text'}" value="${esc(shown)}"></label>`;
   }
 
-  function visualField(label, path, value, kind, scope = 'quick') {
-    let field = quickField(label, path, value, 'number');
+  function visualField(label, path, value, kind, scope = 'quick', { optional = false } = {}) {
+    const shown = optional && !(Number(value) > 0) ? '' : value;
+    let field = quickField(label, path, shown, 'number');
+    if (optional) field = field.replace('type="number"', 'data-optional-number="1" type="number"');
     if (scope === 'control') field = field.replace('data-quick-path=', 'data-control-field=');
-    const id = num(value);
-    const preview = kind === 'item' ? `<img src="/api/studio/art/${id}" alt="">`
+    const id = num(shown);
+    const preview = optional && !id ? '<span class="auto-visual">AUTO</span>'
+      : kind === 'item' ? `<img src="/api/studio/art/${id}" alt="">`
       : kind === 'body' ? `<img src="/api/studio/body-art/${id}" alt="">`
         : kind === 'gump' ? `<img src="/api/studio/gump-art/${id}" alt="">`
           : '<i class="hue-dot"></i>';
@@ -47,12 +57,14 @@
     const stat = (name) => getPath(value, `${statsRoot}${name}`);
     const rangeType = (v) => Array.isArray(v) ? 'range' : 'number';
     const resists = value.resists ?? value.resistances ?? {};
+    const statValue = (name) => Array.isArray(stat(name)) ? stat(name).join('–') : stat(name) ?? 0;
     return `<div class="domain-workbench special-editor" data-special-editor="mobile">
+      <div class="definition-hero mobile-definition-hero"><div class="definition-visual"><img src="/api/studio/body-art/${num(value.bodyId ?? value.body, 400)}" alt="${esc(value.name ?? value.definitionId ?? 'mobile')} body"></div><div><span class="definition-kicker">Mobile definition</span><h3>${esc(value.name ?? value.definitionId ?? 'Unnamed mobile')}</h3><code>${esc(value.definitionId ?? value.kind ?? 'missing-definition-id')}</code><p>Body <b>${num(value.bodyId ?? value.body)}</b> · hue <b>${num(value.hue)}</b> · AI <b>${esc(value.ai ?? value.behavior ?? 'unassigned')}</b></p><div class="stat-ribbon"><span>STR ${esc(statValue('str'))}</span><span>DEX ${esc(statValue('dex'))}</span><span>INT ${esc(statValue('int'))}</span><span>HP ${esc(statValue('hp') || value.hp || '—')}</span></div></div></div>
       <div class="special-section"><h5>Identity and body</h5><div class="quick-grid">
-        ${quickField('Kind', 'kind', value.kind)}${quickField('Display name', 'name', value.name)}
-        ${visualField('Body', 'body', value.body, 'body')}${visualField('Hue', 'hue', value.hue ?? 0, 'hue')}
+        ${quickField('Definition ID', 'definitionId', value.definitionId ?? value.kind)}${quickField('Display name', 'name', value.name)}
+        ${visualField('Body ID', 'bodyId', value.bodyId ?? value.body, 'body')}${visualField('Hue', 'hue', value.hue ?? 0, 'hue')}
         ${quickField('Title', 'title', value.title)}${quickField('Notoriety', 'notoriety', value.notoriety ?? 3, 'number')}
-      </div></div>
+      </div><p class="muted">Definition ID selects behavior and stats. Body ID and hue are presentation only, so any number of definitions may reuse the same body.</p></div>
       <div class="special-section"><h5>Stats</h5><div class="quick-grid">
         ${quickField('Strength', `${statsRoot}str`, stat('str'), rangeType(stat('str')))}
         ${quickField('Dexterity', `${statsRoot}dex`, stat('dex'), rangeType(stat('dex')))}
@@ -63,6 +75,7 @@
       </div></div>
       <div class="special-section"><h5>Combat and AI</h5><div class="quick-grid">
         ${quickField('AI behavior', 'ai', value.ai ?? value.behavior ?? 'aggressive')}
+        ${quickField('Runtime script', 'script', value.script ?? value.behavior ?? value.ai ?? 'aggressive')}
         ${quickField('Secondary behavior', 'behavior', value.behavior ?? '')}
         ${quickField('Aggro range', 'aggroRange', value.aggroRange ?? 8, 'number')}
         ${quickField('Attack interval ms', 'attackInterval', value.attackInterval ?? 2000, 'number')}
@@ -83,23 +96,45 @@
 
   function renderItem(value) {
     const flags = Array.isArray(value.flags) ? value.flags.join(', ') : value.flags ?? '';
+    const artId = num(value.artId ?? value.itemId);
     return `<div class="domain-workbench special-editor" data-special-editor="item">
+      <div class="definition-hero"><div class="definition-visual"><img src="/api/studio/art/${artId}" alt="${esc(value.name ?? value.definitionId ?? 'item')} art"></div><div><span class="definition-kicker">Item definition</span><h3>${esc(value.name ?? value.definitionId ?? 'Unnamed item')}</h3><code>${esc(value.definitionId ?? value.id ?? 'missing-definition-id')}</code><p>Ground art <b>0x${artId.toString(16)}</b> · hue <b>${num(value.hue)}</b>${value.clothing ? ` · layer <b>${num(value.equipLayer ?? value.layer)}</b>` : ''}</p><p class="muted">The definition ID owns behavior. Art, hue and paperdoll gumps are independent presentation fields and may be shared by unlimited definitions.</p></div></div>
       <div class="special-section"><h5>Identity and appearance</h5><div class="quick-grid">
         ${quickField('Definition ID', 'definitionId', value.definitionId ?? value.id)}${quickField('Name', 'name', value.name ?? value.label)}
         ${visualField('Art ID', 'artId', value.artId ?? value.itemId, 'item')}${visualField('Hue', 'hue', value.hue ?? 0, 'hue')}
         ${quickField('Amount', 'amount', value.amount ?? 1, 'number')}${quickField('Weight', 'weight', value.weight ?? 1, 'number')}
       </div></div>
+      <div class="special-section item-appearance-section"><h5>Extracted UO appearance</h5><div data-item-gump-resolution data-art-id="${artId}"><p class="muted">Resolving tiledata and paperdoll gumps…</p></div></div>
       <div class="special-section"><h5>Equipment and container</h5><div class="quick-grid">
-        ${quickField('Layer', 'layer', value.layer ?? value.equipLayer ?? 0, 'number')}${visualField('Gump ID', 'gumpId', value.gumpId ?? 0, 'gump')}
+        ${quickField('Equip layer', 'equipLayer', value.equipLayer ?? value.layer ?? 0, 'number')}${quickField('Wearable', 'clothing', value.clothing ?? false, 'boolean')}
+        ${visualField('Paperdoll fallback gump', 'paperdollGumpId', value.paperdollGumpId, 'gump', 'quick', { optional: true })}${visualField('Male paperdoll gump', 'paperdollMaleGumpId', value.paperdollMaleGumpId, 'gump', 'quick', { optional: true })}
+        ${visualField('Female paperdoll gump', 'paperdollFemaleGumpId', value.paperdollFemaleGumpId, 'gump', 'quick', { optional: true })}${visualField('Container background gump', 'gumpId', value.gumpId, 'gump', 'quick', { optional: true })}
         ${quickField('Movable', 'movable', value.movable ?? true, 'boolean')}${quickField('Stackable', 'stackable', value.stackable ?? false, 'boolean')}
         ${quickField('Container', 'container', value.container ?? false, 'boolean')}${quickField('Capacity', 'capacity', value.capacity ?? 0, 'number')}
-      </div></div>
+      </div><p class="muted">Blank means automatic resolution from extracted UO data; it is never displayed as a fake gump 0. Set explicit IDs for custom clothing or artifacts whose equipped look intentionally differs from ground art.</p></div>
       <div class="special-section"><h5>Behavior</h5><div class="quick-grid">
         ${quickField('Item script', 'script', value.script ?? '')}${quickField('Flags (comma separated)', 'flags', flags, 'csv')}
         ${quickField('Durability', 'durability', value.durability ?? value.maxDurability ?? 0, 'number')}${quickField('Decay ms', 'decayMs', value.decayMs ?? 0, 'number')}
       </div><div class="row" style="margin-top:8px"><button data-open-bound-script="item">Edit bound script</button><button data-open-script-picker="item">Browse item scripts</button></div><div data-script-binding-status class="muted"></div></div>
       <div class="special-section"><h5>Custom properties</h5>${renderProperties(value.properties)}<button data-add-property>＋ Property</button></div>
     </div>`;
+  }
+
+  function renderHousing(value) {
+    const styles = Array.isArray(value.styles) ? value.styles : [];
+    return `<div class="domain-workbench special-editor" data-special-editor="housing">
+      <div class="definition-hero"><div class="definition-visual housing-icon">⌂</div><div><span class="definition-kicker">House customization category</span><h3>${esc(value.comment ?? `Category ${value.category ?? '?'}`)}</h3><code>category:${esc(value.category ?? '?')}</code><p>${styles.length} styles · ${styles.reduce((sum, style) => sum + (style.pieces?.length ?? 0), 0)} selectable pieces</p></div></div>
+      <div class="special-section"><h5>Catalogue identity</h5><div class="quick-grid">${quickField('Category', 'category', value.category ?? 0, 'number')}${quickField('Cliloc', 'cliloc', value.cliloc ?? 0, 'number')}${quickField('Description', 'comment', value.comment ?? '')}</div></div>
+      <div class="special-section"><h5>Styles and actual tile pieces</h5><div class="housing-style-grid">${styles.map((style, index) => `<article><header><b>Style ${esc(style.style ?? index)}</b><small>feature ${esc(style.featureMask ?? 0)}</small></header><p>${esc(style.comment ?? value.comment ?? '')}</p><div>${(style.pieces ?? []).slice(0, 32).map((id) => `<figure><img src="/api/studio/art/${num(id)}" alt=""><figcaption>0x${num(id).toString(16)}</figcaption></figure>`).join('') || '<span class="muted">No pieces</span>'}</div></article>`).join('') || '<p class="muted">No styles.</p>'}</div><p class="muted">The structured styles array below remains the source of truth for ordering and feature masks.</p></div>
+    </div>`;
+  }
+
+  function renderVendor(value) {
+    const buy = Array.isArray(value.buy) ? value.buy : [];
+    const sell = Array.isArray(value.sell) ? value.sell : [];
+    const rows = (entries, empty) => entries.slice(0, 120).map((item) => `<tr><td><img src="/api/studio/art/${num(item.artId ?? item.itemId)}" alt=""></td><td>${esc(item.type ?? item.definitionId ?? item.name ?? '?')}</td><td>${num(item.price ?? item.cost ?? item.value)}</td><td>${num(item.stock ?? item.amount ?? 1)}</td></tr>`).join('') || `<tr><td colspan="4" class="muted">${esc(empty)}</td></tr>`;
+    if (!buy.length && !sell.length && value.sku) return `<div class="domain-workbench special-editor"><div class="definition-hero"><div class="definition-visual"><img src="/api/studio/art/${num(value.artId ?? value.itemId)}" alt=""></div><div><span class="definition-kicker">Store offer</span><h3>${esc(value.name ?? value.sku)}</h3><code>${esc(value.sku)}</code><p>${num(value.priceSovereign)} sovereigns · ${esc(value.category ?? 'uncategorized')}</p></div></div></div>`;
+    return `<div class="domain-workbench special-editor" data-special-editor="vendor"><div class="definition-hero"><div class="definition-visual housing-icon">¤</div><div><span class="definition-kicker">Vendor inventory</span><h3>${esc(value.name ?? value.definitionId ?? 'Stock profile')}</h3><p>${buy.length} buy offers · ${sell.length} sell rules</p></div></div><div class="vendor-columns"><section class="special-section"><h5>Player buys</h5><div class="vendor-table"><table><thead><tr><th></th><th>Definition/type</th><th>Price</th><th>Stock</th></tr></thead><tbody>${rows(buy, 'This vendor sells nothing.')}</tbody></table></div></section><section class="special-section"><h5>Vendor buys</h5><div class="vendor-table"><table><thead><tr><th></th><th>Definition/type</th><th>Price</th><th>Stock</th></tr></thead><tbody>${rows(sell, 'No buyback rules.')}</tbody></table></div></section></div></div>`;
   }
 
   function renderSpell(value) {
@@ -348,10 +383,12 @@
     if (domain === 'gumps') return value?.scope === 'client' ? renderClientGump(value) : renderGump(value);
     if (domain === 'mobiles') return renderMobile(value);
     if (domain === 'items') return renderItem(value);
+    if (domain === 'housing') return renderHousing(value);
+    if (domain === 'vendors') return renderVendor(value);
     if (domain === 'spells') return renderSpell(value);
     if (domain === 'game-systems') return renderGameSystem(value);
     if (domain === 'create') {
-      if (value?.body != null) return renderMobile(value);
+      if (value?.bodyId != null || value?.body != null) return renderMobile(value);
       if (value?.artId != null || value?.itemId != null) return renderItem(value);
     }
     return '';
@@ -376,7 +413,8 @@
       input.disabled = !ctx.canEdit;
       input.addEventListener('change', () => {
         ctx.beforeMutate();
-        setPath(ctx.value, input.dataset.quickPath, parseQuickValue(input));
+        if (input.dataset.optionalNumber && !input.value.trim()) deletePath(ctx.value, input.dataset.quickPath);
+        else setPath(ctx.value, input.dataset.quickPath, parseQuickValue(input));
         ctx.mutated({ rerender: true });
       });
     });
@@ -386,7 +424,8 @@
     const art = kind === 'hue'
       ? `<i class="hue-swatch" style="background:${esc(entry.color ?? '#000')}"></i>`
       : `<img loading="lazy" data-preview="${esc(entry.preview)}" alt="${esc(entry.name)}">`;
-    return `<button type="button" class="asset-choice" data-asset-id="${num(entry.id)}" title="${esc(entry.name)}">${art}<b>${esc(entry.name)}</b><small>${num(entry.id)} · 0x${num(entry.id).toString(16)}${entry.width ? ` · ${num(entry.width)}×${num(entry.height)}` : ''}</small></button>`;
+    const source = entry.source === 'custom' ? 'CUSTOM' : entry.source === 'custom-override' ? 'CUSTOM ↺' : 'ULTIMA';
+    return `<button type="button" class="asset-choice" data-asset-id="${num(entry.id)}" title="${esc(entry.name)}">${art}<b>${esc(entry.name)}</b><small>${num(entry.id)} · 0x${num(entry.id).toString(16)}${entry.width ? ` · ${num(entry.width)}×${num(entry.height)}` : ''}</small><i class="asset-origin ${entry.source === 'ultima' ? 'native' : 'custom'}">${source}</i></button>`;
   }
 
   async function showAssetPicker(ctx, trigger) {
@@ -487,6 +526,35 @@
       button.disabled = !ctx.canEdit;
       button.onclick = () => showAssetPicker(ctx, button);
     });
+  }
+
+  async function wireItemAppearance(ctx) {
+    const host = ctx.root.querySelector('[data-item-gump-resolution]');
+    if (!host) return;
+    const artId = num(host.dataset.artId);
+    try {
+      const appearance = await ctx.request('GET', `/api/studio/item-appearance?artId=${artId}`);
+      if (!host.isConnected) return;
+      if (appearance.error) throw new Error(appearance.error);
+      const configuredMale = num(ctx.value.paperdollMaleGumpId ?? ctx.value.paperdollGumpId);
+      const configuredFemale = num(ctx.value.paperdollFemaleGumpId ?? ctx.value.paperdollGumpId ?? ctx.value.paperdollMaleGumpId);
+      const effectiveMale = configuredMale || appearance.maleGumpId;
+      const effectiveFemale = configuredFemale || appearance.femaleGumpId || effectiveMale;
+      const renderable = !!effectiveMale;
+      const card = (label, id, configured) => `<article class="appearance-card ${id ? '' : 'missing'}"><span>${esc(label)}</span>${id ? `<img src="/api/studio/gump-art/${id}" alt="${esc(label)}"><b>${id} · 0x${id.toString(16)}</b>` : '<div class="missing-art">No extracted gump</div>'}<small>${configured ? `definition: ${configured}` : 'automatic'}</small></article>`;
+      host.innerHTML = `<div class="appearance-summary"><div><b>${esc(appearance.tileName || 'Unnamed tile')}</b><small>art 0x${artId.toString(16)} · animation ${appearance.animationId || 'none'} · extracted layer ${appearance.tileLayer || 'none'} · ${esc(appearance.source)}</small></div>${renderable ? `<span class="appearance-ok">${appearance.renderable ? 'Renderable' : 'Custom fallback'}</span>` : '<span class="appearance-warn">Missing asset</span>'}</div><div class="appearance-cards"><article class="appearance-card"><span>Ground</span><img src="/api/studio/art/${artId}" alt="ground art"><b>${artId} · 0x${artId.toString(16)}</b><small>artId</small></article>${card('Male paperdoll', effectiveMale, configuredMale)}${card(appearance.femaleSpecificGumpId ? 'Female paperdoll' : 'Female fallback', effectiveFemale, configuredFemale)}</div>${appearance.renderable ? `<button type="button" data-apply-extracted-appearance ${ctx.canEdit ? '' : 'disabled'}>Use extracted layer and gumps</button>` : renderable ? '<p class="muted">This definition deliberately supplies a custom fallback because the extracted tile has no native paperdoll gump.</p>' : '<p class="admin-inline-error">The extracted client files contain no usable paperdoll gump for this art. Pick a custom gump explicitly or mark the item as non-wearable.</p>'}`;
+      host.querySelector('[data-apply-extracted-appearance]')?.addEventListener('click', () => {
+        ctx.beforeMutate();
+        ctx.value.clothing = true;
+        if (appearance.tileLayer > 0) ctx.value.equipLayer = appearance.tileLayer;
+        ctx.value.paperdollGumpId = appearance.maleGumpId;
+        ctx.value.paperdollMaleGumpId = appearance.maleGumpId;
+        ctx.value.paperdollFemaleGumpId = appearance.femaleGumpId;
+        ctx.mutated({ rerender: true });
+      });
+    } catch (error) {
+      if (host.isConnected) host.innerHTML = `<p class="admin-inline-error">${esc(error.message)}</p>`;
+    }
   }
 
   function scriptEntries(catalog, kind) {
@@ -591,7 +659,7 @@
       showScriptPicker(ctx, kind, kind === 'ai' ? ctx.value.ai : (ctx.value.script ?? ctx.value.handler ?? ctx.value.name));
     });
     loadCatalog(ctx).then((catalog) => {
-      const kind = ctx.domain === 'spells' ? 'spell' : ctx.domain === 'mobiles' || ctx.value?.body != null ? 'ai' : 'item';
+      const kind = ctx.domain === 'spells' ? 'spell' : ctx.domain === 'mobiles' || ctx.value?.bodyId != null || ctx.value?.body != null ? 'ai' : 'item';
       const entries = scriptEntries(catalog, kind);
       const path = kind === 'ai' ? 'ai' : 'script';
       const input = ctx.root.querySelector(`[data-quick-path="${path}"]`);
@@ -806,9 +874,10 @@
   function wire(ctx) {
     wireQuickFields(ctx);
     wireAssetPickers(ctx);
+    if (ctx.domain === 'items') wireItemAppearance(ctx);
     if (ctx.domain === 'gumps') ctx.value?.scope === 'client' ? wireClientGump(ctx) : wireGump(ctx);
     if (ctx.domain === 'game-systems') wireGameSystem(ctx);
-    if (ctx.domain === 'items' || (ctx.domain === 'create' && ctx.value?.body == null)) wireProperties(ctx);
+    if (ctx.domain === 'items' || (ctx.domain === 'create' && ctx.value?.bodyId == null && ctx.value?.body == null)) wireProperties(ctx);
     if (ctx.domain === 'items' || ctx.domain === 'mobiles' || ctx.domain === 'spells' || ctx.domain === 'create') wireScripts(ctx);
   }
 
@@ -816,7 +885,7 @@
     if (domain === 'gumps' && sourceFile === '@client/client-gumps.json') return { definitionId: `client:new-gump-${Date.now().toString(36)}`, scope: 'client', name: 'New client gump', className: '', type: '', source: '', abstract: false, frame: { enabled: false, x: 0, y: 0, width: 320, height: 240, opacity: 1 }, behavior: { enabled: false, canMove: true, canClose: true, canCloseWithEsc: true, canCloseWithRMB: true }, controlOverrides: [] };
     if (domain === 'gumps') return { definitionId: `new-gump-${Date.now().toString(36)}`, name: 'New gump', width: 320, height: 240, x: 100, y: 100, controls: [{ type: 'panel', x: 0, y: 0, width: 320, height: 240, artId: 5054 }] };
     if (domain === 'items') return { definitionId: `new-item-${Date.now().toString(36)}`, artId: 0, name: 'New item', hue: 0, weight: 1, movable: true, script: null };
-    if (domain === 'mobiles') return { kind: `new-mobile-${Date.now().toString(36)}`, name: 'New mobile', body: 400, hue: 0, hp: 50, str: 50, dex: 50, int: 50, dmgMin: 1, dmgMax: 4, ai: 'wander' };
+    if (domain === 'mobiles') return { definitionId: `new-mobile-${Date.now().toString(36)}`, name: 'New mobile', bodyId: 400, hue: 0, hp: 50, str: 50, dex: 50, int: 50, dmgMin: 1, dmgMax: 4, ai: 'wander', script: 'wander' };
     if (domain === 'game-systems') return { id: `new-system-${Date.now().toString(36)}`, version: 1, name: 'New game system', category: 'world', archetype: 'campaign', summary: 'Describe the complete player-facing loop.', difficulty: 3, skill: 'Tactics', durationMinutes: 60, cooldownSeconds: 2, staminaCost: 1, clientMode: 'hybrid', enhancedView: 'campaign', enabled: true, party: { min: 1, max: 8, teams: 1 }, entry: { gold: 0, tokens: 0 }, availability: { maps: [], regions: [], daysOfWeek: [], startHourUtc: 0, endHourUtc: 24, minAccountAgeDays: 0, requiredCompletions: {} }, antiExploit: { completionCooldownMinutes: 15, dailyCompletionLimit: 10, maxActionsPerMinute: 30, maxEventContribution: 100, minParticipationPercent: 10, requireUniqueEventTarget: false, accountWide: true }, reward: { gold: 300, tokens: 15, title: '', reputation: 6, unlocks: [], items: [{ id: 'activity-sigil', name: 'Activity Sigil', artId: 5360, hue: 0, amount: 1, chancePermille: 200, accountBound: true }] }, stages: [{ id: 'discover', name: 'Discover the objective', description: 'Find and validate the objective.', goal: 10, event: 'activity:action', skill: 'Tactics', actions: ['investigate'], allowManual: true, targetKinds: [], sourceKinds: [], regions: [], maps: [], uniqueTargets: 0, contributionCap: 100, nextStageByAction: {} }, { id: 'challenge', name: 'Complete the central challenge', description: 'Complete the authoritative gameplay objective.', goal: 20, event: 'activity:action', skill: 'Tactics', actions: ['engage'], allowManual: true, targetKinds: [], sourceKinds: [], regions: [], maps: [], uniqueTargets: 0, contributionCap: 100, nextStageByAction: {} }, { id: 'resolve', name: 'Resolve and claim the outcome', description: 'Resolve the activity and claim rewards.', goal: 10, event: 'activity:action', skill: 'Tactics', actions: ['resolve'], allowManual: true, targetKinds: [], sourceKinds: [], regions: [], maps: [], uniqueTargets: 0, contributionCap: 100, nextStageByAction: {} }] };
     return { name: 'New record' };
   }

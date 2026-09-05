@@ -82,7 +82,8 @@ export default function register(api) {
     if (!mob) {
       // Defensive fallback — minimal mobile with the canonical fields.
       mob = createMobile(api, world, {
-        name: cfg.name, body: cfg.body, hue: cfg.hue ?? 0,
+        definitionId: cfg.definitionId ?? kind,
+        name: cfg.name, bodyId: cfg.bodyId ?? cfg.body, hue: cfg.hue ?? 0,
         x: pos.x, y: pos.y, z: pos.z, map: pos.map,
         notoriety: cfg.notoriety ?? 5,
         hp: cfg.hp, hpMax: cfg.hp,

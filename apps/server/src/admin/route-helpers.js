@@ -9,7 +9,9 @@ import { validateGameSystemCatalog } from '../systems/game-systems.js';
 export function snapshotMobile(mob) {
   return {
     serial: '0x' + (mob.serial >>> 0).toString(16),
+    definitionId: mob.definitionId ?? mob.kind ?? null,
     name: mob.name,
+    bodyId: mob.bodyId ?? mob.body,
     body: mob.body,
     hue: mob.hue,
     x: mob.x, y: mob.y, z: mob.z, map: mob.map,
@@ -47,6 +49,9 @@ export function snapshotItem(it) {
     definitionId: it.definitionId ?? null,
     artId: it.artId ?? it.itemId,
     itemId: it.itemId, hue: it.hue, amount: it.amount,
+    paperdollGumpId: it.paperdollGumpId ?? 0,
+    paperdollMaleGumpId: it.paperdollMaleGumpId ?? 0,
+    paperdollFemaleGumpId: it.paperdollFemaleGumpId ?? 0,
     x: it.x, y: it.y, z: it.z, map: it.map,
     parent: it.parent ? '0x' + (it.parent >>> 0).toString(16) : null,
     layer: it.layer,
@@ -162,17 +167,31 @@ export function validateStudioDraft(domain, data, catalogs = {}) {
         });
       }
     } else if (domain === 'items') {
-      const id = record.definitionId ?? record.id;
+      const id = record.definitionId;
       duplicate(id, index);
       if (!String(id ?? '').trim()) errors.push(`Item ${index + 1}: definitionId is required.`);
-      const artId = record.artId ?? record.itemId;
-      if (!finite(artId) || Number(artId) < 0 || Number(artId) > 0xffff) errors.push(`${id ?? `Item ${index + 1}`}: artId must be a UO graphic in range 0..65535.`);
+      const artId = record.artId;
+      if (!Number.isInteger(Number(artId)) || Number(artId) <= 0 || Number(artId) > 0xffff) errors.push(`${id ?? `Item ${index + 1}`}: artId must be a UO graphic in range 1..65535.`);
+      if (record.hue != null && (!Number.isInteger(Number(record.hue)) || Number(record.hue) < 0 || Number(record.hue) > 0xffff)) errors.push(`${id}: hue must be in range 0..65535.`);
+      if (Object.hasOwn(record, 'itemId')) errors.push(`${id}: canonical item definitions use artId, not itemId.`);
+      if (!Object.hasOwn(record, 'script')) errors.push(`${id}: script must be declared explicitly (string or null).`);
+      for (const field of ['paperdollGumpId', 'paperdollMaleGumpId', 'paperdollFemaleGumpId']) {
+        if (record[field] != null && (!Number.isInteger(Number(record[field])) || Number(record[field]) < 0 || Number(record[field]) > 0xffff)) {
+          errors.push(`${id}: ${field} must be a UO gump id in range 0..65535.`);
+        }
+      }
+      if (record.equipLayer != null && (!Number.isInteger(Number(record.equipLayer)) || Number(record.equipLayer) < 0 || Number(record.equipLayer) > 29)) {
+        errors.push(`${id}: equipLayer must be in range 0..29.`);
+      }
       if (record.script && !catalogs.itemScripts?.has?.(String(record.script))) warnings.push(`${id}: item script '${record.script}' is not registered in the live runtime.`);
     } else if (domain === 'mobiles') {
-      const id = record.kind ?? record.id;
+      const id = record.definitionId;
       duplicate(id, index);
-      if (!String(id ?? '').trim()) errors.push(`Mobile ${index + 1}: kind is required.`);
-      if (!finite(record.body) || Number(record.body) < 0) errors.push(`${id ?? `Mobile ${index + 1}`}: body must be a non-negative number.`);
+      if (!String(id ?? '').trim()) errors.push(`Mobile ${index + 1}: definitionId is required.`);
+      if (!Number.isInteger(Number(record.bodyId)) || Number(record.bodyId) <= 0 || Number(record.bodyId) > 0xffff) errors.push(`${id ?? `Mobile ${index + 1}`}: bodyId must be a UO body in range 1..65535.`);
+      if (record.hue != null && (!Number.isInteger(Number(record.hue)) || Number(record.hue) < 0 || Number(record.hue) > 0xffff)) errors.push(`${id}: hue must be in range 0..65535.`);
+      if (Object.hasOwn(record, 'kind')) errors.push(`${id}: canonical mobile definitions use definitionId, not kind.`);
+      if (Object.hasOwn(record, 'body')) errors.push(`${id}: canonical mobile definitions use bodyId, not body.`);
       if (record.ai && !catalogs.aiNames?.has?.(String(record.ai))) warnings.push(`${id}: AI behavior '${record.ai}' is not registered in the live runtime.`);
       if (finite(record.dmgMin) && finite(record.dmgMax) && Number(record.dmgMin) > Number(record.dmgMax)) errors.push(`${id}: dmgMin cannot exceed dmgMax.`);
       if (finite(record.hp) && Number(record.hp) < 0) errors.push(`${id}: hp cannot be negative.`);

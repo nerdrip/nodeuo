@@ -44,6 +44,21 @@ const CONTENT_H = GRID_ROWS * SLOT_H;
 const PAD       = 8;
 const HEADER_H  = 28;
 
+// The classic 0x24 packet carries only serial + gump id, not a caption. Use
+// the canonical role for container arts whose purpose is unambiguous when
+// the container item itself is intentionally hidden from the world mirror.
+const CONTAINER_TITLE_BY_GUMP = new Map([
+  [0x003C, 'Backpack'],
+  [0x003D, 'Bag'],
+  [0x003E, 'Pouch'],
+  [0x0040, 'Wooden Box'],
+  [0x0041, 'Wooden Crate'],
+  [0x0043, 'Metal Chest'],
+  [0x0048, 'Wooden Chest'],
+  [0x004A, 'Bank Box'],
+  [0x0009, 'Corpse'],
+]);
+
 // Per-gump interior rect — the rectangular area inside each container
 // art where items are visually allowed to sit. Mirrors CUO's
 // `ContainerManager.cs` `_data` table. Coordinates are LOCAL to the
@@ -198,9 +213,11 @@ class ItemEntry extends Control {
 export class ContainerGump extends WindowGump {
   constructor(containerSerial, gumpId = 0x003C, x = 100, y = 100) {
     const containerItem = world.items.get(containerSerial >>> 0);
-    const containerName = containerItem
-      ? (assets.tiledata?.statics?.[containerItem.itemId]?.name ?? '').trim() || 'Container'
-      : 'Container';
+    const explicitName = String(containerItem?.name ?? '').trim();
+    const tileName = containerItem
+      ? String(assets.tiledata?.statics?.[containerItem.itemId]?.name ?? '').trim()
+      : '';
+    const containerName = explicitName || CONTAINER_TITLE_BY_GUMP.get(gumpId) || tileName || 'Container';
     // Prefer the real container art (backpack 0x003C, pouch 0x003D, etc).
     // Size the chrome to the larger of (slot grid + chrome padding) or
     // (natural sprite size) so the bag art shows fully and the slot
@@ -211,6 +228,7 @@ export class ContainerGump extends WindowGump {
     const gridH = HEADER_H + PAD * 2 + CONTENT_H;
     const gridMode = profile.get?.('containers.layoutMode') === 'grid';
     const useNative = !!natural && !gridMode;
+    const useContainerArt = !!natural;
     // When we have native art, render at the sprite's NATURAL size —
     // never stretched. Stretching invalidates the per-gump interior
     // bounds (which are in native pixel space), so a 174-px backpack
@@ -226,8 +244,10 @@ export class ContainerGump extends WindowGump {
       width:  w,
       height: h,
       x, y,
-      backgroundId: useNative ? gumpId : 0x0A28,
-      singleSprite: useNative,
+      // Grid mode keeps its regular slot geometry, but the real bag/chest
+      // art remains the backdrop instead of a generic gray "Container".
+      backgroundId: useContainerArt ? gumpId : 0x0A28,
+      singleSprite: useContainerArt,
     });
     this.containerSerial = containerSerial >>> 0;
     this._gumpId = gumpId;
@@ -595,7 +615,7 @@ export class ContainerGump extends WindowGump {
           this._interior.x + col * SLOT_W,
           this._interior.y + row * SLOT_H,
           ITEM_BOX, ITEM_BOX, 3,
-        ).fill({ color: 0x0b1017, alpha: 0.72 })
+        ).fill({ color: 0x0b1017, alpha: 0.58 })
           .stroke({ width: 1, color: 0x5b4b31, alpha: 0.76 });
       }
     }

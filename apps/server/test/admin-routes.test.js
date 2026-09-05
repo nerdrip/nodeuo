@@ -46,6 +46,12 @@ describe('admin route safety and editor behavior', () => {
     const source = /<script>\s*([\s\S]*?)\s*<\/script>/.exec(html)?.[1];
     expect(source).toBeTruthy();
     expect(() => new Function(source)).not.toThrow();
+    const nav = /<nav id="tabs">([\s\S]*?)<\/nav>/.exec(html)?.[1] ?? '';
+    expect(nav).not.toMatch(/data-tab="(?:items|scripts|data|data-editor|world-design|animations|world)"/);
+    expect(nav).toContain('data-tab="studio"');
+    expect(nav).toContain('data-tab="assets"');
+    expect(nav).toContain('data-tab="scriptstudio"');
+    expect(nav).toContain('data-tab="isoeditor"');
   });
 
   it('serves the canonical scripting documentation catalogue', async () => {
@@ -92,11 +98,41 @@ describe('admin route safety and editor behavior', () => {
   });
 
   it('keeps internal ServUO parity metadata out of the authoring catalogue', async () => {
-    const { route } = fixture();
+    const { route, scriptsDir } = fixture();
+    fs.writeFileSync(path.join(scriptsDir, 'data', 'config', 'housedata.json'), '{"walls":[]}');
     const catalog = await route('GET', '/api/studio/catalog').run({});
     expect(catalog.domains.some((domain) => domain.id === 'commands')).toBe(false);
     expect(catalog.domains.find((domain) => domain.id === 'gumps')).toMatchObject({ preview: 'gump' });
     expect(catalog.domains.find((domain) => domain.id === 'game-systems')).toMatchObject({ preview: 'game-system' });
+    expect(catalog.domains.find((domain) => domain.id === 'housing')).toMatchObject({
+      files: ['config/housedata.json'], preview: 'housing',
+    });
+    expect(catalog.domains.find((domain) => domain.id === 'multis').files).not.toContain('config/housedata.json');
+    expect(catalog.domains.some((domain) => domain.id === 'create')).toBe(false);
+    expect(catalog.domains.some((domain) => domain.id === 'combat')).toBe(false);
+  });
+
+  it('resolves item owners and exposes separate nested backpack and bank inventories', async () => {
+    const { route, world } = fixture();
+    const player = { serial: 0x100, isPlayer: true, name: 'Alice', body: 400, hue: 0, x: 10, y: 20, z: 0, map: 1 };
+    const backpack = { serial: 0x200, itemId: 0x0E75, artId: 0x0E75, name: 'backpack', parent: player.serial, layer: 21 };
+    const bank = { serial: 0x201, itemId: 0x0E40, artId: 0x0E40, name: "Alice's bank box", parent: player.serial, layer: 0x1D };
+    const bag = { serial: 0x210, itemId: 0x0E76, artId: 0x0E76, name: 'bag', parent: backpack.serial, layer: 0 };
+    const katana = { serial: 0x211, definitionId: 'katana', itemId: 0x13FF, artId: 0x13FF, name: 'a katana', parent: bag.serial, layer: 0, amount: 1 };
+    const gold = { serial: 0x212, definitionId: 'gold', itemId: 0x0EED, artId: 0x0EED, name: 'gold coins', parent: bank.serial, layer: 0, amount: 1000 };
+    world.mobiles.set(player.serial, player);
+    for (const item of [backpack, bank, bag, katana, gold]) world.items.set(item.serial, item);
+
+    const detail = await route('GET', '/api/mobiles/:serial').run({ params: { serial: '0x100' } });
+    expect(detail.backpack).toMatchObject({ count: 2, items: [{ name: 'bag', children: [{ definitionId: 'katana' }] }] });
+    expect(detail.bank).toMatchObject({ count: 1, items: [{ definitionId: 'gold' }] });
+    expect(detail.equipped).toEqual([]);
+
+    const found = await route('GET', '/api/items').run({ query: new URLSearchParams({ filter: 'katana', owned: '1' }) });
+    expect(found).toMatchObject({ count: 1, items: [{
+      definitionId: 'katana', ownerSerial: '0x100', ownerName: 'Alice', location: 'backpack',
+      containerPath: [{ name: 'backpack' }, { name: 'bag' }],
+    }] });
   });
 
   it('blocks self-demotion and self-deletion using the string session account', async () => {
@@ -237,15 +273,16 @@ describe('admin route safety and editor behavior', () => {
     expect(clientGumps).toMatchObject({ ok: true, errors: [], records: 1 });
 
     const items = await route('POST', '/api/studio/validate').run({ body: { domain: 'items', data: [
-      { definitionId: 'door-red', artId: 100, name: 'Red door', script: 'door' },
+      { definitionId: 'door-red', artId: 100, name: 'Red door', hue: 33, script: 'door',
+        equipLayer: 22, paperdollGumpId: 50001, paperdollMaleGumpId: 50002, paperdollFemaleGumpId: 60002 },
       { definitionId: 'door-blue', artId: 100, name: 'Blue door', script: 'missing' },
     ] } });
     expect(items.ok).toBe(true);
     expect(items.warnings).toContain("door-blue: item script 'missing' is not registered in the live runtime.");
 
     const mobiles = await route('POST', '/api/studio/validate').run({ body: { domain: 'mobiles', data: [
-      { kind: 'orc', body: 17, ai: 'aggressive', dmgMin: 2, dmgMax: 8 },
-      { kind: 'broken', body: 17, ai: 'unknown', dmgMin: 9, dmgMax: 1 },
+      { definitionId: 'orc', bodyId: 17, hue: 70, ai: 'aggressive', dmgMin: 2, dmgMax: 8 },
+      { definitionId: 'broken', bodyId: 17, hue: 88, ai: 'unknown', dmgMin: 9, dmgMax: 1 },
     ] } });
     expect(mobiles.ok).toBe(false);
     expect(mobiles.errors.join(' ')).toContain('dmgMin');

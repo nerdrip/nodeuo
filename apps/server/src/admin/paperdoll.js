@@ -52,10 +52,23 @@ const LAYER_ORDER = [
 
 /** @type {{ tiles: Record<string, {page:number,u:number,v:number,w:number,h:number}> } | null} */
 let _gumpManifest = null;
+let _tiledata = null;
+let _mobileManifest = null;
 /** Decoded/cropped gump PNG promises. Bounds repeated Sharp work when an
  * operator flips through many mobiles wearing the same common equipment. */
 const _tileCache = new Map();
 const TILE_CACHE_MAX = 256;
+
+function customGump(gumpId) {
+  try {
+    const value = JSON.parse(fs.readFileSync(path.join(ASSETS_DIR, 'asset-overrides.json'), 'utf8'))?.gump?.[String(gumpId)];
+    const relative = typeof value === 'string' ? value : value?.file;
+    if (!relative || relative.includes('..')) return null;
+    const file = path.resolve(ASSETS_DIR, relative);
+    if (!file.startsWith(`${ASSETS_DIR}${path.sep}`) || !fs.existsSync(file)) return null;
+    return { file, mtime: Math.trunc(fs.statSync(file).mtimeMs) };
+  } catch { return null; }
+}
 
 function loadGumpManifest() {
   if (_gumpManifest) return _gumpManifest;
@@ -70,16 +83,29 @@ function loadGumpManifest() {
   return _gumpManifest;
 }
 
-export async function extractGumpTile(gumpId) {
-  if (_tileCache.has(gumpId)) return _tileCache.get(gumpId);
-  const pending = extractGumpTileUncached(gumpId);
-  _tileCache.set(gumpId, pending);
-  if (_tileCache.size > TILE_CACHE_MAX) _tileCache.delete(_tileCache.keys().next().value);
-  try { return await pending; }
-  catch (error) { _tileCache.delete(gumpId); throw error; }
+function loadEquipmentMetadata() {
+  _tiledata ||= JSON.parse(fs.readFileSync(path.join(ASSETS_DIR, 'tiledata.json'), 'utf8'));
+  if (!_mobileManifest) {
+    const index = path.join(ASSETS_DIR, 'mobiles-atlas-index.json');
+    const legacy = path.join(ASSETS_DIR, 'mobiles-atlas.json');
+    _mobileManifest = JSON.parse(fs.readFileSync(fs.existsSync(index) ? index : legacy, 'utf8'));
+  }
+  return { tiledata: _tiledata, mobiles: _mobileManifest };
 }
 
-async function extractGumpTileUncached(gumpId) {
+export async function extractGumpTile(gumpId) {
+  const custom = customGump(gumpId);
+  const key = `${gumpId}:${custom?.mtime ?? 'native'}`;
+  if (_tileCache.has(key)) return _tileCache.get(key);
+  const pending = extractGumpTileUncached(gumpId, custom);
+  _tileCache.set(key, pending);
+  if (_tileCache.size > TILE_CACHE_MAX) _tileCache.delete(_tileCache.keys().next().value);
+  try { return await pending; }
+  catch (error) { _tileCache.delete(key); throw error; }
+}
+
+async function extractGumpTileUncached(gumpId, custom) {
+  if (custom) return sharp(custom.file).png().toBuffer();
   const m = loadGumpManifest();
   // tiles is an object keyed by stringified decimal id ("12" for 0x000C).
   const tile = m.tiles?.[String(gumpId)] ?? m.tiles?.[gumpId];
@@ -94,14 +120,29 @@ async function extractGumpTileUncached(gumpId) {
   }).png().toBuffer();
 }
 
-/** Map (body, itemId) → paperdoll gump id. Mirrors client `resolveEquipGumpId`
- *  in `apps/client/src/ui/gumps/paperdoll-gump.js`. Without UO equipconv
- *  hooked here we use the canonical itemId+50000 (male) / +60000 (female)
- *  fallback only. Most clothing ids map cleanly that way. */
-function pickEquipGumpId(itemId, isFemale) {
+/** Map definition-owned appearance → paperdoll gump. This mirrors the client:
+ * explicit definition IDs first, then EquipConv, then tiledata.animId. */
+function pickEquipGumpId(item, isFemale, body) {
+  const explicit = Number(isFemale
+    ? (item.paperdollFemaleGumpId ?? item.paperdollGumpId ?? item.paperdollMaleGumpId)
+    : (item.paperdollMaleGumpId ?? item.paperdollGumpId ?? item.paperdollFemaleGumpId));
+  if (Number.isInteger(explicit) && explicit > 0) return explicit;
+  const itemId = item.itemId | 0;
   if (!itemId) return 0;
-  const base = isFemale ? 60000 : 50000;
-  return itemId + base;
+  let metadata;
+  try { metadata = loadEquipmentMetadata(); } catch { return 0; }
+  const renderBody = metadata.mobiles?.bodyConv?.[body] ?? body;
+  const conversion = metadata.mobiles?.equipConv?.[renderBody]?.[itemId]
+    ?? metadata.mobiles?.equipConv?.[body]?.[itemId];
+  let animationId = Number(conversion?.gump ?? 0) | 0;
+  if (animationId >= 60000) animationId -= 60000;
+  else if (animationId >= 50000) animationId -= 50000;
+  if (animationId <= 0) animationId = Number(metadata.tiledata?.statics?.[itemId]?.animId ?? 0) | 0;
+  if (animationId <= 0) return 0;
+  const female = animationId + 60000;
+  const male = animationId + 50000;
+  if (isFemale && loadGumpManifest().tiles?.[female]) return female;
+  return loadGumpManifest().tiles?.[male] ? male : 0;
 }
 
 /**
@@ -124,7 +165,7 @@ export async function composePaperdoll(world, mob) {
   if (bodyTile) composites.push({ input: bodyTile, top: 19, left: 8 });
 
   // Walk equipped layers in CUO order.
-  /** @type {Map<number, { itemId:number, hue:number }>} */
+  /** @type {Map<number, object>} */
   const byLayer = new Map();
   const indexed = world?._childrenByParent?.get?.(mob.serial);
   const equipped = indexed
@@ -133,12 +174,12 @@ export async function composePaperdoll(world, mob) {
   for (const it of equipped) {
     if (it.parent !== mob.serial) continue;
     if ((it.layer ?? 0) === 0) continue;
-    byLayer.set(it.layer | 0, { itemId: it.itemId, hue: it.hue });
+    byLayer.set(it.layer | 0, it);
   }
   for (const layer of LAYER_ORDER) {
     const eq = byLayer.get(layer);
     if (!eq) continue;
-    const gumpId = pickEquipGumpId(eq.itemId, isFemale);
+    const gumpId = pickEquipGumpId(eq, isFemale, mob.bodyId ?? mob.body);
     const tile = await extractGumpTile(gumpId);
     if (tile) composites.push({ input: tile, top: 19, left: 8 });
   }

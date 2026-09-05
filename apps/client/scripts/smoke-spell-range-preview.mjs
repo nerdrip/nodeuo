@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
-import { spellAreaTiles, spellRangeRing } from '../src/renderer/spell-range-preview.js';
+import { Container } from 'pixi.js';
+import { bus } from '../src/core/event-bus.js';
+import { SpellRangePreview, spellAreaTiles, spellRangeRing } from '../src/renderer/spell-range-preview.js';
 
 const origin = { x: 100, y: 100 };
 const target = { x: 104, y: 100 };
@@ -21,5 +23,12 @@ assert(cone.every((tile) => tile.x >= origin.x), 'cone must not spill behind cas
 
 assert.equal(spellRangeRing(origin, 10).length, 80, 'Chebyshev range perimeter');
 assert.equal(spellRangeRing(origin, 99).length, 18 * 8, 'range is clamped');
+
+const preview = new SpellRangePreview(new Container());
+preview.setSpec({ range: 10, area: { shape: 'single', radius: 0 } });
+assert.equal(preview.active, true);
+bus.emit('target:active', { cursorType: 0, cursorId: 123, flag: 1 });
+assert.equal(preview.active, false, 'a generic target prompt clears stale composer diamonds');
+preview.destroy();
 
 console.log('[smoke:spell-range-preview] ok');

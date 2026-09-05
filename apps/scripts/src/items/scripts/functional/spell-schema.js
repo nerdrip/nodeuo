@@ -11,11 +11,29 @@ function castDeps(api) {
   };
 }
 
+const CODEX_ART_ID = 0x0FF0;
+
+function normalizeCodexArt(api, item, user = null) {
+  if (!item || (item.artId | 0) === CODEX_ART_ID) return;
+  item.artId = CODEX_ART_ID;
+  item.itemId = CODEX_ART_ID;
+  if (user?.client && item.parent != null && api.protocol?.containerContentUpdate) {
+    user.client.send(api.protocol.containerContentUpdate(item, item.parent));
+  }
+}
+
 export function buildSpellSchemaCodexScript(api) {
   return {
     name: 'spell-schema-codex',
+    onCreate(_world, item) {
+      normalizeCodexArt(api, item);
+    },
     onUse(_world, item, user) {
       if (!user?.client) return true;
+      // Identity-owned migration for Codices created before they received a
+      // dedicated graphic. This deliberately checks the script/definition
+      // path, never the old 0x0EFA artwork shared with Magery spellbooks.
+      normalizeCodexArt(api, item, user);
       if (!api.game?.inventory?.isInPack?.(item, user)) {
         user.client.sendSystemMessage?.('Place the Arcane Schema Codex in your backpack first.');
         return true;

@@ -9,6 +9,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ASSETS_DIR = path.resolve(HERE, '..', '..', '..', 'client', 'public', 'assets');
 const WORKER_FILE = new URL('./asset-worker.js', import.meta.url);
 const MAX_GRAPHIC_BYTES = 6 * 1024 * 1024;
+const GRAPHIC_KINDS = new Set(['land', 'static', 'gump', 'texmap']);
 const assetWorkers = new WorkerTaskPool(WORKER_FILE, {
   name: 'assets', size: 2, maxQueue: 64, defaultTimeoutMs: 30_000,
 });
@@ -138,6 +139,7 @@ function manifestCounts(text) {
 function catalog(assetsDir) {
   const byFile = new Map();
   const modules = [];
+  const custom = readOverrideManifest(assetsDir);
   for (const [kind, spec] of Object.entries(ASSET_KINDS)) {
     const file = safeFile(assetsDir, spec.file);
     let status = byFile.get(file);
@@ -152,11 +154,21 @@ function catalog(assetsDir) {
       } catch (error) { status = { present: false, error: error?.code ?? error?.message }; }
       byFile.set(file, status);
     }
-    modules.push({ kind, ...spec, ...status });
+    const customKind = kind === 'texture' ? 'texmap' : kind;
+    modules.push({ kind, ...spec, ...status,
+      nativeSource: 'Ultima client (MUL/UOP)',
+      customCount: Object.keys(custom?.[customKind] ?? {}).length,
+      acceptsCustom: GRAPHIC_KINDS.has(customKind) || kind === 'animation' });
   }
   const extraFiles = ['verdata.json', 'professions.json', 'speeches.json', 'housedata.json', 'multimap.json', 'unifont.json'];
   return {
     root: assetsDir,
+    layers: [
+      { id: 'ultima', label: 'Ultima / native', protected: false,
+        detail: 'Generated from MUL/UOP. A new extraction may replace only this layer.' },
+      { id: 'custom', label: 'NodeUO / custom', protected: true,
+        detail: 'Stored under assets/overrides and preserved by every MUL/UOP extraction.' },
+    ],
     workers: assetWorkers.snapshot(),
     modules,
     supplemental: extraFiles.map((name) => {
@@ -208,14 +220,40 @@ function mobileShardForId(assetsDir, id) {
 
 function overrideManifestFile(assetsDir) { return safeFile(assetsDir, 'asset-overrides.json'); }
 function readOverrideManifest(assetsDir) {
-  try { return JSON.parse(fs.readFileSync(overrideManifestFile(assetsDir), 'utf8')); }
-  catch { return { schemaVersion: 1, land: {}, static: {}, gump: {}, texmap: {} }; }
+  try {
+    const value = JSON.parse(fs.readFileSync(overrideManifestFile(assetsDir), 'utf8'));
+    value.animation = plainObject(value.animation) ? value.animation : {};
+    return value;
+  } catch {
+    return { schemaVersion: 2, land: {}, static: {}, gump: {}, texmap: {}, animation: {} };
+  }
 }
 function writeOverrideManifest(assetsDir, value) {
   const file = overrideManifestFile(assetsDir);
   const temp = `${file}.tmp-${process.pid}-${Date.now()}`;
   fs.writeFileSync(temp, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
   fs.renameSync(temp, file);
+}
+
+function customMapFor(manifest, kind) {
+  const key = kind === 'texture' ? 'texmap' : kind;
+  return plainObject(manifest?.[key]) ? manifest[key] : {};
+}
+
+function customEntryValue(kind, id, record) {
+  if (kind === 'animation') return record;
+  return {
+    name: record?.name ?? `Custom ${kind} ${id}`,
+    width: Number(record?.width) || 0,
+    height: Number(record?.height) || 0,
+    file: typeof record === 'string' ? record : record?.file,
+    mode: record?.mode ?? 'custom',
+    ...(plainObject(record?.metadata) ? record.metadata : {}),
+  };
+}
+
+function customSearchEntry(kind, id, record) {
+  return `${id} 0x${Number(id).toString(16)} ${kind} ${JSON.stringify(record)}`.toLowerCase();
 }
 
 /** Register the decoded client-resource editor API. Large JSON parsing and
@@ -227,6 +265,29 @@ export function registerAssetRoutes(routes, {
   const validationJobs = new Map();
   let atlasValidationCache = { revision: null, fingerprints: {} };
   const changed = (event) => { try { onChanged?.(event); } catch { /* editor write remains committed */ } };
+
+  async function nativeGraphicExists(kind, id) {
+    if (kind === 'animation') {
+      const index = readMobileAtlasIndex(root);
+      if (index) return (index.shards?.[Math.floor(id / index.shardSize)]?.bodyIds ?? []).includes(id);
+      try {
+        const atlas = JSON.parse(fs.readFileSync(safeFile(root, 'mobiles-atlas.json'), 'utf8'));
+        return Object.prototype.hasOwnProperty.call(atlas.bodies ?? {}, String(id));
+      } catch { return false; }
+    }
+    const manifestName = kind === 'texmap' ? 'texmap-atlas.json' : `${kind}-atlas.json`;
+    const file = safeFile(root, manifestName);
+    try {
+      await workerTask({ action: 'entry', file, collectionPath: ['tiles'], id });
+      return true;
+    } catch {
+      if (kind !== 'static') return false;
+      try {
+        await workerTask({ action: 'entry', file, collectionPath: ['tiles'], id: id + 0x4000 });
+        return true;
+      } catch { return false; }
+    }
+  }
 
   async function validateAssets({ signal, onProgress = () => {} } = {}) {
     const started = performance.now();
@@ -264,6 +325,28 @@ export function registerAssetRoutes(routes, {
         onProgress({ phase: 'collections', completed, total: entries.length, kind });
       }
     }));
+    try {
+      const custom = readOverrideManifest(root);
+      const files = [];
+      for (const kind of GRAPHIC_KINDS) {
+        for (const record of Object.values(customMapFor(custom, kind))) {
+          const file = typeof record === 'string' ? record : record?.file;
+          if (file) files.push({ kind, file });
+        }
+      }
+      for (const body of Object.values(custom.animation ?? {})) {
+        for (const action of Object.values(body?.actions ?? {})) {
+          for (const frames of Object.values(action?.dirs ?? {})) {
+            for (const frame of frames ?? []) if (frame?.file) files.push({ kind: 'animation', file: frame.file });
+          }
+        }
+      }
+      const missing = files.filter((entry) => !fs.existsSync(safeFile(root, entry.file)));
+      checks.push({ kind: 'custom-layer', file: 'asset-overrides.json', ok: missing.length === 0,
+        count: files.length, missing: missing.map((entry) => entry.file) });
+    } catch (error) {
+      checks.push({ kind: 'custom-layer', file: 'asset-overrides.json', ok: false, error: error.message });
+    }
     if (signal?.aborted) {
       const error = new Error(String(signal.reason ?? 'asset validation cancelled'));
       error.name = 'AbortError';
@@ -334,29 +417,67 @@ export function registerAssetRoutes(routes, {
     method: 'GET', path: '/api/assets/editor/entries/:kind',
     run: async ({ params, query }) => {
       try {
+        const kind = params.kind;
+        const manifest = readOverrideManifest(root);
+        const custom = customMapFor(manifest, kind);
+        const source = String(query?.get?.('source') ?? 'all');
+        const q = String(query?.get?.('q') ?? '').trim().toLowerCase();
+        const offset = finiteInt(query?.get?.('offset'), 0, 1_000_000);
+        const limit = finiteInt(query?.get?.('limit'), 1, 500, 100);
+        const customRows = Object.entries(custom)
+          .filter(([id, value]) => !q || customSearchEntry(kind, id, value).includes(q))
+          .map(([id, value]) => ({ id, value: customEntryValue(kind, id, value),
+            source: value?.mode === 'override' ? 'custom-override' : 'custom' }))
+          .sort((a, b) => Number(a.id) - Number(b.id));
+        if (source === 'custom') {
+          return { kind, label: ASSET_KINDS[kind]?.label, editable: true,
+            preview: ASSET_KINDS[kind]?.preview ?? null, total: customRows.length,
+            filtered: customRows.length, offset, limit, entries: customRows.slice(offset, offset + limit),
+            mtime: fs.existsSync(overrideManifestFile(root)) ? Math.trunc(fs.statSync(overrideManifestFile(root)).mtimeMs) : 0 };
+        }
         if (params.kind === 'animation') {
           const index = readMobileAtlasIndex(root);
+          let nativeIds = [];
+          let revision = null;
           if (index) {
-            const q = String(query.get('q') ?? '').trim().toLowerCase();
-            const offset = finiteInt(query.get('offset'), 0, 1_000_000);
-            const limit = finiteInt(query.get('limit'), 1, 500, 100);
-            const all = Object.values(index.shards ?? {}).flatMap((row) => row.bodyIds ?? [])
-              .filter((id) => !q || String(id).includes(q) || `0x${id.toString(16)}`.includes(q))
-              .sort((a, b) => a - b);
-            return { kind: 'animation', label: ASSET_KINDS.animation.label, editable: false,
-              preview: 'animation', total: all.length, offset, limit,
-              entries: all.slice(offset, offset + limit).map((id) => ({ id, value: { shard: Math.floor(id / index.shardSize) } })),
-              revision: index.revision };
+            revision = index.revision;
+            nativeIds = Object.values(index.shards ?? {}).flatMap((row) => row.bodyIds ?? []);
+          } else {
+            const atlas = JSON.parse(fs.readFileSync(safeFile(root, 'mobiles-atlas.json'), 'utf8'));
+            nativeIds = Object.keys(atlas.bodies ?? {}).map(Number);
           }
+          const overriddenIds = new Set(customRows.map((entry) => String(entry.id)));
+          const nativeRows = nativeIds
+              .filter((id) => !q || String(id).includes(q) || `0x${id.toString(16)}`.includes(q))
+              .filter((id) => source !== 'ultima' || !overriddenIds.has(String(id)))
+              .sort((a, b) => a - b)
+              .map((id) => ({ id: String(id), value: { shard: index ? Math.floor(id / index.shardSize) : null },
+                source: custom[String(id)] ? 'custom-override' : 'ultima' }));
+          const all = source === 'ultima'
+            ? nativeRows
+            : [...customRows, ...nativeRows.filter((entry) => !overriddenIds.has(String(entry.id)))];
+          return { kind: 'animation', label: ASSET_KINDS.animation.label, editable: false,
+            preview: 'animation', total: all.length, filtered: all.length, offset, limit,
+            entries: all.slice(offset, offset + limit), revision };
         }
         const spec = kindSpec(params.kind, root);
         if (!fs.existsSync(spec.absoluteFile)) return { error: `${spec.file} is missing` };
+        const native = await workerTask({
+          action: 'entries', file: spec.absoluteFile, collectionPath: spec.path,
+          query: query?.get?.('q'), offset: query?.get?.('offset'), limit: query?.get?.('limit'),
+        });
+        native.entries = native.entries.map((entry) => ({ ...entry,
+          source: custom[String(entry.id)] ? 'custom-override' : 'ultima' }));
+        if (source === 'ultima') native.entries = native.entries.filter((entry) => entry.source === 'ultima');
+        const additions = customRows.filter((entry) => entry.source === 'custom');
+        if (source === 'all' && offset === 0 && additions.length) {
+          native.entries = [...additions.slice(0, limit), ...native.entries].slice(0, limit);
+          native.total += additions.length;
+          native.filtered += additions.length;
+        }
         return {
           kind: params.kind, label: spec.label, editable: spec.editable, preview: spec.preview ?? null,
-          ...(await workerTask({
-            action: 'entries', file: spec.absoluteFile, collectionPath: spec.path,
-            query: query.get('q'), offset: query.get('offset'), limit: query.get('limit'),
-          })),
+          ...native,
         };
       } catch (error) { return { error: error.message }; }
     },
@@ -365,17 +486,29 @@ export function registerAssetRoutes(routes, {
     method: 'GET', path: '/api/assets/editor/entry/:kind/:id',
     run: async ({ params }) => {
       try {
+        const manifest = readOverrideManifest(root);
+        const custom = customMapFor(manifest, params.kind)?.[String(params.id)];
         if (params.kind === 'animation') {
+          if (custom) return { kind: 'animation', id: String(params.id), editable: false,
+            value: customEntryValue('animation', params.id, custom), source: custom.mode === 'override' ? 'custom-override' : 'custom',
+            mtime: Math.trunc(fs.statSync(overrideManifestFile(root)).mtimeMs) };
           const id = parseId(params.id);
           const shard = id == null ? null : mobileShardForId(root, id);
           if (shard) return { kind: 'animation', editable: false, ...(await workerTask({
             action: 'entry', file: shard.file, collectionPath: ['bodies'], id: params.id,
-          })), revision: shard.index.revision, shard: shard.row.file };
+          })), source: 'ultima', revision: shard.index.revision, shard: shard.row.file };
         }
         const spec = kindSpec(params.kind, root);
-        return { kind: params.kind, editable: spec.editable, ...(await workerTask({
-          action: 'entry', file: spec.absoluteFile, collectionPath: spec.path, id: params.id,
-        })) };
+        try {
+          return { kind: params.kind, editable: spec.editable, ...(await workerTask({
+            action: 'entry', file: spec.absoluteFile, collectionPath: spec.path, id: params.id,
+          })), source: custom ? 'custom-override' : 'ultima' };
+        } catch (error) {
+          if (!custom) throw error;
+          return { kind: params.kind, id: String(params.id), editable: true,
+            value: customEntryValue(params.kind, params.id, custom), source: 'custom',
+            mtime: Math.trunc(fs.statSync(overrideManifestFile(root)).mtimeMs) };
+        }
       } catch (error) { return { error: error.message }; }
     },
   });
@@ -383,6 +516,25 @@ export function registerAssetRoutes(routes, {
     method: 'PUT', path: '/api/assets/editor/entry/:kind/:id',
     run: async ({ params, body }) => {
       try {
+        const customManifest = readOverrideManifest(root);
+        const customKind = params.kind === 'texture' ? 'texmap' : params.kind;
+        const custom = customManifest?.[customKind]?.[String(params.id)];
+        if (custom?.mode === 'add' && GRAPHIC_KINDS.has(customKind)) {
+          const metadata = plainObject(body?.value) ? body.value : {};
+          const previous = structuredClone(custom);
+          custom.name = cleanString(metadata.name ?? custom.name, 128);
+          custom.metadata = plainObject(metadata) ? { ...metadata } : {};
+          delete custom.metadata.file;
+          delete custom.metadata.mode;
+          delete custom.metadata.width;
+          delete custom.metadata.height;
+          custom.updatedAt = Date.now();
+          writeOverrideManifest(root, customManifest);
+          changed({ type: 'custom-metadata', kind: params.kind, id: parseId(params.id) });
+          const after = fs.statSync(overrideManifestFile(root));
+          return { ok: true, id: String(params.id), previous, value: customEntryValue(params.kind, params.id, custom),
+            before: null, after: { size: after.size, mtime: Math.trunc(after.mtimeMs) } };
+        }
         const spec = kindSpec(params.kind, root);
         if (!spec.editable) return { error: 'this manifest is read-only; import a graphic override instead' };
         if (params.kind === 'multi') {
@@ -451,9 +603,10 @@ export function registerAssetRoutes(routes, {
     method: 'PUT', path: '/api/assets/editor/override/:kind/:id',
     run: async ({ params, body }) => {
       const kind = params.kind === 'texture' ? 'texmap' : params.kind;
-      if (!['land', 'static', 'gump', 'texmap'].includes(kind)) return { error: 'graphic overrides support land, static, gump and texture' };
+      if (![...GRAPHIC_KINDS, 'animation'].includes(kind)) return { error: 'custom assets support land, static, gump, texture and mobile animation' };
       const id = parseId(params.id);
       if (id == null) return { error: 'invalid resource id' };
+      if (['land', 'static', 'animation'].includes(kind) && id > 0xffff) return { error: `${kind} IDs must fit the UO/NodeUO 16-bit wire range (0..65535)` };
       const encoded = String(body?.pngBase64 ?? '').replace(/^data:image\/png;base64,/i, '');
       let input;
       try { input = Buffer.from(encoded, 'base64'); } catch { return { error: 'invalid base64 PNG' }; }
@@ -466,17 +619,57 @@ export function registerAssetRoutes(routes, {
         }
         const dir = safeFile(root, 'overrides');
         fs.mkdirSync(dir, { recursive: true });
-        const name = `${kind}-${id}.png`;
+        const action = finiteInt(body?.action, 0, 255);
+        const direction = finiteInt(body?.direction, 0, 7);
+        const frameIndex = finiteInt(body?.frameIndex, 0, 255);
+        const name = kind === 'animation'
+          ? `animation-${id}-${action}-${direction}-${frameIndex}.png`
+          : `${kind}-${id}.png`;
         const output = safeFile(dir, name);
         const temporary = `${output}.tmp-${process.pid}-${Date.now()}.png`;
         await image.png({ compressionLevel: 9, palette: true }).toFile(temporary);
         fs.renameSync(temporary, output);
         const manifest = readOverrideManifest(root);
-        manifest.schemaVersion = 1;
+        manifest.schemaVersion = 2;
+        manifest._doc = 'NodeUO custom asset layer. Extractors replace native atlases only; this manifest and overrides/ are preserved.';
         manifest[kind] = plainObject(manifest[kind]) ? manifest[kind] : {};
-        manifest[kind][String(id)] = { file: `overrides/${name}`, width: meta.width, height: meta.height };
+        const previous = manifest[kind][String(id)];
+        const mode = await nativeGraphicExists(kind, id) ? 'override' : 'add';
+        if (kind === 'animation') {
+          const record = plainObject(previous) ? previous : {};
+          record.name = cleanString(body?.name ?? record.name ?? `Custom mobile ${id}`, 128);
+          record.type = ['HUMAN', 'ANIMAL', 'MONSTER', 'SEA', 'EQUIPMENT'].includes(String(body?.type).toUpperCase())
+            ? String(body.type).toUpperCase() : (record.type ?? 'MONSTER');
+          record.source = 'custom';
+          record.mode = mode;
+          record.createdAt ??= Date.now();
+          record.updatedAt = Date.now();
+          record.actions = plainObject(record.actions) ? record.actions : {};
+          const actionEntry = plainObject(record.actions[action]) ? record.actions[action] : { dirs: {} };
+          actionEntry.dirs = plainObject(actionEntry.dirs) ? actionEntry.dirs : {};
+          const frames = Array.isArray(actionEntry.dirs[direction]) ? actionEntry.dirs[direction] : [];
+          frames[frameIndex] = {
+            file: `overrides/${name}`, width: meta.width, height: meta.height,
+            w: meta.width, h: meta.height,
+            cx: finiteInt(body?.cx, -4096, 4096, Math.floor(meta.width / 2)),
+            cy: finiteInt(body?.cy, -4096, 4096, meta.height),
+          };
+          actionEntry.dirs[direction] = frames;
+          record.actions[action] = actionEntry;
+          manifest.animation[String(id)] = record;
+        } else {
+          manifest[kind][String(id)] = {
+            ...(plainObject(previous) ? previous : {}),
+            file: `overrides/${name}`, width: meta.width, height: meta.height,
+            name: cleanString(body?.name ?? previous?.name ?? `Custom ${kind} ${id}`, 128),
+            source: 'custom', mode,
+            createdAt: previous?.createdAt ?? Date.now(), updatedAt: Date.now(),
+          };
+        }
         writeOverrideManifest(root, manifest);
-        const result = { ok: true, kind, id, file: manifest[kind][String(id)].file, width: meta.width, height: meta.height };
+        const record = manifest[kind][String(id)];
+        const result = { ok: true, kind, id, mode, file: kind === 'animation' ? `overrides/${name}` : record.file,
+          width: meta.width, height: meta.height, record };
         changed({ type: 'override', action: 'upsert', kind, id });
         return result;
       } catch (error) { return { error: `PNG import failed: ${error.message}` }; }
@@ -487,14 +680,24 @@ export function registerAssetRoutes(routes, {
     run: ({ params }) => {
       const kind = params.kind === 'texture' ? 'texmap' : params.kind;
       const id = parseId(params.id);
-      if (id == null || !['land', 'static', 'gump', 'texmap'].includes(kind)) return { error: 'invalid override target' };
+      if (id == null || ![...GRAPHIC_KINDS, 'animation'].includes(kind)) return { error: 'invalid custom asset target' };
       const manifest = readOverrideManifest(root);
       const relative = manifest?.[kind]?.[String(id)];
-      if (!relative) return { error: 'override not found' };
-      const file = safeFile(root, typeof relative === 'string' ? relative : relative.file);
+      if (!relative) return { error: 'custom asset not found' };
+      const files = new Set();
+      if (kind === 'animation') {
+        for (const action of Object.values(relative.actions ?? {})) {
+          for (const frames of Object.values(action?.dirs ?? {})) {
+            for (const frame of frames ?? []) if (frame?.file) files.add(frame.file);
+          }
+        }
+      } else files.add(typeof relative === 'string' ? relative : relative.file);
       delete manifest[kind][String(id)];
       writeOverrideManifest(root, manifest);
-      try { fs.unlinkSync(file); } catch (error) { if (error.code !== 'ENOENT') return { error: error.message }; }
+      for (const relativeFile of files) {
+        const file = safeFile(root, relativeFile);
+        try { fs.unlinkSync(file); } catch (error) { if (error.code !== 'ENOENT') return { error: error.message }; }
+      }
       changed({ type: 'override', action: 'remove', kind, id });
       return { ok: true, kind, id, removed: relative };
     },
@@ -504,17 +707,25 @@ export function registerAssetRoutes(routes, {
     run: async ({ params, res }) => {
       try {
         const kind = params.kind === 'texture' ? 'texmap' : params.kind;
-        if (!['land', 'static', 'gump', 'texmap'].includes(kind)) throw new Error('preview is unavailable for this kind');
+        if (![...GRAPHIC_KINDS, 'animation'].includes(kind)) throw new Error('preview is unavailable for this kind');
         const id = parseId(params.id);
         if (id == null) throw new Error('invalid resource id');
         const override = readOverrideManifest(root)?.[kind]?.[String(id)];
         if (override) {
-          const file = safeFile(root, typeof override === 'string' ? override : override.file);
+          let relative = typeof override === 'string' ? override : override.file;
+          if (kind === 'animation') {
+            const firstAction = Object.values(override.actions ?? {})[0];
+            const firstFrames = Object.values(firstAction?.dirs ?? {})[0];
+            relative = firstFrames?.find?.((frame) => frame?.file)?.file;
+          }
+          if (!relative) throw new Error('custom asset has no preview frame');
+          const file = safeFile(root, relative);
           const stat = fs.statSync(file);
           res.writeHead(200, { 'content-type': 'image/png', 'content-length': stat.size, 'cache-control': 'private, no-cache' });
           fs.createReadStream(file).pipe(res);
           return undefined;
         }
+        if (kind === 'animation') throw new Error('native animations use the animation inspector preview');
         const manifestName = kind === 'texmap' ? 'texmap-atlas.json' : `${kind}-atlas.json`;
         const manifestFile = safeFile(root, manifestName);
         let tileRecord;

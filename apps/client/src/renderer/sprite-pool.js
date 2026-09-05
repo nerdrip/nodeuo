@@ -23,6 +23,20 @@ import { MeshSimple, Sprite, Texture } from 'pixi.js';
 
 const DEFAULT_CAP = 4096;
 const textureDescriptor = Object.getOwnPropertyDescriptor(Sprite.prototype, 'texture');
+let renderedFrame = 0;
+
+/**
+ * Advance the pool's render epoch once per application tick. Wall-clock
+ * quarantine alone is unsafe after a background-tab pause: 90 seconds may
+ * pass without Pixi submitting even one new frame, leaving stale render
+ * instructions alive when a pooled object is rebound.
+ */
+export function advanceRenderPoolFrame() {
+  renderedFrame = (renderedFrame + 1) >>> 0;
+  return renderedFrame;
+}
+
+function currentRenderPoolFrame() { return renderedFrame; }
 
 export function retainTexture(texture) {
   if (!texture || texture === Texture.EMPTY) return;
@@ -82,12 +96,20 @@ function installTrackedTexture(sp) {
 }
 
 class SpritePool {
-  constructor(cap = DEFAULT_CAP, reuseDelayMs = 80, now = () => performance.now()) {
-    /** @type {{sprite: Sprite, reusableAt: number}[]} */
+  constructor(
+    cap = DEFAULT_CAP,
+    reuseDelayMs = 80,
+    now = () => performance.now(),
+    frame = currentRenderPoolFrame,
+    reuseDelayFrames = reuseDelayMs > 0 ? 2 : 0,
+  ) {
+    /** @type {{sprite: Sprite, reusableAt: number, reusableAfterFrame: number}[]} */
     this._free = [];
     this._cap = cap;
     this._reuseDelayMs = Math.max(0, Number(reuseDelayMs) || 0);
     this._now = typeof now === 'function' ? now : () => performance.now();
+    this._frame = typeof frame === 'function' ? frame : currentRenderPoolFrame;
+    this._reuseDelayFrames = Math.max(0, reuseDelayFrames | 0);
     this._activeCount = 0;
     this._reuseCount = 0;
     this._allocCount = 0;
@@ -96,10 +118,12 @@ class SpritePool {
   /** Take a sprite, optionally pre-bound to `texture`. */
   acquire(texture) {
     const now = this._now();
+    const frame = this._frame() >>> 0;
     let sp = null;
     for (let i = this._free.length - 1; i >= 0; i--) {
-      if (this._free[i].reusableAt > now) continue;
-      sp = this._free[i].sprite;
+      const entry = this._free[i];
+      if (entry.reusableAt > now || entry.reusableAfterFrame > frame) continue;
+      sp = entry.sprite;
       this._free[i] = this._free[this._free.length - 1];
       this._free.pop();
       break;
@@ -171,7 +195,11 @@ class SpritePool {
     // the frame boundary.  Delayed reuse prevents a season remount from
     // turning a released tree/roof sprite into a screen-sized copy carrying
     // another static's texture and transform.
-    this._free.push({ sprite: sp, reusableAt: this._now() + this._reuseDelayMs });
+    this._free.push({
+      sprite: sp,
+      reusableAt: this._now() + this._reuseDelayMs,
+      reusableAfterFrame: (this._frame() + this._reuseDelayFrames) >>> 0,
+    });
   }
 
   /** Drop the entire pool (test teardown / scene change). */
@@ -206,11 +234,19 @@ export function acquireSprite(texture) { return spritePool.acquire(texture); }
 export function releaseSprite(sp) { spritePool.release(sp); }
 
 class LandMeshPool {
-  constructor(cap = 2048, reuseDelayMs = 120, now = () => performance.now()) {
+  constructor(
+    cap = 2048,
+    reuseDelayMs = 120,
+    now = () => performance.now(),
+    frame = currentRenderPoolFrame,
+    reuseDelayFrames = reuseDelayMs > 0 ? 2 : 0,
+  ) {
     this._free = [];
     this._cap = cap;
     this._reuseDelayMs = Math.max(0, Number(reuseDelayMs) || 0);
     this._now = typeof now === 'function' ? now : () => performance.now();
+    this._frame = typeof frame === 'function' ? frame : currentRenderPoolFrame;
+    this._reuseDelayFrames = Math.max(0, reuseDelayFrames | 0);
     this._active = 0;
     this._allocs = 0;
     this._reuses = 0;
@@ -222,10 +258,11 @@ class LandMeshPool {
     // new texture/geometry and produces screen-sized foliage/roof polygons.
     // Keep released meshes in a short quarantine spanning several frames.
     const now = this._now();
+    const frame = this._frame() >>> 0;
     let mesh = null;
     for (let i = this._free.length - 1; i >= 0; i--) {
       const entry = this._free[i];
-      if (entry.reusableAt > now) continue;
+      if (entry.reusableAt > now || entry.reusableAfterFrame > frame) continue;
       mesh = entry.mesh;
       this._free[i] = this._free[this._free.length - 1];
       this._free.pop();
@@ -277,7 +314,11 @@ class LandMeshPool {
     if (this._free.length >= this._cap) {
       try { mesh.destroy(); } catch {}
     } else {
-      this._free.push({ mesh, reusableAt: this._now() + this._reuseDelayMs });
+      this._free.push({
+        mesh,
+        reusableAt: this._now() + this._reuseDelayMs,
+        reusableAfterFrame: (this._frame() + this._reuseDelayFrames) >>> 0,
+      });
     }
     return true;
   }

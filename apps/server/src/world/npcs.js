@@ -11,10 +11,10 @@
 
 /**
  * @typedef {Object} NpcTemplate
- * @property {string} kind                 registry key (e.g. 'town-crier')
+ * @property {string} definitionId         stable gameplay key (e.g. 'town-crier')
  * @property {string} name                 display name (or first name)
  * @property {string} [title]              shown after name on overhead/paperdoll
- * @property {number} body                 0x190 male / 0x191 female / animal id
+ * @property {number} bodyId               0x190 male / 0x191 female / animal id
  * @property {number} [hue]
  * @property {number} [hp]                 default 50
  * @property {number} [str]
@@ -35,12 +35,28 @@ export class NpcRegistry {
 
   /** @param {NpcTemplate} tmpl */
   register(tmpl) {
-    if (!tmpl || typeof tmpl.kind !== 'string') throw new Error('npc template needs kind');
-    if (!Number.isFinite(tmpl.body)) throw new Error(`npc ${tmpl.kind} missing body`);
-    this.templates.set(tmpl.kind, tmpl);
+    const definitionId = String(tmpl?.definitionId ?? tmpl?.kind ?? '').trim();
+    if (!definitionId) throw new Error('npc template needs definitionId');
+    const bodyId = Number(tmpl?.bodyId ?? tmpl?.body);
+    if (!Number.isInteger(bodyId) || bodyId < 0 || bodyId > 0xFFFF) {
+      throw new Error(`npc ${definitionId} missing valid bodyId`);
+    }
+    this.templates.set(definitionId, {
+      ...tmpl,
+      definitionId,
+      kind: definitionId, // compatibility alias; body art never selects behavior
+      bodyId,
+      body: bodyId,
+      script: tmpl.script ?? tmpl.behavior ?? tmpl.ai ?? 'idle',
+    });
   }
 
   unregister(kind) { this.templates.delete(kind); }
   get(kind) { return this.templates.get(kind); }
   kinds() { return [...this.templates.keys()].sort(); }
+
+  variants(bodyId) {
+    const id = Number(bodyId);
+    return [...this.templates.values()].filter((template) => template.bodyId === id);
+  }
 }

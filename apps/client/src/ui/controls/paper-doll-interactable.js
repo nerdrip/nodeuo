@@ -19,7 +19,11 @@ export class PaperDollInteractable extends GumpPic {
     onPreviewEnter = null,
     onPreviewLeave = null,
   } = {}) {
-    super(gumpId, { hue });
+    // Equipment gumps are sparse full-body overlays. A generic 32x32
+    // loading/missing placeholder at the paperdoll body offset looked like a
+    // miniature shirt in its top-left corner, especially after rapid re-open.
+    // Wait invisibly for the authoritative art instead.
+    super(gumpId, { hue, showShimmer: false, showFallback: false });
     this.layer = layer | 0;
     this.equipment = equipment;
     this.isBackpackSlot = !!isBackpackSlot;

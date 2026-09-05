@@ -64,6 +64,23 @@ describe('item stacking helpers (PHASE CT)', () => {
     expect(findMergeableStack(w, pack.serial, otherHue)).toBeNull();
   });
 
+  it('never merges different definitions which share one graphic', () => {
+    const w = new World();
+    const pack = createItem(w, {
+      itemId: 0x0E75, x: 0, y: 0, z: 0, map: 1, gumpId: 0x3C,
+    });
+    createItem(w, {
+      definitionId: 'iron-ingot', itemId: 0x1BF2, hue: 0, amount: 10,
+      x: 0, y: 0, z: 0, parent: pack.serial,
+    });
+    const visuallyIdenticalButDifferentItem = createItem(w, {
+      definitionId: 'quest-ingot', itemId: 0x1BF2, hue: 0, amount: 10,
+      x: 0, y: 0, z: 0, parent: null,
+    });
+
+    expect(findMergeableStack(w, pack.serial, visuallyIdenticalButDifferentItem)).toBeNull();
+  });
+
   it('findMergeableStack rejects non-stackable art ids', () => {
     const w = new World();
     const pack = createItem(w, {

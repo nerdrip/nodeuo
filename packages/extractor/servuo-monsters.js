@@ -76,9 +76,9 @@ function parseFile(path) {
   const dmg  = m(RX.dmg);
   const karma = m(RX.karma)?.[1];
   const out = {
-    kind,
+    definitionId: kind,
     name,
-    body,
+    bodyId: body,
     hp: hits ? parseInt(hits[2], 10) : 50,
     str: str ? parseInt(str[2], 10) : 50,
     dex: dex ? parseInt(dex[2], 10) : 50,
@@ -133,8 +133,8 @@ export async function extractServUOMonsters(servuoPath, out) {
     const data = parseFile(join(dir, file));
     if (data) { monsters.push(data); parsed++; }
   }
-  // Stable sort by kind.
-  monsters.sort((a, b) => a.kind.localeCompare(b.kind));
+  // Stable sort by gameplay identity (bodyId is deliberately non-unique).
+  monsters.sort((a, b) => a.definitionId.localeCompare(b.definitionId));
   // Merge into existing monsters.json so the hand-curated 0..43 entries
   // keep their flavour adjustments. Existing entries WIN — extractor just
   // back-fills the long tail.
@@ -143,12 +143,15 @@ export async function extractServUOMonsters(servuoPath, out) {
   const existing = JSON.parse(readFileSync(outFile, 'utf8'));
   const normalizedKinds = new Set();
   for (const [key, entry] of Object.entries(existing)) {
-    if (!entry?.kind) continue;
-    const previousKind = entry.kind;
-    entry.kind = kebab(previousKind);
-    if (entry.loot === `${previousKind}-common`) entry.loot = `${entry.kind}-common`;
-    if (!normalizedKinds.has(entry.kind)) {
-      normalizedKinds.add(entry.kind);
+    const previousKind = entry?.definitionId ?? entry?.kind;
+    if (!previousKind) continue;
+    entry.definitionId = kebab(previousKind);
+    entry.bodyId ??= entry.body;
+    delete entry.kind;
+    delete entry.body;
+    if (entry.loot === `${previousKind}-common`) entry.loot = `${entry.definitionId}-common`;
+    if (!normalizedKinds.has(entry.definitionId)) {
+      normalizedKinds.add(entry.definitionId);
       continue;
     }
     if (Array.isArray(existing)) existing[Number(key)] = null;
@@ -158,11 +161,11 @@ export async function extractServUOMonsters(servuoPath, out) {
     const unique = existing.filter(Boolean);
     existing.splice(0, existing.length, ...unique);
   }
-  const knownKinds = new Set(Object.values(existing).map((e) => e.kind));
+  const knownKinds = new Set(Object.values(existing).map((e) => e.definitionId));
   let nextKey = Math.max(...Object.keys(existing).map((k) => +k)) + 1;
   let added = 0;
   for (const mon of monsters) {
-    if (knownKinds.has(mon.kind)) continue;
+    if (knownKinds.has(mon.definitionId)) continue;
     existing[String(nextKey++)] = mon;
     added++;
   }

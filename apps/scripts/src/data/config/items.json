@@ -9,33 +9,42 @@
   },
   {
     "definitionId": "wooden-shield",
-    "artId": 7026,
+    "artId": 7034,
     "name": "a wooden shield",
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
-    "slot": "shield"
+    "equipLayer": 2,
+    "slot": "shield",
+    "paperdollGumpId": 50578,
+    "paperdollMaleGumpId": 50578,
+    "paperdollFemaleGumpId": 50578
   },
   {
     "definitionId": "metal-shield",
-    "artId": 7028,
+    "artId": 7035,
     "name": "a metal shield",
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
-    "slot": "shield"
+    "equipLayer": 2,
+    "slot": "shield",
+    "paperdollGumpId": 50576,
+    "paperdollMaleGumpId": 50576,
+    "paperdollFemaleGumpId": 50576
   },
   {
     "definitionId": "broadsword",
-    "artId": 5118,
+    "artId": 3934,
     "name": "a broadsword",
     "hue": 0,
     "script": null,
     "clothing": true,
     "equipLayer": 1,
-    "slot": "weapon"
+    "slot": "weapon",
+    "paperdollGumpId": 50618,
+    "paperdollMaleGumpId": 50618,
+    "paperdollFemaleGumpId": 50618
   },
   {
     "definitionId": "cutlass",
@@ -45,7 +54,10 @@
     "script": null,
     "clothing": true,
     "equipLayer": 1,
-    "slot": "weapon"
+    "slot": "weapon",
+    "paperdollGumpId": 50623,
+    "paperdollMaleGumpId": 50623,
+    "paperdollFemaleGumpId": 50623
   },
   {
     "definitionId": "dagger",
@@ -55,7 +67,10 @@
     "script": null,
     "clothing": true,
     "equipLayer": 1,
-    "slot": "weapon"
+    "slot": "weapon",
+    "paperdollGumpId": 50622,
+    "paperdollMaleGumpId": 50622,
+    "paperdollFemaleGumpId": 50622
   },
   {
     "definitionId": "kryss",
@@ -65,17 +80,23 @@
     "script": null,
     "clothing": true,
     "equipLayer": 1,
-    "slot": "weapon"
+    "slot": "weapon",
+    "paperdollGumpId": 50630,
+    "paperdollMaleGumpId": 50630,
+    "paperdollFemaleGumpId": 50630
   },
   {
     "definitionId": "mace",
-    "artId": 5040,
+    "artId": 3932,
     "name": "a mace",
     "hue": 0,
     "script": null,
     "clothing": true,
     "equipLayer": 1,
-    "slot": "weapon"
+    "slot": "weapon",
+    "paperdollGumpId": 50631,
+    "paperdollMaleGumpId": 50631,
+    "paperdollFemaleGumpId": 50631
   },
   {
     "definitionId": "gnarled-staff",
@@ -85,7 +106,10 @@
     "script": null,
     "clothing": true,
     "equipLayer": 2,
-    "slot": "weapon"
+    "slot": "weapon",
+    "paperdollGumpId": 50628,
+    "paperdollMaleGumpId": 50628,
+    "paperdollFemaleGumpId": 50628
   },
   {
     "definitionId": "raw-ribs",
@@ -489,18 +513,24 @@
     "hue": 0,
     "script": "torch",
     "clothing": true,
-    "equipLayer": 1,
-    "slot": "weapon"
+    "equipLayer": 2,
+    "slot": "weapon",
+    "paperdollGumpId": 50504,
+    "paperdollMaleGumpId": 50504,
+    "paperdollFemaleGumpId": 50504
   },
   {
     "definitionId": "lantern",
-    "artId": 2594,
+    "artId": 2597,
     "name": "a lantern",
     "hue": 0,
     "script": "lantern",
     "clothing": true,
-    "equipLayer": 1,
-    "slot": "weapon"
+    "equipLayer": 2,
+    "slot": "weapon",
+    "paperdollGumpId": 50503,
+    "paperdollMaleGumpId": 50503,
+    "paperdollFemaleGumpId": 50503
   },
   {
     "definitionId": "kindling",
@@ -519,7 +549,10 @@
     "clothing": true,
     "equipLayer": 5,
     "slot": "shirt",
-    "defaultHue": 904
+    "defaultHue": 904,
+    "paperdollGumpId": 50434,
+    "paperdollMaleGumpId": 50434,
+    "paperdollFemaleGumpId": 60434
   },
   {
     "definitionId": "fancy-shirt",
@@ -530,7 +563,10 @@
     "clothing": true,
     "equipLayer": 5,
     "slot": "shirt",
-    "defaultHue": 1109
+    "defaultHue": 1109,
+    "paperdollGumpId": 50435,
+    "paperdollMaleGumpId": 50435,
+    "paperdollFemaleGumpId": 60435
   },
   {
     "definitionId": "doublet",
@@ -539,9 +575,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 5,
+    "equipLayer": 17,
     "slot": "shirt",
-    "defaultHue": 68
+    "defaultHue": 68,
+    "paperdollGumpId": 50913,
+    "paperdollMaleGumpId": 50913,
+    "paperdollFemaleGumpId": 60913
   },
   {
     "definitionId": "tunic",
@@ -550,9 +589,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 17,
     "slot": "tunic",
-    "defaultHue": 902
+    "defaultHue": 902,
+    "paperdollGumpId": 50909,
+    "paperdollMaleGumpId": 50909,
+    "paperdollFemaleGumpId": 60909
   },
   {
     "definitionId": "long-pants",
@@ -563,18 +605,24 @@
     "clothing": true,
     "equipLayer": 4,
     "slot": "pants",
-    "defaultHue": 954
+    "defaultHue": 954,
+    "paperdollGumpId": 50431,
+    "paperdollMaleGumpId": 50431,
+    "paperdollFemaleGumpId": 60431
   },
   {
     "definitionId": "short-pants",
-    "artId": 5435,
+    "artId": 5422,
     "name": "short pants",
     "hue": 0,
     "script": null,
     "clothing": true,
     "equipLayer": 4,
     "slot": "pants",
-    "defaultHue": 902
+    "defaultHue": 902,
+    "paperdollGumpId": 50430,
+    "paperdollMaleGumpId": 50430,
+    "paperdollFemaleGumpId": 60430
   },
   {
     "definitionId": "skirt",
@@ -583,9 +631,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 4,
+    "equipLayer": 23,
     "slot": "pants",
-    "defaultHue": 1109
+    "defaultHue": 1109,
+    "paperdollGumpId": 50449,
+    "paperdollMaleGumpId": 50449,
+    "paperdollFemaleGumpId": 60449
   },
   {
     "definitionId": "kilt",
@@ -594,42 +645,54 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 4,
+    "equipLayer": 23,
     "slot": "pants",
-    "defaultHue": 1175
+    "defaultHue": 1175,
+    "paperdollGumpId": 50455,
+    "paperdollMaleGumpId": 50455,
+    "paperdollFemaleGumpId": 60455
   },
   {
     "definitionId": "shoes",
-    "artId": 5901,
+    "artId": 5903,
     "name": "shoes",
     "hue": 0,
     "script": null,
     "clothing": true,
     "equipLayer": 3,
     "slot": "feet",
-    "defaultHue": 68
+    "defaultHue": 68,
+    "paperdollGumpId": 50480,
+    "paperdollMaleGumpId": 50480,
+    "paperdollFemaleGumpId": 60480
   },
   {
     "definitionId": "sandals",
-    "artId": 5899,
+    "artId": 5901,
     "name": "sandals",
     "hue": 0,
     "script": null,
     "clothing": true,
     "equipLayer": 3,
     "slot": "feet",
-    "defaultHue": 1107
+    "defaultHue": 1107,
+    "paperdollGumpId": 50479,
+    "paperdollMaleGumpId": 50479,
+    "paperdollFemaleGumpId": 60479
   },
   {
     "definitionId": "boots",
-    "artId": 5905,
+    "artId": 5899,
     "name": "boots",
     "hue": 0,
     "script": null,
     "clothing": true,
     "equipLayer": 3,
     "slot": "feet",
-    "defaultHue": 0
+    "defaultHue": 0,
+    "paperdollGumpId": 50477,
+    "paperdollMaleGumpId": 50477,
+    "paperdollFemaleGumpId": 60477
   },
   {
     "definitionId": "leather-tunic",
@@ -639,7 +702,10 @@
     "script": null,
     "clothing": true,
     "equipLayer": 13,
-    "slot": "tunic"
+    "slot": "tunic",
+    "paperdollGumpId": 50542,
+    "paperdollMaleGumpId": 50542,
+    "paperdollFemaleGumpId": 60542
   },
   {
     "definitionId": "leather-leggings",
@@ -648,8 +714,11 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 24,
-    "slot": "innerlegs"
+    "equipLayer": 4,
+    "slot": "innerlegs",
+    "paperdollGumpId": 50543,
+    "paperdollMaleGumpId": 50543,
+    "paperdollFemaleGumpId": 60543
   },
   {
     "definitionId": "leather-cap",
@@ -659,7 +728,10 @@
     "script": null,
     "clothing": true,
     "equipLayer": 6,
-    "slot": "head"
+    "slot": "head",
+    "paperdollGumpId": 50560,
+    "paperdollMaleGumpId": 50560,
+    "paperdollFemaleGumpId": 60560
   },
   {
     "definitionId": "studded-tunic",
@@ -669,17 +741,23 @@
     "script": null,
     "clothing": true,
     "equipLayer": 13,
-    "slot": "tunic"
+    "slot": "tunic",
+    "paperdollGumpId": 50521,
+    "paperdollMaleGumpId": 50521,
+    "paperdollFemaleGumpId": 60521
   },
   {
     "definitionId": "fur-boots",
-    "artId": 8989,
+    "artId": 8967,
     "name": "fur boots",
     "hue": 0,
     "script": null,
     "clothing": true,
     "equipLayer": 3,
-    "slot": "feet"
+    "slot": "feet",
+    "paperdollGumpId": 50477,
+    "paperdollMaleGumpId": 50477,
+    "paperdollFemaleGumpId": 60477
   },
   {
     "definitionId": "thigh-boots",
@@ -689,7 +767,10 @@
     "script": null,
     "clothing": true,
     "equipLayer": 3,
-    "slot": "feet"
+    "slot": "feet",
+    "paperdollGumpId": 50476,
+    "paperdollMaleGumpId": 50476,
+    "paperdollFemaleGumpId": 60476
   },
   {
     "definitionId": "robe",
@@ -700,7 +781,10 @@
     "clothing": true,
     "equipLayer": 22,
     "slot": "outertorso",
-    "defaultHue": 68
+    "defaultHue": 68,
+    "paperdollGumpId": 50469,
+    "paperdollMaleGumpId": 50469,
+    "paperdollFemaleGumpId": 60469
   },
   {
     "definitionId": "gm-robe",
@@ -711,7 +795,10 @@
     "clothing": true,
     "equipLayer": 22,
     "slot": "outertorso",
-    "defaultHue": 88
+    "defaultHue": 88,
+    "paperdollGumpId": 50469,
+    "paperdollMaleGumpId": 50469,
+    "paperdollFemaleGumpId": 60469
   },
   {
     "definitionId": "cloak",
@@ -722,7 +809,10 @@
     "clothing": true,
     "equipLayer": 20,
     "slot": "cloak",
-    "defaultHue": 0
+    "defaultHue": 0,
+    "paperdollGumpId": 50468,
+    "paperdollMaleGumpId": 50468,
+    "paperdollFemaleGumpId": 60468
   },
   {
     "definitionId": "tricorne",
@@ -732,7 +822,10 @@
     "script": null,
     "clothing": true,
     "equipLayer": 6,
-    "slot": "head"
+    "slot": "head",
+    "paperdollGumpId": 50412,
+    "paperdollMaleGumpId": 50412,
+    "paperdollFemaleGumpId": 60412
   },
   {
     "definitionId": "wizard-hat",
@@ -743,7 +836,10 @@
     "clothing": true,
     "equipLayer": 6,
     "slot": "head",
-    "defaultHue": 38
+    "defaultHue": 38,
+    "paperdollGumpId": 50409,
+    "paperdollMaleGumpId": 50409,
+    "paperdollFemaleGumpId": 60409
   },
   {
     "definitionId": "skullcap",
@@ -753,7 +849,10 @@
     "script": null,
     "clothing": true,
     "equipLayer": 6,
-    "slot": "head"
+    "slot": "head",
+    "paperdollGumpId": 50419,
+    "paperdollMaleGumpId": 50419,
+    "paperdollFemaleGumpId": 60419
   },
   {
     "definitionId": "bandana",
@@ -764,37 +863,49 @@
     "clothing": true,
     "equipLayer": 6,
     "slot": "head",
-    "defaultHue": 37
+    "defaultHue": 37,
+    "paperdollGumpId": 50492,
+    "paperdollMaleGumpId": 50492,
+    "paperdollFemaleGumpId": 60492
   },
   {
     "definitionId": "feathered-hat",
-    "artId": 5913,
+    "artId": 5914,
     "name": "a feathered hat",
     "hue": 0,
     "script": null,
     "clothing": true,
     "equipLayer": 6,
-    "slot": "head"
+    "slot": "head",
+    "paperdollGumpId": 50411,
+    "paperdollMaleGumpId": 50411,
+    "paperdollFemaleGumpId": 60411
   },
   {
     "definitionId": "wide-brim-hat",
-    "artId": 5910,
+    "artId": 5908,
     "name": "a wide brimmed hat",
     "hue": 0,
     "script": null,
     "clothing": true,
     "equipLayer": 6,
-    "slot": "head"
+    "slot": "head",
+    "paperdollGumpId": 50405,
+    "paperdollMaleGumpId": 50405,
+    "paperdollFemaleGumpId": 60405
   },
   {
     "definitionId": "bonnet",
-    "artId": 5916,
+    "artId": 5913,
     "name": "a bonnet",
     "hue": 0,
     "script": null,
     "clothing": true,
     "equipLayer": 6,
-    "slot": "head"
+    "slot": "head",
+    "paperdollGumpId": 50410,
+    "paperdollMaleGumpId": 50410,
+    "paperdollFemaleGumpId": 60410
   },
   {
     "definitionId": "half-apron",
@@ -803,20 +914,26 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 4,
+    "equipLayer": 12,
     "slot": "pants",
-    "defaultHue": 68
+    "defaultHue": 68,
+    "paperdollGumpId": 50466,
+    "paperdollMaleGumpId": 50466,
+    "paperdollFemaleGumpId": 60466
   },
   {
     "definitionId": "full-apron",
-    "artId": 5462,
+    "artId": 5437,
     "name": "a full apron",
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 22,
+    "equipLayer": 17,
     "slot": "outertorso",
-    "defaultHue": 68
+    "defaultHue": 68,
+    "paperdollGumpId": 50465,
+    "paperdollMaleGumpId": 50465,
+    "paperdollFemaleGumpId": 60465
   },
   {
     "definitionId": "body-sash",
@@ -825,9 +942,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 12,
+    "equipLayer": 17,
     "slot": "waist",
-    "defaultHue": 37
+    "defaultHue": 37,
+    "paperdollGumpId": 50490,
+    "paperdollMaleGumpId": 50490,
+    "paperdollFemaleGumpId": 60490
   },
   {
     "definitionId": "first-aid-belt",
@@ -852,7 +972,10 @@
       "Bandage",
       "EnhancedBandage"
     ],
-    "weight": 2
+    "weight": 2,
+    "paperdollGumpId": 50514,
+    "paperdollMaleGumpId": 50514,
+    "paperdollFemaleGumpId": 60514
   },
   {
     "definitionId": "khaldun-first-aid-belt",
@@ -883,7 +1006,10 @@
       "Bandage",
       "EnhancedBandage"
     ],
-    "weight": 2
+    "weight": 2,
+    "paperdollGumpId": 50514,
+    "paperdollMaleGumpId": 50514,
+    "paperdollFemaleGumpId": 60514
   },
   {
     "definitionId": "longsword",
@@ -893,17 +1019,23 @@
     "script": null,
     "clothing": true,
     "equipLayer": 1,
-    "slot": "weapon"
+    "slot": "weapon",
+    "paperdollGumpId": 50618,
+    "paperdollMaleGumpId": 50618,
+    "paperdollFemaleGumpId": 50618
   },
   {
     "definitionId": "katana",
-    "artId": 5118,
+    "artId": 5119,
     "name": "a katana",
     "hue": 0,
     "script": null,
     "clothing": true,
     "equipLayer": 1,
-    "slot": "weapon"
+    "slot": "weapon",
+    "paperdollGumpId": 50627,
+    "paperdollMaleGumpId": 50627,
+    "paperdollFemaleGumpId": 50627
   },
   {
     "definitionId": "scimitar",
@@ -913,7 +1045,10 @@
     "script": null,
     "clothing": true,
     "equipLayer": 1,
-    "slot": "weapon"
+    "slot": "weapon",
+    "paperdollGumpId": 50637,
+    "paperdollMaleGumpId": 50637,
+    "paperdollFemaleGumpId": 50637
   },
   {
     "definitionId": "halberd",
@@ -923,7 +1058,10 @@
     "script": null,
     "clothing": true,
     "equipLayer": 2,
-    "slot": "weapon"
+    "slot": "weapon",
+    "paperdollGumpId": 50624,
+    "paperdollMaleGumpId": 50624,
+    "paperdollFemaleGumpId": 50624
   },
   {
     "definitionId": "war-mace",
@@ -933,17 +1071,23 @@
     "script": null,
     "clothing": true,
     "equipLayer": 1,
-    "slot": "weapon"
+    "slot": "weapon",
+    "paperdollGumpId": 50642,
+    "paperdollMaleGumpId": 50642,
+    "paperdollFemaleGumpId": 50642
   },
   {
     "definitionId": "battle-axe",
-    "artId": 5115,
+    "artId": 3911,
     "name": "a battle axe",
     "hue": 0,
     "script": null,
     "clothing": true,
     "equipLayer": 1,
-    "slot": "weapon"
+    "slot": "weapon",
+    "paperdollGumpId": 50615,
+    "paperdollMaleGumpId": 50615,
+    "paperdollFemaleGumpId": 50615
   },
   {
     "definitionId": "war-hammer",
@@ -952,8 +1096,11 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 2,
-    "slot": "weapon"
+    "equipLayer": 1,
+    "slot": "weapon",
+    "paperdollGumpId": 50646,
+    "paperdollMaleGumpId": 50646,
+    "paperdollFemaleGumpId": 50646
   },
   {
     "definitionId": "bow",
@@ -962,8 +1109,11 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 2,
-    "slot": "weapon"
+    "equipLayer": 1,
+    "slot": "weapon",
+    "paperdollGumpId": 50649,
+    "paperdollMaleGumpId": 50649,
+    "paperdollFemaleGumpId": 50649
   },
   {
     "definitionId": "crossbow",
@@ -972,8 +1122,11 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 2,
-    "slot": "weapon"
+    "equipLayer": 1,
+    "slot": "weapon",
+    "paperdollGumpId": 50651,
+    "paperdollMaleGumpId": 50651,
+    "paperdollFemaleGumpId": 50651
   },
   {
     "definitionId": "heavy-crossbow",
@@ -982,8 +1135,11 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 2,
-    "slot": "weapon"
+    "equipLayer": 1,
+    "slot": "weapon",
+    "paperdollGumpId": 50616,
+    "paperdollMaleGumpId": 50616,
+    "paperdollFemaleGumpId": 50616
   },
   {
     "definitionId": "arrow",
@@ -1003,13 +1159,16 @@
   },
   {
     "definitionId": "plate-helm",
-    "artId": 5145,
+    "artId": 5138,
     "name": "a plate helm",
     "hue": 0,
     "script": null,
     "clothing": true,
     "equipLayer": 6,
-    "slot": "head"
+    "slot": "head",
+    "paperdollGumpId": 50563,
+    "paperdollMaleGumpId": 50563,
+    "paperdollFemaleGumpId": 60563
   },
   {
     "definitionId": "plate-chest",
@@ -1019,7 +1178,10 @@
     "script": null,
     "clothing": true,
     "equipLayer": 13,
-    "slot": "tunic"
+    "slot": "tunic",
+    "paperdollGumpId": 50527,
+    "paperdollMaleGumpId": 50527,
+    "paperdollFemaleGumpId": 60527
   },
   {
     "definitionId": "plate-arms",
@@ -1029,7 +1191,10 @@
     "script": null,
     "clothing": true,
     "equipLayer": 19,
-    "slot": "arms"
+    "slot": "arms",
+    "paperdollGumpId": 50528,
+    "paperdollMaleGumpId": 50528,
+    "paperdollFemaleGumpId": 60528
   },
   {
     "definitionId": "plate-legs",
@@ -1038,8 +1203,11 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 24,
-    "slot": "innerlegs"
+    "equipLayer": 4,
+    "slot": "innerlegs",
+    "paperdollGumpId": 50529,
+    "paperdollMaleGumpId": 50529,
+    "paperdollFemaleGumpId": 60529
   },
   {
     "definitionId": "plate-gorget",
@@ -1049,7 +1217,10 @@
     "script": null,
     "clothing": true,
     "equipLayer": 10,
-    "slot": "neck"
+    "slot": "neck",
+    "paperdollGumpId": 50531,
+    "paperdollMaleGumpId": 50531,
+    "paperdollFemaleGumpId": 60531
   },
   {
     "definitionId": "plate-gloves",
@@ -1059,27 +1230,36 @@
     "script": null,
     "clothing": true,
     "equipLayer": 7,
-    "slot": "gloves"
+    "slot": "gloves",
+    "paperdollGumpId": 50530,
+    "paperdollMaleGumpId": 50530,
+    "paperdollFemaleGumpId": 60530
   },
   {
     "definitionId": "kite-shield",
-    "artId": 7012,
+    "artId": 7028,
     "name": "a kite shield",
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
-    "slot": "shield"
+    "equipLayer": 2,
+    "slot": "shield",
+    "paperdollGumpId": 50581,
+    "paperdollMaleGumpId": 50581,
+    "paperdollFemaleGumpId": 60581
   },
   {
     "definitionId": "heater-shield",
-    "artId": 7014,
+    "artId": 7030,
     "name": "a heater shield",
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
-    "slot": "shield"
+    "equipLayer": 2,
+    "slot": "shield",
+    "paperdollGumpId": 50582,
+    "paperdollMaleGumpId": 50582,
+    "paperdollFemaleGumpId": 60582
   },
   {
     "definitionId": "potion-heal",
@@ -1148,7 +1328,11 @@
     "clothing": true,
     "equipLayer": 1,
     "slot": "weapon",
-    "spellbook": true
+    "spellbook": true,
+    "spellbookOffset": 1,
+    "paperdollGumpId": 50984,
+    "paperdollMaleGumpId": 50984,
+    "paperdollFemaleGumpId": 60984
   },
   {
     "definitionId": "blank-scroll",
@@ -1180,17 +1364,23 @@
     "script": "fishing-pole",
     "clothing": true,
     "equipLayer": 2,
-    "slot": "weapon"
+    "slot": "weapon",
+    "paperdollGumpId": 50972,
+    "paperdollMaleGumpId": 50972,
+    "paperdollFemaleGumpId": 60972
   },
   {
     "definitionId": "pickaxe",
-    "artId": 3717,
+    "artId": 3718,
     "name": "a pickaxe",
     "hue": 0,
     "script": "pickaxe",
     "clothing": true,
     "equipLayer": 1,
-    "slot": "weapon"
+    "slot": "weapon",
+    "paperdollGumpId": 50635,
+    "paperdollMaleGumpId": 50635,
+    "paperdollFemaleGumpId": 50635
   },
   {
     "definitionId": "hatchet",
@@ -1199,18 +1389,18 @@
     "hue": 0,
     "script": "hatchet",
     "clothing": true,
-    "equipLayer": 1,
-    "slot": "weapon"
+    "equipLayer": 2,
+    "slot": "weapon",
+    "paperdollGumpId": 50615,
+    "paperdollMaleGumpId": 50615,
+    "paperdollFemaleGumpId": 50615
   },
   {
     "definitionId": "shovel",
     "artId": 3897,
     "name": "a shovel",
     "hue": 0,
-    "script": "shovel",
-    "clothing": true,
-    "equipLayer": 1,
-    "slot": "weapon"
+    "script": "shovel"
   },
   {
     "definitionId": "sextant",
@@ -1385,7 +1575,10 @@
     "speed": 50,
     "strReq": 15,
     "primaryAbility": "InfectiousStrike",
-    "secondaryAbility": "ShadowStrike"
+    "secondaryAbility": "ShadowStrike",
+    "paperdollGumpId": 50953,
+    "paperdollMaleGumpId": 50953,
+    "paperdollFemaleGumpId": 50953
   },
   {
     "definitionId": "axe",
@@ -1394,7 +1587,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 3914,
     "weight": 4,
@@ -1403,7 +1596,10 @@
     "speed": 37,
     "strReq": 35,
     "primaryAbility": "CrushingBlow",
-    "secondaryAbility": "Dismount"
+    "secondaryAbility": "Dismount",
+    "paperdollGumpId": 50653,
+    "paperdollMaleGumpId": 50653,
+    "paperdollFemaleGumpId": 60653
   },
   {
     "definitionId": "bardiche",
@@ -1412,7 +1608,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 3918,
     "weight": 7,
@@ -1421,7 +1617,10 @@
     "speed": 26,
     "strReq": 40,
     "primaryAbility": "ParalyzingBlow",
-    "secondaryAbility": "Dismount"
+    "secondaryAbility": "Dismount",
+    "paperdollGumpId": 50614,
+    "paperdollMaleGumpId": 50614,
+    "paperdollFemaleGumpId": 50614
   },
   {
     "definitionId": "black-staff",
@@ -1430,7 +1629,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 3568,
     "weight": 6,
@@ -1439,7 +1638,10 @@
     "speed": 35,
     "strReq": 35,
     "primaryAbility": "WhirlwindAttack",
-    "secondaryAbility": "ParalyzingBlow"
+    "secondaryAbility": "ParalyzingBlow",
+    "paperdollGumpId": 50617,
+    "paperdollMaleGumpId": 50617,
+    "paperdollFemaleGumpId": 50617
   },
   {
     "definitionId": "bladed-staff",
@@ -1448,7 +1650,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 9927,
     "weight": 4,
@@ -1457,7 +1659,10 @@
     "speed": 37,
     "strReq": 40,
     "primaryAbility": "ArmorIgnore",
-    "secondaryAbility": "Dismount"
+    "secondaryAbility": "Dismount",
+    "paperdollGumpId": 50933,
+    "paperdollMaleGumpId": 50933,
+    "paperdollFemaleGumpId": 50933
   },
   {
     "definitionId": "blood-blade",
@@ -1475,7 +1680,10 @@
     "speed": 53,
     "strReq": 10,
     "primaryAbility": "BleedAttack",
-    "secondaryAbility": "ParalyzingBlow"
+    "secondaryAbility": "ParalyzingBlow",
+    "paperdollGumpId": 50668,
+    "paperdollMaleGumpId": 50668,
+    "paperdollFemaleGumpId": 60668
   },
   {
     "definitionId": "bokuto",
@@ -1493,7 +1701,10 @@
     "speed": 53,
     "strReq": 20,
     "primaryAbility": "Feint",
-    "secondaryAbility": "NerveStrike"
+    "secondaryAbility": "NerveStrike",
+    "paperdollGumpId": 50467,
+    "paperdollMaleGumpId": 50467,
+    "paperdollFemaleGumpId": 50467
   },
   {
     "definitionId": "bone-harvester",
@@ -1511,7 +1722,10 @@
     "speed": 36,
     "strReq": 25,
     "primaryAbility": "ParalyzingBlow",
-    "secondaryAbility": "MortalStrike"
+    "secondaryAbility": "MortalStrike",
+    "paperdollGumpId": 50931,
+    "paperdollMaleGumpId": 50931,
+    "paperdollFemaleGumpId": 50931
   },
   {
     "definitionId": "boomerang",
@@ -1528,7 +1742,10 @@
     "speed": 20,
     "strReq": 20,
     "primaryAbility": "MysticArc",
-    "secondaryAbility": "ConcussionBlow"
+    "secondaryAbility": "ConcussionBlow",
+    "paperdollGumpId": 50669,
+    "paperdollMaleGumpId": 50669,
+    "paperdollFemaleGumpId": 60669
   },
   {
     "definitionId": "butcher-knife",
@@ -1546,7 +1763,10 @@
     "speed": 40,
     "strReq": 5,
     "primaryAbility": "InfectiousStrike",
-    "secondaryAbility": "Disarm"
+    "secondaryAbility": "Disarm",
+    "paperdollGumpId": 50629,
+    "paperdollMaleGumpId": 50629,
+    "paperdollFemaleGumpId": 50629
   },
   {
     "definitionId": "cleaver",
@@ -1564,7 +1784,10 @@
     "speed": 40,
     "strReq": 10,
     "primaryAbility": "BleedAttack",
-    "secondaryAbility": "InfectiousStrike"
+    "secondaryAbility": "InfectiousStrike",
+    "paperdollGumpId": 50619,
+    "paperdollMaleGumpId": 50619,
+    "paperdollFemaleGumpId": 50619
   },
   {
     "definitionId": "club",
@@ -1582,7 +1805,10 @@
     "speed": 40,
     "strReq": 10,
     "primaryAbility": "CrushingBlow",
-    "secondaryAbility": "Dismount"
+    "secondaryAbility": "Dismount",
+    "paperdollGumpId": 50620,
+    "paperdollMaleGumpId": 50620,
+    "paperdollFemaleGumpId": 50620
   },
   {
     "definitionId": "composite-bow",
@@ -1591,7 +1817,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 9932,
     "weight": 5,
@@ -1600,7 +1826,10 @@
     "speed": 25,
     "strReq": 45,
     "primaryAbility": "ArmorIgnore",
-    "secondaryAbility": "MovingShot"
+    "secondaryAbility": "MovingShot",
+    "paperdollGumpId": 50938,
+    "paperdollMaleGumpId": 50938,
+    "paperdollFemaleGumpId": 50938
   },
   {
     "definitionId": "crescent-blade",
@@ -1609,7 +1838,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 9931,
     "weight": 1,
@@ -1618,7 +1847,10 @@
     "speed": 47,
     "strReq": 55,
     "primaryAbility": "DoubleStrike",
-    "secondaryAbility": "MortalStrike"
+    "secondaryAbility": "MortalStrike",
+    "paperdollGumpId": 50937,
+    "paperdollMaleGumpId": 50937,
+    "paperdollFemaleGumpId": 50937
   },
   {
     "definitionId": "cyclone",
@@ -1635,7 +1867,10 @@
     "speed": 20,
     "strReq": 20,
     "primaryAbility": "MovingShot",
-    "secondaryAbility": "InfusedThrow"
+    "secondaryAbility": "InfusedThrow",
+    "paperdollGumpId": 50672,
+    "paperdollMaleGumpId": 50672,
+    "paperdollFemaleGumpId": 60672
   },
   {
     "definitionId": "daisho",
@@ -1644,7 +1879,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 10228,
     "weight": 8,
@@ -1653,7 +1888,10 @@
     "speed": 40,
     "strReq": 40,
     "primaryAbility": "Feint",
-    "secondaryAbility": "DoubleStrike"
+    "secondaryAbility": "DoubleStrike",
+    "paperdollGumpId": 50470,
+    "paperdollMaleGumpId": 50470,
+    "paperdollFemaleGumpId": 50470
   },
   {
     "definitionId": "diamond-mace",
@@ -1671,7 +1909,10 @@
     "speed": 37,
     "strReq": 35,
     "primaryAbility": "ConcussionBlow",
-    "secondaryAbility": "CrushingBlow"
+    "secondaryAbility": "CrushingBlow",
+    "paperdollGumpId": 50956,
+    "paperdollMaleGumpId": 50956,
+    "paperdollFemaleGumpId": 50956
   },
   {
     "definitionId": "disc-mace",
@@ -1689,7 +1930,10 @@
     "speed": 32,
     "strReq": 30,
     "primaryAbility": "ArmorIgnore",
-    "secondaryAbility": "Disarm"
+    "secondaryAbility": "Disarm",
+    "paperdollGumpId": 50674,
+    "paperdollMaleGumpId": 50674,
+    "paperdollFemaleGumpId": 60674
   },
   {
     "definitionId": "double-axe",
@@ -1698,7 +1942,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 3916,
     "weight": 8,
@@ -1707,7 +1951,10 @@
     "speed": 37,
     "strReq": 45,
     "primaryAbility": "DoubleStrike",
-    "secondaryAbility": "WhirlwindAttack"
+    "secondaryAbility": "WhirlwindAttack",
+    "paperdollGumpId": 50634,
+    "paperdollMaleGumpId": 50634,
+    "paperdollFemaleGumpId": 50634
   },
   {
     "definitionId": "double-bladed-staff",
@@ -1716,7 +1963,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 9929,
     "weight": 2,
@@ -1725,7 +1972,10 @@
     "speed": 49,
     "strReq": 50,
     "primaryAbility": "DoubleStrike",
-    "secondaryAbility": "InfectiousStrike"
+    "secondaryAbility": "InfectiousStrike",
+    "paperdollGumpId": 50935,
+    "paperdollMaleGumpId": 50935,
+    "paperdollFemaleGumpId": 50935
   },
   {
     "definitionId": "dread-sword",
@@ -1743,7 +1993,10 @@
     "speed": 35,
     "strReq": 25,
     "primaryAbility": "CrushingBlow",
-    "secondaryAbility": "ConcussionBlow"
+    "secondaryAbility": "ConcussionBlow",
+    "paperdollGumpId": 50671,
+    "paperdollMaleGumpId": 50671,
+    "paperdollFemaleGumpId": 60671
   },
   {
     "definitionId": "dual-pointed-spear",
@@ -1752,7 +2005,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 16493,
     "weight": 7,
@@ -1761,7 +2014,10 @@
     "speed": 46,
     "strReq": 30,
     "primaryAbility": "DoubleStrike",
-    "secondaryAbility": "Disarm"
+    "secondaryAbility": "Disarm",
+    "paperdollGumpId": 50675,
+    "paperdollMaleGumpId": 50675,
+    "paperdollFemaleGumpId": 60675
   },
   {
     "definitionId": "dual-short-axes",
@@ -1770,7 +2026,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 16488,
     "weight": 8,
@@ -1779,7 +2035,10 @@
     "speed": 37,
     "strReq": 45,
     "primaryAbility": "DoubleStrike",
-    "secondaryAbility": "InfectiousStrike"
+    "secondaryAbility": "InfectiousStrike",
+    "paperdollGumpId": 50662,
+    "paperdollMaleGumpId": 50662,
+    "paperdollFemaleGumpId": 60662
   },
   {
     "definitionId": "elven-composite-longbow",
@@ -1788,7 +2047,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 11562,
     "weight": 8,
@@ -1797,7 +2056,10 @@
     "speed": 27,
     "strReq": 45,
     "primaryAbility": "ForceArrow",
-    "secondaryAbility": "SerpentArrow"
+    "secondaryAbility": "SerpentArrow",
+    "paperdollGumpId": 50950,
+    "paperdollMaleGumpId": 50950,
+    "paperdollFemaleGumpId": 50950
   },
   {
     "definitionId": "elven-machete",
@@ -1815,7 +2077,10 @@
     "speed": 41,
     "strReq": 20,
     "primaryAbility": "DefenseMastery",
-    "secondaryAbility": "Bladeweave"
+    "secondaryAbility": "Bladeweave",
+    "paperdollGumpId": 50961,
+    "paperdollMaleGumpId": 50961,
+    "paperdollFemaleGumpId": 50961
   },
   {
     "definitionId": "elven-spellblade",
@@ -1824,7 +2089,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 11564,
     "weight": 5,
@@ -1833,7 +2098,10 @@
     "speed": 44,
     "strReq": 35,
     "primaryAbility": "PsychicAttack",
-    "secondaryAbility": "BleedAttack"
+    "secondaryAbility": "BleedAttack",
+    "paperdollGumpId": 50952,
+    "paperdollMaleGumpId": 50952,
+    "paperdollFemaleGumpId": 50952
   },
   {
     "definitionId": "executioners-axe",
@@ -1842,7 +2110,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 3910,
     "weight": 8,
@@ -1851,7 +2119,10 @@
     "speed": 37,
     "strReq": 35,
     "primaryAbility": "BleedAttack",
-    "secondaryAbility": "MortalStrike"
+    "secondaryAbility": "MortalStrike",
+    "paperdollGumpId": 50613,
+    "paperdollMaleGumpId": 50613,
+    "paperdollFemaleGumpId": 50613
   },
   {
     "definitionId": "gargish-axe",
@@ -1860,7 +2131,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 18611,
     "weight": 4,
@@ -1869,7 +2140,10 @@
     "speed": 37,
     "strReq": 35,
     "primaryAbility": "CrushingBlow",
-    "secondaryAbility": "Dismount"
+    "secondaryAbility": "Dismount",
+    "paperdollGumpId": 51047,
+    "paperdollMaleGumpId": 51047,
+    "paperdollFemaleGumpId": 61047
   },
   {
     "definitionId": "gargish-bardiche",
@@ -1878,7 +2152,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 18613,
     "weight": 7,
@@ -1887,7 +2161,10 @@
     "speed": 26,
     "strReq": 40,
     "primaryAbility": "ParalyzingBlow",
-    "secondaryAbility": "Dismount"
+    "secondaryAbility": "Dismount",
+    "paperdollGumpId": 51027,
+    "paperdollMaleGumpId": 51027,
+    "paperdollFemaleGumpId": 61027
   },
   {
     "definitionId": "gargish-battle-axe",
@@ -1896,7 +2173,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 18609,
     "weight": 4,
@@ -1905,7 +2182,10 @@
     "speed": 30,
     "strReq": 40,
     "primaryAbility": "BleedAttack",
-    "secondaryAbility": "ConcussionBlow"
+    "secondaryAbility": "ConcussionBlow",
+    "paperdollGumpId": 51028,
+    "paperdollMaleGumpId": 51028,
+    "paperdollFemaleGumpId": 61028
   },
   {
     "definitionId": "gargish-bone-harvester",
@@ -1923,7 +2203,10 @@
     "speed": 36,
     "strReq": 25,
     "primaryAbility": "ParalyzingBlow",
-    "secondaryAbility": "MortalStrike"
+    "secondaryAbility": "MortalStrike",
+    "paperdollGumpId": 51029,
+    "paperdollMaleGumpId": 51029,
+    "paperdollFemaleGumpId": 61029
   },
   {
     "definitionId": "gargish-butcher-knife",
@@ -1941,7 +2224,10 @@
     "speed": 40,
     "strReq": 5,
     "primaryAbility": "InfectiousStrike",
-    "secondaryAbility": "Disarm"
+    "secondaryAbility": "Disarm",
+    "paperdollGumpId": 51030,
+    "paperdollMaleGumpId": 51030,
+    "paperdollFemaleGumpId": 61030
   },
   {
     "definitionId": "gargish-cleaver",
@@ -1959,7 +2245,10 @@
     "speed": 40,
     "strReq": 10,
     "primaryAbility": "BleedAttack",
-    "secondaryAbility": "InfectiousStrike"
+    "secondaryAbility": "InfectiousStrike",
+    "paperdollGumpId": 51032,
+    "paperdollMaleGumpId": 51032,
+    "paperdollFemaleGumpId": 61032
   },
   {
     "definitionId": "gargish-dagger",
@@ -1977,7 +2266,10 @@
     "speed": 55,
     "strReq": 1,
     "primaryAbility": "ShadowStrike",
-    "secondaryAbility": "InfectiousStrike"
+    "secondaryAbility": "InfectiousStrike",
+    "paperdollGumpId": 50673,
+    "paperdollMaleGumpId": 50673,
+    "paperdollFemaleGumpId": 60673
   },
   {
     "definitionId": "gargish-daisho",
@@ -1986,7 +2278,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 18641,
     "weight": 8,
@@ -1995,7 +2287,10 @@
     "speed": 40,
     "strReq": 40,
     "primaryAbility": "Feint",
-    "secondaryAbility": "DoubleStrike"
+    "secondaryAbility": "DoubleStrike",
+    "paperdollGumpId": 51033,
+    "paperdollMaleGumpId": 51033,
+    "paperdollFemaleGumpId": 61033
   },
   {
     "definitionId": "gargish-gnarled-staff",
@@ -2004,7 +2299,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 18617,
     "weight": 3,
@@ -2013,7 +2308,10 @@
     "speed": 33,
     "strReq": 20,
     "primaryAbility": "ConcussionBlow",
-    "secondaryAbility": "ForceOfNature"
+    "secondaryAbility": "ForceOfNature",
+    "paperdollGumpId": 51042,
+    "paperdollMaleGumpId": 51042,
+    "paperdollFemaleGumpId": 61042
   },
   {
     "definitionId": "gargish-katana",
@@ -2031,7 +2329,10 @@
     "speed": 58,
     "strReq": 10,
     "primaryAbility": "DoubleStrike",
-    "secondaryAbility": "ArmorIgnore"
+    "secondaryAbility": "ArmorIgnore",
+    "paperdollGumpId": 51034,
+    "paperdollMaleGumpId": 51034,
+    "paperdollFemaleGumpId": 61034
   },
   {
     "definitionId": "gargish-kryss",
@@ -2049,7 +2350,10 @@
     "speed": 53,
     "strReq": 10,
     "primaryAbility": "ArmorIgnore",
-    "secondaryAbility": "InfectiousStrike"
+    "secondaryAbility": "InfectiousStrike",
+    "paperdollGumpId": 51035,
+    "paperdollMaleGumpId": 51035,
+    "paperdollFemaleGumpId": 61035
   },
   {
     "definitionId": "gargish-lance",
@@ -2067,7 +2371,10 @@
     "speed": 24,
     "strReq": 95,
     "primaryAbility": "Dismount",
-    "secondaryAbility": "ConcussionBlow"
+    "secondaryAbility": "ConcussionBlow",
+    "paperdollGumpId": 51036,
+    "paperdollMaleGumpId": 51036,
+    "paperdollFemaleGumpId": 61036
   },
   {
     "definitionId": "gargish-maul",
@@ -2085,7 +2392,10 @@
     "speed": 30,
     "strReq": 20,
     "primaryAbility": "DoubleStrike",
-    "secondaryAbility": "ConcussionBlow"
+    "secondaryAbility": "ConcussionBlow",
+    "paperdollGumpId": 51037,
+    "paperdollMaleGumpId": 51037,
+    "paperdollFemaleGumpId": 61037
   },
   {
     "definitionId": "gargish-pike",
@@ -2094,7 +2404,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 18633,
     "weight": 8,
@@ -2103,7 +2413,10 @@
     "speed": 37,
     "strReq": 50,
     "primaryAbility": "ParalyzingBlow",
-    "secondaryAbility": "InfectiousStrike"
+    "secondaryAbility": "InfectiousStrike",
+    "paperdollGumpId": 51040,
+    "paperdollMaleGumpId": 51040,
+    "paperdollFemaleGumpId": 61040
   },
   {
     "definitionId": "gargish-scythe",
@@ -2112,7 +2425,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 18629,
     "weight": 5,
@@ -2121,7 +2434,10 @@
     "speed": 32,
     "strReq": 45,
     "primaryAbility": "BleedAttack",
-    "secondaryAbility": "ParalyzingBlow"
+    "secondaryAbility": "ParalyzingBlow",
+    "paperdollGumpId": 51041,
+    "paperdollMaleGumpId": 51041,
+    "paperdollFemaleGumpId": 61041
   },
   {
     "definitionId": "gargish-talwar",
@@ -2130,7 +2446,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 16501,
     "weight": 16,
@@ -2139,7 +2455,10 @@
     "speed": 25,
     "strReq": 45,
     "primaryAbility": "WhirlwindAttack",
-    "secondaryAbility": "Dismount"
+    "secondaryAbility": "Dismount",
+    "paperdollGumpId": 50690,
+    "paperdollMaleGumpId": 50690,
+    "paperdollFemaleGumpId": 60690
   },
   {
     "definitionId": "gargish-tekagi",
@@ -2148,7 +2467,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 18639,
     "weight": 5,
@@ -2157,7 +2476,10 @@
     "speed": 53,
     "strReq": 10,
     "primaryAbility": "DualWield",
-    "secondaryAbility": "TalonStrike"
+    "secondaryAbility": "TalonStrike",
+    "paperdollGumpId": 51043,
+    "paperdollMaleGumpId": 51043,
+    "paperdollFemaleGumpId": 61043
   },
   {
     "definitionId": "gargish-tessen",
@@ -2166,7 +2488,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 18637,
     "weight": 6,
@@ -2175,7 +2497,10 @@
     "speed": 50,
     "strReq": 10,
     "primaryAbility": "Feint",
-    "secondaryAbility": "DualWield"
+    "secondaryAbility": "DualWield",
+    "paperdollGumpId": 51044,
+    "paperdollMaleGumpId": 51044,
+    "paperdollFemaleGumpId": 61044
   },
   {
     "definitionId": "gargish-war-fork",
@@ -2193,7 +2518,10 @@
     "speed": 45,
     "strReq": 35,
     "primaryAbility": "BleedAttack",
-    "secondaryAbility": "Disarm"
+    "secondaryAbility": "Disarm",
+    "paperdollGumpId": 51045,
+    "paperdollMaleGumpId": 51045,
+    "paperdollFemaleGumpId": 61045
   },
   {
     "definitionId": "gargish-war-hammer",
@@ -2211,7 +2539,10 @@
     "speed": 31,
     "strReq": 40,
     "primaryAbility": "WhirlwindAttack",
-    "secondaryAbility": "CrushingBlow"
+    "secondaryAbility": "CrushingBlow",
+    "paperdollGumpId": 51046,
+    "paperdollMaleGumpId": 51046,
+    "paperdollFemaleGumpId": 61046
   },
   {
     "definitionId": "glass-staff",
@@ -2220,7 +2551,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 16496,
     "weight": 4,
@@ -2229,7 +2560,10 @@
     "speed": 35,
     "strReq": 35,
     "primaryAbility": "DoubleStrike",
-    "secondaryAbility": "MortalStrike"
+    "secondaryAbility": "MortalStrike",
+    "paperdollGumpId": 50676,
+    "paperdollMaleGumpId": 50676,
+    "paperdollFemaleGumpId": 60676
   },
   {
     "definitionId": "glass-sword",
@@ -2247,7 +2581,10 @@
     "speed": 58,
     "strReq": 10,
     "primaryAbility": "BleedAttack",
-    "secondaryAbility": "MortalStrike"
+    "secondaryAbility": "MortalStrike",
+    "paperdollGumpId": 50691,
+    "paperdollMaleGumpId": 50691,
+    "paperdollFemaleGumpId": 60691
   },
   {
     "definitionId": "hammer-pick",
@@ -2265,7 +2602,10 @@
     "speed": 30,
     "strReq": 35,
     "primaryAbility": "ArmorIgnore",
-    "secondaryAbility": "MortalStrike"
+    "secondaryAbility": "MortalStrike",
+    "paperdollGumpId": 50625,
+    "paperdollMaleGumpId": 50625,
+    "paperdollFemaleGumpId": 50625
   },
   {
     "definitionId": "kama",
@@ -2274,7 +2614,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 10232,
     "weight": 7,
@@ -2283,7 +2623,10 @@
     "speed": 55,
     "strReq": 15,
     "primaryAbility": "WhirlwindAttack",
-    "secondaryAbility": "DefenseMastery"
+    "secondaryAbility": "DefenseMastery",
+    "paperdollGumpId": 50535,
+    "paperdollMaleGumpId": 50535,
+    "paperdollFemaleGumpId": 50535
   },
   {
     "definitionId": "lajatang",
@@ -2292,7 +2635,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 10226,
     "weight": 12,
@@ -2301,7 +2644,10 @@
     "speed": 55,
     "strReq": 65,
     "primaryAbility": "DefenseMastery",
-    "secondaryAbility": "FrenziedWhirlwind"
+    "secondaryAbility": "FrenziedWhirlwind",
+    "paperdollGumpId": 50526,
+    "paperdollMaleGumpId": 50526,
+    "paperdollFemaleGumpId": 50526
   },
   {
     "definitionId": "lance",
@@ -2319,7 +2665,10 @@
     "speed": 24,
     "strReq": 95,
     "primaryAbility": "Dismount",
-    "secondaryAbility": "ConcussionBlow"
+    "secondaryAbility": "ConcussionBlow",
+    "paperdollGumpId": 50936,
+    "paperdollMaleGumpId": 50936,
+    "paperdollFemaleGumpId": 50936
   },
   {
     "definitionId": "leafblade",
@@ -2337,7 +2686,10 @@
     "speed": 42,
     "strReq": 20,
     "primaryAbility": "Feint",
-    "secondaryAbility": "ArmorIgnore"
+    "secondaryAbility": "ArmorIgnore",
+    "paperdollGumpId": 50954,
+    "paperdollMaleGumpId": 50954,
+    "paperdollFemaleGumpId": 50954
   },
   {
     "definitionId": "magical-shortbow",
@@ -2346,7 +2698,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 11551,
     "weight": 6,
@@ -2355,7 +2707,10 @@
     "speed": 38,
     "strReq": 45,
     "primaryAbility": "LightningArrow",
-    "secondaryAbility": "PsychicAttack"
+    "secondaryAbility": "PsychicAttack",
+    "paperdollGumpId": 50951,
+    "paperdollMaleGumpId": 50951,
+    "paperdollFemaleGumpId": 50951
   },
   {
     "definitionId": "magic-wand",
@@ -2372,7 +2727,10 @@
     "speed": 35,
     "strReq": 0,
     "primaryAbility": "Dismount",
-    "secondaryAbility": "Disarm"
+    "secondaryAbility": "Disarm",
+    "paperdollGumpId": 50980,
+    "paperdollMaleGumpId": 50980,
+    "paperdollFemaleGumpId": 60980
   },
   {
     "definitionId": "maul",
@@ -2390,7 +2748,10 @@
     "speed": 30,
     "strReq": 20,
     "primaryAbility": "DoubleStrike",
-    "secondaryAbility": "ConcussionBlow"
+    "secondaryAbility": "ConcussionBlow",
+    "paperdollGumpId": 50633,
+    "paperdollMaleGumpId": 50633,
+    "paperdollFemaleGumpId": 50633
   },
   {
     "definitionId": "no-dachi",
@@ -2399,7 +2760,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 10221,
     "weight": 10,
@@ -2408,7 +2769,10 @@
     "speed": 35,
     "strReq": 40,
     "primaryAbility": "CrushingBlow",
-    "secondaryAbility": "RidingSwipe"
+    "secondaryAbility": "RidingSwipe",
+    "paperdollGumpId": 50519,
+    "paperdollMaleGumpId": 50519,
+    "paperdollFemaleGumpId": 50519
   },
   {
     "definitionId": "nunchaku",
@@ -2417,7 +2781,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 10233,
     "weight": 5,
@@ -2426,7 +2790,10 @@
     "speed": 47,
     "strReq": 15,
     "primaryAbility": "Block",
-    "secondaryAbility": "DoubleStrike"
+    "secondaryAbility": "DoubleStrike",
+    "paperdollGumpId": 50536,
+    "paperdollMaleGumpId": 50536,
+    "paperdollFemaleGumpId": 50536
   },
   {
     "definitionId": "ornate-axe",
@@ -2435,7 +2802,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 11572,
     "weight": 12,
@@ -2444,7 +2811,10 @@
     "speed": 26,
     "strReq": 45,
     "primaryAbility": "Disarm",
-    "secondaryAbility": "CrushingBlow"
+    "secondaryAbility": "CrushingBlow",
+    "paperdollGumpId": 50960,
+    "paperdollMaleGumpId": 50960,
+    "paperdollFemaleGumpId": 50960
   },
   {
     "definitionId": "paladin-sword",
@@ -2458,7 +2828,10 @@
     "flipId": 9935,
     "weight": 6,
     "primaryAbility": "WhirlwindAttack",
-    "secondaryAbility": "Disarm"
+    "secondaryAbility": "Disarm",
+    "paperdollGumpId": 50940,
+    "paperdollMaleGumpId": 50940,
+    "paperdollFemaleGumpId": 50940
   },
   {
     "definitionId": "pike",
@@ -2467,7 +2840,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 9928,
     "weight": 8,
@@ -2476,7 +2849,10 @@
     "speed": 37,
     "strReq": 50,
     "primaryAbility": "ParalyzingBlow",
-    "secondaryAbility": "InfectiousStrike"
+    "secondaryAbility": "InfectiousStrike",
+    "paperdollGumpId": 50934,
+    "paperdollMaleGumpId": 50934,
+    "paperdollFemaleGumpId": 50934
   },
   {
     "definitionId": "pitchfork",
@@ -2485,7 +2861,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 3720,
     "weight": 11,
@@ -2494,7 +2870,10 @@
     "speed": 45,
     "strReq": 15,
     "primaryAbility": "BleedAttack",
-    "secondaryAbility": "Dismount"
+    "secondaryAbility": "Dismount",
+    "paperdollGumpId": 50636,
+    "paperdollMaleGumpId": 50636,
+    "paperdollFemaleGumpId": 50636
   },
   {
     "definitionId": "quarter-staff",
@@ -2503,7 +2882,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 3722,
     "weight": 4,
@@ -2512,7 +2891,10 @@
     "speed": 48,
     "strReq": 30,
     "primaryAbility": "DoubleStrike",
-    "secondaryAbility": "ConcussionBlow"
+    "secondaryAbility": "ConcussionBlow",
+    "paperdollGumpId": 50648,
+    "paperdollMaleGumpId": 50648,
+    "paperdollFemaleGumpId": 50648
   },
   {
     "definitionId": "radiant-scimitar",
@@ -2530,7 +2912,10 @@
     "speed": 43,
     "strReq": 20,
     "primaryAbility": "WhirlwindAttack",
-    "secondaryAbility": "Bladeweave"
+    "secondaryAbility": "Bladeweave",
+    "paperdollGumpId": 50959,
+    "paperdollMaleGumpId": 50959,
+    "paperdollFemaleGumpId": 50959
   },
   {
     "definitionId": "repeating-crossbow",
@@ -2539,7 +2924,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 9933,
     "weight": 6,
@@ -2548,7 +2933,10 @@
     "speed": 41,
     "strReq": 30,
     "primaryAbility": "DoubleStrike",
-    "secondaryAbility": "MovingShot"
+    "secondaryAbility": "MovingShot",
+    "paperdollGumpId": 50939,
+    "paperdollMaleGumpId": 50939,
+    "paperdollFemaleGumpId": 50939
   },
   {
     "definitionId": "rune-blade",
@@ -2557,7 +2945,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 11558,
     "weight": 7,
@@ -2566,7 +2954,10 @@
     "speed": 35,
     "strReq": 30,
     "primaryAbility": "Disarm",
-    "secondaryAbility": "Bladeweave"
+    "secondaryAbility": "Bladeweave",
+    "paperdollGumpId": 50958,
+    "paperdollMaleGumpId": 50958,
+    "paperdollFemaleGumpId": 50958
   },
   {
     "definitionId": "sai",
@@ -2575,7 +2966,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 10234,
     "weight": 7,
@@ -2584,7 +2975,10 @@
     "speed": 55,
     "strReq": 15,
     "primaryAbility": "DualWield",
-    "secondaryAbility": "ArmorPierce"
+    "secondaryAbility": "ArmorPierce",
+    "paperdollGumpId": 50537,
+    "paperdollMaleGumpId": 50537,
+    "paperdollFemaleGumpId": 50537
   },
   {
     "definitionId": "scepter",
@@ -2602,7 +2996,10 @@
     "speed": 30,
     "strReq": 40,
     "primaryAbility": "CrushingBlow",
-    "secondaryAbility": "MortalStrike"
+    "secondaryAbility": "MortalStrike",
+    "paperdollGumpId": 50932,
+    "paperdollMaleGumpId": 50932,
+    "paperdollFemaleGumpId": 50932
   },
   {
     "definitionId": "scythe",
@@ -2611,7 +3008,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 9924,
     "weight": 5,
@@ -2620,7 +3017,10 @@
     "speed": 32,
     "strReq": 45,
     "primaryAbility": "BleedAttack",
-    "secondaryAbility": "ParalyzingBlow"
+    "secondaryAbility": "ParalyzingBlow",
+    "paperdollGumpId": 50930,
+    "paperdollMaleGumpId": 50930,
+    "paperdollFemaleGumpId": 50930
   },
   {
     "definitionId": "serpent-stone-staff",
@@ -2629,7 +3029,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 16495,
     "weight": 3,
@@ -2638,7 +3038,10 @@
     "speed": 33,
     "strReq": 20,
     "primaryAbility": "CrushingBlow",
-    "secondaryAbility": "Dismount"
+    "secondaryAbility": "Dismount",
+    "paperdollGumpId": 50677,
+    "paperdollMaleGumpId": 50677,
+    "paperdollFemaleGumpId": 60677
   },
   {
     "definitionId": "shepherds-crook",
@@ -2647,7 +3050,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 3714,
     "weight": 4,
@@ -2656,7 +3059,10 @@
     "speed": 30,
     "strReq": 10,
     "primaryAbility": "CrushingBlow",
-    "secondaryAbility": "Disarm"
+    "secondaryAbility": "Disarm",
+    "paperdollGumpId": 50621,
+    "paperdollMaleGumpId": 50621,
+    "paperdollFemaleGumpId": 50621
   },
   {
     "definitionId": "shortblade",
@@ -2674,7 +3080,10 @@
     "speed": 45,
     "strReq": 35,
     "primaryAbility": "ArmorIgnore",
-    "secondaryAbility": "MortalStrike"
+    "secondaryAbility": "MortalStrike",
+    "paperdollGumpId": 50678,
+    "paperdollMaleGumpId": 50678,
+    "paperdollFemaleGumpId": 60678
   },
   {
     "definitionId": "short-spear",
@@ -2683,7 +3092,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 5122,
     "weight": 4,
@@ -2692,7 +3101,10 @@
     "speed": 50,
     "strReq": 15,
     "primaryAbility": "ShadowStrike",
-    "secondaryAbility": "MortalStrike"
+    "secondaryAbility": "MortalStrike",
+    "paperdollGumpId": 50639,
+    "paperdollMaleGumpId": 50639,
+    "paperdollFemaleGumpId": 50639
   },
   {
     "definitionId": "skinning-knife",
@@ -2710,7 +3122,10 @@
     "speed": 40,
     "strReq": 5,
     "primaryAbility": "ShadowStrike",
-    "secondaryAbility": "BleedAttack"
+    "secondaryAbility": "BleedAttack",
+    "paperdollGumpId": 50638,
+    "paperdollMaleGumpId": 50638,
+    "paperdollFemaleGumpId": 50638
   },
   {
     "definitionId": "soul-glaive",
@@ -2727,7 +3142,10 @@
     "speed": 20,
     "strReq": 20,
     "primaryAbility": "ArmorIgnore",
-    "secondaryAbility": "MortalStrike"
+    "secondaryAbility": "MortalStrike",
+    "paperdollGumpId": 50693,
+    "paperdollMaleGumpId": 50693,
+    "paperdollFemaleGumpId": 60693
   },
   {
     "definitionId": "spear",
@@ -2736,7 +3154,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 3939,
     "weight": 7,
@@ -2745,7 +3163,10 @@
     "speed": 46,
     "strReq": 30,
     "primaryAbility": "ArmorIgnore",
-    "secondaryAbility": "ParalyzingBlow"
+    "secondaryAbility": "ParalyzingBlow",
+    "paperdollGumpId": 50641,
+    "paperdollMaleGumpId": 50641,
+    "paperdollFemaleGumpId": 50641
   },
   {
     "definitionId": "stone-war-sword",
@@ -2763,7 +3184,10 @@
     "speed": 30,
     "strReq": 40,
     "primaryAbility": "ArmorIgnore",
-    "secondaryAbility": "ParalyzingBlow"
+    "secondaryAbility": "ParalyzingBlow",
+    "paperdollGumpId": 50670,
+    "paperdollMaleGumpId": 50670,
+    "paperdollFemaleGumpId": 60670
   },
   {
     "definitionId": "tekagi",
@@ -2772,7 +3196,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 10230,
     "weight": 5,
@@ -2781,7 +3205,10 @@
     "speed": 53,
     "strReq": 10,
     "primaryAbility": "DualWield",
-    "secondaryAbility": "TalonStrike"
+    "secondaryAbility": "TalonStrike",
+    "paperdollGumpId": 50533,
+    "paperdollMaleGumpId": 50533,
+    "paperdollFemaleGumpId": 50533
   },
   {
     "definitionId": "tessen",
@@ -2790,7 +3217,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 10222,
     "weight": 6,
@@ -2799,7 +3226,10 @@
     "speed": 50,
     "strReq": 10,
     "primaryAbility": "Feint",
-    "secondaryAbility": "DualWield"
+    "secondaryAbility": "DualWield",
+    "paperdollGumpId": 50520,
+    "paperdollMaleGumpId": 50520,
+    "paperdollFemaleGumpId": 50520
   },
   {
     "definitionId": "tetsubo",
@@ -2808,7 +3238,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 10225,
     "weight": 8,
@@ -2817,7 +3247,10 @@
     "speed": 45,
     "strReq": 35,
     "primaryAbility": "FrenziedWhirlwind",
-    "secondaryAbility": "CrushingBlow"
+    "secondaryAbility": "CrushingBlow",
+    "paperdollGumpId": 50583,
+    "paperdollMaleGumpId": 50583,
+    "paperdollFemaleGumpId": 50583
   },
   {
     "definitionId": "thin-longsword",
@@ -2833,7 +3266,10 @@
     "dmgMin": 5,
     "dmgMax": 33,
     "speed": 35,
-    "strReq": 25
+    "strReq": 25,
+    "paperdollGumpId": 50618,
+    "paperdollMaleGumpId": 50618,
+    "paperdollFemaleGumpId": 50618
   },
   {
     "definitionId": "tribal-spear",
@@ -2842,7 +3278,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 3939,
     "weight": 7,
@@ -2851,7 +3287,10 @@
     "speed": 46,
     "strReq": 30,
     "primaryAbility": "ArmorIgnore",
-    "secondaryAbility": "ParalyzingBlow"
+    "secondaryAbility": "ParalyzingBlow",
+    "paperdollGumpId": 50641,
+    "paperdollMaleGumpId": 50641,
+    "paperdollFemaleGumpId": 50641
   },
   {
     "definitionId": "two-handed-axe",
@@ -2860,7 +3299,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 5186,
     "weight": 8,
@@ -2869,7 +3308,10 @@
     "speed": 30,
     "strReq": 35,
     "primaryAbility": "DoubleStrike",
-    "secondaryAbility": "ShadowStrike"
+    "secondaryAbility": "ShadowStrike",
+    "paperdollGumpId": 50612,
+    "paperdollMaleGumpId": 50612,
+    "paperdollFemaleGumpId": 50612
   },
   {
     "definitionId": "viking-sword",
@@ -2887,7 +3329,10 @@
     "speed": 30,
     "strReq": 40,
     "primaryAbility": "CrushingBlow",
-    "secondaryAbility": "ParalyzingBlow"
+    "secondaryAbility": "ParalyzingBlow",
+    "paperdollGumpId": 50643,
+    "paperdollMaleGumpId": 50643,
+    "paperdollFemaleGumpId": 50643
   },
   {
     "definitionId": "wakizashi",
@@ -2905,7 +3350,10 @@
     "speed": 44,
     "strReq": 20,
     "primaryAbility": "FrenziedWhirlwind",
-    "secondaryAbility": "DoubleStrike"
+    "secondaryAbility": "DoubleStrike",
+    "paperdollGumpId": 50464,
+    "paperdollMaleGumpId": 50464,
+    "paperdollFemaleGumpId": 50464
   },
   {
     "definitionId": "war-cleaver",
@@ -2923,7 +3371,10 @@
     "speed": 48,
     "strReq": 15,
     "primaryAbility": "Disarm",
-    "secondaryAbility": "Bladeweave"
+    "secondaryAbility": "Bladeweave",
+    "paperdollGumpId": 50955,
+    "paperdollMaleGumpId": 50955,
+    "paperdollFemaleGumpId": 50955
   },
   {
     "definitionId": "war-fork",
@@ -2941,7 +3392,10 @@
     "speed": 45,
     "strReq": 35,
     "primaryAbility": "BleedAttack",
-    "secondaryAbility": "Disarm"
+    "secondaryAbility": "Disarm",
+    "paperdollGumpId": 50645,
+    "paperdollMaleGumpId": 50645,
+    "paperdollFemaleGumpId": 50645
   },
   {
     "definitionId": "wild-staff",
@@ -2959,7 +3413,10 @@
     "speed": 48,
     "strReq": 15,
     "primaryAbility": "Block",
-    "secondaryAbility": "ForceOfNature"
+    "secondaryAbility": "ForceOfNature",
+    "paperdollGumpId": 50957,
+    "paperdollMaleGumpId": 50957,
+    "paperdollFemaleGumpId": 50957
   },
   {
     "definitionId": "yumi",
@@ -2968,7 +3425,7 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "weapon",
     "flipId": 10224,
     "weight": 8,
@@ -2977,7 +3434,10 @@
     "speed": 25,
     "strReq": 35,
     "primaryAbility": "ArmorPierce",
-    "secondaryAbility": "DoubleShot"
+    "secondaryAbility": "DoubleShot",
+    "paperdollGumpId": 50575,
+    "paperdollMaleGumpId": 50575,
+    "paperdollFemaleGumpId": 50575
   },
   {
     "definitionId": "bascinet",
@@ -2986,9 +3446,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 6,
     "slot": "armor",
-    "weight": 5
+    "weight": 5,
+    "paperdollGumpId": 50929,
+    "paperdollMaleGumpId": 50929,
+    "paperdollFemaleGumpId": 60929
   },
   {
     "definitionId": "bone-arms",
@@ -2997,10 +3460,13 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 19,
     "slot": "armor",
     "flipId": 5203,
-    "weight": 2
+    "weight": 2,
+    "paperdollGumpId": 50556,
+    "paperdollMaleGumpId": 50556,
+    "paperdollFemaleGumpId": 60556
   },
   {
     "definitionId": "bone-chest",
@@ -3012,7 +3478,10 @@
     "equipLayer": 13,
     "slot": "armor",
     "flipId": 5204,
-    "weight": 6
+    "weight": 6,
+    "paperdollGumpId": 50554,
+    "paperdollMaleGumpId": 50554,
+    "paperdollFemaleGumpId": 60554
   },
   {
     "definitionId": "bone-gloves",
@@ -3021,10 +3490,13 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 7,
     "slot": "armor",
     "flipId": 5205,
-    "weight": 2
+    "weight": 2,
+    "paperdollGumpId": 50557,
+    "paperdollMaleGumpId": 50557,
+    "paperdollFemaleGumpId": 60557
   },
   {
     "definitionId": "bone-helm",
@@ -3033,10 +3505,13 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 6,
     "slot": "armor",
     "flipId": 5206,
-    "weight": 3
+    "weight": 3,
+    "paperdollGumpId": 50562,
+    "paperdollMaleGumpId": 50562,
+    "paperdollFemaleGumpId": 60562
   },
   {
     "definitionId": "bone-legs",
@@ -3045,10 +3520,13 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 4,
     "slot": "armor",
     "flipId": 5207,
-    "weight": 3
+    "weight": 3,
+    "paperdollGumpId": 50555,
+    "paperdollMaleGumpId": 50555,
+    "paperdollFemaleGumpId": 60555
   },
   {
     "definitionId": "buckler",
@@ -3057,9 +3535,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "shield",
-    "weight": 5
+    "weight": 5,
+    "paperdollGumpId": 50579,
+    "paperdollMaleGumpId": 50579,
+    "paperdollFemaleGumpId": 60579
   },
   {
     "definitionId": "chain-chest",
@@ -3071,7 +3552,10 @@
     "equipLayer": 13,
     "slot": "armor",
     "flipId": 5060,
-    "weight": 7
+    "weight": 7,
+    "paperdollGumpId": 50538,
+    "paperdollMaleGumpId": 50538,
+    "paperdollFemaleGumpId": 60538
   },
   {
     "definitionId": "chain-coif",
@@ -3080,10 +3564,13 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 6,
     "slot": "armor",
     "flipId": 5056,
-    "weight": 1
+    "weight": 1,
+    "paperdollGumpId": 50561,
+    "paperdollMaleGumpId": 50561,
+    "paperdollFemaleGumpId": 60561
   },
   {
     "definitionId": "chain-hatsuburi",
@@ -3092,9 +3579,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 6,
     "slot": "armor",
-    "weight": 7
+    "weight": 7,
+    "paperdollGumpId": 50442,
+    "paperdollMaleGumpId": 50442,
+    "paperdollFemaleGumpId": 60442
   },
   {
     "definitionId": "chain-legs",
@@ -3103,10 +3593,13 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 4,
     "slot": "armor",
     "flipId": 5059,
-    "weight": 7
+    "weight": 7,
+    "paperdollGumpId": 50540,
+    "paperdollMaleGumpId": 50540,
+    "paperdollFemaleGumpId": 60540
   },
   {
     "definitionId": "chaos-shield",
@@ -3115,9 +3608,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "shield",
-    "weight": 5
+    "weight": 5,
+    "paperdollGumpId": 50993,
+    "paperdollMaleGumpId": 50993,
+    "paperdollFemaleGumpId": 60993
   },
   {
     "definitionId": "circlet",
@@ -3126,10 +3622,13 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 6,
     "slot": "armor",
     "flipId": 12645,
-    "weight": 2
+    "weight": 2,
+    "paperdollGumpId": 50962,
+    "paperdollMaleGumpId": 50962,
+    "paperdollFemaleGumpId": 60962
   },
   {
     "definitionId": "close-helm",
@@ -3138,9 +3637,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 6,
     "slot": "armor",
-    "weight": 5
+    "weight": 5,
+    "paperdollGumpId": 50928,
+    "paperdollMaleGumpId": 50928,
+    "paperdollFemaleGumpId": 60928
   },
   {
     "definitionId": "decorative-plate-kabuto",
@@ -3149,9 +3651,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 6,
     "slot": "armor",
-    "weight": 6
+    "weight": 6,
+    "paperdollGumpId": 50451,
+    "paperdollMaleGumpId": 50451,
+    "paperdollFemaleGumpId": 60451
   },
   {
     "definitionId": "dragon-arms",
@@ -3160,10 +3665,13 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 19,
     "slot": "armor",
     "flipId": 9816,
-    "weight": 5
+    "weight": 5,
+    "paperdollGumpId": 50679,
+    "paperdollMaleGumpId": 50679,
+    "paperdollFemaleGumpId": 60679
   },
   {
     "definitionId": "dragon-chest",
@@ -3175,7 +3683,10 @@
     "equipLayer": 13,
     "slot": "armor",
     "flipId": 9794,
-    "weight": 10
+    "weight": 10,
+    "paperdollGumpId": 50680,
+    "paperdollMaleGumpId": 50680,
+    "paperdollFemaleGumpId": 60680
   },
   {
     "definitionId": "dragon-gloves",
@@ -3184,10 +3695,13 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 7,
     "slot": "armor",
     "flipId": 9796,
-    "weight": 2
+    "weight": 2,
+    "paperdollGumpId": 50681,
+    "paperdollMaleGumpId": 50681,
+    "paperdollFemaleGumpId": 60681
   },
   {
     "definitionId": "dragon-helm",
@@ -3196,9 +3710,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 6,
     "slot": "armor",
-    "weight": 5
+    "weight": 5,
+    "paperdollGumpId": 50682,
+    "paperdollMaleGumpId": 50682,
+    "paperdollFemaleGumpId": 60682
   },
   {
     "definitionId": "dragon-legs",
@@ -3207,10 +3724,13 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 4,
     "slot": "armor",
     "flipId": 9800,
-    "weight": 6
+    "weight": 6,
+    "paperdollGumpId": 50683,
+    "paperdollMaleGumpId": 50683,
+    "paperdollFemaleGumpId": 60683
   },
   {
     "definitionId": "dragon-turtle-hide-arms",
@@ -3219,9 +3739,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 19,
     "slot": "armor",
-    "weight": 3
+    "weight": 3,
+    "paperdollGumpId": 51307,
+    "paperdollMaleGumpId": 51307,
+    "paperdollFemaleGumpId": 61307
   },
   {
     "definitionId": "dragon-turtle-hide-bustier",
@@ -3232,7 +3755,10 @@
     "clothing": true,
     "equipLayer": 13,
     "slot": "armor",
-    "weight": 6
+    "weight": 6,
+    "paperdollGumpId": 51304,
+    "paperdollMaleGumpId": 51304,
+    "paperdollFemaleGumpId": 61304
   },
   {
     "definitionId": "dragon-turtle-hide-chest",
@@ -3243,7 +3769,10 @@
     "clothing": true,
     "equipLayer": 13,
     "slot": "armor",
-    "weight": 8
+    "weight": 8,
+    "paperdollGumpId": 51303,
+    "paperdollMaleGumpId": 51303,
+    "paperdollFemaleGumpId": 61303
   },
   {
     "definitionId": "dragon-turtle-hide-helm",
@@ -3252,9 +3781,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 6,
     "slot": "armor",
-    "weight": 2
+    "weight": 2,
+    "paperdollGumpId": 51306,
+    "paperdollMaleGumpId": 51306,
+    "paperdollFemaleGumpId": 51306
   },
   {
     "definitionId": "dragon-turtle-hide-legs",
@@ -3263,9 +3795,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 4,
     "slot": "armor",
-    "weight": 5
+    "weight": 5,
+    "paperdollGumpId": 51305,
+    "paperdollMaleGumpId": 51305,
+    "paperdollFemaleGumpId": 61305
   },
   {
     "definitionId": "elegant-collar",
@@ -3274,9 +3809,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 10,
     "slot": "armor",
-    "weight": 3
+    "weight": 3,
+    "paperdollGumpId": 51516,
+    "paperdollMaleGumpId": 51516,
+    "paperdollFemaleGumpId": 61516
   },
   {
     "definitionId": "female-gargish-leather-arms",
@@ -3285,9 +3823,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 19,
     "slot": "armor",
-    "weight": 4
+    "weight": 4,
+    "paperdollGumpId": 50585,
+    "paperdollMaleGumpId": 50585,
+    "paperdollFemaleGumpId": 50585
   },
   {
     "definitionId": "female-gargish-leather-chest",
@@ -3298,7 +3839,10 @@
     "clothing": true,
     "equipLayer": 13,
     "slot": "armor",
-    "weight": 8
+    "weight": 8,
+    "paperdollGumpId": 50587,
+    "paperdollMaleGumpId": 50587,
+    "paperdollFemaleGumpId": 50587
   },
   {
     "definitionId": "female-gargish-leather-kilt",
@@ -3307,9 +3851,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 7,
     "slot": "armor",
-    "weight": 5
+    "weight": 5,
+    "paperdollGumpId": 50663,
+    "paperdollMaleGumpId": 50663,
+    "paperdollFemaleGumpId": 50663
   },
   {
     "definitionId": "female-gargish-leather-legs",
@@ -3318,9 +3865,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 4,
     "slot": "armor",
-    "weight": 5
+    "weight": 5,
+    "paperdollGumpId": 50589,
+    "paperdollMaleGumpId": 50589,
+    "paperdollFemaleGumpId": 50589
   },
   {
     "definitionId": "female-gargish-plate-arms",
@@ -3329,9 +3879,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 19,
     "slot": "armor",
-    "weight": 5
+    "weight": 5,
+    "paperdollGumpId": 50591,
+    "paperdollMaleGumpId": 50591,
+    "paperdollFemaleGumpId": 50591
   },
   {
     "definitionId": "female-gargish-plate-chest",
@@ -3342,7 +3895,10 @@
     "clothing": true,
     "equipLayer": 13,
     "slot": "armor",
-    "weight": 10
+    "weight": 10,
+    "paperdollGumpId": 50593,
+    "paperdollMaleGumpId": 50593,
+    "paperdollFemaleGumpId": 50593
   },
   {
     "definitionId": "female-gargish-plate-kilt",
@@ -3351,9 +3907,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 7,
     "slot": "armor",
-    "weight": 5
+    "weight": 5,
+    "paperdollGumpId": 50595,
+    "paperdollMaleGumpId": 50595,
+    "paperdollFemaleGumpId": 50595
   },
   {
     "definitionId": "female-gargish-plate-legs",
@@ -3362,9 +3921,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 4,
     "slot": "armor",
-    "weight": 7
+    "weight": 7,
+    "paperdollGumpId": 50597,
+    "paperdollMaleGumpId": 50597,
+    "paperdollFemaleGumpId": 50597
   },
   {
     "definitionId": "female-gargish-stone-arms",
@@ -3373,9 +3935,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 19,
     "slot": "armor",
-    "weight": 10
+    "weight": 10,
+    "paperdollGumpId": 50599,
+    "paperdollMaleGumpId": 50599,
+    "paperdollFemaleGumpId": 50599
   },
   {
     "definitionId": "female-gargish-stone-chest",
@@ -3386,7 +3951,10 @@
     "clothing": true,
     "equipLayer": 13,
     "slot": "armor",
-    "weight": 15
+    "weight": 15,
+    "paperdollGumpId": 50601,
+    "paperdollMaleGumpId": 50601,
+    "paperdollFemaleGumpId": 50601
   },
   {
     "definitionId": "female-gargish-stone-kilt",
@@ -3395,9 +3963,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 7,
     "slot": "armor",
-    "weight": 10
+    "weight": 10,
+    "paperdollGumpId": 50603,
+    "paperdollMaleGumpId": 50603,
+    "paperdollFemaleGumpId": 50603
   },
   {
     "definitionId": "female-gargish-stone-legs",
@@ -3406,9 +3977,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 4,
     "slot": "armor",
-    "weight": 15
+    "weight": 15,
+    "paperdollGumpId": 50609,
+    "paperdollMaleGumpId": 50609,
+    "paperdollFemaleGumpId": 50609
   },
   {
     "definitionId": "female-leaf-chest",
@@ -3420,7 +3994,10 @@
     "equipLayer": 13,
     "slot": "armor",
     "flipId": 12673,
-    "weight": 2
+    "weight": 2,
+    "paperdollGumpId": 50997,
+    "paperdollMaleGumpId": 50997,
+    "paperdollFemaleGumpId": 50997
   },
   {
     "definitionId": "female-leather-chest",
@@ -3432,7 +4009,10 @@
     "equipLayer": 13,
     "slot": "armor",
     "flipId": 7175,
-    "weight": 1
+    "weight": 1,
+    "paperdollGumpId": 50923,
+    "paperdollMaleGumpId": 50923,
+    "paperdollFemaleGumpId": 60923
   },
   {
     "definitionId": "female-plate-chest",
@@ -3444,7 +4024,10 @@
     "equipLayer": 13,
     "slot": "armor",
     "flipId": 7173,
-    "weight": 4
+    "weight": 4,
+    "paperdollGumpId": 50922,
+    "paperdollMaleGumpId": 50922,
+    "paperdollFemaleGumpId": 60922
   },
   {
     "definitionId": "female-studded-chest",
@@ -3456,7 +4039,10 @@
     "equipLayer": 13,
     "slot": "armor",
     "flipId": 7171,
-    "weight": 6
+    "weight": 6,
+    "paperdollGumpId": 50921,
+    "paperdollMaleGumpId": 50921,
+    "paperdollFemaleGumpId": 60921
   },
   {
     "definitionId": "female-elven-plate-chest",
@@ -3468,7 +4054,10 @@
     "equipLayer": 13,
     "slot": "armor",
     "flipId": 12644,
-    "weight": 8
+    "weight": 8,
+    "paperdollGumpId": 50948,
+    "paperdollMaleGumpId": 50948,
+    "paperdollFemaleGumpId": 60948
   },
   {
     "definitionId": "gargish-chaos-shield",
@@ -3477,10 +4066,13 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "shield",
     "flipId": 16937,
-    "weight": 5
+    "weight": 5,
+    "paperdollGumpId": 50343,
+    "paperdollMaleGumpId": 50343,
+    "paperdollFemaleGumpId": 60343
   },
   {
     "definitionId": "gargish-cloth-arms-armor",
@@ -3489,9 +4081,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 19,
     "slot": "armor",
-    "weight": 2
+    "weight": 2,
+    "paperdollGumpId": 50655,
+    "paperdollMaleGumpId": 50655,
+    "paperdollFemaleGumpId": 50655
   },
   {
     "definitionId": "gargish-kite-shield",
@@ -3500,10 +4095,13 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "shield",
     "flipId": 16902,
-    "weight": 7
+    "weight": 7,
+    "paperdollGumpId": 50335,
+    "paperdollMaleGumpId": 50335,
+    "paperdollFemaleGumpId": 60335
   },
   {
     "definitionId": "gargish-leather-arms",
@@ -3512,9 +4110,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 19,
     "slot": "armor",
-    "weight": 4
+    "weight": 4,
+    "paperdollGumpId": 50586,
+    "paperdollMaleGumpId": 50586,
+    "paperdollFemaleGumpId": 50586
   },
   {
     "definitionId": "gargish-leather-chest",
@@ -3525,7 +4126,10 @@
     "clothing": true,
     "equipLayer": 13,
     "slot": "armor",
-    "weight": 8
+    "weight": 8,
+    "paperdollGumpId": 50588,
+    "paperdollMaleGumpId": 50588,
+    "paperdollFemaleGumpId": 50588
   },
   {
     "definitionId": "gargish-leather-kilt",
@@ -3534,9 +4138,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 7,
     "slot": "armor",
-    "weight": 5
+    "weight": 5,
+    "paperdollGumpId": 50664,
+    "paperdollMaleGumpId": 50664,
+    "paperdollFemaleGumpId": 50664
   },
   {
     "definitionId": "gargish-leather-legs",
@@ -3545,9 +4152,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 4,
     "slot": "armor",
-    "weight": 5
+    "weight": 5,
+    "paperdollGumpId": 50589,
+    "paperdollMaleGumpId": 50589,
+    "paperdollFemaleGumpId": 50589
   },
   {
     "definitionId": "gargish-leather-wing-armor",
@@ -3556,10 +4166,13 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 20,
     "slot": "armor",
     "flipId": 17791,
-    "weight": 2
+    "weight": 2,
+    "paperdollGumpId": 51058,
+    "paperdollMaleGumpId": 51058,
+    "paperdollFemaleGumpId": 51058
   },
   {
     "definitionId": "gargish-order-shield",
@@ -3568,10 +4181,13 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "shield",
     "flipId": 16940,
-    "weight": 7
+    "weight": 7,
+    "paperdollGumpId": 50344,
+    "paperdollMaleGumpId": 50344,
+    "paperdollFemaleGumpId": 60344
   },
   {
     "definitionId": "gargish-plate-arms",
@@ -3580,9 +4196,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 19,
     "slot": "armor",
-    "weight": 5
+    "weight": 5,
+    "paperdollGumpId": 50592,
+    "paperdollMaleGumpId": 50592,
+    "paperdollFemaleGumpId": 50592
   },
   {
     "definitionId": "gargish-plate-chest",
@@ -3593,7 +4212,10 @@
     "clothing": true,
     "equipLayer": 13,
     "slot": "armor",
-    "weight": 10
+    "weight": 10,
+    "paperdollGumpId": 50594,
+    "paperdollMaleGumpId": 50594,
+    "paperdollFemaleGumpId": 50594
   },
   {
     "definitionId": "gargish-plate-kilt",
@@ -3602,9 +4224,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 7,
     "slot": "armor",
-    "weight": 5
+    "weight": 5,
+    "paperdollGumpId": 50596,
+    "paperdollMaleGumpId": 50596,
+    "paperdollFemaleGumpId": 50596
   },
   {
     "definitionId": "gargish-plate-legs",
@@ -3613,9 +4238,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 4,
     "slot": "armor",
-    "weight": 7
+    "weight": 7,
+    "paperdollGumpId": 50598,
+    "paperdollMaleGumpId": 50598,
+    "paperdollFemaleGumpId": 50598
   },
   {
     "definitionId": "gargish-stone-arms",
@@ -3624,9 +4252,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 19,
     "slot": "armor",
-    "weight": 10
+    "weight": 10,
+    "paperdollGumpId": 50600,
+    "paperdollMaleGumpId": 50600,
+    "paperdollFemaleGumpId": 50600
   },
   {
     "definitionId": "gargish-stone-chest",
@@ -3637,7 +4268,10 @@
     "clothing": true,
     "equipLayer": 13,
     "slot": "armor",
-    "weight": 15
+    "weight": 15,
+    "paperdollGumpId": 50602,
+    "paperdollMaleGumpId": 50602,
+    "paperdollFemaleGumpId": 50602
   },
   {
     "definitionId": "gargish-stone-kilt",
@@ -3646,9 +4280,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 7,
     "slot": "armor",
-    "weight": 10
+    "weight": 10,
+    "paperdollGumpId": 50604,
+    "paperdollMaleGumpId": 50604,
+    "paperdollFemaleGumpId": 50604
   },
   {
     "definitionId": "gargish-stone-legs",
@@ -3657,9 +4294,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 4,
     "slot": "armor",
-    "weight": 15
+    "weight": 15,
+    "paperdollGumpId": 50610,
+    "paperdollMaleGumpId": 50610,
+    "paperdollFemaleGumpId": 50610
   },
   {
     "definitionId": "gemmed-circlet",
@@ -3668,10 +4308,13 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 6,
     "slot": "armor",
     "flipId": 12647,
-    "weight": 2
+    "weight": 2,
+    "paperdollGumpId": 50964,
+    "paperdollMaleGumpId": 50964,
+    "paperdollFemaleGumpId": 60964
   },
   {
     "definitionId": "heavy-plate-jingasa",
@@ -3680,9 +4323,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 6,
     "slot": "armor",
-    "weight": 5
+    "weight": 5,
+    "paperdollGumpId": 50445,
+    "paperdollMaleGumpId": 50445,
+    "paperdollFemaleGumpId": 50445
   },
   {
     "definitionId": "helmet",
@@ -3691,9 +4337,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 6,
     "slot": "armor",
-    "weight": 5
+    "weight": 5,
+    "paperdollGumpId": 50565,
+    "paperdollMaleGumpId": 50565,
+    "paperdollFemaleGumpId": 50565
   },
   {
     "definitionId": "hide-chest",
@@ -3705,7 +4354,10 @@
     "equipLayer": 13,
     "slot": "armor",
     "flipId": 12651,
-    "weight": 6
+    "weight": 6,
+    "paperdollGumpId": 50968,
+    "paperdollMaleGumpId": 50968,
+    "paperdollFemaleGumpId": 60968
   },
   {
     "definitionId": "hide-female-chest",
@@ -3717,7 +4369,10 @@
     "equipLayer": 13,
     "slot": "armor",
     "flipId": 12656,
-    "weight": 6
+    "weight": 6,
+    "paperdollGumpId": 50977,
+    "paperdollMaleGumpId": 50977,
+    "paperdollFemaleGumpId": 60977
   },
   {
     "definitionId": "hide-gloves",
@@ -3726,10 +4381,13 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 7,
     "slot": "armor",
     "flipId": 12652,
-    "weight": 2
+    "weight": 2,
+    "paperdollGumpId": 50969,
+    "paperdollMaleGumpId": 50969,
+    "paperdollFemaleGumpId": 50969
   },
   {
     "definitionId": "hide-gorget",
@@ -3738,10 +4396,13 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 10,
     "slot": "armor",
     "flipId": 12653,
-    "weight": 3
+    "weight": 3,
+    "paperdollGumpId": 50974,
+    "paperdollMaleGumpId": 50974,
+    "paperdollFemaleGumpId": 50974
   },
   {
     "definitionId": "hide-pants",
@@ -3750,10 +4411,13 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 4,
     "slot": "armor",
     "flipId": 12655,
-    "weight": 5
+    "weight": 5,
+    "paperdollGumpId": 50976,
+    "paperdollMaleGumpId": 50976,
+    "paperdollFemaleGumpId": 60976
   },
   {
     "definitionId": "hide-pauldrons",
@@ -3762,10 +4426,13 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 19,
     "slot": "armor",
     "flipId": 12654,
-    "weight": 4
+    "weight": 4,
+    "paperdollGumpId": 50975,
+    "paperdollMaleGumpId": 50975,
+    "paperdollFemaleGumpId": 60975
   },
   {
     "definitionId": "large-plate-shield",
@@ -3774,9 +4441,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "shield",
-    "flipId": 16904
+    "flipId": 16904,
+    "paperdollGumpId": 50337,
+    "paperdollMaleGumpId": 50337,
+    "paperdollFemaleGumpId": 60337
   },
   {
     "definitionId": "large-stone-shield",
@@ -3785,10 +4455,13 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "shield",
     "flipId": 16907,
-    "weight": 5
+    "weight": 5,
+    "paperdollGumpId": 50340,
+    "paperdollMaleGumpId": 50340,
+    "paperdollFemaleGumpId": 60340
   },
   {
     "definitionId": "leaf-arms",
@@ -3797,10 +4470,13 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 19,
     "slot": "armor",
     "flipId": 12670,
-    "weight": 2
+    "weight": 2,
+    "paperdollGumpId": 50989,
+    "paperdollMaleGumpId": 50989,
+    "paperdollFemaleGumpId": 50989
   },
   {
     "definitionId": "leaf-chest",
@@ -3812,7 +4488,10 @@
     "equipLayer": 13,
     "slot": "armor",
     "flipId": 12667,
-    "weight": 2
+    "weight": 2,
+    "paperdollGumpId": 50978,
+    "paperdollMaleGumpId": 50978,
+    "paperdollFemaleGumpId": 60978
   },
   {
     "definitionId": "leaf-gloves",
@@ -3821,9 +4500,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 7,
     "slot": "armor",
-    "weight": 2
+    "weight": 2,
+    "paperdollGumpId": 50979,
+    "paperdollMaleGumpId": 50979,
+    "paperdollFemaleGumpId": 50979
   },
   {
     "definitionId": "leaf-gorget",
@@ -3832,9 +4514,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 10,
     "slot": "armor",
-    "weight": 2
+    "weight": 2,
+    "paperdollGumpId": 50886,
+    "paperdollMaleGumpId": 50886,
+    "paperdollFemaleGumpId": 50886
   },
   {
     "definitionId": "leaf-legs",
@@ -3843,10 +4528,13 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 4,
     "slot": "armor",
     "flipId": 12671,
-    "weight": 2
+    "weight": 2,
+    "paperdollGumpId": 50995,
+    "paperdollMaleGumpId": 50995,
+    "paperdollFemaleGumpId": 50995
   },
   {
     "definitionId": "leaf-tonlet",
@@ -3855,10 +4543,13 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 4,
     "slot": "armor",
     "flipId": 12672,
-    "weight": 2
+    "weight": 2,
+    "paperdollGumpId": 50996,
+    "paperdollMaleGumpId": 50996,
+    "paperdollFemaleGumpId": 50996
   },
   {
     "definitionId": "leather-arms",
@@ -3867,10 +4558,13 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 19,
     "slot": "armor",
     "flipId": 5061,
-    "weight": 2
+    "weight": 2,
+    "paperdollGumpId": 50544,
+    "paperdollMaleGumpId": 50544,
+    "paperdollFemaleGumpId": 60544
   },
   {
     "definitionId": "leather-bustier-arms",
@@ -3882,7 +4576,10 @@
     "equipLayer": 13,
     "slot": "armor",
     "flipId": 7179,
-    "weight": 1
+    "weight": 1,
+    "paperdollGumpId": 50924,
+    "paperdollMaleGumpId": 50924,
+    "paperdollFemaleGumpId": 60924
   },
   {
     "definitionId": "leather-do",
@@ -3893,7 +4590,10 @@
     "clothing": true,
     "equipLayer": 13,
     "slot": "armor",
-    "weight": 6
+    "weight": 6,
+    "paperdollGumpId": 50457,
+    "paperdollMaleGumpId": 50457,
+    "paperdollFemaleGumpId": 60457
   },
   {
     "definitionId": "leather-gloves",
@@ -3902,9 +4602,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 7,
     "slot": "armor",
-    "weight": 1
+    "weight": 1,
+    "paperdollGumpId": 50545,
+    "paperdollMaleGumpId": 50545,
+    "paperdollFemaleGumpId": 60545
   },
   {
     "definitionId": "leather-gorget",
@@ -3913,9 +4616,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 10,
     "slot": "armor",
-    "weight": 1
+    "weight": 1,
+    "paperdollGumpId": 50546,
+    "paperdollMaleGumpId": 50546,
+    "paperdollFemaleGumpId": 60546
   },
   {
     "definitionId": "leather-haidate",
@@ -3924,9 +4630,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 4,
     "slot": "armor",
-    "weight": 4
+    "weight": 4,
+    "paperdollGumpId": 50491,
+    "paperdollMaleGumpId": 50491,
+    "paperdollFemaleGumpId": 60491
   },
   {
     "definitionId": "leather-hiro-sode",
@@ -3935,9 +4644,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 19,
     "slot": "armor",
-    "weight": 1
+    "weight": 1,
+    "paperdollGumpId": 50473,
+    "paperdollMaleGumpId": 50473,
+    "paperdollFemaleGumpId": 60473
   },
   {
     "definitionId": "leather-jingasa",
@@ -3946,9 +4658,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 6,
     "slot": "armor",
-    "weight": 3
+    "weight": 3,
+    "paperdollGumpId": 50444,
+    "paperdollMaleGumpId": 50444,
+    "paperdollFemaleGumpId": 50444
   },
   {
     "definitionId": "leather-mempo",
@@ -3957,9 +4672,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 10,
     "slot": "armor",
-    "weight": 2
+    "weight": 2,
+    "paperdollGumpId": 50471,
+    "paperdollMaleGumpId": 50471,
+    "paperdollFemaleGumpId": 60471
   },
   {
     "definitionId": "leather-ninja-hood",
@@ -3968,9 +4686,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 6,
     "slot": "armor",
-    "weight": 2
+    "weight": 2,
+    "paperdollGumpId": 50425,
+    "paperdollMaleGumpId": 50425,
+    "paperdollFemaleGumpId": 60425
   },
   {
     "definitionId": "leather-ninja-jacket",
@@ -3981,7 +4702,10 @@
     "clothing": true,
     "equipLayer": 13,
     "slot": "armor",
-    "weight": 5
+    "weight": 5,
+    "paperdollGumpId": 50426,
+    "paperdollMaleGumpId": 50426,
+    "paperdollFemaleGumpId": 60426
   },
   {
     "definitionId": "leather-ninja-mitts",
@@ -3990,9 +4714,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 7,
     "slot": "armor",
-    "weight": 2
+    "weight": 2,
+    "paperdollGumpId": 50424,
+    "paperdollMaleGumpId": 50424,
+    "paperdollFemaleGumpId": 50424
   },
   {
     "definitionId": "leather-ninja-pants",
@@ -4001,9 +4728,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 4,
     "slot": "armor",
-    "weight": 3
+    "weight": 3,
+    "paperdollGumpId": 50423,
+    "paperdollMaleGumpId": 50423,
+    "paperdollFemaleGumpId": 60423
   },
   {
     "definitionId": "leather-shorts",
@@ -4012,10 +4742,13 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 4,
     "slot": "armor",
     "flipId": 7169,
-    "weight": 3
+    "weight": 3,
+    "paperdollGumpId": 50927,
+    "paperdollMaleGumpId": 50927,
+    "paperdollFemaleGumpId": 60927
   },
   {
     "definitionId": "leather-skirt",
@@ -4024,10 +4757,13 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 4,
     "slot": "armor",
     "flipId": 7177,
-    "weight": 1
+    "weight": 1,
+    "paperdollGumpId": 50926,
+    "paperdollMaleGumpId": 50926,
+    "paperdollFemaleGumpId": 60926
   },
   {
     "definitionId": "leather-suneate",
@@ -4036,9 +4772,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 4,
     "slot": "armor",
-    "weight": 4
+    "weight": 4,
+    "paperdollGumpId": 50487,
+    "paperdollMaleGumpId": 50487,
+    "paperdollFemaleGumpId": 60487
   },
   {
     "definitionId": "light-plate-jingasa",
@@ -4047,9 +4786,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 6,
     "slot": "armor",
-    "weight": 5
+    "weight": 5,
+    "paperdollGumpId": 50446,
+    "paperdollMaleGumpId": 50446,
+    "paperdollFemaleGumpId": 50446
   },
   {
     "definitionId": "medium-plate-shield",
@@ -4058,10 +4800,13 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "shield",
     "flipId": 16905,
-    "weight": 6
+    "weight": 6,
+    "paperdollGumpId": 50338,
+    "paperdollMaleGumpId": 50338,
+    "paperdollFemaleGumpId": 60338
   },
   {
     "definitionId": "norse-helm",
@@ -4070,9 +4815,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 6,
     "slot": "armor",
-    "weight": 5
+    "weight": 5,
+    "paperdollGumpId": 50564,
+    "paperdollMaleGumpId": 50564,
+    "paperdollFemaleGumpId": 60564
   },
   {
     "definitionId": "orc-helm",
@@ -4081,8 +4829,11 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
-    "slot": "armor"
+    "equipLayer": 6,
+    "slot": "armor",
+    "paperdollGumpId": 50973,
+    "paperdollMaleGumpId": 50973,
+    "paperdollFemaleGumpId": 60973
   },
   {
     "definitionId": "order-shield",
@@ -4091,9 +4842,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "shield",
-    "weight": 7
+    "weight": 7,
+    "paperdollGumpId": 50992,
+    "paperdollMaleGumpId": 50992,
+    "paperdollFemaleGumpId": 60992
   },
   {
     "definitionId": "plate-battle-kabuto",
@@ -4102,9 +4856,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 6,
     "slot": "armor",
-    "weight": 6
+    "weight": 6,
+    "paperdollGumpId": 50462,
+    "paperdollMaleGumpId": 50462,
+    "paperdollFemaleGumpId": 60462
   },
   {
     "definitionId": "plate-do",
@@ -4115,7 +4872,10 @@
     "clothing": true,
     "equipLayer": 13,
     "slot": "armor",
-    "weight": 10
+    "weight": 10,
+    "paperdollGumpId": 50459,
+    "paperdollMaleGumpId": 50459,
+    "paperdollFemaleGumpId": 60459
   },
   {
     "definitionId": "plate-haidate",
@@ -4124,9 +4884,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 4,
     "slot": "armor",
-    "weight": 7
+    "weight": 7,
+    "paperdollGumpId": 50506,
+    "paperdollMaleGumpId": 50506,
+    "paperdollFemaleGumpId": 60506
   },
   {
     "definitionId": "plate-hatsuburi",
@@ -4135,9 +4898,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 6,
     "slot": "armor",
-    "weight": 5
+    "weight": 5,
+    "paperdollGumpId": 50443,
+    "paperdollMaleGumpId": 50443,
+    "paperdollFemaleGumpId": 60443
   },
   {
     "definitionId": "plate-hiro-sode",
@@ -4146,9 +4912,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 19,
     "slot": "armor",
-    "weight": 3
+    "weight": 3,
+    "paperdollGumpId": 50478,
+    "paperdollMaleGumpId": 50478,
+    "paperdollFemaleGumpId": 60478
   },
   {
     "definitionId": "plate-mempo",
@@ -4157,9 +4926,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 10,
     "slot": "armor",
-    "weight": 3
+    "weight": 3,
+    "paperdollGumpId": 50456,
+    "paperdollMaleGumpId": 50456,
+    "paperdollFemaleGumpId": 60456
   },
   {
     "definitionId": "plate-suneate",
@@ -4168,9 +4940,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 4,
     "slot": "armor",
-    "weight": 7
+    "weight": 7,
+    "paperdollGumpId": 50489,
+    "paperdollMaleGumpId": 50489,
+    "paperdollFemaleGumpId": 60489
   },
   {
     "definitionId": "raven-helm",
@@ -4179,10 +4954,13 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 6,
     "slot": "armor",
     "flipId": 12648,
-    "weight": 5
+    "weight": 5,
+    "paperdollGumpId": 50965,
+    "paperdollMaleGumpId": 50965,
+    "paperdollFemaleGumpId": 60965
   },
   {
     "definitionId": "ringmail-arms",
@@ -4191,10 +4969,13 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 19,
     "slot": "armor",
     "flipId": 5103,
-    "weight": 15
+    "weight": 15,
+    "paperdollGumpId": 50550,
+    "paperdollMaleGumpId": 50550,
+    "paperdollFemaleGumpId": 60550
   },
   {
     "definitionId": "ringmail-chest",
@@ -4206,7 +4987,10 @@
     "equipLayer": 13,
     "slot": "armor",
     "flipId": 5101,
-    "weight": 15
+    "weight": 15,
+    "paperdollGumpId": 50548,
+    "paperdollMaleGumpId": 50548,
+    "paperdollFemaleGumpId": 60548
   },
   {
     "definitionId": "ringmail-gloves",
@@ -4215,10 +4999,13 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 7,
     "slot": "armor",
     "flipId": 5106,
-    "weight": 2
+    "weight": 2,
+    "paperdollGumpId": 50545,
+    "paperdollMaleGumpId": 50545,
+    "paperdollFemaleGumpId": 60545
   },
   {
     "definitionId": "ringmail-legs",
@@ -4227,10 +5014,13 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 4,
     "slot": "armor",
     "flipId": 5105,
-    "weight": 15
+    "weight": 15,
+    "paperdollGumpId": 50549,
+    "paperdollMaleGumpId": 50549,
+    "paperdollFemaleGumpId": 60549
   },
   {
     "definitionId": "royal-circlet",
@@ -4239,10 +5029,13 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 6,
     "slot": "armor",
     "flipId": 12646,
-    "weight": 2
+    "weight": 2,
+    "paperdollGumpId": 50963,
+    "paperdollMaleGumpId": 50963,
+    "paperdollFemaleGumpId": 60963
   },
   {
     "definitionId": "small-plate-jingasa",
@@ -4251,9 +5044,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 6,
     "slot": "armor",
-    "weight": 5
+    "weight": 5,
+    "paperdollGumpId": 50450,
+    "paperdollMaleGumpId": 50450,
+    "paperdollFemaleGumpId": 60450
   },
   {
     "definitionId": "small-plate-shield",
@@ -4262,10 +5058,13 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "shield",
     "flipId": 16906,
-    "weight": 6
+    "weight": 6,
+    "paperdollGumpId": 50339,
+    "paperdollMaleGumpId": 50339,
+    "paperdollFemaleGumpId": 60339
   },
   {
     "definitionId": "standard-plate-kabuto",
@@ -4274,9 +5073,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 6,
     "slot": "armor",
-    "weight": 6
+    "weight": 6,
+    "paperdollGumpId": 50463,
+    "paperdollMaleGumpId": 50463,
+    "paperdollFemaleGumpId": 60463
   },
   {
     "definitionId": "studded-arms",
@@ -4285,10 +5087,13 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 19,
     "slot": "armor",
     "flipId": 5076,
-    "weight": 4
+    "weight": 4,
+    "paperdollGumpId": 50523,
+    "paperdollMaleGumpId": 50523,
+    "paperdollFemaleGumpId": 60523
   },
   {
     "definitionId": "studded-bustier-arms",
@@ -4300,7 +5105,10 @@
     "equipLayer": 13,
     "slot": "armor",
     "flipId": 7181,
-    "weight": 1
+    "weight": 1,
+    "paperdollGumpId": 50925,
+    "paperdollMaleGumpId": 50925,
+    "paperdollFemaleGumpId": 60925
   },
   {
     "definitionId": "studded-do",
@@ -4311,7 +5119,10 @@
     "clothing": true,
     "equipLayer": 13,
     "slot": "armor",
-    "weight": 8
+    "weight": 8,
+    "paperdollGumpId": 50458,
+    "paperdollMaleGumpId": 50458,
+    "paperdollFemaleGumpId": 60458
   },
   {
     "definitionId": "studded-gloves",
@@ -4320,10 +5131,13 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 7,
     "slot": "armor",
     "flipId": 5085,
-    "weight": 1
+    "weight": 1,
+    "paperdollGumpId": 50524,
+    "paperdollMaleGumpId": 50524,
+    "paperdollFemaleGumpId": 60524
   },
   {
     "definitionId": "studded-gorget",
@@ -4332,9 +5146,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 10,
     "slot": "armor",
-    "weight": 1
+    "weight": 1,
+    "paperdollGumpId": 50525,
+    "paperdollMaleGumpId": 50525,
+    "paperdollFemaleGumpId": 60525
   },
   {
     "definitionId": "studded-haidate",
@@ -4343,9 +5160,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 4,
     "slot": "armor",
-    "weight": 5
+    "weight": 5,
+    "paperdollGumpId": 50512,
+    "paperdollMaleGumpId": 50512,
+    "paperdollFemaleGumpId": 60512
   },
   {
     "definitionId": "studded-hiro-sode",
@@ -4354,9 +5174,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 19,
     "slot": "armor",
-    "weight": 1
+    "weight": 1,
+    "paperdollGumpId": 50474,
+    "paperdollMaleGumpId": 50474,
+    "paperdollFemaleGumpId": 60474
   },
   {
     "definitionId": "studded-legs",
@@ -4365,10 +5188,13 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 4,
     "slot": "armor",
     "flipId": 5089,
-    "weight": 5
+    "weight": 5,
+    "paperdollGumpId": 50522,
+    "paperdollMaleGumpId": 50522,
+    "paperdollFemaleGumpId": 60522
   },
   {
     "definitionId": "studded-mempo",
@@ -4377,9 +5203,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 10,
     "slot": "armor",
-    "weight": 2
+    "weight": 2,
+    "paperdollGumpId": 50472,
+    "paperdollMaleGumpId": 50472,
+    "paperdollFemaleGumpId": 60472
   },
   {
     "definitionId": "studded-suneate",
@@ -4388,9 +5217,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 4,
     "slot": "armor",
-    "weight": 5
+    "weight": 5,
+    "paperdollGumpId": 50488,
+    "paperdollMaleGumpId": 50488,
+    "paperdollFemaleGumpId": 60488
   },
   {
     "definitionId": "tiger-pelt-bustier",
@@ -4401,7 +5233,10 @@
     "clothing": true,
     "equipLayer": 13,
     "slot": "armor",
-    "weight": 6
+    "weight": 6,
+    "paperdollGumpId": 51296,
+    "paperdollMaleGumpId": 51296,
+    "paperdollFemaleGumpId": 61296
   },
   {
     "definitionId": "tiger-pelt-chest",
@@ -4412,7 +5247,10 @@
     "clothing": true,
     "equipLayer": 13,
     "slot": "armor",
-    "weight": 6
+    "weight": 6,
+    "paperdollGumpId": 51295,
+    "paperdollMaleGumpId": 51295,
+    "paperdollFemaleGumpId": 61295
   },
   {
     "definitionId": "tiger-pelt-collar",
@@ -4421,9 +5259,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 10,
     "slot": "armor",
-    "weight": 1
+    "weight": 1,
+    "paperdollGumpId": 51302,
+    "paperdollMaleGumpId": 51302,
+    "paperdollFemaleGumpId": 51302
   },
   {
     "definitionId": "tiger-pelt-helm",
@@ -4432,9 +5273,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 6,
     "slot": "armor",
-    "weight": 2
+    "weight": 2,
+    "paperdollGumpId": 51301,
+    "paperdollMaleGumpId": 51301,
+    "paperdollFemaleGumpId": 51301
   },
   {
     "definitionId": "tiger-pelt-legs",
@@ -4443,9 +5287,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 4,
     "slot": "armor",
-    "weight": 2
+    "weight": 2,
+    "paperdollGumpId": 51297,
+    "paperdollMaleGumpId": 51297,
+    "paperdollFemaleGumpId": 61297
   },
   {
     "definitionId": "tiger-pelt-long-skirt",
@@ -4454,9 +5301,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 4,
     "slot": "armor",
-    "weight": 1
+    "weight": 1,
+    "paperdollGumpId": 51299,
+    "paperdollMaleGumpId": 51299,
+    "paperdollFemaleGumpId": 61299
   },
   {
     "definitionId": "tiger-pelt-shorts",
@@ -4465,9 +5315,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 4,
     "slot": "armor",
-    "weight": 3
+    "weight": 3,
+    "paperdollGumpId": 51298,
+    "paperdollMaleGumpId": 51298,
+    "paperdollFemaleGumpId": 61298
   },
   {
     "definitionId": "tiger-pelt-skirt",
@@ -4476,9 +5329,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 4,
     "slot": "armor",
-    "weight": 1
+    "weight": 1,
+    "paperdollGumpId": 51300,
+    "paperdollMaleGumpId": 51300,
+    "paperdollFemaleGumpId": 61300
   },
   {
     "definitionId": "vulture-helm",
@@ -4487,10 +5343,13 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 6,
     "slot": "armor",
     "flipId": 12649,
-    "weight": 5
+    "weight": 5,
+    "paperdollGumpId": 50966,
+    "paperdollMaleGumpId": 50966,
+    "paperdollFemaleGumpId": 60966
   },
   {
     "definitionId": "winged-helm",
@@ -4499,10 +5358,13 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 6,
     "slot": "armor",
     "flipId": 12650,
-    "weight": 5
+    "weight": 5,
+    "paperdollGumpId": 50967,
+    "paperdollMaleGumpId": 50967,
+    "paperdollFemaleGumpId": 60967
   },
   {
     "definitionId": "wooden-kite-shield",
@@ -4511,9 +5373,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 1,
+    "equipLayer": 2,
     "slot": "shield",
-    "weight": 5
+    "weight": 5,
+    "paperdollGumpId": 50580,
+    "paperdollMaleGumpId": 50580,
+    "paperdollFemaleGumpId": 50580
   },
   {
     "definitionId": "woodland-arms",
@@ -4522,10 +5387,13 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 19,
     "slot": "armor",
     "flipId": 12643,
-    "weight": 5
+    "weight": 5,
+    "paperdollGumpId": 50947,
+    "paperdollMaleGumpId": 50947,
+    "paperdollFemaleGumpId": 60947
   },
   {
     "definitionId": "woodland-chest",
@@ -4537,7 +5405,10 @@
     "equipLayer": 13,
     "slot": "armor",
     "flipId": 12638,
-    "weight": 8
+    "weight": 8,
+    "paperdollGumpId": 50942,
+    "paperdollMaleGumpId": 50942,
+    "paperdollFemaleGumpId": 60942
   },
   {
     "definitionId": "woodland-gloves",
@@ -4546,10 +5417,13 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 7,
     "slot": "armor",
     "flipId": 12641,
-    "weight": 2
+    "weight": 2,
+    "paperdollGumpId": 50945,
+    "paperdollMaleGumpId": 50945,
+    "paperdollFemaleGumpId": 50945
   },
   {
     "definitionId": "woodland-gorget",
@@ -4558,9 +5432,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 10,
     "slot": "armor",
-    "flipId": 12640
+    "flipId": 12640,
+    "paperdollGumpId": 50944,
+    "paperdollMaleGumpId": 50944,
+    "paperdollFemaleGumpId": 50944
   },
   {
     "definitionId": "woodland-legs",
@@ -4569,10 +5446,13 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 4,
     "slot": "armor",
     "flipId": 12642,
-    "weight": 8
+    "weight": 8,
+    "paperdollGumpId": 50946,
+    "paperdollMaleGumpId": 50946,
+    "paperdollFemaleGumpId": 60946
   },
   {
     "definitionId": "dagger-belt",
@@ -4581,9 +5461,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 12,
     "slot": "clothing",
-    "weight": 3
+    "weight": 3,
+    "paperdollGumpId": 51521,
+    "paperdollMaleGumpId": 51521,
+    "paperdollFemaleGumpId": 51521
   },
   {
     "definitionId": "leather-ninja-belt",
@@ -4592,10 +5475,13 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 12,
     "slot": "clothing",
     "flipId": 10203,
-    "weight": 1
+    "weight": 1,
+    "paperdollGumpId": 50514,
+    "paperdollMaleGumpId": 50514,
+    "paperdollFemaleGumpId": 60514
   },
   {
     "definitionId": "mace-belt",
@@ -4604,9 +5490,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 12,
     "slot": "clothing",
-    "weight": 3
+    "weight": 3,
+    "paperdollGumpId": 51517,
+    "paperdollMaleGumpId": 51517,
+    "paperdollFemaleGumpId": 51517
   },
   {
     "definitionId": "sword-belt",
@@ -4615,9 +5504,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 12,
     "slot": "clothing",
-    "weight": 3
+    "weight": 3,
+    "paperdollGumpId": 51519,
+    "paperdollMaleGumpId": 51519,
+    "paperdollFemaleGumpId": 51519
   },
   {
     "definitionId": "gargish-bracelet",
@@ -4626,9 +5518,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 14,
     "slot": "jewelry",
-    "weight": 0.1
+    "weight": 0.1,
+    "paperdollGumpId": 50436,
+    "paperdollMaleGumpId": 50436,
+    "paperdollFemaleGumpId": 60436
   },
   {
     "definitionId": "gargish-earrings",
@@ -4637,8 +5532,11 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
-    "slot": "armor"
+    "equipLayer": 18,
+    "slot": "armor",
+    "paperdollGumpId": 50437,
+    "paperdollMaleGumpId": 50437,
+    "paperdollFemaleGumpId": 60437
   },
   {
     "definitionId": "gargish-necklace",
@@ -4647,8 +5545,11 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
-    "slot": "armor"
+    "equipLayer": 10,
+    "slot": "armor",
+    "paperdollGumpId": 50439,
+    "paperdollMaleGumpId": 50439,
+    "paperdollFemaleGumpId": 60439
   },
   {
     "definitionId": "gargish-ring",
@@ -4657,9 +5558,12 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
+    "equipLayer": 8,
     "slot": "jewelry",
-    "weight": 0.1
+    "weight": 0.1,
+    "paperdollGumpId": 50438,
+    "paperdollMaleGumpId": 50438,
+    "paperdollFemaleGumpId": 60438
   },
   {
     "definitionId": "staff-ring",
@@ -4668,8 +5572,11 @@
     "hue": 0,
     "script": null,
     "clothing": true,
-    "equipLayer": 13,
-    "slot": "jewelry"
+    "equipLayer": 8,
+    "slot": "jewelry",
+    "paperdollGumpId": 50498,
+    "paperdollMaleGumpId": 50498,
+    "paperdollFemaleGumpId": 60498
   },
   {
     "definitionId": "ankh-west",
@@ -5832,7 +6739,7 @@
   },
   {
     "definitionId": "spell-schema-codex",
-    "artId": 3834,
+    "artId": 4080,
     "name": "Arcane Schema Codex",
     "hue": 1153,
     "script": "spell-schema-codex",

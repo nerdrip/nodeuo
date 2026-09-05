@@ -1,7 +1,7 @@
 import { summonOne } from '../../_summon-helpers.js';
 
-// Energy Vortex — autonomous spinning vortex placed at the targeted
-// tile. Despawns after 120 s. Hostile to anyone except the caster.
+// Energy Vortex — starts as an autonomous spinning vortex placed at the
+// targeted tile, but remains owned and accepts explicit caster commands.
 export default {
   name: 'energy-vortex',
   targetKind: 'location',

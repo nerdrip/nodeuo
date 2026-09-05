@@ -45,6 +45,8 @@
     "audit:gameplay-performance:full": "node tools/audit/nodeuo-gameplay-benchmark.mjs --full",
     "audit:game-systems-performance": "node tools/audit/game-systems-performance.mjs",
     "audit:game-systems-performance:full": "node tools/audit/game-systems-performance.mjs --full",
+    "audit:item-paperdolls": "node tools/audit/item-paperdoll-definitions.mjs",
+    "audit:item-paperdolls:write": "node tools/audit/item-paperdoll-definitions.mjs --write",
     "catalog:gumps:server": "node tools/audit/server-gump-catalog.mjs --write"
   },
   "devDependencies": {

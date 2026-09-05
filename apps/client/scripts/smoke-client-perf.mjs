@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const { clientPerfStats, recordClientLongTask } = await import('../src/core/game-controller.js');
+const {
+  clientPerfStats, isSuspendedFrameGap, recordClientLongTask,
+} = await import('../src/core/game-controller.js');
+
+assert.equal(isSuspendedFrameGap(16.7, false), false, 'normal rendered frames feed performance adaptation');
+assert.equal(isSuspendedFrameGap(91_285, false), true, 'background-resume gaps do not trigger a WebGL resize');
+assert.equal(isSuspendedFrameGap(16.7, true), true, 'hidden-tab ticks are excluded from renderer quality samples');
 
 const beforeCount = clientPerfStats.longTaskCount;
 const beforeHead = clientPerfStats.longTaskHead;

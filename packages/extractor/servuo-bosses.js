@@ -64,9 +64,9 @@ function parseFile(path, kindHint) {
   const sound = text.match(RX.sound);
   const vArm  = text.match(RX.vArmor);
   const out = {
-    kind: kebab(className),
+    definitionId: kebab(className),
     name,
-    body,
+    bodyId: body,
     hp:    hits ? parseInt(hits[2], 10) : 4000,    // bosses default HUGE
     str:   str  ? parseInt(str[2],  10) : 600,
     dex:   dex  ? parseInt(dex[2],  10) : 200,
@@ -126,17 +126,17 @@ export async function extractServUOBosses(servuoPath, out) {
   const all = [];
   walk(join(root, 'Bosses'), 'boss',  all);
   walk(join(root, 'Named'),  'named', all);
-  // Stable sort by kind + role.
-  all.sort((a, b) => a.kind.localeCompare(b.kind));
+  // Stable sort by definitionId + role.
+  all.sort((a, b) => a.definitionId.localeCompare(b.definitionId));
   // Merge into existing monsters.json.
   const outFile = join(out, 'data', 'config', 'monsters.json');
   /** @type {Record<string, any>} */
   const existing = JSON.parse(readFileSync(outFile, 'utf8'));
-  const knownKinds = new Set(Object.values(existing).map((e) => e.kind));
+  const knownKinds = new Set(Object.values(existing).map((e) => e.definitionId ?? e.kind));
   let nextKey = Math.max(...Object.keys(existing).map((k) => +k)) + 1;
   let added = 0;
   for (const mon of all) {
-    if (knownKinds.has(mon.kind)) continue;
+    if (knownKinds.has(mon.definitionId)) continue;
     existing[String(nextKey++)] = mon;
     added++;
   }

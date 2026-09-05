@@ -32,12 +32,14 @@ import { handleNodeUOFeatureRequest as handleAdvancedFeature } from '../src/net/
 function fixture() {
   const sent = [];
   const mobile = {
-    serial: 1, name: 'Modern', body: 0x190, hue: 0, flags: 0,
+    serial: 1, definitionId: 'modern-player', name: 'Modern', bodyId: 0x190, body: 0x190, hue: 0, flags: 0,
     notoriety: 1, x: 100, y: 200, z: 0, map: 1, direction: 2,
     hp: 40, hpMax: 50, mana: 30, manaMax: 40, stam: 45, stamMax: 50,
     activeQuests: { tutorial: { title: 'Tutorial', stage: 2 } },
   };
-  const item = { serial: 0x40000001, itemId: 0x0e75, hue: 0, amount: 1,
+  const item = { serial: 0x40000001, definitionId: 'artifact-book-armour', artId: 0x0e75, itemId: 0x0e75,
+    paperdollGumpId: 0xc351, paperdollMaleGumpId: 0xc352, paperdollFemaleGumpId: 0xea62,
+    hue: 0, amount: 1,
     x: 101, y: 200, z: 0, map: 1, direction: 0, parent: 0, layer: 0 };
   const state = {
     mobile, accountName: 'modern', nodeUOJsonTransport: true,
@@ -83,7 +85,7 @@ describe('NodeUO modern negotiated channels', () => {
   });
 
   it('acknowledges one near-to-far login baseline without sending a duplicate snapshot', () => {
-    const { state, mobile } = fixture();
+    const { state, mobile, item } = fixture();
     const messages = [];
     state.nodeUOJsonTransport = true;
     state.nodeUOProtocol = { major: 2, minor: 0, json: true };
@@ -101,12 +103,45 @@ describe('NodeUO modern negotiated channels', () => {
     const acknowledgements = [];
     const clientNet = { nodeUOJsonTransport: true, supportsNodeUO: () => true,
       sendNodeUOMessage: (message) => { acknowledgements.push(message); return true; } };
+    const clientMobile = clientWorld.ensureMobile(mobile.serial);
+    clientWorld.equipOnMobile(clientMobile, 22, { serial: item.serial, itemId: item.itemId, hue: item.hue });
     for (const message of progressive) expect(handleNodeUOJsonMessage(clientNet, message)).toBe(true);
-    expect(clientWorld.mobiles.get(mobile.serial)).toMatchObject({ x: 100, y: 200, hp: 40 });
+    expect(clientWorld.mobiles.get(mobile.serial)).toMatchObject({
+      definitionId: 'modern-player', bodyId: 0x190, body: 0x190, x: 100, y: 200, hp: 40,
+    });
+    expect(clientWorld.items.get(item.serial)).toMatchObject({
+      definitionId: 'artifact-book-armour', artId: 0x0e75, itemId: 0x0e75,
+      paperdollGumpId: 0xc351, paperdollMaleGumpId: 0xc352, paperdollFemaleGumpId: 0xea62,
+    });
+    expect(clientWorld.mobiles.get(mobile.serial).equipment.get(22)).toMatchObject({
+      definitionId: 'artifact-book-armour', itemId: 0x0e75, paperdollGumpId: 0xc351,
+    });
     expect(acknowledgements.at(-1)).toMatchObject({ kind: NodeUOJsonKind.Ack,
       feature: 'world.progressive-snapshot', ack: progressive.length });
     for (const acknowledgement of acknowledgements) handleServerNodeUOJsonMessage(state, acknowledgement);
     expect(state._nodeUOWorld.ready).toBe(true);
+  });
+
+  it('streams definition-owned appearance for equipped items outside ground-item visibility', () => {
+    const { state, sent, mobile, item } = fixture();
+    state._visibleItems.clear();
+    item.parent = mobile.serial;
+    item.layer = 22;
+    state.ctx.world._childrenByParent = new Map([[mobile.serial, new Set([item.serial])]]);
+    initializeNodeUOModern(state);
+    const entities = sent
+      .filter((message) => message.feature === 'world.progressive-snapshot')
+      .flatMap((message) => message.payload.entities);
+    expect(entities.find((entity) => entity.serial === item.serial)).toMatchObject({
+      type: 'item',
+      components: {
+        appearance: {
+          definitionId: 'artifact-book-armour', artId: 0x0e75,
+          paperdollGumpId: 0xc351, paperdollFemaleGumpId: 0xea62,
+        },
+        containment: { parent: mobile.serial, layer: 22 },
+      },
+    });
   });
 
   it('applies bounded component subscriptions and publishes a filtered baseline', () => {

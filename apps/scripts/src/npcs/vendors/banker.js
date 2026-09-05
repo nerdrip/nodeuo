@@ -7,6 +7,7 @@ import { spawnNPC } from './_spawn.js';
 import { childrenOf } from '../../_inventory.js';
 import { itemBySerial } from '../../_entities.js';
 import { canCreateItem, createItem, destroyItemBySerial } from '../../_items.js';
+import { allMobiles } from '../../_spatial.js';
 
 const HEAR_RANGE = 12;
 
@@ -127,6 +128,7 @@ export default function register(api) {
           if (speaker.client) {
             speaker.client.send(api.protocol.displayContainer(box.serial, box.gumpId));
             speaker.client.send(api.protocol.containerContents(box.serial, bankEntries(box)));
+            speaker.client.openContainers?.add?.(box.serial);
             speaker.client.sendSystemMessage?.(`${mob.name ?? 'The banker'} opens your bank box.`);
           }
           ctx.broadcastSpeech?.(mob, 'I will safeguard your wares.', 0x35);
@@ -207,6 +209,29 @@ export default function register(api) {
     },
   });
 
+  // Migrate bankers already present in a persisted world. Older saves kept
+  // only `aiBehavior: banker`, displayed the literal name "Banker", and
+  // lost the speech-listener metadata after restart. Name is presentation;
+  // the separate role fields remain the authoritative service identity.
+  for (const mob of allMobiles({ world: api.world })) {
+    const roles = [mob.kind, mob.npcKind, mob.npcRole, mob.vendorKind,
+      mob.behavior, mob.aiBehavior].map((v) => String(v ?? '').toLowerCase());
+    if (!roles.includes('banker')) continue;
+    mob.kind ??= 'banker';
+    mob.npcKind ??= 'banker';
+    mob.npcRole ??= 'banker';
+    mob.title ||= 'the banker';
+    if (/^(?:a |an |the )?banker$/i.test(String(mob.name ?? '').trim())) {
+      mob.name = api.names?.pickForMob?.({ body: mob.body }) ?? 'Aldwin';
+    }
+    mob._listensToSpeech = true;
+    mob._speechKeywords = ['bank', 'balance', 'withdraw', 'check'];
+    if (!mob.aiBehavior) {
+      try { api.ai?.attach?.(mob, 'banker'); mob.aiBehavior = 'banker'; }
+      catch { /* registration still enables context-menu service routing */ }
+    }
+  }
+
   api.commands.register({
     name: 'banker',
     help: '[banker — admin: spawn a banker NPC at your feet.',
@@ -217,12 +242,12 @@ export default function register(api) {
       // so the banker was invisible to every player until a re-stream.
       // It also spawned naked. `spawnNPC` centralises both fixes.
       const mob = spawnNPC(api, ctx.sender, {
-        name: 'Banker', body: 0x0190, hue: 0x83EA,
+        name: 'a banker', title: 'the banker', body: 0x0190, hue: 0x83EA,
         kind: 'banker', outfit: 'noble',
         keywords: ['bank', 'balance', 'withdraw', 'check'],
         behavior: 'banker',
       });
-      ctx.state.sendSystemMessage(`Banker 0x${mob.serial.toString(16)} spawned at your feet.`);
+      ctx.state.sendSystemMessage(`${mob.name}, ${mob.title} (0x${mob.serial.toString(16)}) spawned at your feet.`);
     },
   });
 

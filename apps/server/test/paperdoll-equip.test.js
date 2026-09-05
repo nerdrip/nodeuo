@@ -94,7 +94,7 @@ describe('paperdoll drag/equip round-trip', () => {
     expect(state.heldItem).toBeNull();
   });
 
-  it('recovers the robe layer by graphic for legacy items without equip metadata', () => {
+  it('recovers the robe layer by definition identity when graphics are shared', () => {
     const { world, mobile, state, bag, handlers } = fixture();
     const templateName = 'test-legacy-gm-robe';
     registerTemplate({ name: templateName, itemId: 0x1F03, equipLayer: 22, clothing: true });
@@ -104,7 +104,8 @@ describe('paperdoll drag/equip round-trip', () => {
         equipLayer: 1, spellbook: true, map: 1,
       });
       const legacyRobe = createItem(world, {
-        itemId: 0x1F03, parent: bag.serial, layer: 0, map: 1,
+        definitionId: templateName, itemId: 0x1F03,
+        parent: bag.serial, layer: 0, map: 1,
       });
 
       handlers[0x07](state, packet(0x07, legacyRobe.serial));

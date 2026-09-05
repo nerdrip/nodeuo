@@ -17,7 +17,7 @@ for (const stage of ['Decorations', 'Signs', 'Doors', 'Teleporters', 'Moongates'
   assert.match(source, new RegExp(`name:\\s*['"]${stage}['"]`), `CreateWorld missing ${stage} stage`);
 }
 
-const knownKinds = new Set(monsters.map((m) => String(m.kind).replace(/[^a-z0-9]/gi, '').toLowerCase()));
+const knownKinds = new Set(monsters.map((m) => String(m.definitionId).replace(/[^a-z0-9]/gi, '').toLowerCase()));
 let vendorGroups = 0;
 let creatureRefs = 0;
 const invalid = [];

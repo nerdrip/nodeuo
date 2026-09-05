@@ -47,7 +47,8 @@ function pngFallbackUrlForTexture(tex) {
 export class GumpPic extends Control {
   constructor(gumpId, opts = {}) {
     const { hue = 0, width = 32, height = 32,
-            srcX = 0, srcY = 0, srcW = 0, srcH = 0 } = opts;
+            srcX = 0, srcY = 0, srcW = 0, srcH = 0,
+            showShimmer = true, showFallback = true } = opts;
     super();
     this.gumpId = gumpId | 0;
     this.hue = hue | 0;
@@ -67,13 +68,15 @@ export class GumpPic extends Control {
     this._srcY = srcY | 0;
     this._srcW = srcW | 0;
     this._srcH = srcH | 0;
+    this._showShimmer = showShimmer !== false;
+    this._showFallback = showFallback !== false;
     /** @type {Sprite | null} the textured sprite, when the atlas resolves */
     this._sprite = null;
     /** Gray-silver shimmer placeholder shown while the atlas page loads.
      *  Replaces the per-id hash-coloured rect — the rainbow of bright
      *  fillers used to read as "broken UI" rather than "loading". */
-    this._shimmer = createShimmer(this.width, this.height);
-    this.node.addChild(this._shimmer.gfx);
+    this._shimmer = this._showShimmer ? createShimmer(this.width, this.height) : null;
+    if (this._shimmer) this.node.addChild(this._shimmer.gfx);
     this._mountTexture();
   }
 
@@ -193,8 +196,10 @@ export class GumpPic extends Control {
     this._pxLoading = false;
     this._pxFailed = false;
     this._shimmer?.dispose();
-    this._shimmer = createShimmer(this.width || 32, this.height || 32);
-    this.node.addChild(this._shimmer.gfx);
+    this._shimmer = this._showShimmer
+      ? createShimmer(this.width || 32, this.height || 32)
+      : null;
+    if (this._shimmer) this.node.addChild(this._shimmer.gfx);
     this._mountTexture();
   }
 
@@ -209,6 +214,11 @@ export class GumpPic extends Control {
     const generation = this.captureAsyncGeneration();
     const loaded = await assets.gumpTexture(this.gumpId);
     if (!this.asyncGenerationValid(generation)) return;
+    if (!loaded && !this._showFallback) {
+      this._shimmer?.dispose();
+      this._shimmer = null;
+      return;
+    }
     const tex = loaded ?? assets.placeholderTexture('gump', this.width || 32, this.height || 32);
     this._tex = loaded ?? null;
     this._pxCanvas = null;

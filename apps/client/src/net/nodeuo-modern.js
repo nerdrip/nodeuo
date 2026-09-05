@@ -255,8 +255,12 @@ function applyWorldEntity(entity) {
     const old = { x: mob.x, y: mob.y, z: mob.z, map: mob.map };
     if (entity.mask & NodeUOWorldField.Position) assignDefined(mob, entity,
       { x: 'x', y: 'y', z: 'z', map: 'map', direction: 'direction' });
-    if (entity.mask & NodeUOWorldField.Appearance) assignDefined(mob, entity,
-      { artId: 'body', hue: 'hue', flags: 'flags', notoriety: 'notoriety' });
+    if (entity.mask & NodeUOWorldField.Appearance) {
+      assignDefined(mob, entity,
+        { definitionId: 'definitionId', bodyId: 'bodyId', artId: 'body', hue: 'hue', flags: 'flags', notoriety: 'notoriety' });
+      if (entity.bodyId !== undefined) mob.body = entity.bodyId;
+      else if (entity.artId !== undefined) mob.bodyId = entity.artId;
+    }
     if (entity.mask & NodeUOWorldField.Vitals) assignDefined(mob, entity, {
       hp: 'hp', hpMax: 'hpMax', mana: 'mana', manaMax: 'manaMax',
       stam: 'stam', stamMax: 'stamMax',
@@ -293,13 +297,19 @@ function applyWorldEntity(entity) {
     const old = { x: item.x, y: item.y, map: item.map, parent: item.parent };
     if (entity.mask & NodeUOWorldField.Position) assignDefined(item, entity,
       { x: 'x', y: 'y', z: 'z', map: 'map', direction: 'direction' });
-    if (entity.mask & NodeUOWorldField.Appearance) assignDefined(item, entity,
-      { artId: 'itemId', hue: 'hue', flags: 'flags', amount: 'amount' });
+    if (entity.mask & NodeUOWorldField.Appearance) assignDefined(item, entity, {
+      definitionId: 'definitionId', artId: 'itemId', hue: 'hue', flags: 'flags', amount: 'amount',
+      paperdollGumpId: 'paperdollGumpId', paperdollMaleGumpId: 'paperdollMaleGumpId',
+      paperdollFemaleGumpId: 'paperdollFemaleGumpId',
+    });
+    if (entity.artId !== undefined) item.artId = entity.artId;
     if (entity.mask & NodeUOWorldField.Parent) assignDefined(item, entity,
       { parent: 'parent', layer: 'layer' });
     world.linkItemParent(item, old.parent);
     world.reindexItem(item, old.x, old.y, old.map, old.parent);
+    const owner = world.syncEquipmentPresentation(item);
     bus.emit('item:placed', item);
+    if (owner) bus.emit('mobile:equip', { mobile: owner.serial, serial: item.serial, presentation: true });
   }
 }
 

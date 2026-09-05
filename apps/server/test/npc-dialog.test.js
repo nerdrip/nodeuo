@@ -171,4 +171,53 @@ describe('NodeUO visual-novel NPC dialog', () => {
       sender: player, state, world,
     }));
   });
+
+  it('recognizes AI-bound bankers and gives healers explicit services', () => {
+    const world = new World();
+    const player = world.createMobile({ name: 'Player', body: 0x190, x: 10, y: 10, z: 0, map: 1 });
+    const banker = world.createMobile({ name: 'Aldwin', body: 0x190, x: 11, y: 10, z: 0, map: 1 });
+    banker.aiBehavior = 'banker';
+    banker.title = 'the banker';
+    const healer = world.createMobile({ name: 'Roberta', body: 0x191, x: 11, y: 11, z: 0, map: 1 });
+    healer.aiBehavior = 'healer';
+    healer.title = 'the healer';
+    healer._speechKeywords = ['heal', 'resurrect', 'resurrection'];
+    const state = makeState(world, player);
+    state.ctx.commands = { dispatch: vi.fn() };
+
+    contextMenus.use(state, banker.serial);
+    let opened = decodeNpcDialog(state.sendNodeUOMessage.mock.calls.at(-1)[0]);
+    expect(opened.payload.title).toBe('the banker');
+    expect(opened.payload.actions.some((action) => action.label === 'Open bank box')).toBe(true);
+
+    contextMenus.use(state, healer.serial);
+    opened = decodeNpcDialog(state.sendNodeUOMessage.mock.calls.at(-1)[0]);
+    expect(opened.payload.title).toBe('the healer');
+    expect(opened.payload.actions.map((action) => action.label)).toEqual(expect.arrayContaining([
+      'Ask for healing', 'Ask for resurrection', 'Open paperdoll',
+    ]));
+    expect(opened.payload.actions.some((action) => action.label === 'Ask about heal')).toBe(false);
+  });
+
+  it('opens command actions when double-clicking an owned non-human summon', () => {
+    const world = new World();
+    const player = world.createMobile({ name: 'Mage', body: 0x190, x: 10, y: 10, z: 0, map: 1 });
+    const vortex = world.createMobile({ name: 'an energy vortex', body: 164, x: 11, y: 10, z: 0, map: 1 });
+    vortex.kind = 'energy-vortex';
+    vortex.controlMaster = player.serial;
+    const state = makeState(world, player);
+    const stay = vi.fn();
+    state.ctx.contextMenuProvider = () => [{
+      responseId: 101, cliloc: 3006114, onPick: stay,
+    }];
+
+    contextMenus.use(state, vortex.serial);
+
+    const opened = decodeNpcDialog(state.sendNodeUOMessage.mock.calls.at(-1)[0]);
+    expect(opened.payload).toMatchObject({ npcSerial: vortex.serial, name: 'an energy vortex' });
+    const action = opened.payload.actions.find((entry) => entry.label === 'Stay here');
+    expect(action).toBeTruthy();
+    reply(state, opened.requestId, action.id);
+    expect(stay).toHaveBeenCalledOnce();
+  });
 });

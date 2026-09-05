@@ -25,6 +25,9 @@ import { consumeScroll, describeScrollEffect } from '../systems/power-scrolls.js
  * @property {number} [itemId]         legacy alias of artId
  * @property {number} [hue]
  * @property {number} [gumpId]         non-zero marks this as a container
+ * @property {number} [paperdollGumpId] explicit unisex equipped gump override
+ * @property {number} [paperdollMaleGumpId] explicit male equipped gump override
+ * @property {number} [paperdollFemaleGumpId] explicit female equipped gump override
  * @property {boolean} [movable]
  * @property {boolean} [stackable]
  * @property {number} [light]          light source radius (0 = none)
@@ -42,6 +45,8 @@ const aliasesByName = new Map();
 
 const TEMPLATE_RUNTIME_KEYS = [
   'servuoClass', 'servuoClasses', 'servuoPath',
+  'kind', 'category', 'school', 'firstSpellId', 'spellbookOffset',
+  'paperdollGumpId', 'paperdollMaleGumpId', 'paperdollFemaleGumpId',
   'container', 'capacity', 'maxWeight', 'stackable', 'labelNumber',
   'weapon', 'shield', 'ar', 'strReq', 'twoHanded', 'skill', 'minDamage', 'maxDamage', 'speed', 'range', 'ammoId',
   'bandageHealingBonus',
@@ -78,6 +83,7 @@ export function registerTemplate(tmpl) {
     definitionId,
     artId,
     itemId: artId,
+    script: tmpl.script ?? null,
     // Internally `name` remains the spawn/template key. In canonical rows the
     // authored `name` is the display label instead of another hidden id.
     name: key,
@@ -114,20 +120,6 @@ export function unregisterTemplate(name) {
 export function getTemplate(name) {
   const key = String(name ?? '');
   return registry.get(key.toLowerCase()) ?? aliases.get(key) ?? aliases.get(key.toLowerCase());
-}
-
-/** Find the FIRST registered template whose itemId matches. Returns
- *  undefined when nothing matches. Used by raw createItem callers
- *  (vendor onBuy, loot drops, scripted spawns) to back-fill the
- *  `script` field so a bread bought from a baker actually has its
- *  `food` onUse hook attached even though the buyer never ran it
- *  through the named-template path. */
-export function getTemplateByItemId(itemId) {
-  const want = itemId | 0;
-  for (const t of registry.values()) {
-    if ((t.itemId | 0) === want) return t;
-  }
-  return undefined;
 }
 
 /** List registered template names. */
@@ -173,6 +165,9 @@ export function spawn(world, name, overrides) {
   //                     don't provide one)
   if (t.script)        item.script        = t.script;
   if (t.equipLayer)    item.equipLayer    = t.equipLayer;
+  if (t.paperdollGumpId != null) item.paperdollGumpId = t.paperdollGumpId;
+  if (t.paperdollMaleGumpId != null) item.paperdollMaleGumpId = t.paperdollMaleGumpId;
+  if (t.paperdollFemaleGumpId != null) item.paperdollFemaleGumpId = t.paperdollFemaleGumpId;
   if (t.clothing)      item.clothing      = t.clothing;
   if (t.spellbook)     item.spellbook     = true;
   if (t.slot)          item.slot          = t.slot;
@@ -347,12 +342,11 @@ export function useItem(world, item, user) {
       catch (e) { console.error(`[items] template ${name} onUse threw:`, e); }
     }
   }
-  // Path 2: content catalogue effect. Resolve by stable gameplay identity
-  // first; art lookup is only a compatibility fallback for old saves. This
-  // prevents two items sharing the same graphic from invoking each other's
-  // effect/script.
-  if (item.itemId) {
-    const def = contentItem(item.definitionId ?? item.tagId ?? item.itemId);
+  // Path 2: content catalogue effect. Stable gameplay identity is mandatory;
+  // artwork is never an item-type discriminator.
+  const identity = item.definitionId ?? item.tagId;
+  if (identity) {
+    const def = contentItem(identity);
     if (def?.effect) {
       try { def.effect(user, { world, item, def }); }
       catch (e) { console.error(`[items] content 0x${item.itemId.toString(16)} effect threw:`, e); }

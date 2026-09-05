@@ -102,6 +102,15 @@ mkdirSync(out, { recursive: true });
 console.log(`[extract] src: ${src}`);
 console.log(`[extract] out: ${out}`);
 console.log(`[extract] steps: ${[...only].join(', ')}`);
+// The extractor owns only the decoded native filenames named by individual
+// extractor modules. Admin-authored assets deliberately live in the sibling
+// `overrides/` namespace and `asset-overrides.json`; no extraction step may
+// clean, rewrite or merge that namespace. New custom IDs therefore survive a
+// full MUL/UOP refresh, while same-ID custom records continue to override the
+// newly generated native pixels.
+if (existsSync(join(out, 'asset-overrides.json'))) {
+  console.log('[extract] custom NodeUO layer detected — asset-overrides.json + overrides/ are preserved');
+}
 
 const t0 = Date.now();
 let any = false;

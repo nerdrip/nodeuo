@@ -138,8 +138,19 @@ export default function (api) {
       }
       if ((mob.controlMaster >>> 0) === (state.mobile?.serial >>> 0)) {
         const order = (command, targetSerial = 0) => {
+          let binding = api.ai?.bindings?.get?.(mob.serial);
+          if (mob.commandableSummon && binding?.behavior !== 'pet'
+              && api.ai?.behaviors?.has?.('pet')) {
+            mob.controlled = true;
+            mob.aiBehavior = 'pet';
+            api.ai.attach(mob, 'pet', {
+              command: 'follow', targetSerial: 0,
+              nextStepAt: 0, nextAttackAt: 0,
+              path: null, pathTargetX: 0, pathTargetY: 0, pathPlannedAt: 0,
+            });
+            binding = api.ai.bindings.get(mob.serial);
+          }
           mob.petCommand = command;
-          const binding = api.ai?.bindings?.get?.(mob.serial);
           if (binding?.state) { binding.state.command = command; binding.state.targetSerial = targetSerial >>> 0; }
         };
         entries.push(

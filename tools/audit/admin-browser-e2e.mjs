@@ -156,8 +156,11 @@ try {
   assert.equal(runtimePrimitives.mutation.conflicts.length, 1);
   assert.equal(runtimePrimitives.mutation.conflicts[0].payload.token, '[REDACTED]');
   assert.ok(runtimePrimitives.diagnosticShape.includes('broker') && runtimePrimitives.diagnosticShape.includes('longTasks'));
-  const internalTabs = ['dashboard', 'accounts', 'characters', 'items', 'scripts', 'data', 'world-design', 'spawners',
-    'ai-graphs', 'simulators', 'animations', 'platform', 'operations', 'logs', 'world'];
+  const internalTabs = ['dashboard', 'accounts', 'characters', 'spawners',
+    'ai-graphs', 'simulators', 'platform', 'operations', 'logs'];
+  for (const removed of ['items', 'scripts', 'data', 'data-editor', 'world-design', 'animations', 'world']) {
+    assert.equal(await page.locator(`[data-tab="${removed}"]`).count(), 0, `legacy duplicate tab ${removed} is visible`);
+  }
   for (const tab of internalTabs) {
     await page.click(`[data-tab="${tab}"]`);
     await page.waitForTimeout(125);
@@ -211,9 +214,9 @@ try {
   await page.goto(`${base}/`, { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('nav#tabs');
 
-  // Exercise the two compact editors that remain embedded in the shell.
+  // Exercise the two advanced workbenches that remain embedded in the shell.
   for (const embedded of [
-    { tab: 'data-editor', selector: '#file-tree' },
+    { tab: 'assets', selector: '#main' },
     { tab: 'isoeditor', selector: '#cv' },
   ]) {
     await page.click(`[data-tab="${embedded.tab}"]`);
@@ -285,7 +288,7 @@ try {
   const studio = await page.evaluate(() => ({
     domains: document.querySelectorAll('[data-domain]').length,
     records: document.querySelectorAll('[data-record]').length,
-    editorFields: document.querySelectorAll('[data-field]').length,
+    editorFields: document.querySelectorAll('[data-field], [data-quick-path], [data-control-field]').length,
     overflow: document.documentElement.scrollWidth - innerWidth,
   }));
   assert.ok(studio.domains >= 15, `studio domains ${studio.domains}`);
@@ -514,4 +517,5 @@ try {
   rmSync(saveDir, { recursive: true, force: true });
 }
 
-console.log('[audit:admin-browser-e2e] ok tabs=15 editors=studio,data-tree,iso a11y=clean');
+console.log('[audit:admin-browser-e2e] ok tabs=15 editors=studio,assets,data-tree,iso a11y=clean');
+process.exit(0);

@@ -595,7 +595,8 @@ function spawnAggressive(api, world, kind, pos) {
 
   if (!displayName) displayName = cfg.name;
   const mob = createMobile(api, world, {
-    name: displayName, body: cfg.body, hue: cfg.hue ?? 0,
+    definitionId: cfg.definitionId ?? kind,
+    name: displayName, bodyId: cfg.bodyId ?? cfg.body, hue: cfg.hue ?? 0,
     x: pos.x, y: pos.y, z: pos.z, map: pos.map,
     notoriety: cfg.notoriety,
     hp: cfg.hp, hpMax: cfg.hp,
@@ -619,7 +620,8 @@ function spawnAggressive(api, world, kind, pos) {
   // Stamp `kind` so persistence MOBILE_EXT_KEYS round-trips it; without
   // this the AI reattach pass at script-load can't tell what behavior
   // each restored mob should run, and every wild creature stands inert.
-  mob.kind = kind;
+  mob.definitionId = cfg.definitionId ?? kind;
+  mob.kind = mob.definitionId;
   mob.homeX = pos.x; mob.homeY = pos.y;
   const [goldLo, goldHi] = cfg.gold ?? [0, 0];
   mob.gold = goldLo + Math.floor(Math.random() * Math.max(1, goldHi - goldLo + 1));

@@ -53,6 +53,22 @@ describe('canonical item definition identity', () => {
     expect(calls).toEqual(['red', 'blue']);
   });
 
+  it('keeps ground art independent from explicit paperdoll gump art', () => {
+    const world = new World();
+    registerItem({
+      definitionId: '__test-book-armour', artId: 0x0ff1, hue: 1150,
+      name: 'Book armour artifact', script: null, equipLayer: 22,
+      paperdollGumpId: 0xc351,
+      paperdollMaleGumpId: 0xc352,
+      paperdollFemaleGumpId: 0xea62,
+    });
+    const item = createItem(world, { definitionId: '__test-book-armour', x: 1, y: 1, z: 0 });
+    expect(item).toMatchObject({
+      definitionId: '__test-book-armour', artId: 0x0ff1, itemId: 0x0ff1, hue: 1150,
+      paperdollGumpId: 0xc351, paperdollMaleGumpId: 0xc352, paperdollFemaleGumpId: 0xea62,
+    });
+  });
+
   it('normalises legacy numeric id + tagId definitions', () => {
     const def = registerItem({
       id: 0x7A11, tagId: '__test-legacy-ticket',
@@ -60,9 +76,10 @@ describe('canonical item definition identity', () => {
     });
     expect(def).toMatchObject({
       id: '__test-legacy-ticket', definitionId: '__test-legacy-ticket',
-      artId: 0x7A11, itemId: 0x7A11,
+      artId: 0x7A11, itemId: 0x7A11, script: null,
     });
-    expect(getItem(0x7A11)?.definitionId).toBe('__test-legacy-ticket');
+    expect(getItem('__test-legacy-ticket')?.definitionId).toBe('__test-legacy-ticket');
+    expect(getItem(0x7A11)).toBeUndefined();
   });
 
   it('removes aliases safely and cannot dispose a newer hot-reload generation', () => {

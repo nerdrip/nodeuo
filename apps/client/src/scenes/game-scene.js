@@ -615,7 +615,18 @@ export class GameScene extends Scene {
       // can display the proper character name instead of an `0x...` serial.
       const mob = world.mobiles.get(info.serial >>> 0);
       if (mob && info.text) mob.name = info.text.trim();
-      this._toggleGump('paperdoll', () => new PaperdollGump(info.serial));
+      const serial = info.serial >>> 0;
+      const existing = this._ui?.findGump((g) => g._toggleKey === 'paperdoll');
+      if (existing && existing.mobileSerial === serial) {
+        existing._refresh?.();
+        this._ui.bringToFront(existing);
+        return;
+      }
+      if (existing) this._ui.removeGump(existing);
+      const gump = new PaperdollGump(serial);
+      gump._toggleKey = 'paperdoll';
+      gump._reopenFactory = () => new PaperdollGump(serial);
+      this._ui?.addGump(gump);
     });
     // Client audit #4 D1 — gate the standard ContainerGump on corpses
     // when the grid-loot toggle is on; the second `container:open` sub
@@ -1904,6 +1915,14 @@ export class GameScene extends Scene {
   update(dt, now = performance.now()) {
     if (!world.player) return;
     const frameDt = dt ?? 1 / 60;
+    // Advance held movement before choosing the animation for this frame.
+    // When this pump lived at the very end of update(), a completed step
+    // could be rendered as Stand for one frame before the next Run request
+    // was enqueued (especially after a long/background frame).
+    if (!this._tiles || !this._mobiles) return;
+    this._maybeMouseWalk(now);
+    this._tickHeldKeyWalk(now);
+    this._tickAutowalk(now);
     // Camera tracks the PLAYER'S VISUAL position. While a walk step
     // is in progress, world.player.offsetX/Y are non-zero and the
     // camera (and the player sprite) lerp together — without this
@@ -1916,12 +1935,8 @@ export class GameScene extends Scene {
     camera.apply(this.gc.world);
 
     const r = camera.visibleTileRadius();
-    // `_tiles` / `_mobiles` are constructed inside `load()`. The game
-    // controller can tick the scene one extra frame between scene-swap
-    // and load-resolved (e.g. after a relog), so the first frame sees
-    // a freshly-constructed GameScene with the renderers still null —
-    // skip rather than crash. Same null-window applies during destroy.
-    if (!this._tiles || !this._mobiles) return;
+    // `_tiles` / `_mobiles` are constructed inside `load()`. The null
+    // window is handled above before movement or rendering is advanced.
     this._tiles.update(world.player.x, world.player.y, r, now, {
       viewW: camera.viewW,
       viewH: camera.viewH,
@@ -1986,9 +2001,6 @@ export class GameScene extends Scene {
       for (const g of tickGumps) g.tick?.(frameDt, now);
     }
 
-    this._maybeMouseWalk(now);
-    this._tickHeldKeyWalk(now);
-    this._tickAutowalk(now);
     this._tickRegionDetect(now);
     this._refreshHud();
   }

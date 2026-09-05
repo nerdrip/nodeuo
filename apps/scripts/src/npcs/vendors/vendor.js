@@ -1029,8 +1029,8 @@ export default function (api) {
       return;
     }
     if (behavior === 'healer') {
-      mob._listensToSpeech = false;
-      mob._speechKeywords = [];
+      mob._listensToSpeech = true;
+      mob._speechKeywords = ['heal', 'resurrect', 'resurrection'];
       return;
     }
     mob._listensToSpeech = true;
@@ -1274,8 +1274,9 @@ export default function (api) {
     }
     const state = ctx.state;
     if (!state?.mobile) return;
+    const personalName = api.names?.pickForMob?.({ body: kind.body }) ?? kind.name;
     const mob = createMobile(api, world, {
-      name: kind.name,
+      name: personalName,
       body: kind.body,
       x: state.mobile.x, y: state.mobile.y, z: state.mobile.z,
       map: state.mobile.map, hue: kind.hue,
@@ -1284,6 +1285,9 @@ export default function (api) {
     // re-register the vendor binding. The reattach pass at script
     // load reads `mob.vendorKind` and re-runs the registry hook.
     mob.vendorKind = resolvedKey;
+    mob.kind = resolvedKey;
+    mob.npcRole = resolvedKey;
+    mob.title = kind.title ?? `the ${resolvedKey.replace(/_/g, ' ')}`;
     // Phase H.1.12 — copy faction tag for the discount handler.
     if (kind.faction) mob.faction = kind.faction;
 
@@ -1943,7 +1947,8 @@ export default function (api) {
       if (kind.faction) mob.faction = kind.faction;
       // Title is the role suffix ("the banker"); spawnAt callers can
       // override via pos.title (regional NPCs use "the banker of Britain").
-      mob.title = pos.title ?? kind.title ?? kindKey;
+      mob.title = pos.title ?? tmpl?.title ?? kind.title
+        ?? `the ${resolvedKey.replace(/_/g, ' ')}`;
       // Dress before reattach so the broadcast frame below carries the
       // worn equipment in the mobileIncoming payload (otherwise client
       // sees a naked vendor until the next equip update). Civic NPCs

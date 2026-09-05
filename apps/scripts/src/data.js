@@ -37,6 +37,85 @@ function readJson(relPath) {
   }
 }
 
+/** Validate the canonical item-config identity contract before registering a
+ * single row. Shared art ids are deliberately allowed; stable definition ids
+ * are the only unique gameplay keys. */
+export function validateItemConfig(items) {
+  if (!Array.isArray(items)) throw new Error('items.json must contain an array');
+  const ids = new Set();
+  const errors = [];
+  for (let index = 0; index < items.length; index++) {
+    const item = items[index];
+    const at = `items[${index}]`;
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      errors.push(`${at} must be an object`);
+      continue;
+    }
+    const id = typeof item.definitionId === 'string' ? item.definitionId.trim() : '';
+    if (!id) errors.push(`${at} missing definitionId`);
+    else if (ids.has(id)) errors.push(`${at} duplicates definitionId '${id}'`);
+    else ids.add(id);
+    if (!Number.isInteger(item.artId) || item.artId <= 0 || item.artId > 0xFFFF) {
+      errors.push(`${id || at} has invalid artId`);
+    }
+    if (item.hue != null && (!Number.isInteger(item.hue) || item.hue < 0 || item.hue > 0xFFFF)) {
+      errors.push(`${id || at} has invalid hue`);
+    }
+    for (const field of ['paperdollGumpId', 'paperdollMaleGumpId', 'paperdollFemaleGumpId']) {
+      if (item[field] != null && (!Number.isInteger(item[field]) || item[field] < 0 || item[field] > 0xFFFF)) {
+        errors.push(`${id || at} has invalid ${field}`);
+      }
+    }
+    if (item.equipLayer != null && (!Number.isInteger(item.equipLayer) || item.equipLayer < 0 || item.equipLayer > 29)) {
+      errors.push(`${id || at} has invalid equipLayer`);
+    }
+    if (Object.hasOwn(item, 'itemId')) {
+      errors.push(`${id || at} must use artId, not itemId, in canonical config`);
+    }
+    if (!Object.hasOwn(item, 'script')) {
+      errors.push(`${id || at} must declare script explicitly (string or null)`);
+    } else if (item.script !== null && (typeof item.script !== 'string' || !item.script.trim())) {
+      errors.push(`${id || at} has invalid script`);
+    }
+  }
+  if (errors.length) throw new Error(`invalid item config:\n${errors.join('\n')}`);
+  return { count: items.length, definitions: ids.size };
+}
+
+/** Mobiles follow the same identity split as items: definitionId is the only
+ * gameplay key, while bodyId and hue are freely reusable presentation data. */
+export function validateMobileConfig(mobiles, label = 'mobiles') {
+  if (!Array.isArray(mobiles)) throw new Error(`${label}.json must contain an array`);
+  const ids = new Set();
+  const errors = [];
+  for (let index = 0; index < mobiles.length; index++) {
+    const mobile = mobiles[index];
+    const at = `${label}[${index}]`;
+    if (!mobile || typeof mobile !== 'object' || Array.isArray(mobile)) {
+      errors.push(`${at} must be an object`);
+      continue;
+    }
+    const id = typeof mobile.definitionId === 'string' ? mobile.definitionId.trim() : '';
+    if (!id) errors.push(`${at} missing definitionId`);
+    else if (ids.has(id)) errors.push(`${at} duplicates definitionId '${id}'`);
+    else ids.add(id);
+    if (!Number.isInteger(mobile.bodyId) || mobile.bodyId <= 0 || mobile.bodyId > 0xFFFF) {
+      errors.push(`${id || at} has invalid bodyId`);
+    }
+    if (mobile.hue != null && (!Number.isInteger(mobile.hue) || mobile.hue < 0 || mobile.hue > 0xFFFF)) {
+      errors.push(`${id || at} has invalid hue`);
+    }
+    if (Object.hasOwn(mobile, 'kind')) {
+      errors.push(`${id || at} must use definitionId, not kind, in canonical config`);
+    }
+    if (Object.hasOwn(mobile, 'body')) {
+      errors.push(`${id || at} must use bodyId, not body, in canonical config`);
+    }
+  }
+  if (errors.length) throw new Error(`invalid ${label} config:\n${errors.join('\n')}`);
+  return { count: mobiles.length, definitions: ids.size };
+}
+
 /** @param {import('@uo/server/src/scripts.js').ScriptAPI} api */
 export default function register(api) {
   const disposers = [];
@@ -58,6 +137,7 @@ export default function register(api) {
   // --- Item templates -------------------------------------------------
   const items = readJson('data/config/items.json');
   if (items && api.templates) {
+    validateItemConfig(items);
     const registered = [];
     for (const t of items) {
       const definitionId = t.definitionId ?? t.id ?? t.name;
@@ -95,13 +175,14 @@ export default function register(api) {
   // --- Monster templates ---------------------------------------------
   const mons = readJson('data/config/monsters.json');
   if (mons && api.monsters) {
+    validateMobileConfig(mons, 'monsters');
     const registered = [];
     for (const m of mons) {
       try {
         api.monsters.register(m);
-        registered.push(m.kind);
+        registered.push(m.definitionId);
       } catch (e) {
-        api.log(`data: monster ${m.kind} failed: ${e.message}`);
+        api.log(`data: monster ${m.definitionId} failed: ${e.message}`);
       }
     }
     api.log(`data: ${registered.length} monster templates from monsters.json`);
@@ -115,14 +196,14 @@ export default function register(api) {
   // header for documentation; skip anything without a `kind` field.
   const npcs = readJson('data/config/npcs.json');
   if (npcs && api.npcs) {
+    validateMobileConfig(npcs, 'npcs');
     const registered = [];
     for (const n of npcs) {
-      if (!n || typeof n.kind !== 'string') continue;
       try {
         api.npcs.register(n);
-        registered.push(n.kind);
+        registered.push(n.definitionId);
       } catch (e) {
-        api.log(`data: npc ${n.kind} failed: ${e.message}`);
+        api.log(`data: npc ${n.definitionId} failed: ${e.message}`);
       }
     }
     api.log(`data: ${registered.length} npc templates from npcs.json`);

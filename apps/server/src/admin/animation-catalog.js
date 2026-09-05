@@ -7,6 +7,19 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ASSETS = path.resolve(HERE, '..', '..', '..', 'client', 'public', 'assets');
 let manifest = null;
 const loadedShards = new Set();
+let customManifest = { mtime: -1, animation: {} };
+
+function customBody(body) {
+  const file = path.join(ASSETS, 'asset-overrides.json');
+  try {
+    const mtime = Math.trunc(fs.statSync(file).mtimeMs);
+    if (customManifest.mtime !== mtime) {
+      const value = JSON.parse(fs.readFileSync(file, 'utf8'));
+      customManifest = { mtime, animation: value?.animation ?? {} };
+    }
+  } catch { customManifest = { mtime: -1, animation: {} }; }
+  return customManifest.animation?.[String(body)] ?? null;
+}
 
 // Same-family compatibility substitutions used by the web client when a
 // legal UO installation ships an incomplete legacy animation archive. These
@@ -148,10 +161,15 @@ function actionCoverage(entry) {
 
 export function animationBodySnapshot(body) {
   const atlas = data();
-  const resolved = resolveBody(body);
-  ensureBodyLoaded(resolved.resolved);
-  const bodyData = atlas.bodies?.[resolved.resolved];
-  const info = atlas.mobTypes?.[resolved.requested] ?? atlas.mobTypes?.[resolved.resolved] ?? null;
+  const custom = customBody(body);
+  const resolved = custom
+    ? { requested: Number(body) | 0, resolved: Number(body) | 0, alias: null, resolvedVia: 'custom' }
+    : resolveBody(body);
+  if (!custom) ensureBodyLoaded(resolved.resolved);
+  const bodyData = custom ?? atlas.bodies?.[resolved.resolved];
+  const info = custom
+    ? { type: custom.type ?? 'MONSTER', custom: true, name: custom.name }
+    : atlas.mobTypes?.[resolved.requested] ?? atlas.mobTypes?.[resolved.resolved] ?? null;
   if (!bodyData) return { ok: false, ...resolved, info, errors: ['Body is absent from mobiles-atlas.json.'], warnings: [], actions: [] };
   const actions = Object.entries(bodyData.actions ?? {}).map(([action, value]) => ({
     action: Number(action),
@@ -161,14 +179,15 @@ export function animationBodySnapshot(body) {
   for (const [semantic, candidates] of Object.entries(requiredSemantics(info))) {
     let chosen = null;
     for (const action of candidates) {
-      if (actionCoverage(bodyData.actions?.[action]).complete) { chosen = action; break; }
+      const coverage = actionCoverage(bodyData.actions?.[action]);
+      if (custom ? coverage.frames > 0 : coverage.complete) { chosen = action; break; }
     }
     if (chosen == null) {
       // ClassicUO ultimately renders the first complete group when a body has
       // non-standard group numbering (birds in several legacy clients are a
       // common example). Record it as a visible compatibility fallback.
       chosen = Object.entries(bodyData.actions ?? {})
-        .find(([, entry]) => actionCoverage(entry).complete)?.[0] ?? null;
+        .find(([, entry]) => custom ? actionCoverage(entry).frames > 0 : actionCoverage(entry).complete)?.[0] ?? null;
     }
     if (chosen == null) {
       errors.push(`No complete action for ${semantic} (tried ${candidates.join(', ')}).`);
@@ -176,6 +195,9 @@ export function animationBodySnapshot(body) {
       chosen = Number(chosen);
       resolvedActions[semantic] = chosen;
       if (chosen !== candidates[0]) warnings.push(`${semantic} uses compatible fallback action ${chosen} instead of ${candidates[0]}.`);
+      if (custom && actionCoverage(bodyData.actions?.[chosen]).directions < 5) {
+        warnings.push(`${semantic} mirrors/falls back to available custom directions until all five native directions are authored.`);
+      }
     }
   }
   for (const [action, entry] of Object.entries(bodyData.actions ?? {})) {
@@ -186,11 +208,19 @@ export function animationBodySnapshot(body) {
           warnings.push(`Action ${action}/${direction}/${index}: sparse frame metadata.`);
           continue;
         }
-        if (frame.page < 0 || frame.page >= atlas.pageCount) errors.push(`Action ${action}/${direction}/${index}: invalid page ${frame.page}.`);
-        if (frame.u < 0 || frame.v < 0 || frame.u + frame.w > atlas.atlasW || frame.v + frame.h > atlas.atlasH) {
-          errors.push(`Action ${action}/${direction}/${index}: frame exceeds atlas bounds.`);
+        if (custom) {
+          const relative = String(frame.file ?? '');
+          const file = path.resolve(ASSETS, relative);
+          if (!relative || relative.includes('..') || !file.startsWith(`${ASSETS}${path.sep}`) || !fs.existsSync(file)) {
+            errors.push(`Action ${action}/${direction}/${index}: custom PNG is missing.`);
+          }
+        } else {
+          if (frame.page < 0 || frame.page >= atlas.pageCount) errors.push(`Action ${action}/${direction}/${index}: invalid page ${frame.page}.`);
+          if (frame.u < 0 || frame.v < 0 || frame.u + frame.w > atlas.atlasW || frame.v + frame.h > atlas.atlasH) {
+            errors.push(`Action ${action}/${direction}/${index}: frame exceeds atlas bounds.`);
+          }
         }
-        if (frame.w <= 0 || frame.h <= 0) warnings.push(`Action ${action}/${direction}/${index}: empty frame.`);
+        if ((frame.w ?? frame.width) <= 0 || (frame.h ?? frame.height) <= 0) warnings.push(`Action ${action}/${direction}/${index}: empty frame.`);
       }
     }
   }
@@ -201,10 +231,11 @@ export function validateMonsterAnimations(monsters) {
   const results = [];
   for (const kind of monsters?.kinds?.() ?? []) {
     const cfg = monsters.get(kind) ?? {};
-    if (!Number.isFinite(cfg.body)) continue;
-    const report = animationBodySnapshot(cfg.body);
+    const bodyId = cfg.bodyId ?? cfg.body;
+    if (!Number.isFinite(bodyId)) continue;
+    const report = animationBodySnapshot(bodyId);
     results.push({
-      kind, name: cfg.name ?? kind, body: cfg.body, ok: report.ok,
+      kind, definitionId: cfg.definitionId ?? kind, name: cfg.name ?? kind, bodyId, body: bodyId, ok: report.ok,
       errors: report.errors, warnings: report.warnings,
       resolved: report.resolved, resolvedActions: report.resolvedActions ?? {},
     });
@@ -218,6 +249,18 @@ export function validateMonsterAnimations(monsters) {
 }
 
 export async function animationFramePng(body, action, direction, frameIndex) {
+  const custom = customBody(body);
+  if (custom) {
+    const actionEntry = custom.actions?.[action] ?? Object.values(custom.actions ?? {})[0];
+    const frames = actionEntry?.dirs?.[direction] ?? actionEntry?.dirs?.['0'] ?? Object.values(actionEntry?.dirs ?? {})[0];
+    const frame = frames?.[Math.max(0, frameIndex | 0) % (frames?.length || 1)];
+    const relative = String(frame?.file ?? '');
+    const file = path.resolve(ASSETS, relative);
+    if (!relative || relative.includes('..') || !file.startsWith(`${ASSETS}${path.sep}`) || !fs.existsSync(file)) return null;
+    return sharp(file)
+      .extend({ top: 8, bottom: 8, left: 8, right: 8, background: { r: 10, g: 14, b: 20, alpha: 0 } })
+      .png().toBuffer();
+  }
   const atlas = data();
   const resolved = resolveBody(body);
   const frames = atlas.bodies?.[resolved.resolved]?.actions?.[action]?.dirs?.[direction];

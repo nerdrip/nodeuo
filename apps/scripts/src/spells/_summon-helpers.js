@@ -56,7 +56,8 @@ function manualSummonFallback(api, kind, spot) {
   const world = api.world;
   if (!world) return null;
   const mob = createMobile(api, world, {
-    name: tmpl.name, body: tmpl.body, hue: tmpl.hue ?? 0,
+    definitionId: tmpl.definitionId ?? kind,
+    name: tmpl.name, bodyId: tmpl.bodyId ?? tmpl.body, hue: tmpl.hue ?? 0,
     x: spot.x, y: spot.y, z: spot.z, map: spot.map,
     notoriety: tmpl.notoriety ?? 1,
     hp: tmpl.hp ?? 50, hpMax: tmpl.hp ?? 50,
@@ -101,6 +102,18 @@ export function summonOne(api, ctx, opts) {
   const followerCost = opts.followerCost ?? (
     (opts.kind === 'energy-vortex' || opts.kind === 'blade-spirits') ? 2 : 1
   );
+  // Repair stale persisted counters before enforcing the cap. The count is
+  // derived from live, individually identified follower mobiles; a summon
+  // removed by an old admin path may no longer exist and therefore must not
+  // reserve slots forever.
+  let liveFollowerSlots = 0;
+  for (const follower of allMobiles(api)) {
+    if (follower === caster || follower.ghost || (follower.hp ?? 1) <= 0) continue;
+    const owner = (follower.controlMaster || follower.summonedBy) >>> 0;
+    if (owner !== (caster.serial >>> 0)) continue;
+    liveFollowerSlots += Math.max(0, follower._followerCost | 0);
+  }
+  caster.followers = liveFollowerSlots;
   const followersMax = caster.followersMax ?? 5;
   if (((caster.followers | 0) + followerCost) > followersMax) {
     ctx.state.sendSystemMessage?.('You have too many followers to summon that creature.');
@@ -139,12 +152,19 @@ export function summonOne(api, ctx, opts) {
   mob.kind ||= opts.kind;
   mob.summoned = true;
   mob.summonedBy = caster.serial >>> 0;
+  // Every summon retains an owner even when it starts in autonomous combat
+  // mode. Ownership drives commands, context-menu actions, follower cleanup
+  // and friendly-fire rules; it does not by itself change the active AI.
+  mob.controlMaster = caster.serial >>> 0;
+  mob.team = caster.team ?? caster.serial;
+  mob._listensToSpeech = true;
+  mob._speechKeywords = ['all'];
   if (opts.aggressive) {
-    // Autonomous combatant — blade spirits / energy vortex behave this
-    // way in retail UO. They stay loyal to the caster (won't attack)
-    // but pick fights with everything else nearby.
+    // Start as an autonomous combatant. The first explicit pet command can
+    // promote this binding to `pet` AI without losing the summoner identity.
     mob.notoriety = 4;                                  // criminal grey
-    mob.team = caster.team ?? caster.serial;            // friendly-fire guard
+    mob.controlOrder = 'guard';
+    mob.commandableSummon = true;
     // BUGFIX: always pass full initState with `home` populated. The
     // previous `attach(mob, 'aggressive')` call with NO state arg made
     // ai.attach() fall through to behavior.initState() which leaves
@@ -158,11 +178,9 @@ export function summonOne(api, ctx, opts) {
       fleeUntil: 0,
     });
   } else {
-    mob.controlMaster = caster.serial >>> 0;
     mob.controlled = true;
     mob.controlOrder = 'follow';
     mob.controlTarget = caster.serial >>> 0;
-    mob.team = caster.serial >>> 0;
     mob.notoriety = 1;                                  // friendly to caster
     mob.aiBehavior = 'pet';
     mob.petCommand = 'follow';

@@ -46,13 +46,18 @@ pool.release(reused);
 pool.destroyAll();
 
 let spriteNow = 500;
-const delayedSprites = new SpritePool(2, 80, () => spriteNow);
+let spriteFrame = 10;
+const delayedSprites = new SpritePool(3, 80, () => spriteNow, () => spriteFrame);
 const staleSprite = delayedSprites.acquire(Texture.EMPTY);
 delayedSprites.release(staleSprite);
 const immediateSprite = delayedSprites.acquire(Texture.EMPTY);
 assert.notEqual(immediateSprite, staleSprite, 'sprite must not be reused while its previous GPU draw may still be queued');
 delayedSprites.release(immediateSprite);
 spriteNow += 81;
+const wallClockOnlySprite = delayedSprites.acquire(Texture.EMPTY);
+assert.notEqual(wallClockOnlySprite, immediateSprite, 'elapsed wall time without rendered frames must not end GPU quarantine');
+delayedSprites.release(wallClockOnlySprite);
+spriteFrame += 2;
 const reusableSprite = delayedSprites.acquire(Texture.EMPTY);
 assert.equal(reusableSprite, immediateSprite, 'sprite becomes reusable after the frame quarantine');
 delayedSprites.release(reusableSprite);
@@ -87,7 +92,8 @@ meshPool.destroyAll();
 // Production meshes are deliberately not recycled while Pixi may still have
 // a render instruction for their old owner queued in the current frame.
 let now = 1000;
-const quarantinedPool = new LandMeshPool(2, 120, () => now);
+let meshFrame = 20;
+const quarantinedPool = new LandMeshPool(2, 120, () => now, () => meshFrame);
 const oldMesh = quarantinedPool.acquire(
   Texture.EMPTY,
   new Float32Array([0, 0, 1, 0, 0, 1]),
@@ -104,6 +110,15 @@ const freshMesh = quarantinedPool.acquire(
 assert.notEqual(freshMesh, oldMesh, 'land mesh must not be reused inside its GPU quarantine window');
 quarantinedPool.release(freshMesh);
 now += 121;
+const wallClockOnlyMesh = quarantinedPool.acquire(
+  Texture.EMPTY,
+  new Float32Array([0, 0, 1, 0, 0, 1]),
+  new Float32Array([0, 0, 1, 0, 0, 1]),
+  new Uint32Array([0, 1, 2]),
+);
+assert.notEqual(wallClockOnlyMesh, freshMesh, 'elapsed wall time without rendered frames must not recycle a land mesh');
+quarantinedPool.release(wallClockOnlyMesh);
+meshFrame += 2;
 const safeMesh = quarantinedPool.acquire(
   Texture.EMPTY,
   new Float32Array([0, 0, 1, 0, 0, 1]),

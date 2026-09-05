@@ -2,6 +2,7 @@ import { Graphics } from 'pixi.js';
 import {
   TILE_HALF_H, TILE_HALF_W, worldToScreenX, worldToScreenY,
 } from './iso.js';
+import { bus } from '../core/event-bus.js';
 
 function tileKey(x, y) { return `${x}|${y}`; }
 
@@ -72,6 +73,10 @@ export class SpellRangePreview {
     this.landAt = landAt;
     this.spec = null;
     this._lastKey = '';
+    // Composer ranges are only meaningful while editing. A server/admin
+    // target prompt (e.g. [kill]) supersedes that context; clear the old ring
+    // so its blue diamonds cannot masquerade as terrain corruption.
+    this._offTarget = bus.on('target:active', () => this.clear());
   }
 
   get active() { return !!this.spec; }
@@ -126,5 +131,9 @@ export class SpellRangePreview {
       .stroke({ width: 1, color: stroke, alpha: strokeAlpha });
   }
 
-  destroy() { this.graphics.destroy(); }
+  destroy() {
+    this._offTarget?.();
+    this._offTarget = null;
+    this.graphics.destroy();
+  }
 }

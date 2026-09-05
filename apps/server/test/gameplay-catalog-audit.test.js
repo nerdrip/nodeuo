@@ -28,8 +28,8 @@ describe('gameplay data catalog audit', () => {
     ]);
     const unresolved = [];
     for (const template of monsters) {
-      const desired = desiredAiForMob({ kind: template.kind }, template);
-      if (!executable.has(desired)) unresolved.push(`${template.kind}:${desired}`);
+      const desired = desiredAiForMob({ definitionId: template.definitionId, kind: template.definitionId }, template);
+      if (!executable.has(desired)) unresolved.push(`${template.definitionId}:${desired}`);
     }
     expect(monsters).toHaveLength(803);
     expect(unresolved).toEqual([]);

@@ -41,6 +41,7 @@ import { registerAlertRoutes } from './alert-routes.js';
 import { registerVerificationRoutes } from './verification-routes.js';
 import { registerPlatformRoutes } from './platform-routes.js';
 import { registerGameSystemRoutes } from './game-system-routes.js';
+import { ContentProfileStore } from './content-profile-store.js';
 import { resolveAdminCharacters } from './admin-characters.js';
 import { notifyNodeUOAssetChanged } from '../net/handlers/nodeuo-modern.js';
 import {
@@ -99,6 +100,7 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
   let testJobSequence = 0;
   const clientAssetsDir = path.join(repoRoot, 'apps/client/public/assets');
   const studioAssetCatalogCache = new Map();
+  let studioAppearanceAssets = null;
 
 
   function readClientAssetJson(name) {
@@ -112,11 +114,58 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
     return `#${channel(10)}${channel(5)}${channel(0)}`;
   }
 
+  function resolveStudioItemAppearance(artId) {
+    const id = Number(artId);
+    if (!Number.isInteger(id) || id < 0 || id > 0xFFFF) return { error: 'artId must be in range 0..65535' };
+    try {
+      studioAppearanceAssets ||= {
+        tiledata: readClientAssetJson('tiledata.json'),
+        gumps: readClientAssetJson('gump-atlas.json'),
+        mobiles: (() => {
+          try { return readClientAssetJson('mobiles-atlas-index.json'); }
+          catch { return readClientAssetJson('mobiles-atlas.json'); }
+        })(),
+      };
+      const tile = studioAppearanceAssets.tiledata?.statics?.[id] ?? null;
+      const tiles = studioAppearanceAssets.gumps?.tiles ?? {};
+      const equipConv = studioAppearanceAssets.mobiles?.equipConv ?? {};
+      const convertedBase = (body) => {
+        let gump = Number(equipConv?.[body]?.[id]?.gump ?? 0) | 0;
+        if (gump >= 60000) gump -= 60000;
+        else if (gump >= 50000) gump -= 50000;
+        return gump > 0 ? gump : 0;
+      };
+      const base = convertedBase(400) || convertedBase(401) || (Number(tile?.animId) | 0);
+      const maleCandidate = base > 0 ? base + 50000 : id + 50000;
+      const femaleCandidate = base > 0 ? base + 60000 : id + 60000;
+      const male = tiles[maleCandidate] ? maleCandidate : 0;
+      const femaleSpecific = tiles[femaleCandidate] ? femaleCandidate : 0;
+      const female = femaleSpecific || male;
+      return {
+        artId: id,
+        tileName: String(tile?.name ?? '').trim(),
+        tileLayer: Number(tile?.layer ?? 0) | 0,
+        animationId: Number(tile?.animId ?? 0) | 0,
+        maleGumpId: male,
+        femaleGumpId: female,
+        femaleSpecificGumpId: femaleSpecific,
+        source: convertedBase(400) || convertedBase(401) ? 'equipconv'
+          : Number(tile?.animId) > 0 ? 'tiledata' : male ? 'legacy-art-offset' : 'missing',
+        renderable: !!male,
+      };
+    } catch (error) {
+      return { artId: id, error: `appearance assets unavailable: ${error.message}`, renderable: false };
+    }
+  }
+
   // Lazily materialized because atlas manifests are large and must not slow
   // normal shard startup.  The picker requests only one bounded page.
   function studioAssetCatalog(kind) {
     if (studioAssetCatalogCache.has(kind)) return studioAssetCatalogCache.get(kind);
     let entries = [];
+    let customAssets = {};
+    try { customAssets = JSON.parse(fs.readFileSync(path.join(clientAssetsDir, 'asset-overrides.json'), 'utf8')); }
+    catch { /* optional custom asset layer */ }
     if (kind === 'item') {
       const atlas = readClientAssetJson('static-atlas.json');
       let tiledata = {};
@@ -128,15 +177,30 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
         if (id < 0 || id > 0xffff || seen.has(id)) return null;
         seen.add(id);
         const name = String(tiledata.statics?.[id]?.name ?? '').trim();
-        return { id, name: name || `Item 0x${id.toString(16).padStart(4, '0')}`, width: tile.w, height: tile.h,
-          preview: `/api/studio/art/${id}` };
+        const custom = customAssets.static?.[id];
+        return { id, name: custom?.name || name || `Item 0x${id.toString(16).padStart(4, '0')}`, width: custom?.width ?? tile.w, height: custom?.height ?? tile.h,
+          source: custom ? 'custom-override' : 'ultima', preview: `/api/assets/editor/preview/static/${id}` };
       }).filter(Boolean);
+      for (const [rawId, custom] of Object.entries(customAssets.static ?? {})) {
+        const id = Number(rawId);
+        if (!Number.isInteger(id) || seen.has(id) || custom?.mode !== 'add') continue;
+        entries.push({ id, name: custom.name || `Custom item ${id}`, width: custom.width, height: custom.height,
+          source: 'custom', preview: `/api/assets/editor/preview/static/${id}` });
+      }
     } else if (kind === 'gump') {
       const atlas = readClientAssetJson('gump-atlas.json');
       entries = Object.entries(atlas.tiles ?? {}).map(([id, tile]) => ({
         id: Number(id), name: `Gump 0x${Number(id).toString(16).padStart(4, '0')}`,
-        width: tile.w, height: tile.h, preview: `/api/studio/gump-art/${Number(id)}`,
+        width: customAssets.gump?.[id]?.width ?? tile.w, height: customAssets.gump?.[id]?.height ?? tile.h,
+        source: customAssets.gump?.[id] ? 'custom-override' : 'ultima', preview: `/api/assets/editor/preview/gump/${Number(id)}`,
       }));
+      const seen = new Set(entries.map((entry) => entry.id));
+      for (const [rawId, custom] of Object.entries(customAssets.gump ?? {})) {
+        const id = Number(rawId);
+        if (!Number.isInteger(id) || seen.has(id) || custom?.mode !== 'add') continue;
+        entries.push({ id, name: custom.name || `Custom gump ${id}`, width: custom.width, height: custom.height,
+          source: 'custom', preview: `/api/assets/editor/preview/gump/${id}` });
+      }
     } else if (kind === 'body') {
       let atlas;
       try { atlas = readClientAssetJson('mobiles-atlas-index.json'); }
@@ -146,10 +210,13 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
         try {
           const rows = JSON.parse(fs.readFileSync(path.join(scriptsDir, 'data', relative), 'utf8'));
           for (const row of (Array.isArray(rows) ? rows : [])) {
-            const body = Number(row?.body);
+            const body = Number(row?.bodyId ?? row?.body);
             if (!Number.isFinite(body)) continue;
-            const label = String(row.name ?? row.kind ?? '').trim();
-            if (label && !names.has(body)) names.set(body, label);
+            const label = String(row.name ?? row.definitionId ?? row.kind ?? '').trim();
+            if (label) {
+              if (!names.has(body)) names.set(body, new Set());
+              names.get(body).add(label);
+            }
           }
         } catch { /* optional authoring data */ }
       }
@@ -159,9 +226,23 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
       entries = bodyIds.map((id) => {
         const body = Number(id);
         const type = atlas.mobTypes?.[id]?.type;
-        return { id: body, name: names.get(body) ?? `${type ? `${type.toLowerCase()} ` : ''}body 0x${body.toString(16)}`,
-          preview: `/api/studio/body-art/${body}` };
+        const variants = [...(names.get(body) ?? [])];
+        const variantLabel = variants.length
+          ? `${variants.slice(0, 3).join(' / ')}${variants.length > 3 ? ` (+${variants.length - 3})` : ''}`
+          : null;
+        const custom = customAssets.animation?.[body];
+        return { id: body, name: custom?.name ?? variantLabel ?? `${type ? `${type.toLowerCase()} ` : ''}body 0x${body.toString(16)}`,
+          definitions: variants.length,
+          source: custom ? 'custom-override' : 'ultima',
+          preview: custom ? `/api/assets/editor/preview/animation/${body}` : `/api/studio/body-art/${body}` };
       });
+      const seen = new Set(entries.map((entry) => entry.id));
+      for (const [rawId, custom] of Object.entries(customAssets.animation ?? {})) {
+        const id = Number(rawId);
+        if (!Number.isInteger(id) || seen.has(id) || custom?.mode !== 'add') continue;
+        entries.push({ id, name: custom.name || `Custom mobile ${id}`, definitions: 0,
+          source: 'custom', preview: `/api/assets/editor/preview/animation/${id}` });
+      }
     } else if (kind === 'hue') {
       const source = readClientAssetJson('hues.json');
       entries = [{ id: 0, name: 'No hue / natural color', color: '#ffffff' }, ...(source.hues ?? []).map((hue, index) => ({
@@ -180,24 +261,45 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
   // canonical JSON source used by gameplay scripts; writes still go through
   // /api/data-tree/file (backup + optimistic mtime check + optional reload).
   const studioDomains = [
-    { id:'mobiles', label:'Mobiles & AI', icon:'🐉', files:['config/monsters.json','config/npcs.json'], preview:'mobile', tags:['body','hue','stats','skills','ai','equipment','loot','resists','mount','pet'] },
-    { id:'items', label:'Items', icon:'⚔️', files:['config/items.json','config/item-types.json','config/magic-properties.json'], preview:'item', tags:['art','hue','layer','amount','weight','flags','durability','container','scripts'] },
-    { id:'multis', label:'Multis, houses & boats', icon:'🏰', files:['config/housedata.json','world/addons.json','world/addons.generated.json'], preview:'multi', tags:['footprint','house','boat','addon'] },
+    { id:'mobiles', label:'Mobiles & AI', icon:'🐉', files:['config/monsters.json','config/npcs.json'], preview:'mobile', tags:['definitionId','bodyId','hue','stats','skills','ai','equipment','loot','resists','mount','pet'] },
+    { id:'items', label:'Item definitions', icon:'⚔️', files:['config/items.json','config/item-types.json'], preview:'item', tags:['definitionId','artId','hue','paperdoll','layer','weight','container','script'] },
+    { id:'housing', label:'House customization', icon:'🏠', files:['config/housedata.json'], preview:'housing', tags:['walls','doors','floors','stairs','roofs','styles','pieces','cliloc'] },
+    { id:'multis', label:'Multis & add-ons', icon:'🏰', files:['world/addons.json','world/addons.generated.json'], preview:'multi', tags:['footprint','components','addon','house','boat'] },
     { id:'links', label:'Doors, signs & teleporters', icon:'🚪', files:['world/signs.json','world/teleporters.json'], preview:'link', tags:['door','sign','teleporter','links'] },
-    { id:'vendors', label:'Vendors & rentals', icon:'🛒', files:['config/vendor-inventory.json','config/store-catalogue.json','world/regional-npcs.json','world/spawns/magincia-bazaar.json'], preview:'vendor', tags:['buy','sell','price','stock','restock','rental'] },
+    { id:'vendors', label:'Vendor stock & store', icon:'🛒', files:['config/vendor-inventory.json','config/store-catalogue.json'], preview:'vendor', tags:['buy','sell','price','stock','restock','store','sku'] },
     { id:'crafting', label:'Crafting', icon:'🛠️', files:['config/recipes.json','config/magincia-recipes.json'], preview:'craft', tags:['profession','recipe','requirements','materials','chance','result','dependencies'] },
     { id:'skills', label:'Skills', icon:'📈', files:['config/skills.json'], preview:'skill', tags:['id','cap','gain','handler'] },
     { id:'spells', label:'Spells', icon:'✨', files:['config/spells.json','config/reagents.json'], preview:'spell', tags:['circle','mana','reagents','target','effect','lifecycle'] },
-    { id:'combat', label:'Combat & abilities', icon:'🛡️', files:['config/monsters.json','config/items.json','config/poison-levels.json'], preview:'combat', tags:['weapon','speed','damage','ability','requirements','resists'] },
+    { id:'magic', label:'Magic properties & poison', icon:'🛡️', files:['config/magic-properties.json','config/poison-levels.json'], preview:'combat', tags:['attribute','intensity','poison','damage','chance'] },
     { id:'loot', label:'Loot tables', icon:'💎', files:['config/loot-tables.json','config/loot-packs.json','world/artifacts.json','world/eodon-artifacts.json'], preview:'loot', tags:['nested','weight','simulation','drop'] },
     { id:'quests', label:'Quests & dialogue', icon:'📜', files:['world/quest-chains.json','world/quests-extracted.json','world/quest-reward-items.json'], preview:'quest', tags:['graph','step','condition','dialog','reward'] },
     { id:'books', label:'Books, BOD & collections', icon:'📚', files:['world/books-extended.json','world/books.servuo.generated.json','world/anniversary-tiers.json'], preview:'book', tags:['book','bod','collection','achievement'] },
     { id:'environment', label:'Weather, seasons & events', icon:'🌦️', files:['world/seasonal-events.json','world/camps.json','world/revamped-dungeons.json'], preview:'environment', tags:['weather','season','day','night','calendar','scheduler'] },
     { id:'world', label:'Regions & world design', icon:'🗺️', files:['world/decorations.json','world/decoratives.json','world/xmlspawners.json'], preview:'world', tags:['region','geometry','guards','music','spawner'] },
     { id:'gumps', label:'Gumps & layouts', icon:'🪟', files:['config/gumps.json','config/server-gump-catalog.json','@client/client-gumps.json'], preview:'gump', tags:['layout','drag','resize','overflow','dialog','client-preview','server-source','json'] },
-    { id:'create', label:'Create catalogue', icon:'➕', files:['config/items.json','config/monsters.json','config/housedata.json'], preview:'create', tags:['item','mobile','mount','multi','favorite','recent'] },
     { id:'game-systems', label:'Game systems', icon:'🎲', files:['config/game-systems.json'], preview:'game-system', tags:['activity','stages','events','rewards','client','compatibility'] },
   ];
+  const clientGumpDefinitionsFile = path.join(sourceRepoRoot, 'apps/client/public/client-gumps.json');
+  const studioProfileSources = [];
+  const profileSourceRoot = path.join(scriptsDir, 'data');
+  const pendingProfileDirs = [profileSourceRoot];
+  while (pendingProfileDirs.length) {
+    const directory = pendingProfileDirs.pop();
+    let entries = [];
+    try { entries = fs.readdirSync(directory, { withFileTypes: true }); } catch { /* optional tree */ }
+    for (const entry of entries) {
+      const file = path.join(directory, entry.name);
+      if (entry.isDirectory()) pendingProfileDirs.push(file);
+      else if (entry.isFile() && entry.name.endsWith('.json')) {
+        studioProfileSources.push({ key: path.relative(profileSourceRoot, file).replaceAll('\\', '/'), file });
+      }
+    }
+  }
+  studioProfileSources.push({ key: '@client/client-gumps.json', file: clientGumpDefinitionsFile });
+  const contentProfiles = new ContentProfileStore({
+    rootDir: path.join(saveDir, 'content-studio-profiles'),
+    sources: studioProfileSources,
+  });
 
   const scriptingDocPages = [
     { id:'start', title:'Start', icon:'start', kicker:'model and first script', source:'docs/scripting/getting-started.md' },
@@ -275,9 +377,43 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
       })),
       capabilities: {
         drafts: true, optimisticConcurrency: true, diffPreview: true,
-        undoRedo: true, importExport: true, bulkEdit: true, liveReload: !!scriptRuntime,
+        undoRedo: true, importExport: true, bulkEdit: true, profiles: true, liveReload: !!scriptRuntime,
       },
     }),
+  });
+  routes.push({
+    method: 'GET', path: '/api/studio/profiles',
+    run: () => contentProfiles.state(),
+  });
+  routes.push({
+    method: 'POST', path: '/api/studio/profiles',
+    run: ({ session, body }) => contentProfiles.create(body?.label, { actor: session?.account }),
+  });
+  routes.push({
+    method: 'GET', path: '/api/studio/profiles/:id/export',
+    run: ({ params }) => contentProfiles.export(params.id),
+  });
+  routes.push({
+    method: 'DELETE', path: '/api/studio/profiles/:id',
+    run: ({ session, params }) => contentProfiles.remove(params.id, { actor: session?.account }),
+  });
+  routes.push({
+    method: 'POST', path: '/api/studio/profiles/:id/restore',
+    run: async ({ session, params }) => {
+      const result = contentProfiles.restore(params.id, { actor: session?.account });
+      if (!result.ok) return result;
+      studioAssetCatalogCache.clear();
+      studioAppearanceAssets = null;
+      if (!scriptRuntime?.load) return { ...result, clientRefreshRequired: true };
+      const started = Date.now();
+      try {
+        await scriptRuntime.load({ reason: `content-profile:${params.id}`, emitEvent: true });
+        return { ...result, reloaded: { ok: true, ms: Date.now() - started,
+          loaded: scriptRuntime.loaded?.length ?? 0 }, clientRefreshRequired: true };
+      } catch (error) {
+        return { ...result, reloaded: { ok: false, error: error.message }, clientRefreshRequired: true };
+      }
+    },
   });
   routes.push({
     method: 'POST', path: '/api/studio/sandbox/spell',
@@ -332,6 +468,11 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
         || `0x${entry.id.toString(16)}`.includes(q)) : all;
       return { kind, offset, limit, total: filtered.length, entries: filtered.slice(offset, offset + limit) };
     },
+  });
+
+  routes.push({
+    method: 'GET', path: '/api/studio/item-appearance',
+    run: ({ query }) => resolveStudioItemAppearance(query?.get?.('artId')),
   });
 
   routes.push({
@@ -1263,6 +1404,8 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
       .some((item) => item?._multiAnchor && (item.multiId | 0) === (id | 0))
       || sharedCtx.boats?.isMultiIdInUse?.(id) === true,
     onChanged: (change) => {
+      studioAssetCatalogCache.clear();
+      studioAppearanceAssets = null;
       world?.events?.emit?.('assets:changed', change);
       notifyNodeUOAssetChanged(sharedCtx.connections, change);
     },
@@ -1423,7 +1566,6 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
   // the repository in those deployments.
   const clientGumpSourceDir = path.join(sourceRepoRoot, 'apps/client/src/ui/gumps');
   const serverSourceDir = path.join(sourceRepoRoot, 'apps/server/src');
-  const clientGumpDefinitionsFile = path.join(sourceRepoRoot, 'apps/client/public/client-gumps.json');
 
   routes.push({
     method: 'GET', path: '/api/studio/server-source',
@@ -1490,7 +1632,7 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
 
   routes.push({
     method: 'PUT', path: '/api/studio/client-gump-definitions',
-    run: ({ body }) => {
+    run: ({ session, body }) => {
       const data = body?.data;
       if (!Array.isArray(data)) return { error: 'client gump definitions must be an array' };
       if (data.length > 2048) return { error: 'client gump definition limit is 2048' };
@@ -1529,6 +1671,7 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
           return { error: 'client gump catalogue changed on disk since it was opened', conflict: true,
             expectedMtime: Math.trunc(expectedMtime), actualMtime: Math.trunc(before.mtimeMs) };
         }
+        contentProfiles.ensureWritableProfile({ actor: session?.account });
         fs.mkdirSync(path.dirname(clientGumpDefinitionsFile), { recursive: true });
         let backup = null;
         if (before) {
@@ -1547,7 +1690,11 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
         fs.writeFileSync(temp, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
         fs.renameSync(temp, clientGumpDefinitionsFile);
         const stat = fs.statSync(clientGumpDefinitionsFile);
+        const profile = contentProfiles.recordFile('@client/client-gumps.json', {
+          actor: session?.account, message: 'Published client gump definitions',
+        });
         return { ok: true, path: '@client/client-gumps.json', size: stat.size, mtime: Math.trunc(stat.mtimeMs), backup,
+          profile,
           reloaded: { ok: true, scope: 'client-json', detail: 'Newly opened client gumps use the updated local catalogue after refresh/reload.' } };
       } catch (error) { return { error: `write failed: ${error.message}` }; }
     },
@@ -1908,7 +2055,7 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
 
   routes.push({
     method: 'PUT', path: '/api/data-tree/file',
-    run: async ({ query, body }) => {
+    run: async ({ session, query, body }) => {
       const abs = safeJoinData(query?.get?.('path'));
       if (!abs) return { error: 'invalid path (must be under apps/scripts/src/data/*.json)' };
       if (body == null) return { error: 'missing JSON body' };
@@ -1930,6 +2077,7 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
         // output + reject NaN/Infinity/functions sneaking through the
         // PUT (those would throw on next server boot).
         const text = JSON.stringify(data, null, body?.pretty === false ? 0 : 2);
+        contentProfiles.ensureWritableProfile({ actor: session?.account });
         // Backup before overwrite — keeps the last 5 versions so the
         // operator can compare a regression without git history.
         let backup = null;
@@ -1962,6 +2110,9 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
           throw e;
         }
         const st = fs.statSync(abs);
+        const profile = contentProfiles.recordFile(query.get('path'), {
+          actor: session?.account, message: `Published ${query.get('path')}`,
+        });
         let reloaded = null;
         if (body?.reload && scriptRuntime?.load) {
           const t0 = Date.now();
@@ -1974,6 +2125,7 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
           size: st.size,
           mtime: Math.trunc(st.mtimeMs),
           backup,
+          profile,
           reloaded,
           before: before ? { size: before.size, mtime: Math.trunc(before.mtimeMs) } : null,
           after: { size: st.size, mtime: Math.trunc(st.mtimeMs) },

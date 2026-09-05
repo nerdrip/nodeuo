@@ -49,7 +49,7 @@ describe('peerless mob templates (PHASE FU)', () => {
       path.resolve(here, '..', '..', 'scripts', 'src', 'data', 'config', 'monsters.json'),
       'utf8',
     ));
-    const byKind = new Map(mons.map((m) => [m.kind, m]));
+    const byKind = new Map(mons.map((m) => [m.definitionId, m]));
     for (const kind of ['travesty', 'lady-mel', 'shimmering-effusion']) {
       const tpl = byKind.get(kind);
       expect(tpl).toBeTruthy();
@@ -64,7 +64,7 @@ describe('weapons set runtime descriptor (PHASE FN)', () => {
     const itemReg = await import('../src/content/items/registry.js');
     const mod = await import('../../scripts/src/items/definitions/weapons.js');
     await mod.default({ catalog: { items: itemReg }, log: () => {} });
-    const bow = itemReg.getItem(0x13B2);
+    const bow = itemReg.getItem('bow@13b2');
     expect(bow.weapon).toBeTruthy();
     expect(bow.weapon.skill).toBe(32);
     expect(bow.weapon.range).toBe(8);
@@ -73,13 +73,13 @@ describe('weapons set runtime descriptor (PHASE FN)', () => {
 
   it('crossbow uses bolts (0x1BFB) instead of arrows', async () => {
     const { getItem } = await import('../src/content/items/registry.js');
-    const xbow = getItem(0x0F50);
+    const xbow = getItem('crossbow@f50');
     expect(xbow.weapon.ammoId).toBe(0x1BFB);
   });
 
   it('melee weapons get range:1 + ammoId:null', async () => {
     const { getItem } = await import('../src/content/items/registry.js');
-    const sword = getItem(0x0F51); // Dagger
+    const sword = getItem('dagger@f51');
     expect(sword.weapon.range).toBe(1);
     expect(sword.weapon.ammoId).toBe(null);
   });
@@ -88,7 +88,7 @@ describe('weapons set runtime descriptor (PHASE FN)', () => {
     const itemReg = await import('../src/content/items/registry.js');
     const mod = await import('../../scripts/src/items/definitions/weapons-extra.js');
     await mod.default({ catalog: { items: itemReg }, log: () => {} });
-    const boomerang = itemReg.getItem(0x4068);
+    const boomerang = itemReg.getItem('boomerang@4068');
     expect(boomerang.weapon.skill).toBe(58);
   });
 });

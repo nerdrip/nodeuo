@@ -106,6 +106,9 @@ describe('banker AI', () => {
     const spawned = [...world.mobiles.values()].at(-1);
 
     expect(spawned?._speechKeywords).toEqual(['bank', 'balance', 'withdraw', 'check']);
+    expect(spawned?.kind).toBe('banker');
+    expect(spawned?.npcRole).toBe('banker');
+    expect(spawned?.title).toBe('the banker');
     expect(api.ai.attach).toHaveBeenCalledWith(spawned, 'banker');
   });
 

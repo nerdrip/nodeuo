@@ -112,6 +112,24 @@ export function killMobile(world, mob, killer = null) {
   // Once a player is a ghost (or an NPC has already left the world), a
   // repeated callback must not create another corpse or award kill hooks.
   if (!mob || mob.ghost || !world?.mobiles?.has?.(mob.serial)) return null;
+  // Temporary summons return directly to the ether. Creating a corpse here
+  // was doubly wrong: it exposed an empty loot container and kept the
+  // summoner's follower slots occupied until the later expiry sweep.
+  if (mob.summoned || mob.summonedUntil || mob.summonedBy) {
+    mob.hp = 0;
+    const master = world.mobiles.get((mob.controlMaster || mob.summonedBy) >>> 0);
+    if (typeof world.releaseFollowerSlots === 'function') world.releaseFollowerSlots(mob);
+    else {
+      const slots = mob._followerCost | 0;
+      if (master && slots > 0) master.followers = Math.max(0, (master.followers | 0) - slots);
+      mob._followerCost = 0;
+    }
+    world._summons?.delete?.(mob.serial >>> 0);
+    broadcastInRange(world, mob, (client) => client.send(removeEntity(mob.serial)));
+    world.destroyMobile?.(mob.serial);
+    master?.client?.sendSystemMessage?.(`Your ${mob.name ?? 'summon'} returns to the ether.`);
+    return null;
+  }
   // Audit #37 P1 #4 — ServUO `GiftOfLifeSpell.HandleDeath_OnCallback`
   // intercepts death and auto-resurrects the buffed mobile, restoring
   // HP via `hitsScalar = spellweaving/240 + focusLevel/100`. Was

@@ -122,8 +122,17 @@ function isLayerCovered(mob, layer) {
 /** Resolve the paperdoll equipment gump id for a given (body, itemId).
  *  Mirrors the inline lookup `_refresh` already does — extracted so the
  *  hover-preview overlay can use the exact same fallback chain. */
-function resolveEquipGumpId(body, itemId) {
+export function resolveEquipGumpId(body, itemOrId) {
+  const equipment = itemOrId && typeof itemOrId === 'object' ? itemOrId : null;
+  const itemId = equipment ? equipment.itemId | 0 : itemOrId | 0;
   const isFemale = (body === 0x191 || body === 0x193);
+  // Definition-owned paperdoll art is authoritative. It deliberately has no
+  // relationship to ground artId/itemId: an artifact may look like a book in
+  // the world and render as a complete suit of armour when equipped.
+  const explicit = Number(isFemale
+    ? (equipment?.paperdollFemaleGumpId ?? equipment?.paperdollGumpId ?? equipment?.paperdollMaleGumpId)
+    : (equipment?.paperdollMaleGumpId ?? equipment?.paperdollGumpId ?? equipment?.paperdollFemaleGumpId));
+  if (Number.isInteger(explicit) && explicit > 0) return explicit;
   const renderBody = assets.mobileRenderBody?.(body) ?? body;
   const gMap = assets.mobilesAtlas?.equipConv?.[renderBody]?.[itemId]
     ?? assets.mobilesAtlas?.equipConv?.[body]?.[itemId];
@@ -477,7 +486,7 @@ export class PaperdollGump extends Gump {
       // fallback is itemId+50000 (lets GumpPic show a placeholder
       // for missing entries — chest/arms art that's not in the
       // catalogue surfaces as a tinted rectangle, not invisibly).
-      const gumpId = resolveEquipGumpId(mob.body, eq.itemId);
+      const gumpId = resolveEquipGumpId(mob.body, eq);
       if (!gumpId) continue;
       desired.push({ layer, eq, gumpId });
     }
@@ -657,7 +666,8 @@ export class PaperdollGump extends Gump {
     if (this._preview && this._previewItemId === held.itemId) return;
     if (this._preview) { this._preview.dispose(); this._preview = null; }
     const mob = world.mobiles.get(this.mobileSerial);
-    const gumpId = resolveEquipGumpId(mob?.body | 0, held.itemId | 0);
+    const item = world.items.get(held.serial >>> 0);
+    const gumpId = resolveEquipGumpId(mob?.body | 0, { ...held, ...item });
     if (!gumpId) return;
     const pic = new GumpPic(gumpId, { hue: held.hue ?? 0 });
     pic.setPosition(BODY_OFFSET_X, BODY_OFFSET_Y);

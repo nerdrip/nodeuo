@@ -73,6 +73,70 @@ describe('admin asset routes', () => {
     ]);
   });
 
+  it('keeps new custom IDs separate from native assets and labels native overrides', async () => {
+    const assetsDir = fixture();
+    fs.writeFileSync(path.join(assetsDir, 'land-atlas.json'), JSON.stringify({
+      tiles: { 1: { page: 0, u: 0, v: 0, w: 44, h: 44 } },
+    }));
+    const routes = [];
+    registerAssetRoutes(routes, { assetsDir });
+    const pngBase64 = (await sharp({ create: { width: 3, height: 4, channels: 4,
+      background: { r: 30, g: 220, b: 90, alpha: 1 } } }).png().toBuffer()).toString('base64');
+
+    const added = await route(routes, 'PUT', '/api/assets/editor/override/:kind/:id').run({
+      params: { kind: 'static', id: '60000' }, body: { pngBase64, name: 'emerald katana art' },
+    });
+    expect(added).toMatchObject({ ok: true, kind: 'static', id: 60000, mode: 'add' });
+    const custom = await route(routes, 'GET', '/api/assets/editor/entries/:kind').run({
+      params: { kind: 'static' }, query: new URLSearchParams({ source: 'custom' }),
+    });
+    expect(custom.entries).toEqual([expect.objectContaining({
+      id: '60000', source: 'custom', value: expect.objectContaining({ name: 'emerald katana art' }),
+    })]);
+
+    const overridden = await route(routes, 'PUT', '/api/assets/editor/override/:kind/:id').run({
+      params: { kind: 'land', id: '1' }, body: { pngBase64, name: 'custom rock' },
+    });
+    expect(overridden).toMatchObject({ ok: true, mode: 'override' });
+    const nativeList = await route(routes, 'GET', '/api/assets/editor/entries/:kind').run({
+      params: { kind: 'land' }, query: new URLSearchParams({ q: 'rock' }),
+    });
+    expect(nativeList.entries[0]).toMatchObject({ id: '1', source: 'custom-override' });
+  });
+
+  it('authors persistent custom mobile animation frames outside the native atlas', async () => {
+    const assetsDir = fixture();
+    const routes = [];
+    registerAssetRoutes(routes, { assetsDir });
+    const pngBase64 = (await sharp({ create: { width: 7, height: 9, channels: 4,
+      background: { r: 100, g: 60, b: 210, alpha: 1 } } }).png().toBuffer()).toString('base64');
+    const saved = await route(routes, 'PUT', '/api/assets/editor/override/:kind/:id').run({
+      params: { kind: 'animation', id: '50000' },
+      body: { pngBase64, name: 'voidling', type: 'MONSTER', action: 0, direction: 0, frameIndex: 0, cx: 3, cy: 8 },
+    });
+    expect(saved).toMatchObject({ ok: true, kind: 'animation', id: 50000, mode: 'add', width: 7, height: 9 });
+    const manifest = JSON.parse(fs.readFileSync(path.join(assetsDir, 'asset-overrides.json')));
+    expect(manifest).toMatchObject({ schemaVersion: 2, animation: { 50000: {
+      name: 'voidling', source: 'custom', mode: 'add',
+      actions: { 0: { dirs: { 0: [{ w: 7, h: 9, cx: 3, cy: 8 }] } } },
+    } } });
+    const list = await route(routes, 'GET', '/api/assets/editor/entries/:kind').run({
+      params: { kind: 'animation' }, query: new URLSearchParams({ source: 'custom' }),
+    });
+    expect(list.entries).toEqual([expect.objectContaining({ id: '50000', source: 'custom' })]);
+
+    const response = new PassThrough();
+    const chunks = [];
+    response.writeHead = (status, headers) => { response.status = status; response.headers = headers; };
+    response.on('data', (chunk) => chunks.push(chunk));
+    await route(routes, 'GET', '/api/assets/editor/preview/:kind/:id').run({
+      params: { kind: 'animation', id: '50000' }, res: response,
+    });
+    await new Promise((resolve) => response.once('finish', resolve));
+    expect(response.status).toBe(200);
+    expect(Buffer.concat(chunks).length).toBeGreaterThan(8);
+  });
+
   it('extracts an atlas preview while parsing its manifest in a worker', async () => {
     const assetsDir = fixture();
     fs.writeFileSync(path.join(assetsDir, 'gump-atlas.json'), JSON.stringify({

@@ -180,6 +180,11 @@ class AssetManager {
       land: new Map(), static: new Map(), gump: new Map(), texmap: new Map(),
     };
     this._overrideTextureLoads = new Map();
+    /** Custom mobile bodies are direct PNG frame cycles and deliberately live
+     * outside the extracted UO atlas. Re-extraction can replace the native
+     * atlas without changing these definitions or their textures. */
+    this._customMobileBodies = new Map();
+    this._customMobileTextureLoads = new Map();
 
     /** Backwards-compat aliases — point at the *current* facet's slabs.
      *  Updated by `setFacet()`. New callers should go through facet methods. */
@@ -247,6 +252,7 @@ class AssetManager {
   async ensureMobileBody(body) {
     if (!this.mobilesAtlas) return false;
     const requested = body | 0;
+    if (this._customMobileBodies.has(requested)) return true;
     if (!this.mobilesAtlas.shards) return !!this.mobilesAtlas.bodies?.[requested];
     const candidates = new Set([requested]);
     const alias = this.mobilesAtlas.aliases?.[requested];
@@ -257,6 +263,32 @@ class AssetManager {
     candidates.add(requested < 200 ? GENERIC_MONSTER : GENERIC_ANIMAL);
     await Promise.all([...candidates].map((id) => this._loadMobileShardForBody(id)));
     return !!this.mobilesAtlas.bodies?.[resolvedMobileBody(this.mobilesAtlas, requested)];
+  }
+
+  /**
+   * Whether every metadata shard that can affect resolution of `body` has
+   * already landed. A missing body before that point is only a transient miss
+   * and must not be cached by the renderer as "this equipment has no art".
+   */
+  isMobileBodyMetadataReady(body) {
+    const atlas = this.mobilesAtlas;
+    if (!atlas) return false;
+    if (this._customMobileBodies.has(body | 0)) return true;
+    if (!atlas.shards) return true;
+
+    const requested = body | 0;
+    const candidates = new Set([requested]);
+    const alias = atlas.aliases?.[requested];
+    const aliasBody = alias?.body ?? alias?.trueBody;
+    if (Number.isInteger(aliasBody)) candidates.add(aliasBody);
+    const fallback = BODY_FALLBACK[requested];
+    if (Number.isInteger(fallback)) candidates.add(fallback);
+
+    for (const candidate of candidates) {
+      const row = this._mobileShardRow(candidate);
+      if (row?.file && !this._mobileLoadedShards.has(row.file)) return false;
+    }
+    return true;
   }
 
   async prefetchMobileBodies(bodies) {
@@ -884,6 +916,7 @@ class AssetManager {
           file: file.replace(/^\/+/, ''),
           width: Number(rawValue?.width) || 0,
           height: Number(rawValue?.height) || 0,
+          revision: Number(rawValue?.updatedAt) || 0,
         });
       }
       for (const id of changedIds) {
@@ -892,6 +925,40 @@ class AssetManager {
         this._overrideTextureLoads.delete(`${kind}:${id}`);
       }
     }
+    this._customMobileBodies.clear();
+    for (const [rawBody, rawValue] of Object.entries(manifest.animation && typeof manifest.animation === 'object'
+      ? manifest.animation : {})) {
+      const body = Number(rawBody);
+      if (!Number.isInteger(body) || body < 0 || body > 0xffff || !rawValue || typeof rawValue !== 'object') continue;
+      const actions = {};
+      for (const [rawAction, rawActionValue] of Object.entries(rawValue.actions ?? {})) {
+        const action = Number(rawAction);
+        if (!Number.isInteger(action) || action < 0 || action > 255) continue;
+        const dirs = {};
+        for (const [rawDirection, rawFrames] of Object.entries(rawActionValue?.dirs ?? {})) {
+          const direction = Number(rawDirection);
+          if (!Number.isInteger(direction) || direction < 0 || direction > 7 || !Array.isArray(rawFrames)) continue;
+          const frames = rawFrames.filter((frame) => frame?.file && !String(frame.file).includes('..')).map((frame) => ({
+            customFile: String(frame.file).replace(/^\/+/, ''),
+            customRevision: Number(rawValue.updatedAt) || 0,
+            w: Number(frame.w ?? frame.width) || 0,
+            h: Number(frame.h ?? frame.height) || 0,
+            cx: Number(frame.cx) || 0,
+            cy: Number(frame.cy) || 0,
+          })).filter((frame) => frame.w > 0 && frame.h > 0);
+          if (frames.length) dirs[direction] = frames;
+        }
+        if (Object.keys(dirs).length) actions[action] = { dirs };
+      }
+      if (Object.keys(actions).length) this._customMobileBodies.set(body, {
+        name: String(rawValue.name ?? `Custom mobile ${body}`),
+        type: String(rawValue.type ?? 'MONSTER').toUpperCase(),
+        actions,
+      });
+    }
+    for (const wrapped of this._mobileTextures.values()) this._releaseCachedTexture(wrapped);
+    this._mobileTextures.clear();
+    this._customMobileTextureLoads.clear();
   }
 
   async _loadGraphicOverride(kind, id, cache, limit) {
@@ -904,11 +971,12 @@ class AssetManager {
     if (pending) return pending;
     const load = this._decodePool.run(`override:${key}`, async () => {
       try {
-        const texture = await Assets.load(`${BASE}/${record.file}`);
+        const url = `${BASE}/${record.file}${record.revision ? `?v=${record.revision}` : ''}`;
+        const texture = await Assets.load(url);
         if (!texture?.source) return null;
         texture.source.scaleMode = 'nearest';
         texture._uoAssetOverride = true;
-        texture._uoAssetOverrideUrl = `${BASE}/${record.file}`;
+        texture._uoAssetOverrideUrl = url;
         cache.set(id | 0, texture);
         this._capCache(cache, limit);
         return texture;
@@ -1302,15 +1370,20 @@ class AssetManager {
     // target actually exists, otherwise retain the original before trying a
     // curated same-family fallback. This prevents intermittent daemon/llama
     // substitutions when atlas pages stream in.
-    let realBody = resolvedMobileBody(this.mobilesAtlas, body);
-    if (!this.mobilesAtlas.bodies?.[realBody]) {
-      if (this.mobilesAtlas.bodies?.[body | 0]) realBody = body | 0;
-      else {
-        const fallback = BODY_FALLBACK[body | 0];
-        if (fallback != null) realBody = resolvedMobileBody(this.mobilesAtlas, fallback);
+    const custom = this._customMobileBodies.get(body | 0);
+    let realBody = body | 0;
+    let b = custom;
+    if (!b) {
+      realBody = resolvedMobileBody(this.mobilesAtlas, body);
+      if (!this.mobilesAtlas.bodies?.[realBody]) {
+        if (this.mobilesAtlas.bodies?.[body | 0]) realBody = body | 0;
+        else {
+          const fallback = BODY_FALLBACK[body | 0];
+          if (fallback != null) realBody = resolvedMobileBody(this.mobilesAtlas, fallback);
+        }
       }
+      b = this.mobilesAtlas?.bodies?.[realBody];
     }
-    const b = this.mobilesAtlas?.bodies?.[realBody];
     if (!b) return null;
     const resolvedAction = this._resolveMobileActionAlias(b, action);
     let actionEntry = b.actions?.[resolvedAction];
@@ -1360,6 +1433,8 @@ class AssetManager {
 
   _mobileBodyEntry(body) {
     if (!this.mobilesAtlas) return null;
+    const custom = this._customMobileBodies.get(body | 0);
+    if (custom) return { realBody: body | 0, body: custom };
     let realBody = resolvedMobileBody(this.mobilesAtlas, body);
     if (!this.mobilesAtlas.bodies?.[realBody] && BODY_FALLBACK[body | 0] != null) {
       realBody = BODY_FALLBACK[body | 0];
@@ -1371,6 +1446,8 @@ class AssetManager {
   /** Body animation type/flags from mobtypes.txt, emitted by the extractor. */
   mobileBodyInfo(body) {
     if (!this.mobilesAtlas) return null;
+    const custom = this._customMobileBodies.get(body | 0);
+    if (custom) return { type: custom.type, custom: true, name: custom.name };
     const resolved = resolvedMobileBody(this.mobilesAtlas, body);
     const realBody = this.mobilesAtlas.bodies?.[resolved]
       ? resolved
@@ -1386,12 +1463,14 @@ class AssetManager {
   mobileRenderHue(body, serverHue = 0) {
     if (!this.mobilesAtlas) return serverHue | 0;
     const requested = body | 0;
+    if (this._customMobileBodies.has(requested)) return serverHue | 0;
     if (resolvedMobileBody(this.mobilesAtlas, requested) === requested) return serverHue | 0;
     const alias = this.mobilesAtlas.aliases?.[requested];
     return Number.isFinite(alias?.hue) ? (alias.hue | 0) : (serverHue | 0);
   }
 
   mobileRenderBody(body) {
+    if (this._customMobileBodies.has(body | 0)) return body | 0;
     return resolvedMobileBody(this.mobilesAtlas, body | 0);
   }
 
@@ -1411,6 +1490,36 @@ class AssetManager {
     return Object.prototype.hasOwnProperty.call(dirs, dirKey)
       || Object.prototype.hasOwnProperty.call(dirs, '0')
       || Object.keys(dirs).length > 0;
+  }
+
+  async _loadCustomMobileFrame(info, key) {
+    const existing = this._mobileTextures.get(key);
+    if (existing) return existing;
+    let pending = this._customMobileTextureLoads.get(key);
+    if (!pending) {
+      pending = this._decodePool.run(`custom-animation:${key}`, async () => {
+        const url = `${BASE}/${info.meta.customFile}${info.meta.customRevision ? `?v=${info.meta.customRevision}` : ''}`;
+        const texture = await Assets.load(url);
+        if (!texture?.source) return null;
+        texture.source.scaleMode = 'nearest';
+        texture._uoCustomAnimation = true;
+        texture._uoAssetOverrideUrl = url;
+        const wrapped = {
+          texture,
+          cx: info.meta.cx, cy: info.meta.cy,
+          w: info.meta.w, h: info.meta.h,
+          frameCount: info.frameCount,
+        };
+        this._mobileTextures.set(key, wrapped);
+        this._capCache(this._mobileTextures, this._cacheLimit('mobile', MOBILE_FRAME_CACHE_MAX));
+        return wrapped;
+      }, { priority: 0 }).catch((error) => {
+        console.warn(`[assets] custom animation frame failed ${key}:`, error?.message ?? error);
+        return null;
+      }).finally(() => this._customMobileTextureLoads.delete(key));
+      this._customMobileTextureLoads.set(key, pending);
+    }
+    return pending;
   }
 
   /** Synchronous variant — returns `{ texture, cx, cy, w, h, frameCount }`
@@ -1452,6 +1561,12 @@ class AssetManager {
       return cached;
     }
     stats.misses++;
+    if (info.meta.customFile) {
+      void this._loadCustomMobileFrame(info, key);
+      stats.pageMisses++;
+      this._recordMobileFrameSample(t0);
+      return null;
+    }
     // Page must already be in `_atlasPages` — the sync path can't await.
     // Touch the page LRU directly; async `_loadAtlasPage()` covers misses.
     const pageKey = this._atlasPageKey('mobiles', info.meta.page);
@@ -1519,8 +1634,9 @@ class AssetManager {
   async prefetchMobileCycle(body, action, direction) {
     if (!this.mobilesAtlas) return;
     await this.ensureMobileBody(body);
-    const realBody = resolvedMobileBody(this.mobilesAtlas, body);
-    const b = this.mobilesAtlas.bodies?.[realBody];
+    const entry = this._mobileBodyEntry(body);
+    const realBody = entry?.realBody;
+    const b = entry?.body;
     if (!b) return;
     const resolvedAction = this._resolveMobileActionAlias(b, action);
     const actionEntry = b.actions?.[resolvedAction] ?? b.actions?.['2'] ?? b.actions?.['0'];
@@ -1532,6 +1648,14 @@ class AssetManager {
     // one direction live on the same page).
     const pages = new Set();
     for (const f of dirFrames) if (f && typeof f.page === 'number') pages.add(f.page);
+    const customLoads = [];
+    for (let frame = 0; frame < dirFrames.length; frame++) {
+      const meta = dirFrames[frame];
+      if (!meta?.customFile) continue;
+      const info = { realBody, action: resolvedAction, direction, frame, meta, frameCount: dirFrames.length };
+      customLoads.push(this._loadCustomMobileFrame(info, mobileFrameCacheKey(realBody, resolvedAction, direction, frame)));
+    }
+    if (customLoads.length) await Promise.all(customLoads);
     await this._runAtlasPreloadQueue(
       pages,
       MOBILE_CYCLE_PREFETCH_CONCURRENCY,
@@ -1547,6 +1671,10 @@ class AssetManager {
     await this.ensureMobileBody(body);
     const info = this._mobileFrameMeta(body, action, direction, frame);
     if (!info) return null;
+    if (info.meta.customFile) {
+      const key = mobileFrameCacheKey(info.realBody, info.action, info.direction, info.frame);
+      return this._loadCustomMobileFrame(info, key);
+    }
     // Ensure the page is loaded, then defer to the sync path which
     // handles caching + texture construction.
     await this._loadAtlasPage('mobiles', info.meta.page);

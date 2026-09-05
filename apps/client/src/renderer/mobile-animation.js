@@ -519,7 +519,12 @@ export class MobileAnimation {
     holdLastFrame = false,
   } = {}) {
     const nextPriority = Number.isFinite(priority) ? priority : ANIMATION_PRIORITY.Locomotion;
-    if (nextPriority < this._priority && (this._oneShot || this._holdLastFrame)) return false;
+    const locomotionInterruptsFidget = nextPriority === ANIMATION_PRIORITY.Locomotion
+      && this._priority === ANIMATION_PRIORITY.Fidget
+      && (action === Action.Walk || action === Action.Run);
+    if (!locomotionInterruptsFidget
+        && nextPriority < this._priority
+        && (this._oneShot || this._holdLastFrame)) return false;
     if (this.action === action && this._oneShot === oneShot
         && frameCount == null && repeatCount == null && delay == null && staticFrame == null
         && this._staticFrame == null && nextPriority === this._priority

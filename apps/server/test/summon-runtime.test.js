@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { World } from '../src/world/world.js';
 import { summonOne } from '../../scripts/src/spells/_summon-helpers.js';
 import { desiredAiForMob } from '../../scripts/src/npcs/ai/aggressive.js';
+import registerPetCommands from '../../scripts/src/commands/economy/pet.js';
 
 describe('runtime summon pipeline', () => {
   it('keeps owned summons on pet AI during deferred monster reconciliation', () => {
@@ -102,6 +103,57 @@ describe('runtime summon pipeline', () => {
       }, { kind: 'daemon' });
       expect(blocked).toBeNull();
       expect(messages).toContain('There is no room for the summoned creature.');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps an autonomous vortex owned and promotes it to pet AI on command', () => {
+    vi.useFakeTimers();
+    try {
+      const world = new World();
+      const caster = world.createMobile({
+        name: 'Mage', body: 0x0190, x: 100, y: 100, z: 0, map: 1,
+        followers: 0, followersMax: 5, skills: { 26: 100 },
+      });
+      caster.client = { send() {}, sendSystemMessage() {} };
+      const bindings = new Map();
+      const behaviors = new Map([['aggressive', {}], ['pet', {}]]);
+      const commands = new Map();
+      const api = {
+        world,
+        monsters: { get: () => ({ kind: 'energy-vortex', name: 'an energy vortex', body: 164, hp: 90 }) },
+        ctx: {
+          spawnFactory: (w, kind, spot) => w.createMobile({
+            kind, name: 'an energy vortex', body: 164, hp: 90, hpMax: 90, ...spot,
+          }),
+        },
+        ai: {
+          bindings, behaviors,
+          attach(mob, behavior, state) { bindings.set(mob.serial, { behavior, state }); },
+        },
+        commands: {
+          register(def) { commands.set(def.name, def); }, unregister() {},
+        },
+        protocol: { mobileMoving: () => new Uint8Array([0x77]), removeEntity: () => new Uint8Array([0x1D]) },
+      };
+      const vortex = summonOne(api, {
+        sender: caster, state: { sendSystemMessage() {} },
+      }, { kind: 'energy-vortex', aggressive: true });
+
+      expect(vortex).toMatchObject({
+        summoned: true, summonedBy: caster.serial, controlMaster: caster.serial,
+        commandableSummon: true, controlOrder: 'guard',
+      });
+      expect(bindings.get(vortex.serial)?.behavior).toBe('aggressive');
+
+      registerPetCommands(api);
+      commands.get('pet').run({
+        sender: caster, args: ['stay'], state: { sendSystemMessage() {} }, world,
+      });
+
+      expect(vortex).toMatchObject({ controlled: true, aiBehavior: 'pet', petCommand: 'stay' });
+      expect(bindings.get(vortex.serial)).toMatchObject({ behavior: 'pet', state: { command: 'stay' } });
     } finally {
       vi.useRealTimers();
     }

@@ -43,9 +43,10 @@ const SHADOW_INDICES = new Uint32Array([0, 1, 2, 1, 3, 2]);
 const FOOTSTEP_SFX = [0x012B, 0x012C];
 const MOUNT_RUN_SFX = 0x0129;
 
-// Grace after one interpolation before returning to idle. The actual latch is
-// step-duration + this small scheduling margin, so Run no longer keeps playing
-// for 600 ms after the player has stopped.
+// Grace after interpolation before returning to idle. We retain at least the
+// duration of one movement step because a delayed ACK or a single long browser
+// frame can otherwise leave a gap between two continuously requested steps.
+// That gap used to paint exactly one Stand frame in the middle of a run.
 const WALK_LATCH_SLACK_MS = 80;
 
 // War-mode equipment fallback. Equipment overlays (cloaks, sleeves,
@@ -493,9 +494,8 @@ class MobileSprite {
       this._anim._frameAt = 0;
     }
     if (!sitting && (this._anim.action === Action.Walk || this._anim.action === Action.Run)) {
-      // _lastMoveAt is refreshed on every interpolation frame, not only at
-      // step start, so only scheduler slack is needed after the feet arrive.
-      if (now - this._lastMoveAt > WALK_LATCH_SLACK_MS) {
+      const movementLatchMs = Math.max(WALK_LATCH_SLACK_MS, this._moveDurationMs);
+      if (now - this._lastMoveAt > movementLatchMs) {
         this._anim.setAction(Action.Idle);
         // Force the equipment overlay loop to re-resolve textures this
         // tick. Without invalidating its `_lastEqAction` cache the
@@ -529,18 +529,13 @@ class MobileSprite {
       if (mob.sitPoseOffsetY) mob.sitPoseOffsetY = 0;
     }
 
-    // SYNC LOCKSTEP RESOLVE — body + equipment must lock to the same
-    // frame on the same tick or the user sees the body advance one
-    // frame ahead of the cloak / staff. We resolve body AND every
-    // equipment layer using the SYNC path; if ANY of them isn't
-    // cached yet (different atlas page still streaming) we keep
-    // every sprite on its previous frame and let prefetch warm the
-    // pages for the next tick. Result: every visible swap is atomic
-    // across body + equipment — no "ostatnia klatka body w innym
-    // kierunku" desync.
+    // Resolve body and equipment synchronously from the current animation
+    // frame. Equipment pages may still be streaming, so individual worn
+    // layers retain their previous texture until ready; they must never hold
+    // the body on a running frame and make the mobile appear to levitate.
     const resolved = this._anim.resolveTextureSync();
-    // Pre-resolve every equipment layer's texture sync. Collect into a
-    // staging array so we can either apply ALL or apply NONE.
+    // Pre-resolve every equipment layer's texture sync into reusable staging
+    // arrays. Missing transient layers are retried without stopping the body.
     const animDir   = this._anim.direction;
     const animFrame = this._anim.frame;
     if (resolved) {
@@ -613,15 +608,7 @@ class MobileSprite {
     }
     _stagingSprites.length = _stagingCount;
     _stagingTextures.length = _stagingCount;
-    // If body is ready BUT equipment isn't, treat body as "not ready"
-    // too — we keep the previous body frame so it stays in lockstep
-    // with the cloak/staff that hasn't loaded yet.
-    if (resolved && !_eqAllReady) {
-      // Suppress the body swap this frame.
-      // (Don't null `_currentTex` — that field is the cache; we just
-      // skip the texture-replace below by clearing `resolved`.)
-    }
-    if (resolved && _eqAllReady) {
+    if (resolved) {
       if (!this._sprite) {
         const sp = acquireSprite(resolved.texture);
         this._sprite = sp;
@@ -754,11 +741,10 @@ class MobileSprite {
       // (no extra render pass) and reads as "this one is selected".
       // Suppress while a hit-flash is active so the red flash wins.
       if (!(flashUntil > now) && (mob._isLastTarget || mob._isLastAttack)) {
-        const pulse = 0.5 + 0.5 * Math.sin(now / 220);
-        const gold = 255;
-        const blueComp = Math.round(160 + 60 * pulse);
-        const greenComp = Math.round(200 + 40 * pulse);
-        visualTint = (gold << 16) | (greenComp << 8) | blueComp;
+        // Keep selection feedback static. Pulsing tint on the assembled body
+        // and every equipment layer looked like the avatar itself was
+        // flickering; the separate ground halo already carries animation.
+        visualTint = 0xfff0d0;
       }
       if (!(flashUntil > now) && !mob._isLastTarget && !mob._isLastAttack && mob._outOfRangeNoColor) {
         visualTint = 0x8c8c8c;
@@ -799,10 +785,8 @@ class MobileSprite {
           this._fxWarned = true;
         }
       }
-      // Equipment was pre-staged at the top of `tick()` (along with the
-      // body sync resolve). We get here only when BOTH body and every
-      // equipment layer's texture were ready — `_eqAllReady === true`
-      // is guaranteed by the outer `if (resolved && _eqAllReady)`.
+      // Equipment was pre-staged at the top of `tick()`. Apply the complete
+      // set atomically, but keep the body moving while an atlas page is pending.
       // OPT: skip the per-layer loop when nothing changed since last
       // frame (animation hasn't ticked). Saves dozens of texture-pointer
       // writes when ~50 mobiles render in town.
@@ -814,7 +798,13 @@ class MobileSprite {
         this._lastEqMirror === resolved.mirror &&
         this._lastEqBody   === mob.body
       );
-      if (!eqStateUnchanged) {
+      if (!_eqAllReady) {
+        // Hold the previous complete equipment composite. Updating only the
+        // layers whose pages happened to arrive first made shirts/cloaks blink
+        // independently even though the body correctly kept animating.
+        this._lastEqFrame = -1;
+        this._lastEqAction = null;
+      } else if (!eqStateUnchanged) {
         this._lastEqDir = animDir; this._lastEqFrame = animFrame;
         this._lastEqAction = animAction; this._lastEqMirror = resolved.mirror;
         this._lastEqBody = mob.body;
@@ -1043,6 +1033,15 @@ class MobileSprite {
         }
       }
       if (!tex) {
+        // With the sharded mobile manifest, an unloaded metadata shard looks
+        // exactly like a permanent missing animation. Keep the old equipment
+        // set and retry after metadata arrives instead of committing a naked
+        // replacement set and caching its hash forever.
+        if (!assets.isMobileBodyMetadataReady?.(map.animBody)) {
+          void assets.ensureMobileBody?.(map.animBody);
+          releaseNext();
+          return false;
+        }
         if (hasMobileManifestEntry(map.animBody, requestedGroup, this._anim.direction)) {
           assets.prefetchMobileCycle?.(map.animBody, requestedGroup, this._anim.direction);
           releaseNext();

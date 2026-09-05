@@ -3,6 +3,8 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import registerHealer from '../../scripts/src/npcs/vendors/healer.js';
+import { contextMenus } from '../src/net/handlers.js';
+import { Stage } from '../src/net/net-state.js';
 
 function makeApi(world) {
   let behavior = null;
@@ -143,5 +145,38 @@ describe('healer NPC behavior', () => {
     tick(1000);
     // Full formula would be 10 + 200/10 = 30, but NPC cap pins at 15.
     expect(npc.hp - 10).toBeLessThanOrEqual(15);
+  });
+
+  it('answers an explicit speech request from the addressed player', () => {
+    const player = {
+      serial: 0x5008, x: 101, y: 100, z: 0, map: 1,
+      hp: 25, hpMax: 100, notoriety: 1, client: { send: () => {} },
+    };
+    healer._heardSpeech = [{ speaker: player, text: 'please heal me', hue: 0 }];
+    world.mobiles.set(player.serial, player);
+
+    tick(1000);
+
+    expect(player.hp).toBeGreaterThan(25);
+    expect(healer._heardSpeech).toHaveLength(0);
+    expect(spoken).toContain('Be at peace.');
+  });
+
+  it('turns a healer double-click into a queued aid request', () => {
+    const player = {
+      serial: 0x5009, x: 101, y: 100, z: 0, map: 1,
+      hp: 25, hpMax: 100, notoriety: 1,
+    };
+    world.mobiles.set(player.serial, player);
+    healer.kind = 'healer';
+    const messages = [];
+
+    contextMenus.use({
+      stage: Stage.InWorld, mobile: player, ctx: { world },
+      send() {}, sendSystemMessage: (message) => messages.push(message),
+    }, healer.serial);
+
+    expect(healer._heardSpeech).toEqual([{ speaker: player, text: 'heal', hue: 0 }]);
+    expect(messages.join(' ')).toContain('will tend to you');
   });
 });

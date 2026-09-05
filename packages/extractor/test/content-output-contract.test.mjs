@@ -38,9 +38,9 @@ test('direct ServUO importers publish canonical config schemas', async (t) => {
     assert.ok(String(item.definitionId ?? item.id ?? item.name).trim());
     assert.ok(Number.isInteger(item.artId ?? item.itemId));
   }
-  assert.equal(new Set(monsters.map((monster) => monster.kind)).size, monsters.length);
+  assert.equal(new Set(monsters.map((monster) => monster.definitionId)).size, monsters.length);
   for (const monster of monsters) {
-    assert.match(monster.kind, /^[a-z0-9]+(?:-[a-z0-9]+)*$/);
+    assert.match(monster.definitionId, /^[a-z0-9]+(?:-[a-z0-9]+)*$/);
   }
 });
 

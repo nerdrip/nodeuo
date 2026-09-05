@@ -119,7 +119,7 @@ export const SAVE_VERSION = CURRENT_SNAPSHOT_VERSION;
 
 const MOBILE_EXT_KEYS = [
   '_nodeUOConsent', 'nodeUOCodex', 'nodeUOWorldLayer',
-  'kind', 'aiBehavior', 'tameable', 'tameMinSkill', 'tameMaxSkill',
+  'definitionId', 'bodyId', 'kind', 'aiBehavior', 'tameable', 'tameMinSkill', 'tameMaxSkill',
   // Spawn anchor + home leash. Without these, a save round-trip
   // erases the AI's home tile and wandering monsters either drift
   // forever (no leash) or respawn at the world origin on the next
@@ -128,7 +128,7 @@ const MOBILE_EXT_KEYS = [
   'homeX', 'homeY', 'homeZ', 'homeRange', 'spawnerId',
   // XmlSpawner attachments/properties stamped on spawned mobiles.
   '_xmlAttach', '_xmlData', '_xmlSpawnerEntry',
-  'controlMaster', 'team', 'invulnerable',
+  'controlMaster', 'controlled', 'team', 'invulnerable',
   // Pet survival + obedience state — bug-hunt #6 P1 #5. Without these
   // on the whitelist a starving pet round-trips back to a satiated 18/100
   // every restart and a freshly-issued [stay reverts to follow.
@@ -214,7 +214,7 @@ const MOBILE_EXT_KEYS = [
   '_peerlessArenaName',
   // Summon expire — bug-hunt #6 P2 #7. Without this a player who
   // relogs mid-summon gets a permanent Daemon.
-  'summoned', 'summonedUntil',
+  'summoned', 'summonedBy', 'summonedUntil', 'commandableSummon',
   'vendorKind', 'npcKind', 'isGuard', 'teaches',
   '_listensToSpeech', '_speechKeywords',
   'profileBody', 'tithingPoints',
@@ -430,7 +430,7 @@ const ITEM_EXT_KEYS = [
   'nodeUOWorldLayer',
   // Stable definition identity is separate from the UO art graphic. artId is
   // persisted explicitly even though itemId remains its wire-compatible alias.
-  'definitionId', 'artId',
+  'definitionId', 'artId', 'paperdollGumpId', 'paperdollMaleGumpId', 'paperdollFemaleGumpId',
   'door', 'solid', 'locked', 'lockedDown', 'lockDifficulty', 'lockpickDifficulty', 'lockLevel',
   'requiredSkill', 'treasureLevel', 'paragonChest',
   'powerScroll', 'statScroll', 'house', 'treasureMap', 'seed',
@@ -768,7 +768,7 @@ function copyExtensions(source, keys) {
 
 export function serializeMobile(m) {
   return {
-    serial: m.serial, name: m.name, body: m.body, hue: m.hue,
+    serial: m.serial, name: m.name, body: m.bodyId ?? m.body, hue: m.hue,
     x: m.x, y: m.y, z: m.z, direction: m.direction, map: m.map,
     flags: m.flags, notoriety: m.notoriety,
     hp: m.hp, hpMax: m.hpMax,
@@ -1106,7 +1106,15 @@ export function restoreWorld(world, snap) {
       console.warn(`[persistence] dropping duplicate mobile serial: 0x${m.serial.toString(16)}`);
       continue;
     }
-    const restoredMob = { ...m, client: null };
+    const restoredDefinitionId = String(m.definitionId ?? m.kind ?? '').trim() || undefined;
+    const restoredBodyId = Number(m.bodyId ?? m.body ?? 0x0190);
+    const restoredMob = {
+      ...m,
+      ...(restoredDefinitionId ? { definitionId: restoredDefinitionId, kind: restoredDefinitionId } : {}),
+      bodyId: restoredBodyId,
+      body: restoredBodyId,
+      client: null,
+    };
     Object.defineProperty(restoredMob, '_world', {
       value: world, writable: true, configurable: true, enumerable: false,
     });

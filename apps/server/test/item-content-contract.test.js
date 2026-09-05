@@ -183,4 +183,28 @@ describe('global item content contract', () => {
       customDefinitionPayload: { repaired: true },
     });
   });
+
+  it('migrates persisted base art, worn layer and zero gumps by stable identity', () => {
+    registerItem({
+      definitionId: 'contract-katana-v2', artId: 0x13FF, name: 'a katana', script: null,
+      clothing: true, equipLayer: 1,
+      paperdollGumpId: 50627, paperdollMaleGumpId: 50627, paperdollFemaleGumpId: 50627,
+    });
+    const world = new World();
+    const owner = { serial: 0x100, name: 'Owner' };
+    const legacy = {
+      serial: 0x4000F002, definitionId: 'contract-katana-v2',
+      artId: 0x13FE, itemId: 0x13FE, parent: owner.serial, layer: 13,
+      paperdollGumpId: 0, paperdollMaleGumpId: 0, paperdollFemaleGumpId: 0,
+      x: 0, y: 0, z: 0, map: 1,
+    };
+    world.mobiles.set(owner.serial, owner);
+    world.items.set(legacy.serial, legacy);
+
+    expect(rehydrateWorldItemDefinitions(world).fields).toBeGreaterThan(0);
+    expect(legacy).toMatchObject({
+      artId: 0x13FF, itemId: 0x13FF, layer: 1,
+      paperdollGumpId: 50627, paperdollMaleGumpId: 50627, paperdollFemaleGumpId: 50627,
+    });
+  });
 });

@@ -7,6 +7,66 @@ import { AI_GRAPH_NODE_TYPES } from '../world/ai-graphs.js';
 import * as operational from '../systems/operational-diagnostics.js';
 import { parseSerial, snapshotItem, snapshotMobile } from './route-helpers.js';
 
+function directItemChildren(world, parentSerial) {
+  const indexed = world?._childrenByParent?.get?.(parentSerial);
+  if (indexed) return Array.from(indexed, (serial) => world.items.get(serial)).filter(Boolean);
+  return [...(world?.items?.values?.() ?? [])].filter((item) => item.parent === parentSerial);
+}
+
+function itemTree(world, parentSerial, { maxDepth = 8, maxItems = 750 } = {}) {
+  const state = { remaining: maxItems, truncated: false, seen: new Set() };
+  const walk = (parent, depth) => directItemChildren(world, parent).map((item) => {
+    const serial = item.serial >>> 0;
+    if (state.remaining-- <= 0 || state.seen.has(serial)) {
+      state.truncated = true;
+      return null;
+    }
+    state.seen.add(serial);
+    const children = depth < maxDepth ? walk(serial, depth + 1) : [];
+    if (depth >= maxDepth && directItemChildren(world, serial).length) state.truncated = true;
+    return { ...snapshotItem(item), children };
+  }).filter(Boolean);
+  const items = walk(parentSerial, 0);
+  return { items, count: state.seen.size, truncated: state.truncated };
+}
+
+/** Resolve an item through nested containers to the owning mobile. Artwork is
+ * deliberately ignored: ownership follows serial parents only. */
+function itemOwnership(world, item) {
+  if (!item?.parent) return { location: 'ground', ownerSerial: null, ownerName: null, containerPath: [] };
+  const seen = new Set([item.serial >>> 0]);
+  const path = [];
+  let current = item;
+  for (let hop = 0; hop < 32 && current?.parent; hop++) {
+    const parentSerial = current.parent >>> 0;
+    const owner = world?.mobiles?.get?.(parentSerial);
+    if (owner) {
+      const root = path.at(-1) ?? item;
+      const layer = root.layer | 0;
+      const location = layer === 21 ? 'backpack' : layer === 0x1D ? 'bank' : layer > 0 ? 'equipped' : 'carried';
+      return {
+        location,
+        ownerSerial: '0x' + (owner.serial >>> 0).toString(16),
+        ownerName: owner.name ?? '?',
+        containerPath: [...path].reverse().map((entry) => ({
+          serial: '0x' + (entry.serial >>> 0).toString(16), name: entry.name ?? '?', layer: entry.layer ?? 0,
+        })),
+      };
+    }
+    const parent = world?.items?.get?.(parentSerial);
+    if (!parent || seen.has(parentSerial)) break;
+    seen.add(parentSerial);
+    path.push(parent);
+    current = parent;
+  }
+  return {
+    location: path.length ? 'container' : 'orphaned', ownerSerial: null, ownerName: null,
+    containerPath: [...path].reverse().map((entry) => ({
+      serial: '0x' + (entry.serial >>> 0).toString(16), name: entry.name ?? '?', layer: entry.layer ?? 0,
+    })),
+  };
+}
+
 export function registerEntityRoutes(routes, {
   accounts, world, sharedCtx, adminCharacters, queryInt,
 }) {
@@ -128,34 +188,31 @@ export function registerEntityRoutes(routes, {
       // instead of two full 110k walks per request. Bug-hunt #4 A5.
       const equipped = [];
       let backpack = null;
+      let bank = null;
       const idx = world?._childrenByParent;
       const wornIter = idx?.get?.(mob.serial)
         ? Array.from(idx.get(mob.serial), (s) => world.items.get(s)).filter(Boolean)
         : [...(world?.items?.values?.() ?? [])].filter((it) => it.parent === mob.serial);
       for (const it of wornIter) {
         if (it.layer === 21) backpack = it;
-        if ((it.layer ?? 0) > 0) equipped.push({
+        if (it.layer === 0x1D) bank = it;
+        if ((it.layer ?? 0) > 0 && it.layer !== 21 && it.layer !== 0x1D) equipped.push({
           serial: '0x' + (it.serial >>> 0).toString(16),
           definitionId: it.definitionId ?? null,
           artId: it.artId ?? it.itemId,
           itemId: it.itemId, hue: it.hue, layer: it.layer, name: it.name,
         });
       }
-      const packIter = backpack
-        ? (idx?.get?.(backpack.serial)
-            ? Array.from(idx.get(backpack.serial), (s) => world.items.get(s)).filter(Boolean)
-            : [...world.items.values()].filter((it) => it.parent === backpack.serial))
-        : [];
-      const packContents = packIter.map((it) => ({
-        serial: '0x' + (it.serial >>> 0).toString(16),
-        definitionId: it.definitionId ?? null,
-        artId: it.artId ?? it.itemId,
-        itemId: it.itemId, hue: it.hue, amount: it.amount, name: it.name,
-      }));
+      const packTree = backpack ? itemTree(world, backpack.serial) : { items: [], count: 0, truncated: false };
+      const bankTree = bank ? itemTree(world, bank.serial) : { items: [], count: 0, truncated: false };
       return {
         ...snapshotMobile(mob),
         equipped,
-        backpackContents: packContents,
+        backpack: backpack ? { ...snapshotItem(backpack), ...packTree } : null,
+        bank: bank ? { ...snapshotItem(bank), ...bankTree } : null,
+        // Compatibility alias for older admin clients. The new inspector uses
+        // the nested backpack/bank trees above.
+        backpackContents: packTree.items,
       };
     },
   });
@@ -217,16 +274,21 @@ export function registerEntityRoutes(routes, {
     run: ({ query }) => {
       const filter = (query.get('filter') ?? '').toLowerCase();
       const onGround = query.get('ground') === '1';
+      const onlyOwned = query.get('owned') === '1';
       const limit = Math.trunc(Math.max(1, Math.min(500, Number(query.get('limit') ?? 200) || 200)));
       const offset = Math.trunc(Math.max(0, Number(query.get('offset') ?? 0) || 0));
       let count = 0;
       const page = [];
       for (const it of (world?.items?.values?.() ?? [])) {
         if (onGround && it.parent != null) continue;
+        const ownership = itemOwnership(world, it);
+        if (onlyOwned && !ownership.ownerSerial) continue;
         if (filter && !(it.name ?? '').toLowerCase().includes(filter)
+            && !(it.definitionId ?? '').toLowerCase().includes(filter)
+            && !(ownership.ownerName ?? '').toLowerCase().includes(filter)
             && !`0x${(it.itemId | 0).toString(16)}`.includes(filter)
             && !`0x${(it.serial >>> 0).toString(16)}`.includes(filter)) continue;
-        if (count >= offset && page.length < limit) page.push(snapshotItem(it));
+        if (count >= offset && page.length < limit) page.push({ ...snapshotItem(it), ...ownership });
         count++;
       }
       return {
@@ -281,7 +343,7 @@ export function registerEntityRoutes(routes, {
     const spawners = [...(sharedCtx?.spawner?.groups?.values?.() ?? [])].filter((group) => (group.map | 0) === (entity.map | 0) && group.rect
       && entity.x >= group.rect.x1 && entity.x <= group.rect.x2 && entity.y >= group.rect.y1 && entity.y <= group.rect.y2).map((group) => group.id);
     const ownerSerial = item?.parent ?? mobile?.controlMaster ?? null;
-    const template = entity.template ?? entity.kind ?? entity.servuoClass ?? null;
+    const template = entity.definitionId ?? entity.template ?? entity.kind ?? entity.servuoClass ?? null;
     const quickLinks = {
       owner: ownerSerial ? { type: 'entity', serial: ownerSerial >>> 0 } : null,
       regions: regions.map((region) => ({ type: 'region', name: region.name })),

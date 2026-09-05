@@ -105,6 +105,19 @@ for (let y = 2861 - 20; y <= 2861 + 20; y++) {
   }
 }
 assert.ok(trinsicMaxCornerDelta >= 30, 'Trinsic cliff fixture lost its characteristic Z jump');
+// Exact coastline visible in the latest report (player near 1810,2746; the
+// broken polygon originates farther east at the 1869,2750 cliff). Keep this
+// separate from the older southern-cliff fixture above so both regressions
+// remain pinned when map extraction changes.
+let reportedTrinsicMaxCornerDelta = 0;
+for (let y = 2750 - 24; y <= 2750 + 24; y++) {
+  for (let x = 1869 - 24; x <= 1869 + 24; x++) {
+    const corners = [landAt(x, y), landAt(x + 1, y), landAt(x, y + 1), landAt(x + 1, y + 1)];
+    const delta = Math.max(...corners.map((tile) => tile.z)) - Math.min(...corners.map((tile) => tile.z));
+    reportedTrinsicMaxCornerDelta = Math.max(reportedTrinsicMaxCornerDelta, delta);
+  }
+}
+assert.ok(reportedTrinsicMaxCornerDelta >= 35, 'reported Trinsic coastline fixture lost its abrupt cliff');
 const rendererSource = [paths.renderer, paths.chunkVisual]
   .map((path) => readFileSync(path, 'utf8')).join('\n');
 assert.ok(rendererSource.includes('cornerDelta <= MAX_VISUAL_LAND_SLOPE'));
@@ -127,4 +140,4 @@ assert.ok(rendererSource.includes('return makeStretchedLandArt(artTex'));
 assert.ok(rendererSource.includes('function buildSmoothLandMesh('));
 assert.ok(rendererSource.includes("mesh._uoLandTextureMode = 'texmap'"));
 
-console.log(`[smoke:map-coordinate] ok facet=${FACET} center=${CENTER_X},${CENTER_Y} land=${landCount} statics=${staticCount} pages=${landPages.size}+${staticPages.size} trinsicDelta=${trinsicMaxCornerDelta} britainDelta=${britainDelta}`);
+console.log(`[smoke:map-coordinate] ok facet=${FACET} center=${CENTER_X},${CENTER_Y} land=${landCount} statics=${staticCount} pages=${landPages.size}+${staticPages.size} trinsicDelta=${trinsicMaxCornerDelta}/${reportedTrinsicMaxCornerDelta} britainDelta=${britainDelta}`);

@@ -12,8 +12,6 @@
 
 /** Latest definition per stable gameplay identity. */
 const byDefinition = new Map();
-/** Last registered definition per UO art id (legacy numeric lookup). */
-const byArt = new Map();
 /** Optional legacy/content aliases. */
 const byTag = new Map();
 /** Every distinct gameplay definition sharing an art id. */
@@ -60,6 +58,7 @@ export function registerItem(def) {
     id: definitionId,
     definitionId,
     artId,
+    script: def.script ?? null,
     // itemId remains a read-only-by-convention compatibility alias for code
     // that deals with the UO wire graphic. New content should use artId.
     itemId: artId,
@@ -72,10 +71,6 @@ export function registerItem(def) {
       const next = oldList.filter((entry) => entry.definitionId !== definitionId);
       if (next.length) byArtAll.set(previous.artId, next);
       else byArtAll.delete(previous.artId);
-      if (byArt.get(previous.artId)?.definitionId === definitionId) {
-        if (next.length) byArt.set(previous.artId, next.at(-1));
-        else byArt.delete(previous.artId);
-      }
     }
     for (const [tag, value] of byTag) {
       if (value === previous) byTag.delete(tag);
@@ -83,7 +78,6 @@ export function registerItem(def) {
   }
 
   byDefinition.set(definitionId, normalized);
-  byArt.set(artId, normalized);
   if (def.tagId) byTag.set(String(def.tagId), normalized);
   byTag.set(definitionId, normalized);
   const list = byArtAll.get(artId) ?? [];
@@ -107,19 +101,17 @@ export function unregisterItem(id, expected = null) {
     .filter((entry) => entry !== current);
   if (variants.length) byArtAll.set(current.artId, variants);
   else byArtAll.delete(current.artId);
-  if (byArt.get(current.artId) === current) {
-    if (variants.length) byArt.set(current.artId, variants.at(-1));
-    else byArt.delete(current.artId);
-  }
   for (const [tag, value] of byTag) {
     if (value === current) byTag.delete(tag);
   }
   return true;
 }
 
-/** String lookup means definition identity; numeric lookup means legacy art. */
+/** Gameplay lookup accepts stable definition identity only. Numeric artwork
+ * lookup is intentionally unsupported because one graphic can represent any
+ * number of unrelated item definitions. Tooling can use itemVariants(). */
 export function getItem(id) {
-  return typeof id === 'string' ? (byDefinition.get(id) ?? byTag.get(id)) : byArt.get(Number(id));
+  return typeof id === 'string' ? (byDefinition.get(id) ?? byTag.get(id)) : undefined;
 }
 export function getItemByDefinition(id) { return byDefinition.get(String(id)); }
 export function getItemByTag(tag) { return byTag.get(String(tag)); }

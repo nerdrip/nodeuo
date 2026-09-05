@@ -38,8 +38,14 @@ export function createNpcDialogController({ vendors, hasVendor }) {
     return kind ? { conversations, kind } : null;
   };
 
-  const isBanker = (mob) => [mob.kind, mob.role, mob.npcRole, mob.vendorKind, mob.behavior, mob.ai]
-    .some((value) => String(value ?? '').toLowerCase() === 'banker');
+  const roleIs = (mob, role) => [mob.kind, mob.role, mob.npcRole, mob.vendorKind,
+    mob.behavior, mob.aiBehavior, mob.ai]
+    .some((value) => String(value ?? '').toLowerCase() === role);
+
+  const isBanker = (mob) => roleIs(mob, 'banker');
+  const isHealer = (mob) => [mob.kind, mob.role, mob.npcRole, mob.vendorKind,
+    mob.behavior, mob.aiBehavior, mob.ai]
+    .some((value) => /^(?:healer|wandering-healer)$/.test(String(value ?? '').toLowerCase()));
 
   const inRange = (state, mob) => {
     const actor = state.mobile;
@@ -141,6 +147,7 @@ export function createNpcDialogController({ vendors, hasVendor }) {
       ].map((value) => String(value ?? '').trim()).filter(Boolean))].slice(0, 8);
       for (const keyword of keywords) {
         if (isBanker(mob) && /^(bank|balance)$/i.test(keyword)) continue;
+        if (isHealer(mob) && /^(heal|resurrect|resurrection)$/i.test(keyword)) continue;
         addAction({
           label: `Ask about ${keyword}`, kind: 'talk',
           onPick: () => {
@@ -160,6 +167,15 @@ export function createNpcDialogController({ vendors, hasVendor }) {
           sender: state.mobile, state, world: state.ctx.world, args: [],
         }),
       });
+    }
+    if (isHealer(mob)) {
+      const askFor = (text) => {
+        mob._heardSpeech ??= [];
+        mob._heardSpeech.push({ speaker: state.mobile, text, hue: 0 });
+        while (mob._heardSpeech.length > 16) mob._heardSpeech.shift();
+      };
+      addAction({ label: 'Ask for healing', kind: 'service', onPick: () => askFor('heal') });
+      addAction({ label: 'Ask for resurrection', kind: 'service', onPick: () => askFor('resurrect') });
     }
     if (hasVendor(mob.serial) && !banker) {
       addAction({ label: 'Buy', kind: 'trade', onPick: () => vendors.openBuy(state, mob.serial) });
@@ -281,7 +297,8 @@ export function createNpcDialogController({ vendors, hasVendor }) {
     isScripted(state, mob) {
       return !!(mob && !mob.isPlayer && (
         mob.isNpc || isPaperdollBody(mob.body) || mob.vocation || mob.role || mob.npcRole || mob.vendorKind
-        || mob._listensToSpeech || mob.invulnerable || Array.isArray(mob._greetings)
+        || mob.kind || mob.aiBehavior
+        || mob._listensToSpeech || mob.controlMaster || mob.invulnerable || Array.isArray(mob._greetings)
         || Array.isArray(mob.teaches) || hasVendor(mob.serial) || conversationFor(state, mob)
       ));
     },

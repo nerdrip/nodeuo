@@ -47,7 +47,9 @@ export default function (api) {
         // Audit #42 P3 #39 — ServUO bankers respond within ~10 tiles.
         const nearBanker = !!findMobileNear(
           mob,
-          (other) => other.kind === 'banker' || other.role === 'banker',
+          (other) => [other.kind, other.role, other.npcRole, other.vendorKind,
+            other.behavior, other.aiBehavior]
+            .some((value) => String(value ?? '').toLowerCase() === 'banker'),
           10,
           mob,
         );
@@ -68,13 +70,25 @@ export default function (api) {
           parent: state.mobile.serial, // held "on" the mobile (paperdoll layer)
           // @ts-expect-error — layer added in wave D
           layer: 0x1D,
-          gumpId: 0x003C,    // small wooden chest gump
+          gumpId: 0x004A,    // canonical bank-box art
         });
         api.ctx.bankBoxes.set(state.mobile.serial, box.serial);
       }
       // Open it.
+      // Migrate boxes created by the old command and keep the real contents.
+      // Sending [] made a non-empty account look empty until another delta.
+      if ((box.gumpId | 0) === 0x003C) box.gumpId = 0x004A;
+      const entries = [];
+      for (const it of allItems({ world })) {
+        if ((it.parent >>> 0) !== (box.serial >>> 0)) continue;
+        entries.push({
+          serial: it.serial, itemId: it.itemId, amount: it.amount ?? 1,
+          gridX: it.gridX ?? 0, gridY: it.gridY ?? 0,
+          gridLocation: it.gridLocation ?? 0, hue: it.hue ?? 0,
+        });
+      }
       state.send(protocol.displayContainer(box.serial, box.gumpId));
-      state.send(protocol.containerContents(box.serial, []));
+      state.send(protocol.containerContents(box.serial, entries));
       state.openContainers?.add?.(box.serial);
       // Phase H.1.4 — also push the BankerGump sentinel with the live
       // balance so the client overlay shows the bank's gold total and

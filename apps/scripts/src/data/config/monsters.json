@@ -1,8 +1,8 @@
 [
   {
-    "kind": "abscess",
+    "definitionId": "abscess",
     "name": "Abscess",
-    "body": 265,
+    "bodyId": 265,
     "hp": 7540,
     "str": 871,
     "dex": 134,
@@ -32,9 +32,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "abysmal-horror",
+    "definitionId": "abysmal-horror",
     "name": "an abyssmal horror",
-    "body": 312,
+    "bodyId": 312,
     "hp": 50,
     "str": 420,
     "dex": 90,
@@ -59,9 +59,9 @@
     ]
   },
   {
-    "kind": "abyssal-abomination",
+    "definitionId": "abyssal-abomination",
     "name": "an Abyssal Abomination",
-    "body": 312,
+    "bodyId": 312,
     "hp": 750,
     "str": 420,
     "dex": 90,
@@ -85,9 +85,9 @@
     ]
   },
   {
-    "kind": "abyssal-infernal",
+    "definitionId": "abyssal-infernal",
     "name": "Abyssal Infernal",
-    "body": 713,
+    "bodyId": 713,
     "hp": 35000,
     "str": 1300,
     "dex": 125,
@@ -117,9 +117,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "acid-elemental",
+    "definitionId": "acid-elemental",
     "name": "an acid elemental",
-    "body": 158,
+    "bodyId": 158,
     "hp": 213,
     "str": 355,
     "dex": 85,
@@ -145,9 +145,9 @@
     "loot": "elemental-earth-common"
   },
   {
-    "kind": "acid-elemental-renowned",
+    "definitionId": "acid-elemental-renowned",
     "name": "Acid Elemental",
-    "body": 158,
+    "bodyId": 158,
     "hp": 2400,
     "str": 600,
     "dex": 185,
@@ -178,9 +178,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "acid-slug",
+    "definitionId": "acid-slug",
     "name": "an acid slug",
-    "body": 51,
+    "bodyId": 51,
     "hp": 370,
     "str": 294,
     "dex": 82,
@@ -202,9 +202,9 @@
     ]
   },
   {
-    "kind": "adept",
+    "definitionId": "adept",
     "name": "adept",
-    "body": 401,
+    "bodyId": 401,
     "hue": 1150,
     "hp": 260,
     "hpMax": 290,
@@ -241,9 +241,9 @@
     "fame": 3500
   },
   {
-    "kind": "adrian-the-glorious-lord",
+    "definitionId": "adrian-the-glorious-lord",
     "name": "Adrian The Glorious Lord",
-    "body": 400,
+    "bodyId": 400,
     "hue": 153,
     "hp": 60000,
     "str": 1050,
@@ -263,9 +263,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/Bosses/DespiseBosses.cs"
   },
   {
-    "kind": "adventurer",
+    "definitionId": "adventurer",
     "name": "adventurer",
-    "body": 400,
+    "bodyId": 400,
     "hue": 68,
     "hp": 140,
     "hpMax": 160,
@@ -300,9 +300,9 @@
     "fame": 100
   },
   {
-    "kind": "agapite-elemental",
+    "definitionId": "agapite-elemental",
     "name": "an agapite elemental",
-    "body": 107,
+    "bodyId": 107,
     "hp": 153,
     "str": 255,
     "dex": 145,
@@ -328,9 +328,9 @@
     "loot": "elemental-earth-common"
   },
   {
-    "kind": "air-elemental",
+    "definitionId": "air-elemental",
     "name": "an air elemental",
-    "body": 13,
+    "bodyId": 13,
     "hp": 110,
     "str": 80,
     "notoriety": 5,
@@ -342,9 +342,9 @@
     ]
   },
   {
-    "kind": "alligator",
+    "definitionId": "alligator",
     "name": "an alligator",
-    "body": 202,
+    "bodyId": 202,
     "hp": 60,
     "str": 100,
     "dex": 25,
@@ -371,9 +371,9 @@
     "loot": "alligator-common"
   },
   {
-    "kind": "allosaurus",
+    "definitionId": "allosaurus",
     "name": "an allosaurus",
-    "body": 1291,
+    "bodyId": 1291,
     "hp": 1100,
     "str": 1100,
     "dex": 140,
@@ -417,9 +417,9 @@
     ]
   },
   {
-    "kind": "ancient-lich",
+    "definitionId": "ancient-lich",
     "name": "ancient lich",
-    "body": 24,
+    "bodyId": 24,
     "hue": 1149,
     "hp": 720,
     "hpMax": 750,
@@ -462,9 +462,9 @@
     "fame": 14000
   },
   {
-    "kind": "ancient-lich-renowned",
+    "definitionId": "ancient-lich-renowned",
     "name": "Ancient Lich",
-    "body": 78,
+    "bodyId": 78,
     "hp": 2500,
     "str": 305,
     "dex": 115,
@@ -495,9 +495,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "ancient-wyrm",
+    "definitionId": "ancient-wyrm",
     "name": "an ancient wyrm",
-    "body": 46,
+    "bodyId": 46,
     "hp": 711,
     "str": 1185,
     "dex": 175,
@@ -524,9 +524,9 @@
     "loot": "dragon-hoard"
   },
   {
-    "kind": "andros-the-dread-lord",
+    "definitionId": "andros-the-dread-lord",
     "name": "Andros The Dread Lord",
-    "body": 400,
+    "bodyId": 400,
     "hue": 1,
     "hp": 60000,
     "str": 1050,
@@ -546,9 +546,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/Bosses/DespiseBosses.cs"
   },
   {
-    "kind": "animated-weapon",
+    "definitionId": "animated-weapon",
     "name": "an animated weapon",
-    "body": 692,
+    "bodyId": 692,
     "hp": 80,
     "str": 100,
     "dex": 120,
@@ -585,9 +585,9 @@
     ]
   },
   {
-    "kind": "animated-weapon-sword",
+    "definitionId": "animated-weapon-sword",
     "name": "an animated sword",
-    "body": 692,
+    "bodyId": 692,
     "hp": 80,
     "str": 100,
     "dex": 120,
@@ -624,9 +624,9 @@
     ]
   },
   {
-    "kind": "anlorlem",
+    "definitionId": "anlorlem",
     "name": "a anlorlem",
-    "body": 72,
+    "bodyId": 72,
     "hue": 2071,
     "hp": 575,
     "hpMax": 625,
@@ -670,9 +670,9 @@
     "fame": 16000
   },
   {
-    "kind": "anlorvaglem",
+    "definitionId": "anlorvaglem",
     "name": "a anlorvaglem",
-    "body": 264,
+    "bodyId": 264,
     "hue": 2071,
     "hp": 600,
     "hpMax": 650,
@@ -716,9 +716,9 @@
     "fame": 18000
   },
   {
-    "kind": "anlorzen",
+    "definitionId": "anlorzen",
     "name": "a anlorzen",
-    "body": 48,
+    "bodyId": 48,
     "hue": 2071,
     "hp": 525,
     "hpMax": 575,
@@ -762,9 +762,9 @@
     "fame": 14000
   },
   {
-    "kind": "ant-lion",
+    "definitionId": "ant-lion",
     "name": "an ant lion",
-    "body": 787,
+    "bodyId": 787,
     "hp": 162,
     "str": 320,
     "dex": 105,
@@ -790,9 +790,9 @@
     "loot": "snake-common"
   },
   {
-    "kind": "anzuanord",
+    "definitionId": "anzuanord",
     "name": "a anzuanord",
-    "body": 253,
+    "bodyId": 253,
     "hue": 2089,
     "hp": 625,
     "hpMax": 675,
@@ -836,9 +836,9 @@
     "fame": 19000
   },
   {
-    "kind": "arcane-daemon",
+    "definitionId": "arcane-daemon",
     "name": "an arcane daemon",
-    "body": 784,
+    "bodyId": 784,
     "hp": 115,
     "str": 150,
     "dex": 145,
@@ -865,9 +865,9 @@
     "loot": "daemon-common"
   },
   {
-    "kind": "arch-daemon",
+    "definitionId": "arch-daemon",
     "name": "an Arch Deamon",
-    "body": 40,
+    "bodyId": 40,
     "hp": 711,
     "str": 1185,
     "dex": 255,
@@ -893,9 +893,9 @@
     "loot": "daemon-common"
   },
   {
-    "kind": "archer-guard",
+    "definitionId": "archer-guard",
     "name": "Archer Guard",
-    "body": 401,
+    "bodyId": 401,
     "hue": 0,
     "hp": 33,
     "str": 50,
@@ -914,9 +914,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/NPCs/ArcherGuard.cs"
   },
   {
-    "kind": "architect",
+    "definitionId": "architect",
     "name": "architect",
-    "body": 400,
+    "bodyId": 400,
     "hue": 33770,
     "hp": 40,
     "hpMax": 60,
@@ -951,9 +951,9 @@
     "fame": 100
   },
   {
-    "kind": "arctic-ogre-lord",
+    "definitionId": "arctic-ogre-lord",
     "name": "an arctic ogre lord",
-    "body": 135,
+    "bodyId": 135,
     "hp": 552,
     "str": 945,
     "dex": 75,
@@ -977,9 +977,9 @@
     "loot": "troll-common"
   },
   {
-    "kind": "automaton",
+    "definitionId": "automaton",
     "name": "automaton",
-    "body": 204,
+    "bodyId": 204,
     "hue": 0,
     "hp": 380,
     "hpMax": 410,
@@ -1022,9 +1022,9 @@
     "fame": 6000
   },
   {
-    "kind": "axem",
+    "definitionId": "axem",
     "name": "Axem",
-    "body": 666,
+    "bodyId": 666,
     "hue": 1801,
     "hp": 33,
     "str": 50,
@@ -1043,9 +1043,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/NPCs/Axem.cs"
   },
   {
-    "kind": "bake-kitsune",
+    "definitionId": "bake-kitsune",
     "name": "a bake kitsune",
-    "body": 246,
+    "bodyId": 246,
     "hp": 350,
     "str": 220,
     "dex": 145,
@@ -1073,9 +1073,9 @@
     ]
   },
   {
-    "kind": "ballem",
+    "definitionId": "ballem",
     "name": "a ballem",
-    "body": 21,
+    "bodyId": 21,
     "hue": 2079,
     "hp": 475,
     "hpMax": 525,
@@ -1119,9 +1119,9 @@
     "fame": 12000
   },
   {
-    "kind": "balron",
+    "definitionId": "balron",
     "name": "a balron",
-    "body": 40,
+    "bodyId": 40,
     "hp": 600,
     "str": 200,
     "notoriety": 6,
@@ -1133,9 +1133,9 @@
     ]
   },
   {
-    "kind": "bane-dragon",
+    "definitionId": "bane-dragon",
     "name": "a bane dragon",
-    "body": 794,
+    "bodyId": 794,
     "hue": 2725,
     "hp": 1100,
     "str": 750,
@@ -1187,9 +1187,9 @@
     ]
   },
   {
-    "kind": "banshee",
+    "definitionId": "banshee",
     "name": "banshee",
-    "body": 154,
+    "bodyId": 154,
     "hue": 1150,
     "hp": 380,
     "hpMax": 410,
@@ -1226,9 +1226,9 @@
     "fame": 6000
   },
   {
-    "kind": "barako-female-nomad",
+    "definitionId": "barako-female-nomad",
     "name": "barako female nomad",
-    "body": 401,
+    "bodyId": 401,
     "hue": 16385,
     "hp": 240,
     "hpMax": 270,
@@ -1271,9 +1271,9 @@
     "fame": 2800
   },
   {
-    "kind": "barako-male-nomad",
+    "definitionId": "barako-male-nomad",
     "name": "barako male nomad",
-    "body": 400,
+    "bodyId": 400,
     "hue": 16385,
     "hp": 260,
     "hpMax": 290,
@@ -1316,9 +1316,9 @@
     "fame": 3000
   },
   {
-    "kind": "bard",
+    "definitionId": "bard",
     "name": "bard",
-    "body": 400,
+    "bodyId": 400,
     "hue": 1150,
     "hp": 60,
     "hpMax": 80,
@@ -1353,9 +1353,9 @@
     "fame": 100
   },
   {
-    "kind": "bard-guildmaster",
+    "definitionId": "bard-guildmaster",
     "name": "bard guildmaster",
-    "body": 400,
+    "bodyId": 400,
     "hue": 68,
     "hp": 220,
     "hpMax": 240,
@@ -1390,9 +1390,9 @@
     "fame": 100
   },
   {
-    "kind": "barrabus-reborn",
+    "definitionId": "barrabus-reborn",
     "name": "barrabus reborn",
-    "body": 400,
+    "bodyId": 400,
     "hue": 1149,
     "hp": 700,
     "hpMax": 740,
@@ -1429,9 +1429,9 @@
     "fame": 12000
   },
   {
-    "kind": "barracoon",
+    "definitionId": "barracoon",
     "name": "Barracoon",
-    "body": 400,
+    "bodyId": 400,
     "hp": 18000,
     "str": 425,
     "dex": 150,
@@ -1460,9 +1460,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "barracoon-spawn",
+    "definitionId": "barracoon-spawn",
     "name": "barracoon spawn",
-    "body": 211,
+    "bodyId": 211,
     "hue": 1149,
     "hp": 240,
     "hpMax": 270,
@@ -1499,9 +1499,9 @@
     "fame": 4000
   },
   {
-    "kind": "battle-chicken-lizard",
+    "definitionId": "battle-chicken-lizard",
     "name": "a battle chicken lizard",
-    "body": 716,
+    "bodyId": 716,
     "hp": 177,
     "str": 177,
     "dex": 124,
@@ -1525,9 +1525,9 @@
     "loot": "lizardman-common"
   },
   {
-    "kind": "bear",
+    "definitionId": "bear",
     "name": "a bear",
-    "body": 213,
+    "bodyId": 213,
     "hp": 44,
     "hpMax": 58,
     "str": 88,
@@ -1561,9 +1561,9 @@
     "ai": "melee"
   },
   {
-    "kind": "bedlam-large-flies",
+    "definitionId": "bedlam-large-flies",
     "name": "bedlam large flies",
-    "body": 308,
+    "bodyId": 308,
     "hue": 68,
     "hp": 220,
     "hpMax": 250,
@@ -1601,9 +1601,9 @@
     "fame": 3500
   },
   {
-    "kind": "bedlam-ogre",
+    "definitionId": "bedlam-ogre",
     "name": "bedlam ogre",
-    "body": 1,
+    "bodyId": 1,
     "hue": 1149,
     "hp": 380,
     "hpMax": 410,
@@ -1641,9 +1641,9 @@
     "fame": 5500
   },
   {
-    "kind": "bedlam-wandering-healer",
+    "definitionId": "bedlam-wandering-healer",
     "name": "bedlam wandering healer",
-    "body": 400,
+    "bodyId": 400,
     "hue": 1149,
     "hp": 240,
     "hpMax": 270,
@@ -1681,9 +1681,9 @@
     "fame": 3800
   },
   {
-    "kind": "beggar",
+    "definitionId": "beggar",
     "name": "beggar",
-    "body": 400,
+    "bodyId": 400,
     "hue": 33770,
     "hp": 40,
     "hpMax": 60,
@@ -1718,9 +1718,9 @@
     "fame": 100
   },
   {
-    "kind": "betballem",
+    "definitionId": "betballem",
     "name": "a betballem",
-    "body": 25,
+    "bodyId": 25,
     "hue": 2087,
     "hp": 550,
     "hpMax": 600,
@@ -1764,9 +1764,9 @@
     "fame": 16000
   },
   {
-    "kind": "betrayer",
+    "definitionId": "betrayer",
     "name": "a betrayer",
-    "body": 767,
+    "bodyId": 767,
     "hp": 300,
     "str": 500,
     "dex": 100,
@@ -1791,9 +1791,9 @@
     ]
   },
   {
-    "kind": "bird",
+    "definitionId": "bird",
     "name": "a crow",
-    "body": 6,
+    "bodyId": 6,
     "hp": 50,
     "str": 50,
     "dex": 35,
@@ -1813,9 +1813,9 @@
     ]
   },
   {
-    "kind": "black-bear",
+    "definitionId": "black-bear",
     "name": "a black bear",
-    "body": 211,
+    "bodyId": 211,
     "hp": 60,
     "str": 100,
     "dex": 75,
@@ -1842,9 +1842,9 @@
     "loot": "bear-common"
   },
   {
-    "kind": "black-solen-infiltrator-queen",
+    "definitionId": "black-solen-infiltrator-queen",
     "name": "a black solen infiltrator",
-    "body": 807,
+    "bodyId": 807,
     "hp": 162,
     "str": 350,
     "dex": 165,
@@ -1870,9 +1870,9 @@
     "loot": "rat-common"
   },
   {
-    "kind": "black-solen-infiltrator-warrior",
+    "definitionId": "black-solen-infiltrator-warrior",
     "name": "a black solen infiltrator",
-    "body": 806,
+    "bodyId": 806,
     "hp": 107,
     "str": 230,
     "dex": 145,
@@ -1898,9 +1898,9 @@
     "loot": "rat-common"
   },
   {
-    "kind": "black-solen-queen",
+    "definitionId": "black-solen-queen",
     "name": "a black solen queen",
-    "body": 807,
+    "bodyId": 807,
     "hp": 162,
     "str": 320,
     "dex": 145,
@@ -1925,9 +1925,9 @@
     ]
   },
   {
-    "kind": "black-solen-warrior",
+    "definitionId": "black-solen-warrior",
     "name": "a black solen warrior",
-    "body": 806,
+    "bodyId": 806,
     "hp": 107,
     "str": 220,
     "dex": 125,
@@ -1952,9 +1952,9 @@
     ]
   },
   {
-    "kind": "black-solen-worker",
+    "definitionId": "black-solen-worker",
     "name": "a black solen worker",
-    "body": 805,
+    "bodyId": 805,
     "hp": 72,
     "str": 120,
     "dex": 105,
@@ -1979,9 +1979,9 @@
     ]
   },
   {
-    "kind": "blade-spirits",
+    "definitionId": "blade-spirits",
     "name": "a blade spirit",
-    "body": 574,
+    "bodyId": 574,
     "hp": 200,
     "str": 200,
     "dex": 100,
@@ -2001,9 +2001,9 @@
     "summoned": true
   },
   {
-    "kind": "blood-elemental",
+    "definitionId": "blood-elemental",
     "name": "a blood elemental",
-    "body": 159,
+    "bodyId": 159,
     "hp": 369,
     "str": 615,
     "dex": 85,
@@ -2030,9 +2030,9 @@
     "loot": "elemental-earth-common"
   },
   {
-    "kind": "blood-fox",
+    "definitionId": "blood-fox",
     "name": "Blood Fox",
-    "body": 1423,
+    "bodyId": 1423,
     "hp": 200,
     "str": 320,
     "dex": 200,
@@ -2058,9 +2058,9 @@
     "loot": "wolf-common"
   },
   {
-    "kind": "blood-worm",
+    "definitionId": "blood-worm",
     "name": "a bloodworm",
-    "body": 287,
+    "bodyId": 287,
     "hp": 422,
     "str": 473,
     "dex": 50,
@@ -2083,9 +2083,9 @@
     ]
   },
   {
-    "kind": "bloodletter",
+    "definitionId": "bloodletter",
     "name": "Bloodletter",
-    "body": 78,
+    "bodyId": 78,
     "hue": 68,
     "hp": 700,
     "hpMax": 750,
@@ -2126,9 +2126,9 @@
     "ai": "mage"
   },
   {
-    "kind": "bloodworm",
+    "definitionId": "bloodworm",
     "name": "bloodworm",
-    "body": 192,
+    "bodyId": 192,
     "hue": 68,
     "hp": 220,
     "hpMax": 260,
@@ -2166,9 +2166,9 @@
     "fame": 3500
   },
   {
-    "kind": "bloody-rot",
+    "definitionId": "bloody-rot",
     "name": "bloody rot",
-    "body": 157,
+    "bodyId": 157,
     "hue": 68,
     "hp": 400,
     "hpMax": 440,
@@ -2206,9 +2206,9 @@
     "fame": 6500
   },
   {
-    "kind": "boar",
+    "definitionId": "boar",
     "name": "a boar",
-    "body": 290,
+    "bodyId": 290,
     "hp": 50,
     "str": 50,
     "dex": 50,
@@ -2235,9 +2235,9 @@
     "loot": "boar-common"
   },
   {
-    "kind": "bog-thing",
+    "definitionId": "bog-thing",
     "name": "a bog thing",
-    "body": 780,
+    "bodyId": 780,
     "hp": 540,
     "str": 900,
     "dex": 65,
@@ -2261,9 +2261,9 @@
     ]
   },
   {
-    "kind": "bogey",
+    "definitionId": "bogey",
     "name": "bogey",
-    "body": 24,
+    "bodyId": 24,
     "hue": 1149,
     "hp": 240,
     "hpMax": 270,
@@ -2307,9 +2307,9 @@
     "fame": 4000
   },
   {
-    "kind": "bogle",
+    "definitionId": "bogle",
     "name": "a bogle",
-    "body": 153,
+    "bodyId": 153,
     "hp": 60,
     "str": 100,
     "dex": 95,
@@ -2328,9 +2328,9 @@
     ]
   },
   {
-    "kind": "bogling",
+    "definitionId": "bogling",
     "name": "a bogling",
-    "body": 779,
+    "bodyId": 779,
     "hp": 72,
     "str": 120,
     "dex": 115,
@@ -2355,9 +2355,9 @@
     ]
   },
   {
-    "kind": "bone-demon",
+    "definitionId": "bone-demon",
     "name": "a bone demon",
-    "body": 308,
+    "bodyId": 308,
     "hp": 50,
     "str": 50,
     "dex": 175,
@@ -2377,9 +2377,9 @@
     "loot": "wraith-common"
   },
   {
-    "kind": "bone-knight",
+    "definitionId": "bone-knight",
     "name": "a bone knight",
-    "body": 57,
+    "bodyId": 57,
     "hp": 150,
     "str": 250,
     "dex": 95,
@@ -2405,9 +2405,9 @@
     "loot": "bone-knight-common"
   },
   {
-    "kind": "bone-magi",
+    "definitionId": "bone-magi",
     "name": "a bone mage",
-    "body": 148,
+    "bodyId": 148,
     "hp": 60,
     "str": 100,
     "dex": 75,
@@ -2433,9 +2433,9 @@
     "loot": "wraith-common"
   },
   {
-    "kind": "bone-magi2",
+    "definitionId": "bone-magi2",
     "name": "bone magi",
-    "body": 18,
+    "bodyId": 18,
     "hue": 1149,
     "hp": 440,
     "hpMax": 470,
@@ -2472,9 +2472,9 @@
     "fame": 7500
   },
   {
-    "kind": "brigand",
+    "definitionId": "brigand",
     "name": "a brigand",
-    "body": 400,
+    "bodyId": 400,
     "hue": 0,
     "hp": 70,
     "str": 50,
@@ -2488,9 +2488,9 @@
     "loot": "brigand-common"
   },
   {
-    "kind": "brigand-leader",
+    "definitionId": "brigand-leader",
     "name": "brigand leader",
-    "body": 400,
+    "bodyId": 400,
     "hue": 68,
     "hp": 240,
     "hpMax": 270,
@@ -2527,9 +2527,9 @@
     "fame": 3500
   },
   {
-    "kind": "bronze-elemental",
+    "definitionId": "bronze-elemental",
     "name": "a bronze elemental",
-    "body": 108,
+    "bodyId": 108,
     "hp": 153,
     "str": 255,
     "dex": 145,
@@ -2555,9 +2555,9 @@
     "loot": "elemental-earth-common"
   },
   {
-    "kind": "brown-bear",
+    "definitionId": "brown-bear",
     "name": "a brown bear",
-    "body": 167,
+    "bodyId": 167,
     "hp": 60,
     "str": 100,
     "dex": 45,
@@ -2584,9 +2584,9 @@
     "loot": "bear-common"
   },
   {
-    "kind": "bulbous-putrification",
+    "definitionId": "bulbous-putrification",
     "name": "a bulbous putrification",
-    "body": 775,
+    "bodyId": 775,
     "hp": 1231,
     "str": 800,
     "dex": 60,
@@ -2610,9 +2610,9 @@
     ]
   },
   {
-    "kind": "bull",
+    "definitionId": "bull",
     "name": "a bull",
-    "body": 232,
+    "bodyId": 232,
     "hp": 70,
     "str": 50,
     "notoriety": 3,
@@ -2627,9 +2627,9 @@
     ]
   },
   {
-    "kind": "bull-frog",
+    "definitionId": "bull-frog",
     "name": "a bull frog",
-    "body": 81,
+    "bodyId": 81,
     "hp": 42,
     "str": 70,
     "dex": 25,
@@ -2653,9 +2653,9 @@
     ]
   },
   {
-    "kind": "candy-cat",
+    "definitionId": "candy-cat",
     "name": "candy cat",
-    "body": 201,
+    "bodyId": 201,
     "hue": 68,
     "hp": 20,
     "hpMax": 30,
@@ -2690,9 +2690,9 @@
     "ai": "passive"
   },
   {
-    "kind": "candy-corpser",
+    "definitionId": "candy-corpser",
     "name": "candy corpser",
-    "body": 8,
+    "bodyId": 8,
     "hue": 1150,
     "hp": 160,
     "hpMax": 190,
@@ -2736,9 +2736,9 @@
     "fame": 2000
   },
   {
-    "kind": "captured-horde-minion",
+    "definitionId": "captured-horde-minion",
     "name": "Captured Horde Minion",
-    "body": 776,
+    "bodyId": 776,
     "hue": 53,
     "hp": 17,
     "str": 28,
@@ -2758,9 +2758,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/Normal/CapturedHordeMinion.cs"
   },
   {
-    "kind": "cat",
+    "definitionId": "cat",
     "name": "a cat",
-    "body": 201,
+    "bodyId": 201,
     "hp": 12,
     "str": 8,
     "notoriety": 1,
@@ -2775,9 +2775,9 @@
     ]
   },
   {
-    "kind": "cave-troll-wrong",
+    "definitionId": "cave-troll-wrong",
     "name": "a Cave Troll",
-    "body": 53,
+    "bodyId": 53,
     "hue": 674,
     "hp": 2136,
     "str": 118,
@@ -2813,9 +2813,9 @@
     "ai": "aggressive"
   },
   {
-    "kind": "centaur",
+    "definitionId": "centaur",
     "name": "a centaur",
-    "body": 101,
+    "bodyId": 101,
     "hp": 290,
     "hpMax": 340,
     "str": 250,
@@ -2838,9 +2838,9 @@
     "weaponSkill": 80
   },
   {
-    "kind": "chaos-daemon",
+    "definitionId": "chaos-daemon",
     "name": "a chaos daemon",
-    "body": 792,
+    "bodyId": 792,
     "hp": 110,
     "str": 130,
     "dex": 200,
@@ -2866,9 +2866,9 @@
     "loot": "daemon-common"
   },
   {
-    "kind": "chaos-dragoon",
+    "definitionId": "chaos-dragoon",
     "name": "a chaos dragoon",
-    "body": 400,
+    "bodyId": 400,
     "hp": 225,
     "str": 225,
     "dex": 95,
@@ -2885,9 +2885,9 @@
     ]
   },
   {
-    "kind": "chaos-dragoon-elite",
+    "definitionId": "chaos-dragoon-elite",
     "name": "a chaos dragoon elite",
-    "body": 400,
+    "bodyId": 400,
     "hp": 350,
     "str": 350,
     "dex": 90,
@@ -2911,9 +2911,9 @@
     ]
   },
   {
-    "kind": "charger-of-the-fallen",
+    "definitionId": "charger-of-the-fallen",
     "name": "a charger of the fallen",
-    "body": 284,
+    "bodyId": 284,
     "hue": 2410,
     "hp": 900,
     "str": 900,
@@ -2962,9 +2962,9 @@
     ]
   },
   {
-    "kind": "chicken",
+    "definitionId": "chicken",
     "name": "a chicken",
-    "body": 209,
+    "bodyId": 209,
     "hp": 6,
     "str": 4,
     "notoriety": 3,
@@ -2976,9 +2976,9 @@
     ]
   },
   {
-    "kind": "chicken-lizard",
+    "definitionId": "chicken-lizard",
     "name": "a chicken lizard",
-    "body": 716,
+    "bodyId": 716,
     "hp": 95,
     "str": 95,
     "dex": 95,
@@ -3002,9 +3002,9 @@
     "loot": "lizardman-common"
   },
   {
-    "kind": "chief-jukan",
+    "definitionId": "chief-jukan",
     "name": "chief jukan",
-    "body": 2,
+    "bodyId": 2,
     "hue": 1149,
     "hp": 420,
     "hpMax": 460,
@@ -3042,9 +3042,9 @@
     "fame": 7500
   },
   {
-    "kind": "chief-paroxysmus",
+    "definitionId": "chief-paroxysmus",
     "name": "a chief paroxysmus",
-    "body": 256,
+    "bodyId": 256,
     "hp": 4000,
     "str": 1400,
     "dex": 82,
@@ -3072,9 +3072,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "chiikkaha",
+    "definitionId": "chiikkaha",
     "name": "Chiikkaha",
-    "body": 87,
+    "bodyId": 87,
     "hue": 1173,
     "hp": 600,
     "hpMax": 650,
@@ -3115,9 +3115,9 @@
     "ai": "melee"
   },
   {
-    "kind": "chyloth",
+    "definitionId": "chyloth",
     "name": "Chyloth",
-    "body": 400,
+    "bodyId": 400,
     "hue": 33877,
     "hp": 33,
     "str": 50,
@@ -3136,9 +3136,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/NPCs/Chyloth.cs"
   },
   {
-    "kind": "clan-ca",
+    "definitionId": "clan-ca",
     "name": "Clan Chitter Assistant",
-    "body": 142,
+    "bodyId": 142,
     "hp": 145,
     "str": 175,
     "dex": 130,
@@ -3163,9 +3163,9 @@
     ]
   },
   {
-    "kind": "clan-chitter",
+    "definitionId": "clan-chitter",
     "name": "clan chitter",
-    "body": 54,
+    "bodyId": 54,
     "hue": 1149,
     "hp": 240,
     "hpMax": 280,
@@ -3203,9 +3203,9 @@
     "fame": 4000
   },
   {
-    "kind": "clan-ct",
+    "definitionId": "clan-ct",
     "name": "Clan Scratch Tinkerer",
-    "body": 142,
+    "bodyId": 142,
     "hp": 2068,
     "str": 330,
     "dex": 240,
@@ -3230,9 +3230,9 @@
     ]
   },
   {
-    "kind": "clan-rc",
+    "definitionId": "clan-rc",
     "name": "Clan Ribbon Courtier",
-    "body": 42,
+    "bodyId": 42,
     "hp": 2100,
     "str": 50,
     "dex": 50,
@@ -3256,9 +3256,9 @@
     ]
   },
   {
-    "kind": "clan-ribbon",
+    "definitionId": "clan-ribbon",
     "name": "clan ribbon",
-    "body": 33,
+    "bodyId": 33,
     "hue": 1150,
     "hp": 380,
     "hpMax": 420,
@@ -3296,9 +3296,9 @@
     "fame": 6500
   },
   {
-    "kind": "clan-ribbon-plague-rat",
+    "definitionId": "clan-ribbon-plague-rat",
     "name": "Clan Ribbon Plague Rat",
-    "body": 238,
+    "bodyId": 238,
     "hp": 50,
     "str": 50,
     "dex": 50,
@@ -3325,9 +3325,9 @@
     "loot": "rat-common"
   },
   {
-    "kind": "clan-rs",
+    "definitionId": "clan-rs",
     "name": "Clan Ribbon Supplicant",
-    "body": 42,
+    "bodyId": 42,
     "hp": 50,
     "str": 50,
     "dex": 50,
@@ -3352,9 +3352,9 @@
     ]
   },
   {
-    "kind": "clan-scratch",
+    "definitionId": "clan-scratch",
     "name": "clan scratch",
-    "body": 54,
+    "bodyId": 54,
     "hue": 68,
     "hp": 300,
     "hpMax": 340,
@@ -3392,9 +3392,9 @@
     "fame": 4500
   },
   {
-    "kind": "clan-sh",
+    "definitionId": "clan-sh",
     "name": "Clan Scratch Henchrat",
-    "body": 42,
+    "bodyId": 42,
     "hp": 50,
     "str": 50,
     "dex": 50,
@@ -3419,9 +3419,9 @@
     ]
   },
   {
-    "kind": "clan-ss",
+    "definitionId": "clan-ss",
     "name": "Clan Scratch Scrounger",
-    "body": 142,
+    "bodyId": 142,
     "hp": 50,
     "str": 100,
     "dex": 100,
@@ -3446,9 +3446,9 @@
     ]
   },
   {
-    "kind": "clan-ssw",
+    "definitionId": "clan-ssw",
     "name": "Clan Scratch Savage Wolf",
-    "body": 98,
+    "bodyId": 98,
     "hp": 50,
     "str": 50,
     "dex": 50,
@@ -3472,9 +3472,9 @@
     ]
   },
   {
-    "kind": "clockwork-scorpion",
+    "definitionId": "clockwork-scorpion",
     "name": "a clockwork scorpion",
-    "body": 717,
+    "bodyId": 717,
     "hp": 210,
     "str": 245,
     "dex": 100,
@@ -3499,9 +3499,9 @@
     "loot": "snake-common"
   },
   {
-    "kind": "coil",
+    "definitionId": "coil",
     "name": "Coil",
-    "body": 21,
+    "bodyId": 21,
     "hue": 1149,
     "hp": 150,
     "hpMax": 170,
@@ -3537,9 +3537,9 @@
     "ai": "mage"
   },
   {
-    "kind": "cold-drake",
+    "definitionId": "cold-drake",
     "name": "a cold drake",
-    "body": 60,
+    "bodyId": 60,
     "hp": 500,
     "str": 670,
     "dex": 160,
@@ -3568,9 +3568,9 @@
     "loot": "dragon-hoard"
   },
   {
-    "kind": "commission-player-vendor",
+    "definitionId": "commission-player-vendor",
     "name": "Commission Player Vendor",
-    "body": 401,
+    "bodyId": 401,
     "hue": 53,
     "hp": 33,
     "str": 50,
@@ -3589,9 +3589,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/NPCs/CommissionPlayerVendor.cs"
   },
   {
-    "kind": "compiled-stocking-thief",
+    "definitionId": "compiled-stocking-thief",
     "name": "compiled stocking thief",
-    "body": 201,
+    "bodyId": 201,
     "hue": 1150,
     "hp": 180,
     "hpMax": 230,
@@ -3635,9 +3635,9 @@
     "fame": 2000
   },
   {
-    "kind": "copper-elemental",
+    "definitionId": "copper-elemental",
     "name": "a copper elemental",
-    "body": 109,
+    "bodyId": 109,
     "hp": 153,
     "str": 255,
     "dex": 145,
@@ -3663,9 +3663,9 @@
     "loot": "elemental-earth-common"
   },
   {
-    "kind": "coral-snake",
+    "definitionId": "coral-snake",
     "name": "a coral snake",
-    "body": 52,
+    "bodyId": 52,
     "hp": 200,
     "str": 340,
     "dex": 300,
@@ -3690,9 +3690,9 @@
     ]
   },
   {
-    "kind": "corporeal-brume",
+    "definitionId": "corporeal-brume",
     "name": "a corporeal brume",
-    "body": 260,
+    "bodyId": 260,
     "hp": 1250,
     "str": 450,
     "dex": 150,
@@ -3716,9 +3716,9 @@
     ]
   },
   {
-    "kind": "corpse-eater",
+    "definitionId": "corpse-eater",
     "name": "corpse eater",
-    "body": 157,
+    "bodyId": 157,
     "hue": 68,
     "hp": 320,
     "hpMax": 350,
@@ -3756,9 +3756,9 @@
     "fame": 5000
   },
   {
-    "kind": "corpser",
+    "definitionId": "corpser",
     "name": "a corpser",
-    "body": 8,
+    "bodyId": 8,
     "hp": 108,
     "str": 180,
     "dex": 45,
@@ -3782,9 +3782,9 @@
     ]
   },
   {
-    "kind": "corrosive-slime",
+    "definitionId": "corrosive-slime",
     "name": "a corrosive slime",
-    "body": 51,
+    "bodyId": 51,
     "hp": 19,
     "str": 34,
     "dex": 21,
@@ -3809,9 +3809,9 @@
     ]
   },
   {
-    "kind": "corrupted-dryad",
+    "definitionId": "corrupted-dryad",
     "name": "corrupted dryad",
-    "body": 175,
+    "bodyId": 175,
     "hue": 68,
     "hp": 380,
     "hpMax": 410,
@@ -3849,9 +3849,9 @@
     "fame": 6500
   },
   {
-    "kind": "corrupted-soul",
+    "definitionId": "corrupted-soul",
     "name": "a corrupted soul",
-    "body": 970,
+    "bodyId": 970,
     "hp": 69,
     "str": 115,
     "dex": 115,
@@ -3874,9 +3874,9 @@
     ]
   },
   {
-    "kind": "corrupted-treefellow",
+    "definitionId": "corrupted-treefellow",
     "name": "corrupted treefellow",
-    "body": 205,
+    "bodyId": 205,
     "hue": 1149,
     "hp": 460,
     "hpMax": 490,
@@ -3914,9 +3914,9 @@
     "fame": 8000
   },
   {
-    "kind": "corrupted-wisp",
+    "definitionId": "corrupted-wisp",
     "name": "Corrupted Wisp",
-    "body": 165,
+    "bodyId": 165,
     "hue": 1955,
     "hp": 7500,
     "str": 650,
@@ -3936,9 +3936,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/Bosses/DespiseBosses.cs"
   },
   {
-    "kind": "cougar",
+    "definitionId": "cougar",
     "name": "a cougar",
-    "body": 63,
+    "bodyId": 63,
     "hp": 48,
     "str": 80,
     "dex": 85,
@@ -3966,9 +3966,9 @@
     "loot": "wolf-common"
   },
   {
-    "kind": "councilof-mages-guard",
+    "definitionId": "councilof-mages-guard",
     "name": "Council of Mages Guard",
-    "body": 2,
+    "bodyId": 2,
     "hue": 4,
     "hp": 200,
     "hpMax": 230,
@@ -4002,9 +4002,9 @@
     "ai": "mage"
   },
   {
-    "kind": "covetous-miner",
+    "definitionId": "covetous-miner",
     "name": "covetous miner",
-    "body": 400,
+    "bodyId": 400,
     "hue": 1149,
     "hp": 220,
     "hpMax": 250,
@@ -4041,9 +4041,9 @@
     "fame": 3500
   },
   {
-    "kind": "cow",
+    "definitionId": "cow",
     "name": "a cow",
-    "body": 216,
+    "bodyId": 216,
     "hp": 25,
     "str": 30,
     "dex": 15,
@@ -4065,9 +4065,9 @@
     ]
   },
   {
-    "kind": "crane",
+    "definitionId": "crane",
     "name": "a crane",
-    "body": 254,
+    "bodyId": 254,
     "hp": 35,
     "str": 35,
     "dex": 25,
@@ -4088,9 +4088,9 @@
     ]
   },
   {
-    "kind": "crimson-dragon",
+    "definitionId": "crimson-dragon",
     "name": "a crimson dragon",
-    "body": 197,
+    "bodyId": 197,
     "hp": 4000,
     "str": 2140,
     "dex": 256,
@@ -4123,9 +4123,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "crimson-drake",
+    "definitionId": "crimson-drake",
     "name": "Crimson Drake",
-    "body": 1419,
+    "bodyId": 1419,
     "hp": 258,
     "str": 430,
     "dex": 152,
@@ -4154,9 +4154,9 @@
     "loot": "dragon-hoard"
   },
   {
-    "kind": "crocodile",
+    "definitionId": "crocodile",
     "name": "a crocodile",
-    "body": 208,
+    "bodyId": 208,
     "hp": 38,
     "hpMax": 50,
     "str": 68,
@@ -4189,9 +4189,9 @@
     "ai": "melee"
   },
   {
-    "kind": "crow",
+    "definitionId": "crow",
     "name": "a crow",
-    "body": 7,
+    "bodyId": 7,
     "hp": 8,
     "hpMax": 12,
     "str": 12,
@@ -4221,9 +4221,9 @@
     "ai": "passive"
   },
   {
-    "kind": "crystal-daemon",
+    "definitionId": "crystal-daemon",
     "name": "a crystal daemon",
-    "body": 784,
+    "bodyId": 784,
     "hp": 220,
     "str": 200,
     "dex": 150,
@@ -4250,9 +4250,9 @@
     "loot": "daemon-common"
   },
   {
-    "kind": "crystal-elemental",
+    "definitionId": "crystal-elemental",
     "name": "a crystal elemental",
-    "body": 300,
+    "bodyId": 300,
     "hp": 50,
     "str": 160,
     "dex": 65,
@@ -4278,9 +4278,9 @@
     "loot": "elemental-earth-common"
   },
   {
-    "kind": "crystal-hydra",
+    "definitionId": "crystal-hydra",
     "name": "a crystal hydra",
-    "body": 265,
+    "bodyId": 265,
     "hp": 1500,
     "str": 830,
     "dex": 120,
@@ -4305,9 +4305,9 @@
     ]
   },
   {
-    "kind": "crystal-lattice-seeker",
+    "definitionId": "crystal-lattice-seeker",
     "name": "Crystal Lattice Seeker",
-    "body": 123,
+    "bodyId": 123,
     "hp": 550,
     "str": 850,
     "dex": 250,
@@ -4332,9 +4332,9 @@
     ]
   },
   {
-    "kind": "crystal-lattice-seeker2",
+    "definitionId": "crystal-lattice-seeker2",
     "name": "crystal lattice seeker2",
-    "body": 159,
+    "bodyId": 159,
     "hue": 1153,
     "hp": 440,
     "hpMax": 470,
@@ -4371,9 +4371,9 @@
     "fame": 7500
   },
   {
-    "kind": "crystal-vortex",
+    "definitionId": "crystal-vortex",
     "name": "a crystal vortex",
-    "body": 13,
+    "bodyId": 13,
     "hp": 400,
     "str": 900,
     "dex": 600,
@@ -4398,9 +4398,9 @@
     ]
   },
   {
-    "kind": "crystal-wisp",
+    "definitionId": "crystal-wisp",
     "name": "crystal wisp",
-    "body": 58,
+    "bodyId": 58,
     "hue": 1153,
     "hp": 240,
     "hpMax": 260,
@@ -4437,9 +4437,9 @@
     "fame": 5000
   },
   {
-    "kind": "cu-sidhe",
+    "definitionId": "cu-sidhe",
     "name": "cu sidhe",
-    "body": 277,
+    "bodyId": 277,
     "hue": 1150,
     "hp": 450,
     "hpMax": 480,
@@ -4476,9 +4476,9 @@
     "fame": 6000
   },
   {
-    "kind": "cu-sidhe-pup",
+    "definitionId": "cu-sidhe-pup",
     "name": "a cu sidhe pup",
-    "body": 277,
+    "bodyId": 277,
     "hue": 1287,
     "hp": 250,
     "str": 280,
@@ -4525,9 +4525,9 @@
     ]
   },
   {
-    "kind": "cult-lord",
+    "definitionId": "cult-lord",
     "name": "cult lord",
-    "body": 400,
+    "bodyId": 400,
     "hue": 1149,
     "hp": 700,
     "hpMax": 750,
@@ -4565,9 +4565,9 @@
     "fame": 11500
   },
   {
-    "kind": "cultist-acolyte",
+    "definitionId": "cultist-acolyte",
     "name": "cultist acolyte",
-    "body": 400,
+    "bodyId": 400,
     "hue": 1149,
     "hp": 240,
     "hpMax": 280,
@@ -4604,9 +4604,9 @@
     "fame": 3800
   },
   {
-    "kind": "cultist-inquisitor",
+    "definitionId": "cultist-inquisitor",
     "name": "cultist inquisitor",
-    "body": 400,
+    "bodyId": 400,
     "hue": 1149,
     "hp": 460,
     "hpMax": 500,
@@ -4643,9 +4643,9 @@
     "fame": 8000
   },
   {
-    "kind": "cultist-priest",
+    "definitionId": "cultist-priest",
     "name": "cultist priest",
-    "body": 401,
+    "bodyId": 401,
     "hue": 1150,
     "hp": 380,
     "hpMax": 420,
@@ -4682,9 +4682,9 @@
     "fame": 6500
   },
   {
-    "kind": "cursed-soul",
+    "definitionId": "cursed-soul",
     "name": "a cursed soul",
-    "body": 3,
+    "bodyId": 3,
     "hp": 20,
     "str": 40,
     "dex": 60,
@@ -4706,9 +4706,9 @@
     ]
   },
   {
-    "kind": "cyclops",
+    "definitionId": "cyclops",
     "name": "a cyclops",
-    "body": 75,
+    "bodyId": 75,
     "hp": 200,
     "str": 110,
     "notoriety": 5,
@@ -4720,9 +4720,9 @@
     ]
   },
   {
-    "kind": "daemon",
+    "definitionId": "daemon",
     "name": "a daemon",
-    "body": 9,
+    "bodyId": 9,
     "hp": 320,
     "str": 130,
     "notoriety": 6,
@@ -4734,9 +4734,9 @@
     ]
   },
   {
-    "kind": "daemon-knight",
+    "definitionId": "daemon-knight",
     "name": "daemon knight",
-    "body": 149,
+    "bodyId": 149,
     "hue": 68,
     "hp": 920,
     "hpMax": 960,
@@ -4773,9 +4773,9 @@
     "fame": 16000
   },
   {
-    "kind": "daemonic-gate",
+    "definitionId": "daemonic-gate",
     "name": "daemonic gate",
-    "body": 9,
+    "bodyId": 9,
     "hue": 68,
     "hp": 580,
     "hpMax": 630,
@@ -4813,9 +4813,9 @@
     "fame": 9500
   },
   {
-    "kind": "dark-father-skull",
+    "definitionId": "dark-father-skull",
     "name": "dark father skull",
-    "body": 24,
+    "bodyId": 24,
     "hue": 1149,
     "hp": 900,
     "hpMax": 950,
@@ -4857,9 +4857,9 @@
     "fame": 14000
   },
   {
-    "kind": "dark-guardian",
+    "definitionId": "dark-guardian",
     "name": "a dark guardian",
-    "body": 78,
+    "bodyId": 78,
     "hp": 180,
     "str": 150,
     "dex": 120,
@@ -4884,9 +4884,9 @@
     ]
   },
   {
-    "kind": "dark-herbalist",
+    "definitionId": "dark-herbalist",
     "name": "dark herbalist",
-    "body": 401,
+    "bodyId": 401,
     "hue": 1150,
     "hp": 260,
     "hpMax": 290,
@@ -4924,9 +4924,9 @@
     "fame": 4200
   },
   {
-    "kind": "dark-wisp",
+    "definitionId": "dark-wisp",
     "name": "a wisp",
-    "body": 165,
+    "bodyId": 165,
     "hp": 135,
     "str": 225,
     "dex": 225,
@@ -4951,9 +4951,9 @@
     ]
   },
   {
-    "kind": "dark-wolf-familiar",
+    "definitionId": "dark-wolf-familiar",
     "name": "a dark wolf familiar",
-    "body": 99,
+    "bodyId": 99,
     "hue": 2406,
     "hp": 60,
     "str": 65,
@@ -4992,9 +4992,9 @@
     ]
   },
   {
-    "kind": "darkfather",
+    "definitionId": "darkfather",
     "name": "the Dark Father",
-    "body": 318,
+    "bodyId": 318,
     "hp": 30000,
     "hpMax": 35000,
     "str": 900,
@@ -5052,9 +5052,9 @@
     "ai": "mage"
   },
   {
-    "kind": "darknight-creeper",
+    "definitionId": "darknight-creeper",
     "name": "a darknight creeper",
-    "body": 313,
+    "bodyId": 313,
     "hp": 400,
     "hpMax": 470,
     "str": 320,
@@ -5084,9 +5084,9 @@
     ]
   },
   {
-    "kind": "deadly-imp",
+    "definitionId": "deadly-imp",
     "name": "a deadly imp",
-    "body": 74,
+    "bodyId": 74,
     "hp": 50,
     "str": 115,
     "dex": 80,
@@ -5112,9 +5112,9 @@
     "loot": "daemon-common"
   },
   {
-    "kind": "death-adder",
+    "definitionId": "death-adder",
     "name": "a death adder",
-    "body": 52,
+    "bodyId": 52,
     "hue": 2119,
     "hp": 50,
     "str": 55,
@@ -5154,9 +5154,9 @@
     ]
   },
   {
-    "kind": "death-lord",
+    "definitionId": "death-lord",
     "name": "death lord",
-    "body": 78,
+    "bodyId": 78,
     "hue": 1149,
     "hp": 580,
     "hpMax": 610,
@@ -5193,9 +5193,9 @@
     "fame": 10000
   },
   {
-    "kind": "death-vox",
+    "definitionId": "death-vox",
     "name": "Death Vox",
-    "body": 225,
+    "bodyId": 225,
     "hue": 1149,
     "hp": 150,
     "hpMax": 170,
@@ -5230,9 +5230,9 @@
     "ai": "necro"
   },
   {
-    "kind": "death-watch-beetle",
+    "definitionId": "death-watch-beetle",
     "name": "a deathwatch beetle",
-    "body": 242,
+    "bodyId": 242,
     "hp": 145,
     "str": 160,
     "dex": 52,
@@ -5259,9 +5259,9 @@
     ]
   },
   {
-    "kind": "death-watch-beetle-hatchling",
+    "definitionId": "death-watch-beetle-hatchling",
     "name": "a deathwatch beetle hatchling",
-    "body": 242,
+    "bodyId": 242,
     "hp": 60,
     "str": 50,
     "dex": 52,
@@ -5285,9 +5285,9 @@
     ]
   },
   {
-    "kind": "deathwatch-beetle",
+    "definitionId": "deathwatch-beetle",
     "name": "deathwatch beetle",
-    "body": 244,
+    "bodyId": 244,
     "hue": 1268,
     "hp": 380,
     "hpMax": 420,
@@ -5324,9 +5324,9 @@
     "fame": 4800
   },
   {
-    "kind": "deathwatch-beetle-hat",
+    "definitionId": "deathwatch-beetle-hat",
     "name": "deathwatch beetle hat",
-    "body": 244,
+    "bodyId": 244,
     "hue": 1150,
     "hp": 380,
     "hpMax": 420,
@@ -5364,9 +5364,9 @@
     "fame": 4800
   },
   {
-    "kind": "deceit-ghost",
+    "definitionId": "deceit-ghost",
     "name": "deceit ghost",
-    "body": 26,
+    "bodyId": 26,
     "hue": 1149,
     "hp": 240,
     "hpMax": 270,
@@ -5403,9 +5403,9 @@
     "fame": 4000
   },
   {
-    "kind": "deceit-wraith",
+    "definitionId": "deceit-wraith",
     "name": "deceit wraith",
-    "body": 26,
+    "bodyId": 26,
     "hue": 1150,
     "hp": 260,
     "hpMax": 290,
@@ -5442,9 +5442,9 @@
     "fame": 4200
   },
   {
-    "kind": "deep-sea-serpent",
+    "definitionId": "deep-sea-serpent",
     "name": "a deep sea serpent",
-    "body": 150,
+    "bodyId": 150,
     "hp": 255,
     "str": 425,
     "dex": 135,
@@ -5471,9 +5471,9 @@
     "loot": "kraken-common"
   },
   {
-    "kind": "deer",
+    "definitionId": "deer",
     "name": "a deer",
-    "body": 234,
+    "bodyId": 234,
     "hp": 30,
     "str": 25,
     "notoriety": 3,
@@ -5485,9 +5485,9 @@
     ]
   },
   {
-    "kind": "demented-jester",
+    "definitionId": "demented-jester",
     "name": "demented jester",
-    "body": 400,
+    "bodyId": 400,
     "hue": 1150,
     "hp": 280,
     "hpMax": 310,
@@ -5525,9 +5525,9 @@
     "fame": 4200
   },
   {
-    "kind": "demon",
+    "definitionId": "demon",
     "name": "a demon",
-    "body": 9,
+    "bodyId": 9,
     "hue": 0,
     "hp": 200,
     "hpMax": 240,
@@ -5556,9 +5556,9 @@
     "ai": "mage"
   },
   {
-    "kind": "demon-knight",
+    "definitionId": "demon-knight",
     "name": "unholy bones",
-    "body": 318,
+    "bodyId": 318,
     "hp": 50,
     "str": 50,
     "dex": 50,
@@ -5583,9 +5583,9 @@
     ]
   },
   {
-    "kind": "demonic-jailor",
+    "definitionId": "demonic-jailor",
     "name": "a demonic jailor",
-    "body": 400,
+    "bodyId": 400,
     "hue": 34531,
     "hp": 400,
     "str": 400,
@@ -5632,9 +5632,9 @@
     "ai": "aggressive"
   },
   {
-    "kind": "demonic-wraith",
+    "definitionId": "demonic-wraith",
     "name": "demonic wraith",
-    "body": 26,
+    "bodyId": 26,
     "hue": 1149,
     "hp": 500,
     "hpMax": 550,
@@ -5676,9 +5676,9 @@
     "fame": 8000
   },
   {
-    "kind": "desert-ostard",
+    "definitionId": "desert-ostard",
     "name": "desert ostard",
-    "body": 210,
+    "bodyId": 210,
     "hue": 96,
     "hp": 50,
     "hpMax": 60,
@@ -5714,9 +5714,9 @@
     "ai": "passive"
   },
   {
-    "kind": "despise-boss",
+    "definitionId": "despise-boss",
     "name": "Adrian",
-    "body": 400,
+    "bodyId": 400,
     "hp": 8000,
     "str": 1200,
     "dex": 600,
@@ -5746,9 +5746,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "despise-lich-king",
+    "definitionId": "despise-lich-king",
     "name": "the Lich King of Despise",
-    "body": 24,
+    "bodyId": 24,
     "hue": 1150,
     "hp": 19000,
     "str": 650,
@@ -5800,9 +5800,9 @@
     "ai": "necro"
   },
   {
-    "kind": "devourer",
+    "definitionId": "devourer",
     "name": "a devourer of souls",
-    "body": 303,
+    "bodyId": 303,
     "hp": 50,
     "str": 950,
     "dex": 175,
@@ -5827,9 +5827,9 @@
     ]
   },
   {
-    "kind": "devourer-renowned",
+    "definitionId": "devourer-renowned",
     "name": "Devourer of Souls",
-    "body": 303,
+    "bodyId": 303,
     "hp": 4000,
     "str": 950,
     "dex": 175,
@@ -5860,9 +5860,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "dimensional-rifter",
+    "definitionId": "dimensional-rifter",
     "name": "dimensional rifter",
-    "body": 157,
+    "bodyId": 157,
     "hue": 1268,
     "hp": 460,
     "hpMax": 490,
@@ -5900,9 +5900,9 @@
     "fame": 7500
   },
   {
-    "kind": "dimensional-rifter-event",
+    "definitionId": "dimensional-rifter-event",
     "name": "dimensional rifter event",
-    "body": 157,
+    "bodyId": 157,
     "hue": 1268,
     "hp": 460,
     "hpMax": 510,
@@ -5940,9 +5940,9 @@
     "fame": 7500
   },
   {
-    "kind": "dire-wolf",
+    "definitionId": "dire-wolf",
     "name": "a dire wolf",
-    "body": 23,
+    "bodyId": 23,
     "hp": 72,
     "str": 120,
     "dex": 105,
@@ -5971,9 +5971,9 @@
     "loot": "wolf-common"
   },
   {
-    "kind": "diseased-bat-bedlam",
+    "definitionId": "diseased-bat-bedlam",
     "name": "diseased bat bedlam",
-    "body": 317,
+    "bodyId": 317,
     "hue": 1149,
     "hp": 180,
     "hpMax": 210,
@@ -6011,9 +6011,9 @@
     "fame": 2500
   },
   {
-    "kind": "diseased-cat",
+    "definitionId": "diseased-cat",
     "name": "a diseased cat",
-    "body": 201,
+    "bodyId": 201,
     "hp": 50,
     "str": 50,
     "dex": 50,
@@ -6033,9 +6033,9 @@
     ]
   },
   {
-    "kind": "dog",
+    "definitionId": "dog",
     "name": "a dog",
-    "body": 217,
+    "bodyId": 217,
     "hp": 22,
     "str": 37,
     "dex": 43,
@@ -6058,9 +6058,9 @@
     ]
   },
   {
-    "kind": "dolphin",
+    "definitionId": "dolphin",
     "name": "a dolphin",
-    "body": 151,
+    "bodyId": 151,
     "hp": 27,
     "str": 49,
     "dex": 85,
@@ -6086,9 +6086,9 @@
     "loot": "kraken-common"
   },
   {
-    "kind": "doppleganger",
+    "definitionId": "doppleganger",
     "name": "a doppleganger",
-    "body": 777,
+    "bodyId": 777,
     "hp": 120,
     "str": 110,
     "dex": 75,
@@ -6113,9 +6113,9 @@
     ]
   },
   {
-    "kind": "dragon",
+    "definitionId": "dragon",
     "name": "a dragon",
-    "body": 59,
+    "bodyId": 59,
     "hp": 400,
     "str": 120,
     "notoriety": 6,
@@ -6128,9 +6128,9 @@
     "loot": "dragon-hoard"
   },
   {
-    "kind": "dragon-power",
+    "definitionId": "dragon-power",
     "name": "dragon power",
-    "body": 59,
+    "bodyId": 59,
     "hue": 68,
     "hp": 800,
     "hpMax": 840,
@@ -6173,9 +6173,9 @@
     "fame": 13500
   },
   {
-    "kind": "dragon-wolf",
+    "definitionId": "dragon-wolf",
     "name": "a dragon wolf",
-    "body": 719,
+    "bodyId": 719,
     "hp": 860,
     "str": 850,
     "dex": 75,
@@ -6204,9 +6204,9 @@
     "loot": "dragon-hoard"
   },
   {
-    "kind": "dragonkin",
+    "definitionId": "dragonkin",
     "name": "dragonkin",
-    "body": 89,
+    "bodyId": 89,
     "hue": 1149,
     "hp": 500,
     "hpMax": 540,
@@ -6244,9 +6244,9 @@
     "fame": 8500
   },
   {
-    "kind": "drake",
+    "definitionId": "drake",
     "name": "a drake",
-    "body": 60,
+    "bodyId": 60,
     "hp": 258,
     "str": 430,
     "dex": 152,
@@ -6275,9 +6275,9 @@
     "loot": "drake-common"
   },
   {
-    "kind": "drake-whelp",
+    "definitionId": "drake-whelp",
     "name": "a dragon whelp",
-    "body": 208,
+    "bodyId": 208,
     "hue": 1150,
     "hp": 50,
     "hpMax": 70,
@@ -6305,9 +6305,9 @@
     "ai": "melee"
   },
   {
-    "kind": "dread-horn",
+    "definitionId": "dread-horn",
     "name": "a Dread Horn",
-    "body": 257,
+    "bodyId": 257,
     "hp": 20000,
     "str": 993,
     "dex": 683,
@@ -6336,9 +6336,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "dread-horn-elite",
+    "definitionId": "dread-horn-elite",
     "name": "dread horn elite",
-    "body": 257,
+    "bodyId": 257,
     "hue": 1150,
     "hp": 1200,
     "hpMax": 1280,
@@ -6382,9 +6382,9 @@
     "boss": true
   },
   {
-    "kind": "dread-spider",
+    "definitionId": "dread-spider",
     "name": "a dread spider",
-    "body": 11,
+    "bodyId": 11,
     "hp": 132,
     "str": 220,
     "dex": 145,
@@ -6413,9 +6413,9 @@
     "loot": "snake-common"
   },
   {
-    "kind": "dread-warhorse",
+    "definitionId": "dread-warhorse",
     "name": "Dread Warhorse",
-    "body": 116,
+    "bodyId": 116,
     "hue": 1175,
     "hp": 603,
     "str": 528,
@@ -6435,9 +6435,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/Normal/DreadWarhorse.cs"
   },
   {
-    "kind": "dream-wraith",
+    "definitionId": "dream-wraith",
     "name": "a Dream Wraith",
-    "body": 740,
+    "bodyId": 740,
     "hp": 650,
     "str": 300,
     "dex": 200,
@@ -6463,9 +6463,9 @@
     "loot": "wraith-common"
   },
   {
-    "kind": "drelgor",
+    "definitionId": "drelgor",
     "name": "Drelgor the Impaler",
-    "body": 147,
+    "bodyId": 147,
     "hp": 136,
     "str": 137,
     "dex": 94,
@@ -6495,9 +6495,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "dryad-heartwood",
+    "definitionId": "dryad-heartwood",
     "name": "dryad heartwood",
-    "body": 175,
+    "bodyId": 175,
     "hue": 0,
     "hp": 260,
     "hpMax": 290,
@@ -6535,9 +6535,9 @@
     "fame": 4500
   },
   {
-    "kind": "dull-copper-elemental",
+    "definitionId": "dull-copper-elemental",
     "name": "a dull copper elemental",
-    "body": 110,
+    "bodyId": 110,
     "hp": 153,
     "str": 255,
     "dex": 145,
@@ -6563,9 +6563,9 @@
     "loot": "elemental-earth-common"
   },
   {
-    "kind": "dummy",
+    "definitionId": "dummy",
     "name": "Dummy",
-    "body": 400,
+    "bodyId": 400,
     "hue": 20,
     "hp": 33,
     "str": 50,
@@ -6584,9 +6584,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/Summons/Dummy.cs"
   },
   {
-    "kind": "dummy-healer",
+    "definitionId": "dummy-healer",
     "name": "Dummy Healer",
-    "body": 400,
+    "bodyId": 400,
     "hue": 20,
     "hp": 33,
     "str": 50,
@@ -6605,9 +6605,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/Summons/DummySpecific.cs"
   },
   {
-    "kind": "dummy-mace",
+    "definitionId": "dummy-mace",
     "name": "Dummy Mace",
-    "body": 400,
+    "bodyId": 400,
     "hue": 20,
     "hp": 33,
     "str": 50,
@@ -6626,9 +6626,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/Summons/DummySpecific.cs"
   },
   {
-    "kind": "dummy-thief",
+    "definitionId": "dummy-thief",
     "name": "Dummy Thief",
-    "body": 400,
+    "bodyId": 400,
     "hue": 20,
     "hp": 33,
     "str": 50,
@@ -6647,9 +6647,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/Summons/DummySpecific.cs"
   },
   {
-    "kind": "eagle",
+    "definitionId": "eagle",
     "name": "an eagle",
-    "body": 5,
+    "bodyId": 5,
     "hp": 27,
     "str": 47,
     "dex": 60,
@@ -6677,9 +6677,9 @@
     ]
   },
   {
-    "kind": "earth-elemental",
+    "definitionId": "earth-elemental",
     "name": "an earth elemental",
-    "body": 14,
+    "bodyId": 14,
     "hp": 130,
     "str": 95,
     "notoriety": 5,
@@ -6691,9 +6691,9 @@
     ]
   },
   {
-    "kind": "earth-elemental-covetous",
+    "definitionId": "earth-elemental-covetous",
     "name": "earth elemental covetous",
-    "body": 14,
+    "bodyId": 14,
     "hue": 1150,
     "hp": 280,
     "hpMax": 310,
@@ -6730,9 +6730,9 @@
     "fame": 4500
   },
   {
-    "kind": "earth-elemental-shame",
+    "definitionId": "earth-elemental-shame",
     "name": "earth elemental shame",
-    "body": 14,
+    "bodyId": 14,
     "hue": 0,
     "hp": 280,
     "hpMax": 310,
@@ -6769,9 +6769,9 @@
     "fame": 4500
   },
   {
-    "kind": "earth-golem",
+    "definitionId": "earth-golem",
     "name": "earth golem",
-    "body": 4,
+    "bodyId": 4,
     "hue": 0,
     "hp": 380,
     "hpMax": 410,
@@ -6808,9 +6808,9 @@
     "fame": 6000
   },
   {
-    "kind": "effete-putrid-gargoyle",
+    "definitionId": "effete-putrid-gargoyle",
     "name": "an Effete putrid gargoyle",
-    "body": 4,
+    "bodyId": 4,
     "hp": 111,
     "str": 220,
     "dex": 95,
@@ -6836,9 +6836,9 @@
     "loot": "lizardman-common"
   },
   {
-    "kind": "effete-undead-gargoyle",
+    "definitionId": "effete-undead-gargoyle",
     "name": "an Effete Undead Gargoyle",
-    "body": 722,
+    "bodyId": 722,
     "hp": 70,
     "str": 65,
     "dex": 65,
@@ -6862,9 +6862,9 @@
     "loot": "lizardman-common"
   },
   {
-    "kind": "efreet",
+    "definitionId": "efreet",
     "name": "an efreet",
-    "body": 131,
+    "bodyId": 131,
     "hp": 213,
     "str": 355,
     "dex": 285,
@@ -6889,9 +6889,9 @@
     ]
   },
   {
-    "kind": "egwexem",
+    "definitionId": "egwexem",
     "name": "Egwexem",
-    "body": 666,
+    "bodyId": 666,
     "hue": 1801,
     "hp": 33,
     "str": 50,
@@ -6910,9 +6910,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/NPCs/Egwexem.cs"
   },
   {
-    "kind": "elder-gazer",
+    "definitionId": "elder-gazer",
     "name": "an elder gazer",
-    "body": 22,
+    "bodyId": 22,
     "hp": 195,
     "str": 325,
     "dex": 105,
@@ -6938,9 +6938,9 @@
     ]
   },
   {
-    "kind": "elder-oni",
+    "definitionId": "elder-oni",
     "name": "elder oni",
-    "body": 241,
+    "bodyId": 241,
     "hue": 1149,
     "hp": 680,
     "hpMax": 720,
@@ -6978,9 +6978,9 @@
     "fame": 11000
   },
   {
-    "kind": "elder-yamandon",
+    "definitionId": "elder-yamandon",
     "name": "elder yamandon",
-    "body": 242,
+    "bodyId": 242,
     "hue": 1149,
     "hp": 750,
     "hpMax": 790,
@@ -7018,9 +7018,9 @@
     "fame": 11500
   },
   {
-    "kind": "elf-arch-ar",
+    "definitionId": "elf-arch-ar",
     "name": "elf arch ar",
-    "body": 400,
+    "bodyId": 400,
     "hue": 33770,
     "hp": 280,
     "hpMax": 310,
@@ -7058,9 +7058,9 @@
     "fame": 4500
   },
   {
-    "kind": "elf-arch-mage",
+    "definitionId": "elf-arch-mage",
     "name": "elf arch mage",
-    "body": 400,
+    "bodyId": 400,
     "hue": 33770,
     "hp": 440,
     "hpMax": 470,
@@ -7098,9 +7098,9 @@
     "fame": 7500
   },
   {
-    "kind": "elf-arch-paladin",
+    "definitionId": "elf-arch-paladin",
     "name": "elf arch paladin",
-    "body": 401,
+    "bodyId": 401,
     "hue": 33770,
     "hp": 460,
     "hpMax": 490,
@@ -7138,9 +7138,9 @@
     "fame": 7500
   },
   {
-    "kind": "energy-elemental",
+    "definitionId": "energy-elemental",
     "name": "an energy elemental",
-    "body": 13,
+    "bodyId": 13,
     "hue": 1150,
     "hp": 110,
     "hpMax": 145,
@@ -7183,9 +7183,9 @@
     "ai": "mage"
   },
   {
-    "kind": "energy-vortex",
+    "definitionId": "energy-vortex",
     "name": "an energy vortex",
-    "body": 164,
+    "bodyId": 164,
     "hue": 20,
     "hp": 250,
     "str": 250,
@@ -7206,9 +7206,9 @@
     "summoned": true
   },
   {
-    "kind": "enraged-black-bear",
+    "definitionId": "enraged-black-bear",
     "name": "Enraged Black Bear",
-    "body": 211,
+    "bodyId": 211,
     "hue": 53,
     "hp": 125,
     "str": 125,
@@ -7227,9 +7227,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/Normal/EnragedCreatures.cs"
   },
   {
-    "kind": "enraged-collosus",
+    "definitionId": "enraged-collosus",
     "name": "Rising Colossus",
-    "body": 829,
+    "bodyId": 829,
     "hp": 50,
     "str": 50,
     "dex": 50,
@@ -7253,9 +7253,9 @@
     ]
   },
   {
-    "kind": "enraged-creatures",
+    "definitionId": "enraged-creatures",
     "name": "a rabbit",
-    "body": 205,
+    "bodyId": 205,
     "hp": 200,
     "str": 200,
     "dex": 200,
@@ -7272,9 +7272,9 @@
     ]
   },
   {
-    "kind": "enraged-eagle",
+    "definitionId": "enraged-eagle",
     "name": "Enraged Eagle",
-    "body": 5,
+    "bodyId": 5,
     "hue": 53,
     "hp": 125,
     "str": 125,
@@ -7293,9 +7293,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/Normal/EnragedCreatures.cs"
   },
   {
-    "kind": "enraged-earth-elemental",
+    "definitionId": "enraged-earth-elemental",
     "name": "Enraged Earth Elemental",
-    "body": 14,
+    "bodyId": 14,
     "hp": 550,
     "str": 155,
     "dex": 90,
@@ -7322,9 +7322,9 @@
     "loot": "elemental-earth-common"
   },
   {
-    "kind": "enraged-hind",
+    "definitionId": "enraged-hind",
     "name": "Enraged Hind",
-    "body": 237,
+    "bodyId": 237,
     "hue": 53,
     "hp": 125,
     "str": 125,
@@ -7343,9 +7343,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/Normal/EnragedCreatures.cs"
   },
   {
-    "kind": "enraged-rabbit",
+    "definitionId": "enraged-rabbit",
     "name": "Enraged Rabbit",
-    "body": 205,
+    "bodyId": 205,
     "hue": 53,
     "hp": 125,
     "str": 125,
@@ -7364,9 +7364,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/Normal/EnragedCreatures.cs"
   },
   {
-    "kind": "enslaved-gargoyle",
+    "definitionId": "enslaved-gargoyle",
     "name": "an enslaved gargoyle",
-    "body": 753,
+    "bodyId": 753,
     "hp": 212,
     "str": 360,
     "dex": 95,
@@ -7392,9 +7392,9 @@
     "loot": "lizardman-common"
   },
   {
-    "kind": "enslaved-goblin-keeper",
+    "definitionId": "enslaved-goblin-keeper",
     "name": "Enslaved Goblin Keeper",
-    "body": 334,
+    "bodyId": 334,
     "hp": 174,
     "str": 297,
     "dex": 80,
@@ -7419,9 +7419,9 @@
     ]
   },
   {
-    "kind": "enslaved-goblin-mage",
+    "definitionId": "enslaved-goblin-mage",
     "name": "Enslaved Goblin Mage",
-    "body": 334,
+    "bodyId": 334,
     "hp": 174,
     "str": 297,
     "dex": 94,
@@ -7447,9 +7447,9 @@
     "loot": "lich-common"
   },
   {
-    "kind": "enslaved-goblin-scout",
+    "definitionId": "enslaved-goblin-scout",
     "name": "Enslaved Goblin Scout",
-    "body": 334,
+    "bodyId": 334,
     "hp": 182,
     "str": 320,
     "dex": 74,
@@ -7474,9 +7474,9 @@
     ]
   },
   {
-    "kind": "enslaved-gray-goblin",
+    "definitionId": "enslaved-gray-goblin",
     "name": "Enslaved Gray Goblin",
-    "body": 334,
+    "bodyId": 334,
     "hp": 179,
     "str": 321,
     "dex": 64,
@@ -7501,9 +7501,9 @@
     ]
   },
   {
-    "kind": "enslaved-green-goblin",
+    "definitionId": "enslaved-green-goblin",
     "name": "Enslaved Green Goblin",
-    "body": 334,
+    "bodyId": 334,
     "hp": 184,
     "str": 326,
     "dex": 71,
@@ -7528,9 +7528,9 @@
     ]
   },
   {
-    "kind": "enslaved-green-goblin-alchemist",
+    "definitionId": "enslaved-green-goblin-alchemist",
     "name": "Green Goblin Alchemist",
-    "body": 723,
+    "bodyId": 723,
     "hp": 196,
     "str": 289,
     "dex": 72,
@@ -7555,9 +7555,9 @@
     ]
   },
   {
-    "kind": "enslaved-satyr",
+    "definitionId": "enslaved-satyr",
     "name": "Enslaved Satyr",
-    "body": 271,
+    "bodyId": 271,
     "hue": 53,
     "hp": 375,
     "str": 186,
@@ -7577,9 +7577,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/Normal/EnslavedSatyr.cs"
   },
   {
-    "kind": "ensorcled-wisp",
+    "definitionId": "ensorcled-wisp",
     "name": "Ensorcled Wisp",
-    "body": 165,
+    "bodyId": 165,
     "hue": 2305,
     "hp": 7500,
     "str": 650,
@@ -7599,9 +7599,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/Bosses/DespiseBosses.cs"
   },
   {
-    "kind": "ettin",
+    "definitionId": "ettin",
     "name": "an ettin",
-    "body": 2,
+    "bodyId": 2,
     "hp": 200,
     "str": 100,
     "notoriety": 5,
@@ -7614,9 +7614,9 @@
     "loot": "ettin-common"
   },
   {
-    "kind": "evil-fairy-wisp",
+    "definitionId": "evil-fairy-wisp",
     "name": "evil fairy wisp",
-    "body": 58,
+    "bodyId": 58,
     "hue": 68,
     "hp": 220,
     "hpMax": 240,
@@ -7653,9 +7653,9 @@
     "fame": 4500
   },
   {
-    "kind": "evil-mage",
+    "definitionId": "evil-mage",
     "name": "an evil mage",
-    "body": 400,
+    "bodyId": 400,
     "hue": 1175,
     "hp": 90,
     "str": 50,
@@ -7699,9 +7699,9 @@
     "loot": "brigand-common"
   },
   {
-    "kind": "evil-mage-lord",
+    "definitionId": "evil-mage-lord",
     "name": "an evil mage lord",
-    "body": 291,
+    "bodyId": 291,
     "hue": 145,
     "hp": 130,
     "hpMax": 175,
@@ -7746,9 +7746,9 @@
     "boss": true
   },
   {
-    "kind": "evil-spirit",
+    "definitionId": "evil-spirit",
     "name": "evil spirit",
-    "body": 158,
+    "bodyId": 158,
     "hue": 1149,
     "hp": 260,
     "hpMax": 290,
@@ -7785,9 +7785,9 @@
     "fame": 4000
   },
   {
-    "kind": "exodus-minion",
+    "definitionId": "exodus-minion",
     "name": "exodus minion",
-    "body": 757,
+    "bodyId": 757,
     "hp": 570,
     "str": 950,
     "dex": 80,
@@ -7811,9 +7811,9 @@
     ]
   },
   {
-    "kind": "exodus-overseer",
+    "definitionId": "exodus-overseer",
     "name": "exodus overseer",
-    "body": 756,
+    "bodyId": 756,
     "hp": 390,
     "str": 650,
     "dex": 95,
@@ -7837,9 +7837,9 @@
     ]
   },
   {
-    "kind": "fairy-dragon",
+    "definitionId": "fairy-dragon",
     "name": "Fairy Dragon",
-    "body": 718,
+    "bodyId": 718,
     "hp": 403,
     "str": 558,
     "dex": 105,
@@ -7865,9 +7865,9 @@
     "loot": "dragon-hoard"
   },
   {
-    "kind": "fan-dancer",
+    "definitionId": "fan-dancer",
     "name": "a fan dancer",
-    "body": 247,
+    "bodyId": 247,
     "hp": 430,
     "str": 375,
     "dex": 255,
@@ -7892,9 +7892,9 @@
     ]
   },
   {
-    "kind": "farmer",
+    "definitionId": "farmer",
     "name": "farmer",
-    "body": 400,
+    "bodyId": 400,
     "hue": 1150,
     "hp": 50,
     "hpMax": 70,
@@ -7929,9 +7929,9 @@
     "fame": 100
   },
   {
-    "kind": "feral-treefellow",
+    "definitionId": "feral-treefellow",
     "name": "a feral treefellow",
-    "body": 301,
+    "bodyId": 301,
     "hp": 1320,
     "str": 1600,
     "dex": 550,
@@ -7954,9 +7954,9 @@
     ]
   },
   {
-    "kind": "ferret",
+    "definitionId": "ferret",
     "name": "a ferret",
-    "body": 279,
+    "bodyId": 279,
     "hp": 50,
     "str": 48,
     "dex": 50,
@@ -7981,9 +7981,9 @@
     ]
   },
   {
-    "kind": "festering-wound",
+    "definitionId": "festering-wound",
     "name": "Festering Wound",
-    "body": 157,
+    "bodyId": 157,
     "hue": 71,
     "hp": 90,
     "hpMax": 130,
@@ -8025,9 +8025,9 @@
     "ai": "melee"
   },
   {
-    "kind": "fetid-essence",
+    "definitionId": "fetid-essence",
     "name": "a fetid essence",
-    "body": 273,
+    "bodyId": 273,
     "hp": 650,
     "str": 150,
     "dex": 250,
@@ -8051,9 +8051,9 @@
     ]
   },
   {
-    "kind": "fezzik",
+    "definitionId": "fezzik",
     "name": "Fezzik the Ogre Cook",
-    "body": 1,
+    "bodyId": 1,
     "hp": 1260,
     "str": 1260,
     "dex": 82,
@@ -8098,9 +8098,9 @@
     "ai": "aggressive"
   },
   {
-    "kind": "fierce-dragon",
+    "definitionId": "fierce-dragon",
     "name": "a fierce dragon",
-    "body": 103,
+    "bodyId": 103,
     "hp": 50,
     "str": 6020,
     "dex": 50,
@@ -8126,9 +8126,9 @@
     "loot": "dragon-hoard"
   },
   {
-    "kind": "fire-ant",
+    "definitionId": "fire-ant",
     "name": "a fire ant",
-    "body": 738,
+    "bodyId": 738,
     "hp": 50,
     "str": 50,
     "dex": 50,
@@ -8145,9 +8145,9 @@
     "loot": "snake-common"
   },
   {
-    "kind": "fire-beetle",
+    "definitionId": "fire-beetle",
     "name": "a fire beetle",
-    "body": 169,
+    "bodyId": 169,
     "hp": 200,
     "str": 300,
     "dex": 100,
@@ -8194,9 +8194,9 @@
     ]
   },
   {
-    "kind": "fire-daemon",
+    "definitionId": "fire-daemon",
     "name": "a fire daemon",
-    "body": 9,
+    "bodyId": 9,
     "hp": 1174,
     "str": 539,
     "dex": 145,
@@ -8221,9 +8221,9 @@
     "loot": "daemon-common"
   },
   {
-    "kind": "fire-daemon-renowned",
+    "definitionId": "fire-daemon-renowned",
     "name": "Fire Daemon",
-    "body": 40,
+    "bodyId": 40,
     "hp": 1478,
     "str": 1199,
     "dex": 250,
@@ -8253,9 +8253,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "fire-elemental",
+    "definitionId": "fire-elemental",
     "name": "a fire elemental",
-    "body": 15,
+    "bodyId": 15,
     "hp": 120,
     "str": 90,
     "notoriety": 5,
@@ -8267,9 +8267,9 @@
     ]
   },
   {
-    "kind": "fire-elemental-renowned",
+    "definitionId": "fire-elemental-renowned",
     "name": "Fire Elemental",
-    "body": 15,
+    "bodyId": 15,
     "hp": 1600,
     "str": 500,
     "dex": 250,
@@ -8300,9 +8300,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "fire-gargoyle",
+    "definitionId": "fire-gargoyle",
     "name": "fire gargoyle",
-    "body": 4,
+    "bodyId": 4,
     "hue": 1268,
     "hp": 400,
     "hpMax": 430,
@@ -8345,9 +8345,9 @@
     "fame": 6500
   },
   {
-    "kind": "flesh-golem",
+    "definitionId": "flesh-golem",
     "name": "a flesh golem",
-    "body": 304,
+    "bodyId": 304,
     "hp": 120,
     "str": 200,
     "dex": 75,
@@ -8373,9 +8373,9 @@
     "loot": "elemental-earth-common"
   },
   {
-    "kind": "flesh-renderer",
+    "definitionId": "flesh-renderer",
     "name": "a fleshrenderer",
-    "body": 315,
+    "bodyId": 315,
     "hp": 50,
     "str": 460,
     "dex": 210,
@@ -8398,9 +8398,9 @@
     ]
   },
   {
-    "kind": "flurry",
+    "definitionId": "flurry",
     "name": "Flurry",
-    "body": 13,
+    "bodyId": 13,
     "hp": 477,
     "str": 195,
     "dex": 264,
@@ -8431,9 +8431,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "forest-ostard",
+    "definitionId": "forest-ostard",
     "name": "forest ostard",
-    "body": 219,
+    "bodyId": 219,
     "hue": 1150,
     "hp": 50,
     "hpMax": 60,
@@ -8469,9 +8469,9 @@
     "ai": "passive"
   },
   {
-    "kind": "frenzied-ostard",
+    "definitionId": "frenzied-ostard",
     "name": "frenzied ostard",
-    "body": 218,
+    "bodyId": 218,
     "hue": 68,
     "hp": 70,
     "hpMax": 80,
@@ -8508,9 +8508,9 @@
     "ai": "melee"
   },
   {
-    "kind": "frog",
+    "definitionId": "frog",
     "name": "frog",
-    "body": 81,
+    "bodyId": 81,
     "hue": 0,
     "hp": 10,
     "hpMax": 20,
@@ -8543,9 +8543,9 @@
     "ai": "passive"
   },
   {
-    "kind": "frost-dragon",
+    "definitionId": "frost-dragon",
     "name": "a frost dragon",
-    "body": 12,
+    "bodyId": 12,
     "hp": 2250,
     "str": 1400,
     "dex": 125,
@@ -8575,9 +8575,9 @@
     "loot": "dragon-hoard"
   },
   {
-    "kind": "frost-drake",
+    "definitionId": "frost-drake",
     "name": "a frost drake",
-    "body": 112,
+    "bodyId": 112,
     "hue": 1150,
     "hp": 200,
     "hpMax": 250,
@@ -8615,9 +8615,9 @@
     "ai": "mage"
   },
   {
-    "kind": "frost-mite",
+    "definitionId": "frost-mite",
     "name": "Frost Mite",
-    "body": 1424,
+    "bodyId": 1424,
     "hp": 1000,
     "str": 50,
     "dex": 50,
@@ -8643,9 +8643,9 @@
     ]
   },
   {
-    "kind": "frost-ooze",
+    "definitionId": "frost-ooze",
     "name": "a frost ooze",
-    "body": 94,
+    "bodyId": 94,
     "hp": 17,
     "str": 30,
     "dex": 21,
@@ -8669,9 +8669,9 @@
     ]
   },
   {
-    "kind": "frost-spider",
+    "definitionId": "frost-spider",
     "name": "a frost spider",
-    "body": 20,
+    "bodyId": 20,
     "hp": 60,
     "str": 100,
     "dex": 145,
@@ -8700,9 +8700,9 @@
     "loot": "snake-common"
   },
   {
-    "kind": "frost-troll",
+    "definitionId": "frost-troll",
     "name": "a frost troll",
-    "body": 55,
+    "bodyId": 55,
     "hp": 156,
     "str": 265,
     "dex": 85,
@@ -8727,9 +8727,9 @@
     "loot": "frost-troll-common"
   },
   {
-    "kind": "frost-wolf",
+    "definitionId": "frost-wolf",
     "name": "Frost Wolf",
-    "body": 225,
+    "bodyId": 225,
     "hue": 1153,
     "hp": 80,
     "hpMax": 100,
@@ -8764,9 +8764,9 @@
     "ai": "melee"
   },
   {
-    "kind": "gaman",
+    "definitionId": "gaman",
     "name": "a gaman",
-    "body": 248,
+    "bodyId": 248,
     "hp": 160,
     "str": 175,
     "dex": 150,
@@ -8793,9 +8793,9 @@
     ]
   },
   {
-    "kind": "gargish-noble",
+    "definitionId": "gargish-noble",
     "name": "Gargish Noble",
-    "body": 667,
+    "bodyId": 667,
     "hue": 1762,
     "hp": 62,
     "str": 95,
@@ -8814,9 +8814,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/NPCs/GargishNoble.cs"
   },
   {
-    "kind": "gargish-rouser",
+    "definitionId": "gargish-rouser",
     "name": "Gargish Rouser",
-    "body": 666,
+    "bodyId": 666,
     "hue": 53,
     "hp": 1350,
     "str": 150,
@@ -8836,9 +8836,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/Normal/GargishRouser.cs"
   },
   {
-    "kind": "gargoyle",
+    "definitionId": "gargoyle",
     "name": "a gargoyle",
-    "body": 4,
+    "bodyId": 4,
     "hp": 90,
     "str": 70,
     "notoriety": 5,
@@ -8850,9 +8850,9 @@
     ]
   },
   {
-    "kind": "gargoyle-destroyer",
+    "definitionId": "gargoyle-destroyer",
     "name": "Gargoyle Destroyer",
-    "body": 755,
+    "bodyId": 755,
     "hp": 485,
     "str": 850,
     "dex": 150,
@@ -8879,9 +8879,9 @@
     "loot": "lizardman-common"
   },
   {
-    "kind": "gargoyle-enforcer",
+    "definitionId": "gargoyle-enforcer",
     "name": "Gargoyle Enforcer",
-    "body": 754,
+    "bodyId": 754,
     "hp": 485,
     "str": 850,
     "dex": 150,
@@ -8908,9 +8908,9 @@
     "loot": "orc-common"
   },
   {
-    "kind": "gargoyle-guardian",
+    "definitionId": "gargoyle-guardian",
     "name": "Abyss Guardian",
-    "body": 755,
+    "bodyId": 755,
     "hp": 485,
     "str": 850,
     "dex": 150,
@@ -8937,9 +8937,9 @@
     "loot": "lizardman-common"
   },
   {
-    "kind": "gargoyle-pet",
+    "definitionId": "gargoyle-pet",
     "name": "Gargoyle Pet",
-    "body": 730,
+    "bodyId": 730,
     "hue": 53,
     "hp": 307,
     "str": 506,
@@ -8958,9 +8958,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/Summons/GargoylePet.cs"
   },
   {
-    "kind": "gargoyle-shade",
+    "definitionId": "gargoyle-shade",
     "name": "a gargoyle shade",
-    "body": 4,
+    "bodyId": 4,
     "hp": 64,
     "str": 78,
     "dex": 81,
@@ -8986,9 +8986,9 @@
     "loot": "lizardman-common"
   },
   {
-    "kind": "gazer",
+    "definitionId": "gazer",
     "name": "a gazer",
-    "body": 22,
+    "bodyId": 22,
     "hp": 100,
     "str": 60,
     "notoriety": 6,
@@ -9001,9 +9001,9 @@
     "loot": "gazer-common"
   },
   {
-    "kind": "gazer-larva",
+    "definitionId": "gazer-larva",
     "name": "a gazer larva",
-    "body": 778,
+    "bodyId": 778,
     "hp": 47,
     "str": 100,
     "dex": 75,
@@ -9024,9 +9024,9 @@
     ]
   },
   {
-    "kind": "ghoul",
+    "definitionId": "ghoul",
     "name": "a ghoul",
-    "body": 153,
+    "bodyId": 153,
     "hp": 80,
     "str": 60,
     "notoriety": 5,
@@ -9038,9 +9038,9 @@
     ]
   },
   {
-    "kind": "giant-beetle",
+    "definitionId": "giant-beetle",
     "name": "a giant beetle",
-    "body": 791,
+    "bodyId": 791,
     "hue": 2401,
     "hp": 200,
     "str": 300,
@@ -9088,9 +9088,9 @@
     ]
   },
   {
-    "kind": "giant-black-widow",
+    "definitionId": "giant-black-widow",
     "name": "a giant black widow",
-    "body": 157,
+    "bodyId": 157,
     "hp": 60,
     "str": 100,
     "dex": 115,
@@ -9116,9 +9116,9 @@
     "loot": "snake-common"
   },
   {
-    "kind": "giant-ice-worm",
+    "definitionId": "giant-ice-worm",
     "name": "a giant ice worm",
-    "body": 89,
+    "bodyId": 89,
     "hp": 147,
     "str": 245,
     "dex": 100,
@@ -9146,9 +9146,9 @@
     "loot": "snake-common"
   },
   {
-    "kind": "giant-rat",
+    "definitionId": "giant-rat",
     "name": "a giant rat",
-    "body": 215,
+    "bodyId": 215,
     "hp": 39,
     "str": 74,
     "dex": 65,
@@ -9175,9 +9175,9 @@
     "loot": "rat-common"
   },
   {
-    "kind": "giant-serpent",
+    "definitionId": "giant-serpent",
     "name": "a giant serpent",
-    "body": 21,
+    "bodyId": 21,
     "hp": 129,
     "str": 215,
     "dex": 80,
@@ -9203,9 +9203,9 @@
     "loot": "snake-common"
   },
   {
-    "kind": "giant-spider",
+    "definitionId": "giant-spider",
     "name": "a giant spider",
-    "body": 28,
+    "bodyId": 28,
     "hp": 60,
     "str": 100,
     "dex": 95,
@@ -9231,9 +9231,9 @@
     "loot": "snake-common"
   },
   {
-    "kind": "giant-toad",
+    "definitionId": "giant-toad",
     "name": "a giant toad",
-    "body": 80,
+    "bodyId": 80,
     "hp": 60,
     "str": 100,
     "dex": 25,
@@ -9260,9 +9260,9 @@
     "loot": "snake-common"
   },
   {
-    "kind": "giant-turkey",
+    "definitionId": "giant-turkey",
     "name": "a giant turkey",
-    "body": 1026,
+    "bodyId": 1026,
     "hp": 50,
     "str": 1400,
     "dex": 260,
@@ -9287,9 +9287,9 @@
     "loot": "snake-common"
   },
   {
-    "kind": "gibberling",
+    "definitionId": "gibberling",
     "name": "a gibberling",
-    "body": 307,
+    "bodyId": 307,
     "hp": 99,
     "str": 165,
     "dex": 125,
@@ -9314,9 +9314,9 @@
     ]
   },
   {
-    "kind": "gnaw",
+    "definitionId": "gnaw",
     "name": "Gnaw",
-    "body": 226,
+    "bodyId": 226,
     "hue": 68,
     "hp": 450,
     "hpMax": 500,
@@ -9357,9 +9357,9 @@
     "ai": "melee"
   },
   {
-    "kind": "goat",
+    "definitionId": "goat",
     "name": "a goat",
-    "body": 209,
+    "bodyId": 209,
     "hp": 50,
     "str": 50,
     "dex": 50,
@@ -9383,9 +9383,9 @@
     ]
   },
   {
-    "kind": "golden-elemental",
+    "definitionId": "golden-elemental",
     "name": "a golden elemental",
-    "body": 166,
+    "bodyId": 166,
     "hp": 153,
     "str": 255,
     "dex": 145,
@@ -9411,9 +9411,9 @@
     "loot": "elemental-earth-common"
   },
   {
-    "kind": "golem",
+    "definitionId": "golem",
     "name": "a golem",
-    "body": 752,
+    "bodyId": 752,
     "hp": 210,
     "str": 50,
     "dex": 50,
@@ -9439,9 +9439,9 @@
     "loot": "elemental-earth-common"
   },
   {
-    "kind": "golem-crafter",
+    "definitionId": "golem-crafter",
     "name": "Golem Crafter",
-    "body": 401,
+    "bodyId": 401,
     "hue": 946,
     "hp": 33,
     "str": 50,
@@ -9460,9 +9460,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/NPCs/GolemCrafter.cs"
   },
   {
-    "kind": "gore",
+    "definitionId": "gore",
     "name": "gore",
-    "body": 400,
+    "bodyId": 400,
     "hue": 68,
     "hp": 500,
     "hpMax": 550,
@@ -9504,9 +9504,9 @@
     "fame": 8500
   },
   {
-    "kind": "gore-fiend",
+    "definitionId": "gore-fiend",
     "name": "a gore fiend",
-    "body": 305,
+    "bodyId": 305,
     "hp": 111,
     "str": 185,
     "dex": 65,
@@ -9531,9 +9531,9 @@
     ]
   },
   {
-    "kind": "gorilla",
+    "definitionId": "gorilla",
     "name": "a gorilla",
-    "body": 29,
+    "bodyId": 29,
     "hp": 51,
     "str": 95,
     "dex": 55,
@@ -9559,9 +9559,9 @@
     "loot": "bear-common"
   },
   {
-    "kind": "gray-goblin",
+    "definitionId": "gray-goblin",
     "name": "a gray goblin",
-    "body": 723,
+    "bodyId": 723,
     "hp": 194,
     "str": 327,
     "dex": 80,
@@ -9586,9 +9586,9 @@
     ]
   },
   {
-    "kind": "gray-goblin-keeper",
+    "definitionId": "gray-goblin-keeper",
     "name": "a gray goblin keeper",
-    "body": 723,
+    "bodyId": 723,
     "hp": 50,
     "str": 50,
     "dex": 50,
@@ -9606,9 +9606,9 @@
     ]
   },
   {
-    "kind": "gray-goblin-mage",
+    "definitionId": "gray-goblin-mage",
     "name": "a gray goblin mage",
-    "body": 723,
+    "bodyId": 723,
     "hp": 151,
     "str": 285,
     "dex": 88,
@@ -9635,9 +9635,9 @@
     "loot": "lich-common"
   },
   {
-    "kind": "gray-goblin-mage-renowned",
+    "definitionId": "gray-goblin-mage-renowned",
     "name": "Gray Goblin Mage",
-    "body": 723,
+    "bodyId": 723,
     "hp": 1300,
     "str": 600,
     "dex": 75,
@@ -9668,9 +9668,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "great-hart",
+    "definitionId": "great-hart",
     "name": "a great hart",
-    "body": 234,
+    "bodyId": 234,
     "hp": 50,
     "str": 40,
     "notoriety": 3,
@@ -9682,9 +9682,9 @@
     ]
   },
   {
-    "kind": "greater-dragon",
+    "definitionId": "greater-dragon",
     "name": "a greater dragon",
-    "body": 12,
+    "bodyId": 12,
     "hp": 2000,
     "str": 1425,
     "dex": 148,
@@ -9714,9 +9714,9 @@
     "loot": "dragon-hoard"
   },
   {
-    "kind": "greater-mongbat",
+    "definitionId": "greater-mongbat",
     "name": "a greater mongbat",
-    "body": 39,
+    "bodyId": 39,
     "hp": 48,
     "str": 80,
     "dex": 80,
@@ -9740,9 +9740,9 @@
     ]
   },
   {
-    "kind": "greater-poison-elemental",
+    "definitionId": "greater-poison-elemental",
     "name": "Greater Poison Elemental",
-    "body": 162,
+    "bodyId": 162,
     "hp": 702,
     "str": 771,
     "dex": 203,
@@ -9768,9 +9768,9 @@
     "loot": "elemental-earth-common"
   },
   {
-    "kind": "green-goblin",
+    "definitionId": "green-goblin",
     "name": "a green goblin",
-    "body": 723,
+    "bodyId": 723,
     "hp": 208,
     "str": 343,
     "dex": 74,
@@ -9795,9 +9795,9 @@
     ]
   },
   {
-    "kind": "green-goblin-alchemist",
+    "definitionId": "green-goblin-alchemist",
     "name": "a green goblin alchemist",
-    "body": 723,
+    "bodyId": 723,
     "hp": 197,
     "str": 331,
     "dex": 79,
@@ -9822,9 +9822,9 @@
     ]
   },
   {
-    "kind": "green-goblin-alchemist-renowned",
+    "definitionId": "green-goblin-alchemist-renowned",
     "name": "Green Goblin Alchemist",
-    "body": 723,
+    "bodyId": 723,
     "hp": 1500,
     "str": 650,
     "dex": 70,
@@ -9854,9 +9854,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "green-goblin-scout",
+    "definitionId": "green-goblin-scout",
     "name": "a green goblin scout",
-    "body": 723,
+    "bodyId": 723,
     "hp": 198,
     "str": 309,
     "dex": 79,
@@ -9881,9 +9881,9 @@
     ]
   },
   {
-    "kind": "gremlin",
+    "definitionId": "gremlin",
     "name": "a gremlin",
-    "body": 724,
+    "bodyId": 724,
     "hp": 50,
     "str": 50,
     "dex": 50,
@@ -9899,9 +9899,9 @@
     ]
   },
   {
-    "kind": "grey-wolf",
+    "definitionId": "grey-wolf",
     "name": "a grey wolf",
-    "body": 25,
+    "bodyId": 25,
     "hp": 48,
     "str": 80,
     "dex": 75,
@@ -9930,9 +9930,9 @@
     "loot": "wolf-common"
   },
   {
-    "kind": "grim",
+    "definitionId": "grim",
     "name": "Grim",
-    "body": 24,
+    "bodyId": 24,
     "hue": 1149,
     "hp": 700,
     "hpMax": 750,
@@ -9973,9 +9973,9 @@
     "ai": "necro"
   },
   {
-    "kind": "grimmoch-drummel",
+    "definitionId": "grimmoch-drummel",
     "name": "Grimmoch Drummel",
-    "body": 400,
+    "bodyId": 400,
     "hp": 207,
     "str": 120,
     "dex": 160,
@@ -10003,9 +10003,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "grizzly-bear",
+    "definitionId": "grizzly-bear",
     "name": "a grizzly bear",
-    "body": 212,
+    "bodyId": 212,
     "hp": 93,
     "str": 155,
     "dex": 105,
@@ -10033,9 +10033,9 @@
     "loot": "bear-common"
   },
   {
-    "kind": "grobu",
+    "definitionId": "grobu",
     "name": "Grobu",
-    "body": 7,
+    "bodyId": 7,
     "hue": 68,
     "hp": 800,
     "hpMax": 850,
@@ -10076,9 +10076,9 @@
     "ai": "melee"
   },
   {
-    "kind": "grubber",
+    "definitionId": "grubber",
     "name": "a grubber",
-    "body": 270,
+    "bodyId": 270,
     "hp": 50,
     "str": 50,
     "dex": 50,
@@ -10095,9 +10095,9 @@
     ]
   },
   {
-    "kind": "guardian",
+    "definitionId": "guardian",
     "name": "Guardian",
-    "body": 401,
+    "bodyId": 401,
     "hue": 2406,
     "hp": 33,
     "str": 50,
@@ -10116,9 +10116,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/Normal/Guardian.cs"
   },
   {
-    "kind": "guile",
+    "definitionId": "guile",
     "name": "Guile",
-    "body": 78,
+    "bodyId": 78,
     "hue": 1150,
     "hp": 500,
     "hpMax": 550,
@@ -10159,9 +10159,9 @@
     "ai": "mage"
   },
   {
-    "kind": "gypsy-fortune-teller",
+    "definitionId": "gypsy-fortune-teller",
     "name": "Gypsy Fortune Teller",
-    "body": 401,
+    "bodyId": 401,
     "hue": 0,
     "hp": 229,
     "str": 352,
@@ -10181,9 +10181,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/NPCs/GypsyFortuneTeller.cs"
   },
   {
-    "kind": "harpy",
+    "definitionId": "harpy",
     "name": "a harpy",
-    "body": 30,
+    "bodyId": 30,
     "hp": 70,
     "str": 50,
     "notoriety": 5,
@@ -10195,9 +10195,9 @@
     ]
   },
   {
-    "kind": "harrower",
+    "definitionId": "harrower",
     "name": "a harrower",
-    "body": 146,
+    "bodyId": 146,
     "hue": 1150,
     "hp": 50000,
     "hpMax": 60000,
@@ -10248,9 +10248,9 @@
     }
   },
   {
-    "kind": "harrower-tentacle",
+    "definitionId": "harrower-tentacle",
     "name": "a harrower tentacle",
-    "body": 147,
+    "bodyId": 147,
     "hue": 1150,
     "hp": 5000,
     "hpMax": 5000,
@@ -10301,9 +10301,9 @@
     }
   },
   {
-    "kind": "harrower-tentacles",
+    "definitionId": "harrower-tentacles",
     "name": "tentacles of the harrower",
-    "body": 129,
+    "bodyId": 129,
     "hp": 600,
     "str": 1000,
     "dex": 140,
@@ -10332,9 +10332,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "harrower-wraith",
+    "definitionId": "harrower-wraith",
     "name": "harrower wraith",
-    "body": 146,
+    "bodyId": 146,
     "hue": 1149,
     "hp": 900,
     "hpMax": 980,
@@ -10378,9 +10378,9 @@
     "boss": true
   },
   {
-    "kind": "harvest-wraith",
+    "definitionId": "harvest-wraith",
     "name": "harvest wraith",
-    "body": 26,
+    "bodyId": 26,
     "hue": 1150,
     "hp": 440,
     "hpMax": 470,
@@ -10424,9 +10424,9 @@
     "fame": 7500
   },
   {
-    "kind": "headless",
+    "definitionId": "headless",
     "name": "a headless one",
-    "body": 31,
+    "bodyId": 31,
     "hp": 30,
     "str": 30,
     "notoriety": 5,
@@ -10438,9 +10438,9 @@
     ]
   },
   {
-    "kind": "headless-horseman",
+    "definitionId": "headless-horseman",
     "name": "headless horseman",
-    "body": 400,
+    "bodyId": 400,
     "hue": 1149,
     "hp": 460,
     "hpMax": 490,
@@ -10484,9 +10484,9 @@
     "fame": 8000
   },
   {
-    "kind": "headless-one",
+    "definitionId": "headless-one",
     "name": "a headless one",
-    "body": 31,
+    "bodyId": 31,
     "hp": 30,
     "str": 50,
     "dex": 55,
@@ -10507,9 +10507,9 @@
     ]
   },
   {
-    "kind": "healer",
+    "definitionId": "healer",
     "name": "healer",
-    "body": 401,
+    "bodyId": 401,
     "hue": 33770,
     "hp": 120,
     "hpMax": 150,
@@ -10544,9 +10544,9 @@
     "fame": 1500
   },
   {
-    "kind": "heartwood-sentinel",
+    "definitionId": "heartwood-sentinel",
     "name": "heartwood sentinel",
-    "body": 400,
+    "bodyId": 400,
     "hue": 33770,
     "hp": 320,
     "hpMax": 350,
@@ -10584,9 +10584,9 @@
     "fame": 5000
   },
   {
-    "kind": "hell-cat",
+    "definitionId": "hell-cat",
     "name": "a hell cat",
-    "body": 201,
+    "bodyId": 201,
     "hp": 67,
     "str": 100,
     "dex": 150,
@@ -10612,9 +10612,9 @@
     ]
   },
   {
-    "kind": "hell-hound",
+    "definitionId": "hell-hound",
     "name": "a hell hound",
-    "body": 98,
+    "bodyId": 98,
     "hp": 300,
     "str": 350,
     "dex": 300,
@@ -10642,9 +10642,9 @@
     "loot": "wolf-common"
   },
   {
-    "kind": "hellcat",
+    "definitionId": "hellcat",
     "name": "a hellcat",
-    "body": 127,
+    "bodyId": 127,
     "hp": 50,
     "hpMax": 70,
     "str": 88,
@@ -10669,9 +10669,9 @@
     "ai": "melee"
   },
   {
-    "kind": "hellhound",
+    "definitionId": "hellhound",
     "name": "Hellhound",
-    "body": 98,
+    "bodyId": 98,
     "hue": 68,
     "hp": 130,
     "hpMax": 150,
@@ -10706,9 +10706,9 @@
     "ai": "melee"
   },
   {
-    "kind": "hellhound-hythloth",
+    "definitionId": "hellhound-hythloth",
     "name": "hellhound hythloth",
-    "body": 98,
+    "bodyId": 98,
     "hue": 1149,
     "hp": 240,
     "hpMax": 280,
@@ -10745,9 +10745,9 @@
     "fame": 4000
   },
   {
-    "kind": "hellsteed",
+    "definitionId": "hellsteed",
     "name": "a hellsteed",
-    "body": 793,
+    "bodyId": 793,
     "hue": 1645,
     "hp": 270,
     "str": 350,
@@ -10786,9 +10786,9 @@
     ]
   },
   {
-    "kind": "hen",
+    "definitionId": "hen",
     "name": "a hen",
-    "body": 208,
+    "bodyId": 208,
     "hp": 4,
     "hpMax": 7,
     "str": 6,
@@ -10824,9 +10824,9 @@
     "ai": "passive"
   },
   {
-    "kind": "henchman",
+    "definitionId": "henchman",
     "name": "Henchman",
-    "body": 400,
+    "bodyId": 400,
     "hue": 53,
     "hp": 33,
     "str": 50,
@@ -10845,9 +10845,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/NPCs/Henchman.cs"
   },
   {
-    "kind": "high-plains-boura",
+    "definitionId": "high-plains-boura",
     "name": "a high plains boura",
-    "body": 715,
+    "bodyId": 715,
     "hp": 618,
     "str": 435,
     "dex": 96,
@@ -10874,9 +10874,9 @@
     ]
   },
   {
-    "kind": "hind",
+    "definitionId": "hind",
     "name": "a hind",
-    "body": 237,
+    "bodyId": 237,
     "hp": 29,
     "str": 51,
     "dex": 77,
@@ -10899,9 +10899,9 @@
     ]
   },
   {
-    "kind": "hire-paladin",
+    "definitionId": "hire-paladin",
     "name": "Hire Paladin",
-    "body": 401,
+    "bodyId": 401,
     "hue": 53,
     "hp": 60,
     "str": 93,
@@ -10921,9 +10921,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/NPCs/HirePaladin.cs"
   },
   {
-    "kind": "hireling-archer",
+    "definitionId": "hireling-archer",
     "name": "an archer hireling",
-    "body": 400,
+    "bodyId": 400,
     "hue": 1057,
     "hp": 90,
     "str": 70,
@@ -10957,9 +10957,9 @@
     "ai": "wander"
   },
   {
-    "kind": "hireling-bard",
+    "definitionId": "hireling-bard",
     "name": "a bard hireling",
-    "body": 400,
+    "bodyId": 400,
     "hue": 542,
     "hp": 80,
     "str": 60,
@@ -10983,9 +10983,9 @@
     "ai": "wander"
   },
   {
-    "kind": "hireling-beggar",
+    "definitionId": "hireling-beggar",
     "name": "a beggar hireling",
-    "body": 400,
+    "bodyId": 400,
     "hue": 542,
     "hp": 55,
     "str": 45,
@@ -11005,9 +11005,9 @@
     "ai": "wander"
   },
   {
-    "kind": "hireling-mage",
+    "definitionId": "hireling-mage",
     "name": "a mage hireling",
-    "body": 400,
+    "bodyId": 400,
     "hue": 1153,
     "hp": 75,
     "str": 55,
@@ -11031,9 +11031,9 @@
     "ai": "wander"
   },
   {
-    "kind": "hireling-paladin",
+    "definitionId": "hireling-paladin",
     "name": "a paladin hireling",
-    "body": 400,
+    "bodyId": 400,
     "hue": 1953,
     "hp": 130,
     "str": 95,
@@ -11057,9 +11057,9 @@
     "ai": "wander"
   },
   {
-    "kind": "hireling-thief",
+    "definitionId": "hireling-thief",
     "name": "a thief hireling",
-    "body": 400,
+    "bodyId": 400,
     "hue": 575,
     "hp": 85,
     "str": 65,
@@ -11082,9 +11082,9 @@
     "ai": "wander"
   },
   {
-    "kind": "hireling-warrior",
+    "definitionId": "hireling-warrior",
     "name": "a warrior hireling",
-    "body": 400,
+    "bodyId": 400,
     "hue": 1102,
     "hp": 110,
     "str": 90,
@@ -11105,9 +11105,9 @@
     "ai": "wander"
   },
   {
-    "kind": "hiryu",
+    "definitionId": "hiryu",
     "name": "hiryu",
-    "body": 243,
+    "bodyId": 243,
     "hue": 0,
     "hp": 800,
     "hpMax": 830,
@@ -11144,9 +11144,9 @@
     "fame": 13000
   },
   {
-    "kind": "holiday-reindeer",
+    "definitionId": "holiday-reindeer",
     "name": "holiday reindeer",
-    "body": 237,
+    "bodyId": 237,
     "hue": 68,
     "hp": 55,
     "hpMax": 65,
@@ -11181,9 +11181,9 @@
     "ai": "passive"
   },
   {
-    "kind": "holly-haunter",
+    "definitionId": "holly-haunter",
     "name": "holly haunter",
-    "body": 26,
+    "bodyId": 26,
     "hue": 33,
     "hp": 260,
     "hpMax": 310,
@@ -11227,9 +11227,9 @@
     "fame": 4500
   },
   {
-    "kind": "horde-minion",
+    "definitionId": "horde-minion",
     "name": "a horde minion",
-    "body": 776,
+    "bodyId": 776,
     "hp": 24,
     "str": 40,
     "dex": 60,
@@ -11251,9 +11251,9 @@
     ]
   },
   {
-    "kind": "horde-minion-familiar",
+    "definitionId": "horde-minion-familiar",
     "name": "Horde Minion Familiar",
-    "body": 776,
+    "bodyId": 776,
     "hue": 53,
     "hp": 70,
     "str": 100,
@@ -11272,9 +11272,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/Summons/HordeMinion.cs"
   },
   {
-    "kind": "horse",
+    "definitionId": "horse",
     "name": "a horse",
-    "body": 200,
+    "bodyId": 200,
     "hp": 60,
     "str": 35,
     "notoriety": 1,
@@ -11289,9 +11289,9 @@
     ]
   },
   {
-    "kind": "human-brigand",
+    "definitionId": "human-brigand",
     "name": "Human Brigand",
-    "body": 401,
+    "bodyId": 401,
     "hue": 53,
     "hp": 60,
     "str": 93,
@@ -11311,9 +11311,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/Normal/HumanBrigand.cs"
   },
   {
-    "kind": "hungry-coconut-crab",
+    "definitionId": "hungry-coconut-crab",
     "name": "hungry coconut crab",
-    "body": 1511,
+    "bodyId": 1511,
     "hp": 50,
     "str": 50,
     "dex": 50,
@@ -11337,9 +11337,9 @@
     ]
   },
   {
-    "kind": "hungry-ogre",
+    "definitionId": "hungry-ogre",
     "name": "Hungry Ogre",
-    "body": 1,
+    "bodyId": 1,
     "hp": 1180,
     "str": 205,
     "dex": 70,
@@ -11376,9 +11376,9 @@
     "ai": "aggressive"
   },
   {
-    "kind": "hydra",
+    "definitionId": "hydra",
     "name": "a hydra",
-    "body": 265,
+    "bodyId": 265,
     "hp": 1500,
     "str": 828,
     "dex": 118,
@@ -11403,9 +11403,9 @@
     ]
   },
   {
-    "kind": "hythloth-lord",
+    "definitionId": "hythloth-lord",
     "name": "the Lord of Hythloth",
-    "body": 318,
+    "bodyId": 318,
     "hue": 1109,
     "hp": 17000,
     "str": 900,
@@ -11457,9 +11457,9 @@
     "ai": "mage"
   },
   {
-    "kind": "ice-elemental",
+    "definitionId": "ice-elemental",
     "name": "an ice elemental",
-    "body": 161,
+    "bodyId": 161,
     "hp": 111,
     "str": 185,
     "dex": 115,
@@ -11486,9 +11486,9 @@
     "loot": "elemental-earth-common"
   },
   {
-    "kind": "ice-fiend",
+    "definitionId": "ice-fiend",
     "name": "an ice fiend",
-    "body": 43,
+    "bodyId": 43,
     "hp": 243,
     "str": 405,
     "dex": 195,
@@ -11514,9 +11514,9 @@
     ]
   },
   {
-    "kind": "ice-fury",
+    "definitionId": "ice-fury",
     "name": "ice fury",
-    "body": 15,
+    "bodyId": 15,
     "hue": 1155,
     "hp": 380,
     "hpMax": 410,
@@ -11553,9 +11553,9 @@
     "fame": 6500
   },
   {
-    "kind": "ice-serpent",
+    "definitionId": "ice-serpent",
     "name": "a giant ice serpent",
-    "body": 89,
+    "bodyId": 89,
     "hp": 147,
     "str": 245,
     "dex": 50,
@@ -11580,9 +11580,9 @@
     "loot": "kraken-common"
   },
   {
-    "kind": "ice-serpent2",
+    "definitionId": "ice-serpent2",
     "name": "ice serpent",
-    "body": 21,
+    "bodyId": 21,
     "hue": 1153,
     "hp": 75,
     "hpMax": 115,
@@ -11625,9 +11625,9 @@
     "fame": 1600
   },
   {
-    "kind": "ice-snake",
+    "definitionId": "ice-snake",
     "name": "an ice snake",
-    "body": 52,
+    "bodyId": 52,
     "hp": 50,
     "str": 54,
     "dex": 45,
@@ -11651,9 +11651,9 @@
     ]
   },
   {
-    "kind": "icehound",
+    "definitionId": "icehound",
     "name": "an ice hound",
-    "body": 98,
+    "bodyId": 98,
     "hp": 125,
     "str": 150,
     "dex": 105,
@@ -11681,9 +11681,9 @@
     "loot": "wolf-common"
   },
   {
-    "kind": "ilhenir",
+    "definitionId": "ilhenir",
     "name": "Ilhenir",
-    "body": 259,
+    "bodyId": 259,
     "hp": 4000,
     "str": 1350,
     "dex": 160,
@@ -11717,9 +11717,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "imp",
+    "definitionId": "imp",
     "name": "an imp",
-    "body": 74,
+    "bodyId": 74,
     "hp": 70,
     "str": 115,
     "dex": 80,
@@ -11749,9 +11749,9 @@
     "loot": "imp-common"
   },
   {
-    "kind": "impaler",
+    "definitionId": "impaler",
     "name": "Impaler",
-    "body": 306,
+    "bodyId": 306,
     "hue": 53,
     "hp": 5000,
     "str": 190,
@@ -11771,9 +11771,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/Normal/Impaler.cs"
   },
   {
-    "kind": "imperial-hiryu",
+    "definitionId": "imperial-hiryu",
     "name": "imperial hiryu",
-    "body": 243,
+    "bodyId": 243,
     "hue": 1150,
     "hp": 800,
     "hpMax": 840,
@@ -11811,9 +11811,9 @@
     "fame": 13000
   },
   {
-    "kind": "infernal",
+    "definitionId": "infernal",
     "name": "infernal",
-    "body": 724,
+    "bodyId": 724,
     "hue": 68,
     "hp": 600,
     "hpMax": 630,
@@ -11856,9 +11856,9 @@
     "fame": 8000
   },
   {
-    "kind": "injured-wolf",
+    "definitionId": "injured-wolf",
     "name": "an injured wolf",
-    "body": 225,
+    "bodyId": 225,
     "hp": 50,
     "str": 20,
     "dex": 65,
@@ -11879,9 +11879,9 @@
     "loot": "wolf-common"
   },
   {
-    "kind": "insane-dryad",
+    "definitionId": "insane-dryad",
     "name": "a dryad",
-    "body": 266,
+    "bodyId": 266,
     "hp": 321,
     "str": 149,
     "dex": 168,
@@ -11907,9 +11907,9 @@
     ]
   },
   {
-    "kind": "interred-grizzle",
+    "definitionId": "interred-grizzle",
     "name": "an interred grizzle",
-    "body": 259,
+    "bodyId": 259,
     "hp": 50,
     "str": 500,
     "dex": 250,
@@ -11934,9 +11934,9 @@
     ]
   },
   {
-    "kind": "irk",
+    "definitionId": "irk",
     "name": "Irk",
-    "body": 74,
+    "bodyId": 74,
     "hue": 1150,
     "hp": 400,
     "hpMax": 450,
@@ -11977,9 +11977,9 @@
     "ai": "mage"
   },
   {
-    "kind": "iron-beetle",
+    "definitionId": "iron-beetle",
     "name": "an iron beetle",
-    "body": 714,
+    "bodyId": 714,
     "hp": 830,
     "str": 883,
     "dex": 73,
@@ -12007,9 +12007,9 @@
     ]
   },
   {
-    "kind": "jack-olantern",
+    "definitionId": "jack-olantern",
     "name": "jack o lantern",
-    "body": 1247,
+    "bodyId": 1247,
     "hue": 68,
     "hp": 240,
     "hpMax": 270,
@@ -12053,9 +12053,9 @@
     "fame": 4500
   },
   {
-    "kind": "jack-rabbit",
+    "definitionId": "jack-rabbit",
     "name": "a jack rabbit",
-    "body": 205,
+    "bodyId": 205,
     "hp": 50,
     "str": 50,
     "dex": 50,
@@ -12077,9 +12077,9 @@
     ]
   },
   {
-    "kind": "juggernaut",
+    "definitionId": "juggernaut",
     "name": "a blackthorn juggernaut",
-    "body": 768,
+    "bodyId": 768,
     "hp": 240,
     "str": 400,
     "dex": 70,
@@ -12103,9 +12103,9 @@
     ]
   },
   {
-    "kind": "juka-lord",
+    "definitionId": "juka-lord",
     "name": "a juka lord",
-    "body": 766,
+    "bodyId": 766,
     "hp": 300,
     "str": 500,
     "dex": 100,
@@ -12129,9 +12129,9 @@
     ]
   },
   {
-    "kind": "juka-mage",
+    "definitionId": "juka-mage",
     "name": "a juka mage",
-    "body": 765,
+    "bodyId": 765,
     "hp": 180,
     "str": 300,
     "dex": 90,
@@ -12157,9 +12157,9 @@
     "loot": "lich-common"
   },
   {
-    "kind": "juka-warrior",
+    "definitionId": "juka-warrior",
     "name": "a juka warrior",
-    "body": 764,
+    "bodyId": 764,
     "hp": 210,
     "str": 350,
     "dex": 80,
@@ -12183,9 +12183,9 @@
     ]
   },
   {
-    "kind": "jukan-lord-tokuno",
+    "definitionId": "jukan-lord-tokuno",
     "name": "jukan lord tokuno",
-    "body": 2,
+    "bodyId": 2,
     "hue": 0,
     "hp": 280,
     "hpMax": 320,
@@ -12223,9 +12223,9 @@
     "fame": 8000
   },
   {
-    "kind": "jukan-shaman",
+    "definitionId": "jukan-shaman",
     "name": "jukan shaman",
-    "body": 3,
+    "bodyId": 3,
     "hue": 1150,
     "hp": 200,
     "hpMax": 240,
@@ -12263,9 +12263,9 @@
     "fame": 3000
   },
   {
-    "kind": "jukan-warrior",
+    "definitionId": "jukan-warrior",
     "name": "jukan warrior",
-    "body": 2,
+    "bodyId": 2,
     "hue": 1150,
     "hp": 260,
     "hpMax": 290,
@@ -12303,9 +12303,9 @@
     "fame": 3800
   },
   {
-    "kind": "jukan-warrior-tokuno",
+    "definitionId": "jukan-warrior-tokuno",
     "name": "jukan warrior tokuno",
-    "body": 2,
+    "bodyId": 2,
     "hue": 0,
     "hp": 230,
     "hpMax": 270,
@@ -12343,9 +12343,9 @@
     "fame": 3500
   },
   {
-    "kind": "jukari-female-standard",
+    "definitionId": "jukari-female-standard",
     "name": "jukari female standard",
-    "body": 401,
+    "bodyId": 401,
     "hue": 16387,
     "hp": 270,
     "hpMax": 300,
@@ -12388,9 +12388,9 @@
     "fame": 3300
   },
   {
-    "kind": "jukari-male-standard",
+    "definitionId": "jukari-male-standard",
     "name": "jukari male standard",
-    "body": 400,
+    "bodyId": 400,
     "hue": 16387,
     "hp": 280,
     "hpMax": 310,
@@ -12433,9 +12433,9 @@
     "fame": 3500
   },
   {
-    "kind": "kappa",
+    "definitionId": "kappa",
     "name": "a kappa",
-    "body": 240,
+    "bodyId": 240,
     "hp": 180,
     "str": 230,
     "dex": 75,
@@ -12459,9 +12459,9 @@
     ]
   },
   {
-    "kind": "kaze-kemono",
+    "definitionId": "kaze-kemono",
     "name": "a kaze kemono",
-    "body": 196,
+    "bodyId": 196,
     "hp": 330,
     "str": 275,
     "dex": 155,
@@ -12487,9 +12487,9 @@
     ]
   },
   {
-    "kind": "kepetch",
+    "definitionId": "kepetch",
     "name": "a kepetch",
-    "body": 726,
+    "bodyId": 726,
     "hp": 400,
     "str": 380,
     "dex": 194,
@@ -12513,9 +12513,9 @@
     ]
   },
   {
-    "kind": "kepetch-ambusher",
+    "definitionId": "kepetch-ambusher",
     "name": "a kepetch ambusher",
-    "body": 726,
+    "bodyId": 726,
     "hp": 544,
     "str": 446,
     "dex": 254,
@@ -12539,9 +12539,9 @@
     ]
   },
   {
-    "kind": "khaldun-guardian",
+    "definitionId": "khaldun-guardian",
     "name": "khaldun guardian",
-    "body": 400,
+    "bodyId": 400,
     "hue": 1150,
     "hp": 380,
     "hpMax": 410,
@@ -12579,9 +12579,9 @@
     "fame": 6500
   },
   {
-    "kind": "khaldun-mage",
+    "definitionId": "khaldun-mage",
     "name": "khaldun mage",
-    "body": 400,
+    "bodyId": 400,
     "hue": 1149,
     "hp": 380,
     "hpMax": 410,
@@ -12619,9 +12619,9 @@
     "fame": 6000
   },
   {
-    "kind": "khaldun-revenant",
+    "definitionId": "khaldun-revenant",
     "name": "a revenant",
-    "body": 970,
+    "bodyId": 970,
     "hp": 300,
     "str": 500,
     "dex": 315,
@@ -12646,9 +12646,9 @@
     "loot": "snake-common"
   },
   {
-    "kind": "khaldun-summoner",
+    "definitionId": "khaldun-summoner",
     "name": "Zealot of Khaldun",
-    "body": 400,
+    "bodyId": 400,
     "hp": 480,
     "str": 400,
     "dex": 150,
@@ -12673,9 +12673,9 @@
     ]
   },
   {
-    "kind": "khaldun-warrior",
+    "definitionId": "khaldun-warrior",
     "name": "khaldun warrior",
-    "body": 400,
+    "bodyId": 400,
     "hue": 1149,
     "hp": 380,
     "hpMax": 410,
@@ -12713,9 +12713,9 @@
     "fame": 6500
   },
   {
-    "kind": "khaldun-zealot",
+    "definitionId": "khaldun-zealot",
     "name": "Zealot of Khaldun",
-    "body": 400,
+    "bodyId": 400,
     "hp": 470,
     "str": 400,
     "dex": 165,
@@ -12739,9 +12739,9 @@
     ]
   },
   {
-    "kind": "ki-rin",
+    "definitionId": "ki-rin",
     "name": "a ki-rin",
-    "body": 121,
+    "bodyId": 121,
     "hp": 175,
     "hpMax": 215,
     "str": 293,
@@ -12778,9 +12778,9 @@
     "ai": "mage"
   },
   {
-    "kind": "korpre",
+    "definitionId": "korpre",
     "name": "a korpre",
-    "body": 45,
+    "bodyId": 45,
     "hue": 2099,
     "hp": 500,
     "hpMax": 550,
@@ -12824,9 +12824,9 @@
     "fame": 13000
   },
   {
-    "kind": "kraken",
+    "definitionId": "kraken",
     "name": "a kraken",
-    "body": 77,
+    "bodyId": 77,
     "hp": 468,
     "str": 780,
     "dex": 245,
@@ -12852,9 +12852,9 @@
     "loot": "kraken-common"
   },
   {
-    "kind": "krampus",
+    "definitionId": "krampus",
     "name": "krampus",
-    "body": 9,
+    "bodyId": 9,
     "hue": 1149,
     "hp": 1500,
     "hpMax": 1550,
@@ -12898,9 +12898,9 @@
     "fame": 18000
   },
   {
-    "kind": "krampus-minion",
+    "definitionId": "krampus-minion",
     "name": "krampus minion",
-    "body": 205,
+    "bodyId": 205,
     "hue": 68,
     "hp": 300,
     "hpMax": 350,
@@ -12944,9 +12944,9 @@
     "fame": 4500
   },
   {
-    "kind": "kurak-female-nomad",
+    "definitionId": "kurak-female-nomad",
     "name": "kurak female nomad",
-    "body": 401,
+    "bodyId": 401,
     "hue": 16389,
     "hp": 280,
     "hpMax": 310,
@@ -12989,9 +12989,9 @@
     "fame": 3500
   },
   {
-    "kind": "kurak-male-nomad",
+    "definitionId": "kurak-male-nomad",
     "name": "kurak male nomad",
-    "body": 400,
+    "bodyId": 400,
     "hue": 16389,
     "hp": 290,
     "hpMax": 320,
@@ -13034,9 +13034,9 @@
     "fame": 3700
   },
   {
-    "kind": "lady",
+    "definitionId": "lady",
     "name": "lady",
-    "body": 401,
+    "bodyId": 401,
     "hue": 96,
     "hp": 40,
     "hpMax": 60,
@@ -13071,9 +13071,9 @@
     "fame": 100
   },
   {
-    "kind": "lady-jennifyr",
+    "definitionId": "lady-jennifyr",
     "name": "Lady Jennifyr",
-    "body": 401,
+    "bodyId": 401,
     "hue": 33770,
     "hp": 700,
     "hpMax": 750,
@@ -13114,9 +13114,9 @@
     "ai": "mage"
   },
   {
-    "kind": "lady-lissith",
+    "definitionId": "lady-lissith",
     "name": "Lady Lissith",
-    "body": 28,
+    "bodyId": 28,
     "hue": 1106,
     "hp": 310,
     "hpMax": 375,
@@ -13168,9 +13168,9 @@
     "ai": "melee"
   },
   {
-    "kind": "lady-marai",
+    "definitionId": "lady-marai",
     "name": "Lady Marai",
-    "body": 14,
+    "bodyId": 14,
     "hue": 1175,
     "hp": 770,
     "hpMax": 846,
@@ -13222,9 +13222,9 @@
     "ai": "melee"
   },
   {
-    "kind": "lady-mel",
+    "definitionId": "lady-mel",
     "name": "Lady Melisande",
-    "body": 41,
+    "bodyId": 41,
     "hue": 1151,
     "hp": 16000,
     "hpMax": 16000,
@@ -13244,9 +13244,9 @@
     "weaponSkill": 100
   },
   {
-    "kind": "lady-melisande",
+    "definitionId": "lady-melisande",
     "name": "a lady melisande",
-    "body": 258,
+    "bodyId": 258,
     "hp": 28000,
     "str": 1000,
     "dex": 400,
@@ -13277,9 +13277,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "lady-of-the-snow",
+    "definitionId": "lady-of-the-snow",
     "name": "a lady of the snow",
-    "body": 252,
+    "bodyId": 252,
     "hp": 625,
     "str": 305,
     "dex": 125,
@@ -13304,9 +13304,9 @@
     ]
   },
   {
-    "kind": "lady-sabrix",
+    "definitionId": "lady-sabrix",
     "name": "Lady Sabrix",
-    "body": 11,
+    "bodyId": 11,
     "hue": 1281,
     "hp": 300,
     "hpMax": 361,
@@ -13359,9 +13359,9 @@
     "ai": "melee"
   },
   {
-    "kind": "lasher",
+    "definitionId": "lasher",
     "name": "a lasher",
-    "body": 1407,
+    "bodyId": 1407,
     "hp": 1300,
     "str": 1200,
     "dex": 180,
@@ -13408,9 +13408,9 @@
     ]
   },
   {
-    "kind": "lava-elemental",
+    "definitionId": "lava-elemental",
     "name": "a lava elemental",
-    "body": 720,
+    "bodyId": 720,
     "hp": 290,
     "str": 510,
     "dex": 190,
@@ -13434,9 +13434,9 @@
     "loot": "elemental-earth-common"
   },
   {
-    "kind": "lava-lizard",
+    "definitionId": "lava-lizard",
     "name": "a lava lizard",
-    "body": 206,
+    "bodyId": 206,
     "hp": 90,
     "str": 150,
     "dex": 75,
@@ -13464,9 +13464,9 @@
     "loot": "lizardman-common"
   },
   {
-    "kind": "lava-serpent",
+    "definitionId": "lava-serpent",
     "name": "a lava serpent",
-    "body": 90,
+    "bodyId": 90,
     "hp": 249,
     "str": 415,
     "dex": 80,
@@ -13491,9 +13491,9 @@
     "loot": "kraken-common"
   },
   {
-    "kind": "lava-serpent2",
+    "definitionId": "lava-serpent2",
     "name": "lava serpent",
-    "body": 21,
+    "bodyId": 21,
     "hue": 68,
     "hp": 85,
     "hpMax": 125,
@@ -13536,9 +13536,9 @@
     "fame": 1800
   },
   {
-    "kind": "lava-snake",
+    "definitionId": "lava-snake",
     "name": "a lava snake",
-    "body": 52,
+    "bodyId": 52,
     "hp": 32,
     "str": 55,
     "dex": 25,
@@ -13562,9 +13562,9 @@
     ]
   },
   {
-    "kind": "leather-wolf",
+    "definitionId": "leather-wolf",
     "name": "a leather wolf",
-    "body": 739,
+    "bodyId": 739,
     "hp": 329,
     "str": 125,
     "dex": 125,
@@ -13590,9 +13590,9 @@
     "loot": "wolf-common"
   },
   {
-    "kind": "leather-wolf-fellow",
+    "definitionId": "leather-wolf-fellow",
     "name": "Leather Wolf Fellow",
-    "body": 739,
+    "bodyId": 739,
     "hue": 53,
     "hp": 96,
     "str": 110,
@@ -13612,9 +13612,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/Normal/LeatherWolf.cs"
   },
   {
-    "kind": "lesser-hiryu",
+    "definitionId": "lesser-hiryu",
     "name": "lesser hiryu",
-    "body": 243,
+    "bodyId": 243,
     "hue": 51,
     "hp": 600,
     "hpMax": 630,
@@ -13651,9 +13651,9 @@
     "fame": 8000
   },
   {
-    "kind": "lesser-hiryu-tokuno",
+    "definitionId": "lesser-hiryu-tokuno",
     "name": "lesser hiryu tokuno",
-    "body": 243,
+    "bodyId": 243,
     "hue": 51,
     "hp": 600,
     "hpMax": 640,
@@ -13691,9 +13691,9 @@
     "fame": 8500
   },
   {
-    "kind": "lesser-oni",
+    "definitionId": "lesser-oni",
     "name": "lesser oni",
-    "body": 241,
+    "bodyId": 241,
     "hue": 68,
     "hp": 460,
     "hpMax": 500,
@@ -13731,9 +13731,9 @@
     "fame": 7000
   },
   {
-    "kind": "leviathan",
+    "definitionId": "leviathan",
     "name": "a leviathan",
-    "body": 77,
+    "bodyId": 77,
     "hp": 50,
     "str": 50,
     "dex": 520,
@@ -13759,9 +13759,9 @@
     ]
   },
   {
-    "kind": "lich",
+    "definitionId": "lich",
     "name": "a lich",
-    "body": 24,
+    "bodyId": 24,
     "hue": 0,
     "hp": 140,
     "str": 70,
@@ -13816,9 +13816,9 @@
     "loot": "lich-common"
   },
   {
-    "kind": "lich-lord",
+    "definitionId": "lich-lord",
     "name": "a lich lord",
-    "body": 79,
+    "bodyId": 79,
     "hp": 303,
     "str": 505,
     "dex": 165,
@@ -13844,9 +13844,9 @@
     "loot": "wraith-common"
   },
   {
-    "kind": "lich-of-khaldun",
+    "definitionId": "lich-of-khaldun",
     "name": "lich of khaldun",
-    "body": 24,
+    "bodyId": 24,
     "hue": 1150,
     "hp": 700,
     "hpMax": 730,
@@ -13884,9 +13884,9 @@
     "fame": 12000
   },
   {
-    "kind": "lich2",
+    "definitionId": "lich2",
     "name": "lich",
-    "body": 24,
+    "bodyId": 24,
     "hue": 1150,
     "hp": 480,
     "hpMax": 510,
@@ -13923,9 +13923,9 @@
     "fame": 8500
   },
   {
-    "kind": "lifestealer",
+    "definitionId": "lifestealer",
     "name": "a lifestealer",
-    "body": 303,
+    "bodyId": 303,
     "hp": 4650,
     "str": 240,
     "dex": 150,
@@ -13950,9 +13950,9 @@
     ]
   },
   {
-    "kind": "lightning-elemental",
+    "definitionId": "lightning-elemental",
     "name": "a lightning elemental",
-    "body": 13,
+    "bodyId": 13,
     "hue": 1266,
     "hp": 80,
     "hpMax": 110,
@@ -13995,9 +13995,9 @@
     "ai": "mage"
   },
   {
-    "kind": "lion",
+    "definitionId": "lion",
     "name": "Lion",
-    "body": 1426,
+    "bodyId": 1426,
     "hp": 370,
     "str": 720,
     "dex": 220,
@@ -14025,9 +14025,9 @@
     ]
   },
   {
-    "kind": "lizardman",
+    "definitionId": "lizardman",
     "name": "a lizardman",
-    "body": 35,
+    "bodyId": 35,
     "hp": 70,
     "str": 60,
     "notoriety": 5,
@@ -14039,9 +14039,9 @@
     ]
   },
   {
-    "kind": "lizardman-defender",
+    "definitionId": "lizardman-defender",
     "name": "a lizardman defender",
-    "body": 35,
+    "bodyId": 35,
     "hue": 1949,
     "hp": 1150,
     "str": 170,
@@ -14091,9 +14091,9 @@
     "ai": "archer"
   },
   {
-    "kind": "lizardman-shaman",
+    "definitionId": "lizardman-shaman",
     "name": "lizardman shaman",
-    "body": 33,
+    "bodyId": 33,
     "hue": 1150,
     "hp": 200,
     "hpMax": 230,
@@ -14130,9 +14130,9 @@
     "fame": 3000
   },
   {
-    "kind": "lizardman-squatter",
+    "definitionId": "lizardman-squatter",
     "name": "a lizardman squatter",
-    "body": 36,
+    "bodyId": 36,
     "hp": 840,
     "str": 125,
     "dex": 100,
@@ -14167,9 +14167,9 @@
     "ai": "aggressive"
   },
   {
-    "kind": "llama",
+    "definitionId": "llama",
     "name": "a llama",
-    "body": 220,
+    "bodyId": 220,
     "hp": 45,
     "str": 30,
     "notoriety": 1,
@@ -14184,9 +14184,9 @@
     ]
   },
   {
-    "kind": "lord-oaks",
+    "definitionId": "lord-oaks",
     "name": "Lord Oaks",
-    "body": 175,
+    "bodyId": 175,
     "hp": 14000,
     "str": 850,
     "dex": 150,
@@ -14215,9 +14215,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "lord-oaks-revived",
+    "definitionId": "lord-oaks-revived",
     "name": "lord oaks revived",
-    "body": 176,
+    "bodyId": 176,
     "hue": 1150,
     "hp": 1100,
     "hpMax": 1180,
@@ -14261,9 +14261,9 @@
     "boss": true
   },
   {
-    "kind": "lowland-boura",
+    "definitionId": "lowland-boura",
     "name": "a lowland boura",
-    "body": 715,
+    "bodyId": 715,
     "hp": 553,
     "str": 411,
     "dex": 93,
@@ -14290,9 +14290,9 @@
     ]
   },
   {
-    "kind": "lurg",
+    "definitionId": "lurg",
     "name": "Lurg",
-    "body": 110,
+    "bodyId": 110,
     "hue": 1150,
     "hp": 4500,
     "str": 480,
@@ -14339,9 +14339,9 @@
     "ai": "mage"
   },
   {
-    "kind": "lysander-gathenwale",
+    "definitionId": "lysander-gathenwale",
     "name": "Lysander Gathenwale",
-    "body": 400,
+    "bodyId": 400,
     "hp": 207,
     "str": 120,
     "dex": 80,
@@ -14370,9 +14370,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "macaw",
+    "definitionId": "macaw",
     "name": "vicious macaw",
-    "body": 5,
+    "bodyId": 5,
     "hp": 800,
     "str": 150,
     "dex": 500,
@@ -14396,9 +14396,9 @@
     ]
   },
   {
-    "kind": "maddening-horror",
+    "definitionId": "maddening-horror",
     "name": "a maddening horror",
-    "body": 721,
+    "bodyId": 721,
     "hp": 50,
     "str": 290,
     "dex": 100,
@@ -14422,9 +14422,9 @@
     ]
   },
   {
-    "kind": "magincia-dispatcher",
+    "definitionId": "magincia-dispatcher",
     "name": "magincia dispatcher",
-    "body": 400,
+    "bodyId": 400,
     "hue": 1150,
     "hp": 380,
     "hpMax": 410,
@@ -14462,9 +14462,9 @@
     "fame": 6500
   },
   {
-    "kind": "magincia-lizardman",
+    "definitionId": "magincia-lizardman",
     "name": "magincia lizardman",
-    "body": 33,
+    "bodyId": 33,
     "hue": 1150,
     "hp": 240,
     "hpMax": 270,
@@ -14502,9 +14502,9 @@
     "fame": 3500
   },
   {
-    "kind": "magincia-orc",
+    "definitionId": "magincia-orc",
     "name": "magincia orc",
-    "body": 7,
+    "bodyId": 7,
     "hue": 68,
     "hp": 260,
     "hpMax": 290,
@@ -14542,9 +14542,9 @@
     "fame": 3800
   },
   {
-    "kind": "magincia-orc-captain",
+    "definitionId": "magincia-orc-captain",
     "name": "magincia orc captain",
-    "body": 7,
+    "bodyId": 7,
     "hue": 1149,
     "hp": 380,
     "hpMax": 410,
@@ -14582,9 +14582,9 @@
     "fame": 6000
   },
   {
-    "kind": "magincia-pirate-boss",
+    "definitionId": "magincia-pirate-boss",
     "name": "magincia pirate boss",
-    "body": 400,
+    "bodyId": 400,
     "hue": 68,
     "hp": 380,
     "hpMax": 430,
@@ -14622,9 +14622,9 @@
     "fame": 6000
   },
   {
-    "kind": "malefic",
+    "definitionId": "malefic",
     "name": "Malefic",
-    "body": 36,
+    "bodyId": 36,
     "hue": 1175,
     "hp": 4500,
     "str": 480,
@@ -14674,9 +14674,9 @@
     "ai": "mage"
   },
   {
-    "kind": "man-in-the-stocks",
+    "definitionId": "man-in-the-stocks",
     "name": "man in the stocks",
-    "body": 400,
+    "bodyId": 400,
     "hue": 33770,
     "hp": 60,
     "hpMax": 90,
@@ -14713,9 +14713,9 @@
     "fame": 500
   },
   {
-    "kind": "mansion-guard",
+    "definitionId": "mansion-guard",
     "name": "Mansion Guard",
-    "body": 400,
+    "bodyId": 400,
     "hue": 0,
     "hp": 33,
     "str": 50,
@@ -14734,9 +14734,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/NPCs/MansionGuard.cs"
   },
   {
-    "kind": "mantra-effervescence",
+    "definitionId": "mantra-effervescence",
     "name": "a mantra effervescence",
-    "body": 273,
+    "bodyId": 273,
     "hp": 250,
     "str": 150,
     "dex": 130,
@@ -14761,9 +14761,9 @@
     "loot": "snake-common"
   },
   {
-    "kind": "massof-plague",
+    "definitionId": "massof-plague",
     "name": "Mass of Plague",
-    "body": 157,
+    "bodyId": 157,
     "hue": 68,
     "hp": 320,
     "hpMax": 360,
@@ -14805,9 +14805,9 @@
     "ai": "melee"
   },
   {
-    "kind": "master-jonath",
+    "definitionId": "master-jonath",
     "name": "Master Jonath",
-    "body": 148,
+    "bodyId": 148,
     "hue": 1109,
     "hp": 830,
     "hpMax": 920,
@@ -14862,9 +14862,9 @@
     "ai": "mage"
   },
   {
-    "kind": "master-mikael",
+    "definitionId": "master-mikael",
     "name": "Master Mikael",
-    "body": 148,
+    "bodyId": 148,
     "hue": 1109,
     "hp": 900,
     "hpMax": 1014,
@@ -14919,9 +14919,9 @@
     "ai": "mage"
   },
   {
-    "kind": "master-theophilus",
+    "definitionId": "master-theophilus",
     "name": "Master Theophilus",
-    "body": 148,
+    "bodyId": 148,
     "hue": 1109,
     "hp": 770,
     "hpMax": 876,
@@ -14976,9 +14976,9 @@
     "ai": "mage"
   },
   {
-    "kind": "maze-fiend",
+    "definitionId": "maze-fiend",
     "name": "maze fiend",
-    "body": 89,
+    "bodyId": 89,
     "hue": 68,
     "hp": 440,
     "hpMax": 480,
@@ -15016,9 +15016,9 @@
     "fame": 7500
   },
   {
-    "kind": "medusa",
+    "definitionId": "medusa",
     "name": "Medusa",
-    "body": 728,
+    "bodyId": 728,
     "hp": 30000,
     "str": 1391,
     "dex": 139,
@@ -15051,9 +15051,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "meer-captain",
+    "definitionId": "meer-captain",
     "name": "a meer captain",
-    "body": 773,
+    "bodyId": 773,
     "hp": 66,
     "str": 110,
     "dex": 200,
@@ -15077,9 +15077,9 @@
     ]
   },
   {
-    "kind": "meer-eternal",
+    "definitionId": "meer-eternal",
     "name": "a meer eternal",
-    "body": 772,
+    "bodyId": 772,
     "hp": 303,
     "str": 505,
     "dex": 165,
@@ -15103,9 +15103,9 @@
     ]
   },
   {
-    "kind": "meer-mage",
+    "definitionId": "meer-mage",
     "name": "a meer mage",
-    "body": 770,
+    "bodyId": 770,
     "hp": 120,
     "str": 200,
     "dex": 145,
@@ -15129,9 +15129,9 @@
     "loot": "lich-common"
   },
   {
-    "kind": "meer-warrior",
+    "definitionId": "meer-warrior",
     "name": "a meer warrior",
-    "body": 771,
+    "bodyId": 771,
     "hp": 60,
     "str": 100,
     "dex": 200,
@@ -15155,9 +15155,9 @@
     ]
   },
   {
-    "kind": "melisande-avatar",
+    "definitionId": "melisande-avatar",
     "name": "melisande avatar",
-    "body": 252,
+    "bodyId": 252,
     "hue": 1160,
     "hp": 1300,
     "hpMax": 1380,
@@ -15201,9 +15201,9 @@
     "boss": true
   },
   {
-    "kind": "mentally-shocked-jester",
+    "definitionId": "mentally-shocked-jester",
     "name": "mentally shocked jester",
-    "body": 400,
+    "bodyId": 400,
     "hue": 1149,
     "hp": 260,
     "hpMax": 290,
@@ -15241,9 +15241,9 @@
     "fame": 4000
   },
   {
-    "kind": "mephitis",
+    "definitionId": "mephitis",
     "name": "Mephitis",
-    "body": 173,
+    "bodyId": 173,
     "hp": 25000,
     "str": 1000,
     "dex": 300,
@@ -15275,9 +15275,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "meraktus",
+    "definitionId": "meraktus",
     "name": "Meraktus",
-    "body": 263,
+    "bodyId": 263,
     "hp": 4200,
     "str": 1438,
     "dex": 413,
@@ -15307,9 +15307,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "metal-golem",
+    "definitionId": "metal-golem",
     "name": "metal golem",
-    "body": 76,
+    "bodyId": 76,
     "hue": 0,
     "hp": 440,
     "hpMax": 470,
@@ -15352,9 +15352,9 @@
     "fame": 7000
   },
   {
-    "kind": "miasma",
+    "definitionId": "miasma",
     "name": "Miasma",
-    "body": 48,
+    "bodyId": 48,
     "hue": 2301,
     "hp": 1100,
     "hpMax": 2000,
@@ -15404,9 +15404,9 @@
     "ai": "melee"
   },
   {
-    "kind": "mimic",
+    "definitionId": "mimic",
     "name": "a mimic",
-    "body": 729,
+    "bodyId": 729,
     "hp": 50,
     "str": 50,
     "dex": 50,
@@ -15423,9 +15423,9 @@
     ]
   },
   {
-    "kind": "minax-guard",
+    "definitionId": "minax-guard",
     "name": "Minax Guard",
-    "body": 2,
+    "bodyId": 2,
     "hue": 33,
     "hp": 200,
     "hpMax": 230,
@@ -15459,9 +15459,9 @@
     "ai": "melee"
   },
   {
-    "kind": "minion-of-scelestus",
+    "definitionId": "minion-of-scelestus",
     "name": "a minion of scelestus",
-    "body": 9,
+    "bodyId": 9,
     "hp": 50,
     "str": 405,
     "dex": 200,
@@ -15483,9 +15483,9 @@
     ]
   },
   {
-    "kind": "minotaur",
+    "definitionId": "minotaur",
     "name": "a minotaur",
-    "body": 263,
+    "bodyId": 263,
     "hp": 340,
     "str": 340,
     "dex": 110,
@@ -15509,9 +15509,9 @@
     ]
   },
   {
-    "kind": "minotaur-captain",
+    "definitionId": "minotaur-captain",
     "name": "a minotaur captain",
-    "body": 280,
+    "bodyId": 280,
     "hp": 440,
     "str": 425,
     "dex": 110,
@@ -15535,9 +15535,9 @@
     ]
   },
   {
-    "kind": "minotaur-general",
+    "definitionId": "minotaur-general",
     "name": "Minotaur General",
-    "body": 280,
+    "bodyId": 280,
     "hue": 53,
     "hp": 1024,
     "str": 604,
@@ -15557,9 +15557,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/Normal/MinotaurGeneral.cs"
   },
   {
-    "kind": "minotaur-scout",
+    "definitionId": "minotaur-scout",
     "name": "a minotaur scout",
-    "body": 281,
+    "bodyId": 281,
     "hp": 383,
     "str": 375,
     "dex": 130,
@@ -15583,9 +15583,9 @@
     ]
   },
   {
-    "kind": "mistral",
+    "definitionId": "mistral",
     "name": "Mistral",
-    "body": 13,
+    "bodyId": 13,
     "hp": 609,
     "str": 201,
     "dex": 238,
@@ -15616,9 +15616,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "moloch",
+    "definitionId": "moloch",
     "name": "a moloch",
-    "body": 785,
+    "bodyId": 785,
     "hp": 200,
     "str": 360,
     "dex": 85,
@@ -15643,9 +15643,9 @@
     ]
   },
   {
-    "kind": "molten-stone",
+    "definitionId": "molten-stone",
     "name": "molten stone",
-    "body": 4,
+    "bodyId": 4,
     "hue": 68,
     "hp": 460,
     "hpMax": 490,
@@ -15682,9 +15682,9 @@
     "fame": 7800
   },
   {
-    "kind": "mongbat",
+    "definitionId": "mongbat",
     "name": "a mongbat",
-    "body": 39,
+    "bodyId": 39,
     "hp": 6,
     "str": 10,
     "dex": 38,
@@ -15708,9 +15708,9 @@
     "loot": "mongbat-common"
   },
   {
-    "kind": "monstrous-interred-grizzle",
+    "definitionId": "monstrous-interred-grizzle",
     "name": "a monstrous interred grizzle",
-    "body": 259,
+    "bodyId": 259,
     "hp": 4000,
     "str": 1207,
     "dex": 135,
@@ -15743,9 +15743,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "morg-bergen",
+    "definitionId": "morg-bergen",
     "name": "Morg Bergen",
-    "body": 400,
+    "bodyId": 400,
     "hp": 207,
     "str": 120,
     "dex": 120,
@@ -15773,9 +15773,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "moug-guur",
+    "definitionId": "moug-guur",
     "name": "Moug-Guur",
-    "body": 18,
+    "bodyId": 18,
     "hp": 408,
     "hpMax": 415,
     "str": 566,
@@ -15817,9 +15817,9 @@
     "ai": "melee"
   },
   {
-    "kind": "mound-of-maggots",
+    "definitionId": "mound-of-maggots",
     "name": "a mound of maggots",
-    "body": 319,
+    "bodyId": 319,
     "hp": 50,
     "str": 70,
     "dex": 70,
@@ -15837,9 +15837,9 @@
     ]
   },
   {
-    "kind": "mountain-giant",
+    "definitionId": "mountain-giant",
     "name": "mountain giant",
-    "body": 193,
+    "bodyId": 193,
     "hue": 0,
     "hp": 460,
     "hpMax": 490,
@@ -15876,9 +15876,9 @@
     "fame": 7500
   },
   {
-    "kind": "mountain-goat",
+    "definitionId": "mountain-goat",
     "name": "a mountain goat",
-    "body": 88,
+    "bodyId": 88,
     "hp": 33,
     "str": 64,
     "dex": 75,
@@ -15905,9 +15905,9 @@
     ]
   },
   {
-    "kind": "mummy",
+    "definitionId": "mummy",
     "name": "a mummy",
-    "body": 154,
+    "bodyId": 154,
     "hp": 90,
     "str": 70,
     "notoriety": 5,
@@ -15919,9 +15919,9 @@
     ]
   },
   {
-    "kind": "myrmidex-drone",
+    "definitionId": "myrmidex-drone",
     "name": "myrmidex drone",
-    "body": 737,
+    "bodyId": 737,
     "hue": 1853,
     "hp": 250,
     "hpMax": 280,
@@ -15964,9 +15964,9 @@
     "fame": 2500
   },
   {
-    "kind": "myrmidex-larva",
+    "definitionId": "myrmidex-larva",
     "name": "myrmidex larva",
-    "body": 737,
+    "bodyId": 737,
     "hue": 0,
     "hp": 160,
     "hpMax": 190,
@@ -16009,9 +16009,9 @@
     "fame": 1500
   },
   {
-    "kind": "myrmidex-queen",
+    "definitionId": "myrmidex-queen",
     "name": "myrmidex queen",
-    "body": 737,
+    "bodyId": 737,
     "hue": 1275,
     "hp": 700,
     "hpMax": 730,
@@ -16054,9 +16054,9 @@
     "fame": 12000
   },
   {
-    "kind": "myrmidex-warrior",
+    "definitionId": "myrmidex-warrior",
     "name": "myrmidex warrior",
-    "body": 737,
+    "bodyId": 737,
     "hue": 2413,
     "hp": 450,
     "hpMax": 480,
@@ -16099,9 +16099,9 @@
     "fame": 5000
   },
   {
-    "kind": "mysterious-wisp",
+    "definitionId": "mysterious-wisp",
     "name": "Mysterious Wisp",
-    "body": 58,
+    "bodyId": 58,
     "hue": 52,
     "hp": 127,
     "str": 211,
@@ -16120,9 +16120,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/NPCs/MysteriousWisp.cs"
   },
   {
-    "kind": "najasaurus",
+    "definitionId": "najasaurus",
     "name": "a najasaurus",
-    "body": 1290,
+    "bodyId": 1290,
     "hp": 700,
     "str": 800,
     "dex": 150,
@@ -16169,9 +16169,9 @@
     ]
   },
   {
-    "kind": "naughty-child",
+    "definitionId": "naughty-child",
     "name": "naughty child",
-    "body": 401,
+    "bodyId": 401,
     "hue": 1150,
     "hp": 60,
     "hpMax": 110,
@@ -16215,9 +16215,9 @@
     "fame": 800
   },
   {
-    "kind": "navrey",
+    "definitionId": "navrey",
     "name": "Navrey Night-Eyes",
-    "body": 735,
+    "bodyId": 735,
     "hp": 35000,
     "str": 1500,
     "dex": 250,
@@ -16250,9 +16250,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "naxatilor",
+    "definitionId": "naxatilor",
     "name": "Naxatilor",
-    "body": 666,
+    "bodyId": 666,
     "hue": 1801,
     "hp": 33,
     "str": 50,
@@ -16271,9 +16271,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/NPCs/Naxatillor.cs"
   },
   {
-    "kind": "neira",
+    "definitionId": "neira",
     "name": "Neira",
-    "body": 401,
+    "bodyId": 401,
     "hp": 22000,
     "str": 425,
     "dex": 150,
@@ -16303,9 +16303,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "night-terror",
+    "definitionId": "night-terror",
     "name": "Night Terror",
-    "body": 780,
+    "bodyId": 780,
     "hp": 4000,
     "str": 467,
     "dex": 70,
@@ -16333,9 +16333,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "nightmare-piranha",
+    "definitionId": "nightmare-piranha",
     "name": "nightmare piranha",
-    "body": 149,
+    "bodyId": 149,
     "hue": 1149,
     "hp": 240,
     "hpMax": 270,
@@ -16373,9 +16373,9 @@
     "fame": 3500
   },
   {
-    "kind": "niporailem",
+    "definitionId": "niporailem",
     "name": "Niporailem the Thief",
-    "body": 722,
+    "bodyId": 722,
     "hp": 10000,
     "hpMax": 10500,
     "str": 1000,
@@ -16432,9 +16432,9 @@
     "ai": "mage"
   },
   {
-    "kind": "noble",
+    "definitionId": "noble",
     "name": "noble",
-    "body": 400,
+    "bodyId": 400,
     "hue": 96,
     "hp": 40,
     "hpMax": 60,
@@ -16469,9 +16469,9 @@
     "fame": 100
   },
   {
-    "kind": "octopus",
+    "definitionId": "octopus",
     "name": "octopus",
-    "body": 149,
+    "bodyId": 149,
     "hue": 0,
     "hp": 240,
     "hpMax": 270,
@@ -16508,9 +16508,9 @@
     "fame": 3500
   },
   {
-    "kind": "ogre",
+    "definitionId": "ogre",
     "name": "an ogre",
-    "body": 1,
+    "bodyId": 1,
     "hp": 160,
     "str": 90,
     "notoriety": 5,
@@ -16523,9 +16523,9 @@
     "loot": "ogre-common"
   },
   {
-    "kind": "ogre-lord",
+    "definitionId": "ogre-lord",
     "name": "an ogre lord",
-    "body": 83,
+    "bodyId": 83,
     "hp": 552,
     "str": 945,
     "dex": 75,
@@ -16551,9 +16551,9 @@
     "loot": "troll-common"
   },
   {
-    "kind": "oni",
+    "definitionId": "oni",
     "name": "an oni",
-    "body": 241,
+    "bodyId": 241,
     "hp": 530,
     "str": 910,
     "dex": 300,
@@ -16578,9 +16578,9 @@
     ]
   },
   {
-    "kind": "ophidian-apprentice-mage",
+    "definitionId": "ophidian-apprentice-mage",
     "name": "Ophidian Apprentice Mage",
-    "body": 87,
+    "bodyId": 87,
     "hue": 0,
     "hp": 85,
     "hpMax": 115,
@@ -16622,9 +16622,9 @@
     "ai": "mage"
   },
   {
-    "kind": "ophidian-avenger",
+    "definitionId": "ophidian-avenger",
     "name": "Ophidian Avenger",
-    "body": 87,
+    "bodyId": 87,
     "hue": 102,
     "hp": 320,
     "hpMax": 350,
@@ -16666,9 +16666,9 @@
     "ai": "melee"
   },
   {
-    "kind": "ophidian-berserker-warrior",
+    "definitionId": "ophidian-berserker-warrior",
     "name": "Ophidian Berserker Warrior",
-    "body": 87,
+    "bodyId": 87,
     "hue": 1173,
     "hp": 175,
     "hpMax": 205,
@@ -16710,9 +16710,9 @@
     "ai": "berserk"
   },
   {
-    "kind": "ophidian-justicar",
+    "definitionId": "ophidian-justicar",
     "name": "Ophidian Justicar",
-    "body": 87,
+    "bodyId": 87,
     "hue": 71,
     "hp": 280,
     "hpMax": 310,
@@ -16754,9 +16754,9 @@
     "ai": "mage"
   },
   {
-    "kind": "ophidian-knight-errant",
+    "definitionId": "ophidian-knight-errant",
     "name": "Ophidian Knight Errant",
-    "body": 87,
+    "bodyId": 87,
     "hue": 335,
     "hp": 220,
     "hpMax": 250,
@@ -16798,9 +16798,9 @@
     "ai": "melee"
   },
   {
-    "kind": "ophidian-matriarch",
+    "definitionId": "ophidian-matriarch",
     "name": "an ophidian matriarch",
-    "body": 87,
+    "bodyId": 87,
     "hp": 303,
     "str": 505,
     "dex": 115,
@@ -16826,9 +16826,9 @@
     ]
   },
   {
-    "kind": "ophidian-shaman",
+    "definitionId": "ophidian-shaman",
     "name": "Ophidian Shaman",
-    "body": 87,
+    "bodyId": 87,
     "hue": 102,
     "hp": 220,
     "hpMax": 250,
@@ -16870,9 +16870,9 @@
     "ai": "necro"
   },
   {
-    "kind": "ophidian-warrior",
+    "definitionId": "ophidian-warrior",
     "name": "Ophidian Warrior",
-    "body": 87,
+    "bodyId": 87,
     "hue": 1173,
     "hp": 160,
     "hpMax": 190,
@@ -16914,9 +16914,9 @@
     "ai": "melee"
   },
   {
-    "kind": "orc",
+    "definitionId": "orc",
     "name": "an orc",
-    "body": 17,
+    "bodyId": 17,
     "hp": 80,
     "str": 60,
     "notoriety": 5,
@@ -16929,9 +16929,9 @@
     "loot": "orc-common"
   },
   {
-    "kind": "orc-bomber",
+    "definitionId": "orc-bomber",
     "name": "an orc bomber",
-    "body": 182,
+    "bodyId": 182,
     "hp": 123,
     "str": 215,
     "dex": 115,
@@ -16957,9 +16957,9 @@
     "loot": "orc-common"
   },
   {
-    "kind": "orc-brute",
+    "definitionId": "orc-brute",
     "name": "an orc brute",
-    "body": 189,
+    "bodyId": 189,
     "hp": 552,
     "str": 945,
     "dex": 75,
@@ -16985,9 +16985,9 @@
     "loot": "orc-common"
   },
   {
-    "kind": "orc-captain",
+    "definitionId": "orc-captain",
     "name": "orc captain",
-    "body": 7,
+    "bodyId": 7,
     "hue": 68,
     "hp": 380,
     "hpMax": 410,
@@ -17024,9 +17024,9 @@
     "fame": 5500
   },
   {
-    "kind": "orc-chopper",
+    "definitionId": "orc-chopper",
     "name": "an orc chopper",
-    "body": 7,
+    "bodyId": 7,
     "hp": 139,
     "str": 245,
     "dex": 115,
@@ -17052,9 +17052,9 @@
     "loot": "orc-common"
   },
   {
-    "kind": "orc-lord",
+    "definitionId": "orc-lord",
     "name": "orc lord",
-    "body": 7,
+    "bodyId": 7,
     "hue": 33,
     "hp": 280,
     "hpMax": 310,
@@ -17091,9 +17091,9 @@
     "fame": 3500
   },
   {
-    "kind": "orc-mage",
+    "definitionId": "orc-mage",
     "name": "orc mage",
-    "body": 7,
+    "bodyId": 7,
     "hue": 1150,
     "hp": 220,
     "hpMax": 250,
@@ -17130,9 +17130,9 @@
     "fame": 3500
   },
   {
-    "kind": "orc-scout",
+    "definitionId": "orc-scout",
     "name": "an orc scout",
-    "body": 181,
+    "bodyId": 181,
     "hp": 72,
     "str": 120,
     "dex": 130,
@@ -17158,9 +17158,9 @@
     "loot": "orc-common"
   },
   {
-    "kind": "orcish-lord",
+    "definitionId": "orcish-lord",
     "name": "an orcish lord",
-    "body": 138,
+    "bodyId": 138,
     "hp": 123,
     "str": 215,
     "dex": 115,
@@ -17186,9 +17186,9 @@
     "loot": "orc-common"
   },
   {
-    "kind": "orcish-mage",
+    "definitionId": "orcish-mage",
     "name": "an orcish mage",
-    "body": 140,
+    "bodyId": 140,
     "hp": 90,
     "str": 150,
     "dex": 115,
@@ -17215,9 +17215,9 @@
     "loot": "orc-common"
   },
   {
-    "kind": "ortanord",
+    "definitionId": "ortanord",
     "name": "Ortanord",
-    "body": 58,
+    "bodyId": 58,
     "hp": 100,
     "str": 50,
     "dex": 50,
@@ -17242,9 +17242,9 @@
     ]
   },
   {
-    "kind": "ossein-ram",
+    "definitionId": "ossein-ram",
     "name": "Ossein Ram",
-    "body": 1425,
+    "bodyId": 1425,
     "hp": 550,
     "str": 400,
     "dex": 100,
@@ -17270,9 +17270,9 @@
     ]
   },
   {
-    "kind": "ossian-grizzle-bear",
+    "definitionId": "ossian-grizzle-bear",
     "name": "an ossian grizzle bear",
-    "body": 211,
+    "bodyId": 211,
     "hue": 2401,
     "hp": 600,
     "str": 680,
@@ -17317,9 +17317,9 @@
     ]
   },
   {
-    "kind": "ostard",
+    "definitionId": "ostard",
     "name": "ostard",
-    "body": 219,
+    "bodyId": 219,
     "hue": 0,
     "hp": 40,
     "hpMax": 50,
@@ -17355,9 +17355,9 @@
     "ai": "passive"
   },
   {
-    "kind": "outcast",
+    "definitionId": "outcast",
     "name": "outcast",
-    "body": 400,
+    "bodyId": 400,
     "hue": 1153,
     "hp": 140,
     "hpMax": 170,
@@ -17394,9 +17394,9 @@
     "fame": 1500
   },
   {
-    "kind": "pack-horse",
+    "definitionId": "pack-horse",
     "name": "a pack horse",
-    "body": 291,
+    "bodyId": 291,
     "hp": 80,
     "str": 120,
     "dex": 55,
@@ -17424,9 +17424,9 @@
     ]
   },
   {
-    "kind": "pack-llama",
+    "definitionId": "pack-llama",
     "name": "a pack llama",
-    "body": 292,
+    "bodyId": 292,
     "hp": 50,
     "str": 80,
     "dex": 55,
@@ -17454,9 +17454,9 @@
     ]
   },
   {
-    "kind": "panther",
+    "definitionId": "panther",
     "name": "a panther",
-    "body": 214,
+    "bodyId": 214,
     "hp": 51,
     "str": 85,
     "dex": 105,
@@ -17484,9 +17484,9 @@
     "loot": "snake-common"
   },
   {
-    "kind": "parasitic-root",
+    "definitionId": "parasitic-root",
     "name": "a parasitic root",
-    "body": 8,
+    "bodyId": 8,
     "hue": 2129,
     "hp": 320,
     "str": 220,
@@ -17523,9 +17523,9 @@
     "ai": "melee"
   },
   {
-    "kind": "paroxysmus-swamp-dragon",
+    "definitionId": "paroxysmus-swamp-dragon",
     "name": "paroxysmus swamp dragon",
-    "body": 51,
+    "bodyId": 51,
     "hue": 1150,
     "hp": 600,
     "hpMax": 630,
@@ -17561,9 +17561,9 @@
     "fame": 12000
   },
   {
-    "kind": "parrot",
+    "definitionId": "parrot",
     "name": "a parrot",
-    "body": 204,
+    "bodyId": 204,
     "hp": 6,
     "hpMax": 9,
     "str": 12,
@@ -17588,9 +17588,9 @@
     "ai": "passive"
   },
   {
-    "kind": "patchwork-skeleton",
+    "definitionId": "patchwork-skeleton",
     "name": "a patchwork skeleton",
-    "body": 309,
+    "bodyId": 309,
     "hp": 72,
     "str": 120,
     "dex": 95,
@@ -17615,9 +17615,9 @@
     "loot": "wraith-common"
   },
   {
-    "kind": "pestilent-bandage",
+    "definitionId": "pestilent-bandage",
     "name": "a pestilent bandage",
-    "body": 154,
+    "bodyId": 154,
     "hp": 445,
     "str": 740,
     "dex": 180,
@@ -17642,9 +17642,9 @@
     ]
   },
   {
-    "kind": "phoenix",
+    "definitionId": "phoenix",
     "name": "a phoenix",
-    "body": 832,
+    "bodyId": 832,
     "hp": 383,
     "str": 700,
     "dex": 300,
@@ -17673,9 +17673,9 @@
     "loot": "phoenix-common"
   },
   {
-    "kind": "pig",
+    "definitionId": "pig",
     "name": "a pig",
-    "body": 223,
+    "bodyId": 223,
     "hp": 18,
     "str": 12,
     "notoriety": 3,
@@ -17687,9 +17687,9 @@
     ]
   },
   {
-    "kind": "pirate",
+    "definitionId": "pirate",
     "name": "pirate",
-    "body": 400,
+    "bodyId": 400,
     "hue": 1268,
     "hp": 220,
     "hpMax": 250,
@@ -17726,9 +17726,9 @@
     "fame": 3000
   },
   {
-    "kind": "pirate-captain",
+    "definitionId": "pirate-captain",
     "name": "pirate captain",
-    "body": 400,
+    "bodyId": 400,
     "hue": 68,
     "hp": 320,
     "hpMax": 350,
@@ -17765,9 +17765,9 @@
     "fame": 5000
   },
   {
-    "kind": "pit-fiend",
+    "definitionId": "pit-fiend",
     "name": "a Pit fiend",
-    "body": 43,
+    "bodyId": 43,
     "hp": 243,
     "str": 405,
     "dex": 195,
@@ -17793,9 +17793,9 @@
     ]
   },
   {
-    "kind": "pixie",
+    "definitionId": "pixie",
     "name": "pixie",
-    "body": 127,
+    "bodyId": 127,
     "hue": 1153,
     "hp": 180,
     "hpMax": 200,
@@ -17832,9 +17832,9 @@
     "fame": 3000
   },
   {
-    "kind": "pixie-renowned",
+    "definitionId": "pixie-renowned",
     "name": "Pixie",
-    "body": 128,
+    "bodyId": 128,
     "hp": 9200,
     "str": 600,
     "dex": 600,
@@ -17865,9 +17865,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "plague-beast",
+    "definitionId": "plague-beast",
     "name": "a plague beast",
-    "body": 775,
+    "bodyId": 775,
     "hp": 404,
     "str": 500,
     "dex": 50,
@@ -17891,9 +17891,9 @@
     ]
   },
   {
-    "kind": "plague-beast-lord",
+    "definitionId": "plague-beast-lord",
     "name": "a plague beast lord",
-    "body": 775,
+    "bodyId": 775,
     "hp": 50,
     "str": 50,
     "dex": 50,
@@ -17918,9 +17918,9 @@
     ]
   },
   {
-    "kind": "plague-beast-mutation",
+    "definitionId": "plague-beast-mutation",
     "name": "Plague Beast Mutation",
-    "body": 157,
+    "bodyId": 157,
     "hue": 131,
     "hp": 500,
     "hpMax": 540,
@@ -17962,9 +17962,9 @@
     "ai": "berserk"
   },
   {
-    "kind": "plague-bile",
+    "definitionId": "plague-bile",
     "name": "Plague Bile",
-    "body": 157,
+    "bodyId": 157,
     "hue": 71,
     "hp": 240,
     "hpMax": 280,
@@ -18006,9 +18006,9 @@
     "ai": "melee"
   },
   {
-    "kind": "plague-imp",
+    "definitionId": "plague-imp",
     "name": "Plague Imp",
-    "body": 74,
+    "bodyId": 74,
     "hue": 68,
     "hp": 90,
     "hpMax": 130,
@@ -18050,9 +18050,9 @@
     "ai": "melee"
   },
   {
-    "kind": "plague-rat",
+    "definitionId": "plague-rat",
     "name": "a Clan Ribbon Plague Rat",
-    "body": 215,
+    "bodyId": 215,
     "hp": 50,
     "str": 50,
     "dex": 50,
@@ -18077,9 +18077,9 @@
     "loot": "rat-common"
   },
   {
-    "kind": "plague-spawn",
+    "definitionId": "plague-spawn",
     "name": "a plague spawn",
-    "body": 14,
+    "bodyId": 14,
     "hp": 180,
     "str": 300,
     "dex": 50,
@@ -18104,9 +18104,9 @@
     ]
   },
   {
-    "kind": "plague-toxin",
+    "definitionId": "plague-toxin",
     "name": "Plague Toxin",
-    "body": 157,
+    "bodyId": 157,
     "hue": 71,
     "hp": 220,
     "hpMax": 260,
@@ -18148,9 +18148,9 @@
     "ai": "melee"
   },
   {
-    "kind": "platinum-drake",
+    "definitionId": "platinum-drake",
     "name": "Platinum Drake",
-    "body": 1417,
+    "bodyId": 1417,
     "hp": 258,
     "str": 430,
     "dex": 152,
@@ -18179,9 +18179,9 @@
     "loot": "dragon-hoard"
   },
   {
-    "kind": "poison-elemental",
+    "definitionId": "poison-elemental",
     "name": "a poison elemental",
-    "body": 162,
+    "bodyId": 162,
     "hp": 309,
     "str": 515,
     "dex": 185,
@@ -18207,9 +18207,9 @@
     "loot": "elemental-earth-common"
   },
   {
-    "kind": "polar-bear",
+    "definitionId": "polar-bear",
     "name": "a polar bear",
-    "body": 213,
+    "bodyId": 213,
     "hp": 84,
     "str": 140,
     "dex": 105,
@@ -18237,9 +18237,9 @@
     "loot": "bear-common"
   },
   {
-    "kind": "predator-hell-cat",
+    "definitionId": "predator-hell-cat",
     "name": "a predator hellcat",
-    "body": 127,
+    "bodyId": 127,
     "hp": 131,
     "str": 185,
     "dex": 115,
@@ -18265,9 +18265,9 @@
     ]
   },
   {
-    "kind": "priced-healer",
+    "definitionId": "priced-healer",
     "name": "Priced Healer",
-    "body": 401,
+    "bodyId": 401,
     "hue": 53,
     "hp": 229,
     "str": 352,
@@ -18287,9 +18287,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/NPCs/PricedHealer.cs"
   },
   {
-    "kind": "primeval-lich",
+    "definitionId": "primeval-lich",
     "name": "Primeval Lich",
-    "body": 830,
+    "bodyId": 830,
     "hp": 4000,
     "str": 600,
     "dex": 200,
@@ -18312,9 +18312,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "protector",
+    "definitionId": "protector",
     "name": "A Protector",
-    "body": 401,
+    "bodyId": 401,
     "hp": 450,
     "str": 800,
     "dex": 150,
@@ -18338,9 +18338,9 @@
     ]
   },
   {
-    "kind": "pteranodon",
+    "definitionId": "pteranodon",
     "name": "a pteranodon",
-    "body": 1294,
+    "bodyId": 1294,
     "hp": 600,
     "str": 600,
     "dex": 200,
@@ -18385,9 +18385,9 @@
     ]
   },
   {
-    "kind": "pumpkin-head",
+    "definitionId": "pumpkin-head",
     "name": "a pumpkin head",
-    "body": 50,
+    "bodyId": 50,
     "hue": 75,
     "hp": 250,
     "str": 200,
@@ -18427,9 +18427,9 @@
     ]
   },
   {
-    "kind": "pumpkin-king",
+    "definitionId": "pumpkin-king",
     "name": "pumpkin king",
-    "body": 400,
+    "bodyId": 400,
     "hue": 68,
     "hp": 700,
     "hpMax": 730,
@@ -18473,9 +18473,9 @@
     "fame": 11000
   },
   {
-    "kind": "putrefier",
+    "definitionId": "putrefier",
     "name": "Putrefier",
-    "body": 157,
+    "bodyId": 157,
     "hue": 71,
     "hp": 600,
     "hpMax": 650,
@@ -18516,9 +18516,9 @@
     "ai": "melee"
   },
   {
-    "kind": "putrid-undead-gargoyle",
+    "definitionId": "putrid-undead-gargoyle",
     "name": "a putrid undead gargoyle",
-    "body": 722,
+    "bodyId": 722,
     "hp": 665,
     "str": 50,
     "dex": 125,
@@ -18542,9 +18542,9 @@
     "loot": "lizardman-common"
   },
   {
-    "kind": "putrid-undead-guardian",
+    "definitionId": "putrid-undead-guardian",
     "name": "an putrid undead guardian",
-    "body": 722,
+    "bodyId": 722,
     "hp": 50,
     "str": 50,
     "dex": 50,
@@ -18561,9 +18561,9 @@
     ]
   },
   {
-    "kind": "pyre",
+    "definitionId": "pyre",
     "name": "Pyre",
-    "body": 225,
+    "bodyId": 225,
     "hue": 68,
     "hp": 500,
     "hpMax": 550,
@@ -18604,9 +18604,9 @@
     "ai": "mage"
   },
   {
-    "kind": "quagmire",
+    "definitionId": "quagmire",
     "name": "a quagmire",
-    "body": 789,
+    "bodyId": 789,
     "hp": 105,
     "str": 130,
     "dex": 85,
@@ -18630,9 +18630,9 @@
     ]
   },
   {
-    "kind": "quagmire2",
+    "definitionId": "quagmire2",
     "name": "quagmire",
-    "body": 205,
+    "bodyId": 205,
     "hue": 1150,
     "hp": 380,
     "hpMax": 420,
@@ -18669,9 +18669,9 @@
     "fame": 6000
   },
   {
-    "kind": "rabbit",
+    "definitionId": "rabbit",
     "name": "a rabbit",
-    "body": 205,
+    "bodyId": 205,
     "hp": 8,
     "str": 5,
     "notoriety": 3,
@@ -18683,9 +18683,9 @@
     ]
   },
   {
-    "kind": "raging-grizzly-bear",
+    "definitionId": "raging-grizzly-bear",
     "name": "a raging grizzly bear",
-    "body": 212,
+    "bodyId": 212,
     "hp": 930,
     "str": 1550,
     "dex": 1050,
@@ -18710,9 +18710,9 @@
     "loot": "bear-common"
   },
   {
-    "kind": "rai-ju",
+    "definitionId": "rai-ju",
     "name": "a Rai-Ju",
-    "body": 199,
+    "bodyId": 199,
     "hp": 280,
     "str": 225,
     "dex": 135,
@@ -18737,9 +18737,9 @@
     ]
   },
   {
-    "kind": "rakktavi-renowned",
+    "definitionId": "rakktavi-renowned",
     "name": "Rakktavi",
-    "body": 142,
+    "bodyId": 142,
     "hp": 4000,
     "str": 600,
     "dex": 200,
@@ -18769,9 +18769,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "raptor",
+    "definitionId": "raptor",
     "name": "a raptor",
-    "body": 730,
+    "bodyId": 730,
     "hp": 400,
     "str": 471,
     "dex": 155,
@@ -18797,9 +18797,9 @@
     ]
   },
   {
-    "kind": "rat",
+    "definitionId": "rat",
     "name": "a rat",
-    "body": 238,
+    "bodyId": 238,
     "ai": "animal",
     "hp": 6,
     "str": 9,
@@ -18821,9 +18821,9 @@
     "loot": "rat-common"
   },
   {
-    "kind": "ratman",
+    "definitionId": "ratman",
     "name": "a ratman",
-    "body": 42,
+    "bodyId": 42,
     "hp": 65,
     "str": 55,
     "notoriety": 5,
@@ -18835,9 +18835,9 @@
     ]
   },
   {
-    "kind": "ratman-archer",
+    "definitionId": "ratman-archer",
     "name": "ratman archer",
-    "body": 54,
+    "bodyId": 54,
     "hue": 1149,
     "hp": 160,
     "hpMax": 190,
@@ -18874,9 +18874,9 @@
     "fame": 1800
   },
   {
-    "kind": "ravager",
+    "definitionId": "ravager",
     "name": "a ravager",
-    "body": 314,
+    "bodyId": 314,
     "hp": 175,
     "str": 275,
     "dex": 125,
@@ -18901,9 +18901,9 @@
     ]
   },
   {
-    "kind": "reaper",
+    "definitionId": "reaper",
     "name": "a reaper",
-    "body": 47,
+    "bodyId": 47,
     "hp": 200,
     "str": 110,
     "notoriety": 5,
@@ -18915,9 +18915,9 @@
     ]
   },
   {
-    "kind": "red-death",
+    "definitionId": "red-death",
     "name": "Red Death",
-    "body": 78,
+    "bodyId": 78,
     "hue": 68,
     "hp": 800,
     "hpMax": 850,
@@ -18958,9 +18958,9 @@
     "ai": "mage"
   },
   {
-    "kind": "red-solen-infiltrator-queen",
+    "definitionId": "red-solen-infiltrator-queen",
     "name": "a red solen infiltrator",
-    "body": 783,
+    "bodyId": 783,
     "hp": 162,
     "str": 350,
     "dex": 165,
@@ -18986,9 +18986,9 @@
     "loot": "rat-common"
   },
   {
-    "kind": "red-solen-infiltrator-warrior",
+    "definitionId": "red-solen-infiltrator-warrior",
     "name": "a red solen infiltrator",
-    "body": 782,
+    "bodyId": 782,
     "hp": 107,
     "str": 230,
     "dex": 145,
@@ -19014,9 +19014,9 @@
     "loot": "rat-common"
   },
   {
-    "kind": "red-solen-queen",
+    "definitionId": "red-solen-queen",
     "name": "a red solen queen",
-    "body": 783,
+    "bodyId": 783,
     "hp": 162,
     "str": 320,
     "dex": 145,
@@ -19041,9 +19041,9 @@
     ]
   },
   {
-    "kind": "red-solen-warrior",
+    "definitionId": "red-solen-warrior",
     "name": "a red solen warrior",
-    "body": 782,
+    "bodyId": 782,
     "hp": 107,
     "str": 220,
     "dex": 125,
@@ -19068,9 +19068,9 @@
     ]
   },
   {
-    "kind": "red-solen-worker",
+    "definitionId": "red-solen-worker",
     "name": "a red solen worker",
-    "body": 781,
+    "bodyId": 781,
     "hp": 72,
     "str": 120,
     "dex": 105,
@@ -19095,9 +19095,9 @@
     ]
   },
   {
-    "kind": "relanord",
+    "definitionId": "relanord",
     "name": "a relanord",
-    "body": 252,
+    "bodyId": 252,
     "hue": 2104,
     "hp": 575,
     "hpMax": 625,
@@ -19141,9 +19141,9 @@
     "fame": 17000
   },
   {
-    "kind": "rend",
+    "definitionId": "rend",
     "name": "Rend",
-    "body": 226,
+    "bodyId": 226,
     "hue": 1149,
     "hp": 550,
     "hpMax": 600,
@@ -19184,9 +19184,9 @@
     "ai": "melee"
   },
   {
-    "kind": "renegade-changeling",
+    "definitionId": "renegade-changeling",
     "name": "Renegade Changeling",
-    "body": 264,
+    "bodyId": 264,
     "hue": 0,
     "hp": 2750,
     "str": 190,
@@ -19206,9 +19206,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/Normal/RenegadeChangeling.cs"
   },
   {
-    "kind": "reptalon",
+    "definitionId": "reptalon",
     "name": "a reptalon",
-    "body": 276,
+    "bodyId": 276,
     "hp": 880,
     "hpMax": 931,
     "str": 1012,
@@ -19260,9 +19260,9 @@
     ]
   },
   {
-    "kind": "restless",
+    "definitionId": "restless",
     "name": "restless",
-    "body": 302,
+    "bodyId": 302,
     "hue": 1149,
     "hp": 220,
     "hpMax": 250,
@@ -19299,9 +19299,9 @@
     "fame": 3500
   },
   {
-    "kind": "restless-soul",
+    "definitionId": "restless-soul",
     "name": "restless soul",
-    "body": 970,
+    "bodyId": 970,
     "hp": 24,
     "str": 40,
     "dex": 40,
@@ -19325,9 +19325,9 @@
     ]
   },
   {
-    "kind": "revenant",
+    "definitionId": "revenant",
     "name": "a revenant",
-    "body": 400,
+    "bodyId": 400,
     "hp": 50,
     "str": 50,
     "dex": 50,
@@ -19346,9 +19346,9 @@
     "loot": "snake-common"
   },
   {
-    "kind": "revenant-lion",
+    "definitionId": "revenant-lion",
     "name": "a Revenant Lion",
-    "body": 251,
+    "bodyId": 251,
     "hp": 280,
     "str": 325,
     "dex": 175,
@@ -19374,9 +19374,9 @@
     "loot": "snake-common"
   },
   {
-    "kind": "ridgeback",
+    "definitionId": "ridgeback",
     "name": "a ridgeback",
-    "body": 187,
+    "bodyId": 187,
     "hue": 2318,
     "hp": 50,
     "hpMax": 70,
@@ -19404,9 +19404,9 @@
     "ai": "melee"
   },
   {
-    "kind": "rikktor",
+    "definitionId": "rikktor",
     "name": "Rikktor",
-    "body": 172,
+    "bodyId": 172,
     "hp": 25000,
     "str": 900,
     "dex": 350,
@@ -19435,9 +19435,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "ronin",
+    "definitionId": "ronin",
     "name": "a ronin",
-    "body": 401,
+    "bodyId": 401,
     "hp": 400,
     "str": 375,
     "dex": 45,
@@ -19461,9 +19461,9 @@
     ]
   },
   {
-    "kind": "rotting-corpse",
+    "definitionId": "rotting-corpse",
     "name": "a rotting corpse",
-    "body": 155,
+    "bodyId": 155,
     "hp": 50,
     "str": 350,
     "dex": 50,
@@ -19488,9 +19488,9 @@
     ]
   },
   {
-    "kind": "rotworm",
+    "definitionId": "rotworm",
     "name": "a rotworm",
-    "body": 732,
+    "bodyId": 732,
     "hp": 250,
     "str": 300,
     "dex": 50,
@@ -19514,9 +19514,9 @@
     ]
   },
   {
-    "kind": "ruddy-boura",
+    "definitionId": "ruddy-boura",
     "name": "a ruddy boura",
-    "body": 715,
+    "bodyId": 715,
     "hp": 509,
     "str": 480,
     "dex": 82,
@@ -19543,9 +19543,9 @@
     ]
   },
   {
-    "kind": "rune-beetle",
+    "definitionId": "rune-beetle",
     "name": "a rune beetle",
-    "body": 244,
+    "bodyId": 244,
     "hp": 360,
     "str": 460,
     "dex": 170,
@@ -19573,9 +19573,9 @@
     ]
   },
   {
-    "kind": "sabertoothed-tiger",
+    "definitionId": "sabertoothed-tiger",
     "name": "saber-toothed tiger",
-    "body": 1416,
+    "bodyId": 1416,
     "hp": 423,
     "str": 523,
     "dex": 403,
@@ -19603,9 +19603,9 @@
     "loot": "wolf-common"
   },
   {
-    "kind": "sage",
+    "definitionId": "sage",
     "name": "sage",
-    "body": 400,
+    "bodyId": 400,
     "hue": 1150,
     "hp": 100,
     "hpMax": 120,
@@ -19640,9 +19640,9 @@
     "fame": 100
   },
   {
-    "kind": "sailor",
+    "definitionId": "sailor",
     "name": "sailor",
-    "body": 400,
+    "bodyId": 400,
     "hue": 1149,
     "hp": 60,
     "hpMax": 80,
@@ -19677,9 +19677,9 @@
     "fame": 100
   },
   {
-    "kind": "sakkhra-female-hunter",
+    "definitionId": "sakkhra-female-hunter",
     "name": "sakkhra female hunter",
-    "body": 401,
+    "bodyId": 401,
     "hue": 16388,
     "hp": 270,
     "hpMax": 300,
@@ -19722,9 +19722,9 @@
     "fame": 3800
   },
   {
-    "kind": "sakkhra-male-hunter",
+    "definitionId": "sakkhra-male-hunter",
     "name": "sakkhra male hunter",
-    "body": 400,
+    "bodyId": 400,
     "hue": 16388,
     "hp": 280,
     "hpMax": 310,
@@ -19767,9 +19767,9 @@
     "fame": 4000
   },
   {
-    "kind": "saliva",
+    "definitionId": "saliva",
     "name": "Saliva",
-    "body": 21,
+    "bodyId": 21,
     "hue": 1149,
     "hp": 500,
     "hpMax": 550,
@@ -19810,9 +19810,9 @@
     "ai": "mage"
   },
   {
-    "kind": "sand-vortex",
+    "definitionId": "sand-vortex",
     "name": "a sand vortex",
-    "body": 790,
+    "bodyId": 790,
     "hp": 62,
     "str": 120,
     "dex": 195,
@@ -19837,9 +19837,9 @@
     ]
   },
   {
-    "kind": "sapixie",
+    "definitionId": "sapixie",
     "name": "SAPixie",
-    "body": 128,
+    "bodyId": 128,
     "hue": 53,
     "hp": 16,
     "str": 26,
@@ -19859,9 +19859,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/Normal/SAPixie.cs"
   },
   {
-    "kind": "satyr",
+    "definitionId": "satyr",
     "name": "a satyr",
-    "body": 271,
+    "bodyId": 271,
     "hp": 400,
     "str": 195,
     "dex": 269,
@@ -19886,9 +19886,9 @@
     ]
   },
   {
-    "kind": "saurian-brute",
+    "definitionId": "saurian-brute",
     "name": "saurian brute",
-    "body": 738,
+    "bodyId": 738,
     "hue": 0,
     "hp": 400,
     "hpMax": 430,
@@ -19931,9 +19931,9 @@
     "fame": 4500
   },
   {
-    "kind": "saurian-guard",
+    "definitionId": "saurian-guard",
     "name": "saurian guard",
-    "body": 738,
+    "bodyId": 738,
     "hue": 1150,
     "hp": 440,
     "hpMax": 470,
@@ -19976,9 +19976,9 @@
     "fame": 5000
   },
   {
-    "kind": "saurian-hunter",
+    "definitionId": "saurian-hunter",
     "name": "saurian hunter",
-    "body": 738,
+    "bodyId": 738,
     "hue": 1173,
     "hp": 380,
     "hpMax": 410,
@@ -20021,9 +20021,9 @@
     "fame": 4200
   },
   {
-    "kind": "saurosaurus",
+    "definitionId": "saurosaurus",
     "name": "saurosaurus",
-    "body": 732,
+    "bodyId": 732,
     "hue": 0,
     "hp": 650,
     "hpMax": 680,
@@ -20066,9 +20066,9 @@
     "fame": 6500
   },
   {
-    "kind": "savage",
+    "definitionId": "savage",
     "name": "a savage",
-    "body": 184,
+    "bodyId": 184,
     "hue": 0,
     "hp": 58,
     "hpMax": 72,
@@ -20109,9 +20109,9 @@
     "ai": "melee"
   },
   {
-    "kind": "scaled-swamp-dragon",
+    "definitionId": "scaled-swamp-dragon",
     "name": "scaled swamp dragon",
-    "body": 799,
+    "bodyId": 799,
     "hue": 68,
     "hp": 520,
     "hpMax": 550,
@@ -20147,9 +20147,9 @@
     "fame": 10000
   },
   {
-    "kind": "schmendrick",
+    "definitionId": "schmendrick",
     "name": "Schmendrick",
-    "body": 400,
+    "bodyId": 400,
     "hue": 33779,
     "hp": 33,
     "str": 50,
@@ -20168,9 +20168,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/NPCs/Schmendrick.cs"
   },
   {
-    "kind": "scorpion",
+    "definitionId": "scorpion",
     "name": "a giant scorpion",
-    "body": 48,
+    "bodyId": 48,
     "hp": 80,
     "str": 60,
     "notoriety": 5,
@@ -20182,9 +20182,9 @@
     ]
   },
   {
-    "kind": "scorpion-giant",
+    "definitionId": "scorpion-giant",
     "name": "scorpion giant",
-    "body": 48,
+    "bodyId": 48,
     "hue": 0,
     "hp": 220,
     "hpMax": 250,
@@ -20221,9 +20221,9 @@
     "fame": 3000
   },
   {
-    "kind": "sea-serpent",
+    "definitionId": "sea-serpent",
     "name": "a sea serpent",
-    "body": 150,
+    "bodyId": 150,
     "hp": 127,
     "str": 225,
     "dex": 85,
@@ -20250,9 +20250,9 @@
     "loot": "sea-serpent-common"
   },
   {
-    "kind": "searing-wisp",
+    "definitionId": "searing-wisp",
     "name": "a searing wisp",
-    "body": 165,
+    "bodyId": 165,
     "hue": 1150,
     "hp": 60,
     "str": 70,
@@ -20293,9 +20293,9 @@
     "ai": "mage"
   },
   {
-    "kind": "semidar",
+    "definitionId": "semidar",
     "name": "Semidar",
-    "body": 174,
+    "bodyId": 174,
     "hp": 30000,
     "str": 600,
     "dex": 200,
@@ -20329,9 +20329,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "sentinel-spider",
+    "definitionId": "sentinel-spider",
     "name": "a Sentinel spider",
-    "body": 157,
+    "bodyId": 157,
     "hp": 265,
     "str": 100,
     "dex": 145,
@@ -20357,9 +20357,9 @@
     "loot": "snake-common"
   },
   {
-    "kind": "serado",
+    "definitionId": "serado",
     "name": "Serado",
-    "body": 249,
+    "bodyId": 249,
     "hp": 22000,
     "str": 600,
     "dex": 200,
@@ -20380,9 +20380,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "serpentine-dragon",
+    "definitionId": "serpentine-dragon",
     "name": "a serpentine dragon",
-    "body": 103,
+    "bodyId": 103,
     "hp": 50,
     "str": 140,
     "dex": 220,
@@ -20412,9 +20412,9 @@
     "loot": "dragon-hoard"
   },
   {
-    "kind": "servant-of-semidar",
+    "definitionId": "servant-of-semidar",
     "name": "a servant of Semidar",
-    "body": 38,
+    "bodyId": 38,
     "hp": 4000,
     "str": 600,
     "dex": 200,
@@ -20433,9 +20433,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "sewer-rat",
+    "definitionId": "sewer-rat",
     "name": "a sewer rat",
-    "body": 238,
+    "bodyId": 238,
     "hp": 50,
     "str": 50,
     "dex": 50,
@@ -20461,9 +20461,9 @@
     "loot": "rat-common"
   },
   {
-    "kind": "shade",
+    "definitionId": "shade",
     "name": "a shade",
-    "body": 26,
+    "bodyId": 26,
     "hp": 60,
     "str": 100,
     "dex": 95,
@@ -20487,9 +20487,9 @@
     ]
   },
   {
-    "kind": "shadow-dweller",
+    "definitionId": "shadow-dweller",
     "name": "a shadow dweller",
-    "body": 740,
+    "bodyId": 740,
     "hp": 120,
     "str": 200,
     "dex": 145,
@@ -20515,9 +20515,9 @@
     ]
   },
   {
-    "kind": "shadow-iron-elemental",
+    "definitionId": "shadow-iron-elemental",
     "name": "a shadow iron elemental",
-    "body": 111,
+    "bodyId": 111,
     "hp": 153,
     "str": 255,
     "dex": 145,
@@ -20543,9 +20543,9 @@
     "loot": "elemental-earth-common"
   },
   {
-    "kind": "shadow-knight",
+    "definitionId": "shadow-knight",
     "name": "Shadow Knight",
-    "body": 78,
+    "bodyId": 78,
     "hue": 1150,
     "hp": 700,
     "hpMax": 750,
@@ -20586,9 +20586,9 @@
     "ai": "necro"
   },
   {
-    "kind": "shadow-warden",
+    "definitionId": "shadow-warden",
     "name": "shadow warden",
-    "body": 78,
+    "bodyId": 78,
     "hue": 1149,
     "hp": 380,
     "hpMax": 410,
@@ -20632,9 +20632,9 @@
     "fame": 6500
   },
   {
-    "kind": "shadow-wisp",
+    "definitionId": "shadow-wisp",
     "name": "a shadow wisp",
-    "body": 165,
+    "bodyId": 165,
     "hp": 24,
     "str": 40,
     "dex": 45,
@@ -20659,9 +20659,9 @@
     ]
   },
   {
-    "kind": "shadow-wisp-familiar",
+    "definitionId": "shadow-wisp-familiar",
     "name": "Shadow Wisp Familiar",
-    "body": 165,
+    "bodyId": 165,
     "hue": 2305,
     "hp": 50,
     "str": 50,
@@ -20680,9 +20680,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/Summons/ShadowWisp.cs"
   },
   {
-    "kind": "shadow-wyrm",
+    "definitionId": "shadow-wyrm",
     "name": "a shadow wyrm",
-    "body": 106,
+    "bodyId": 106,
     "hp": 599,
     "str": 1030,
     "dex": 200,
@@ -20711,9 +20711,9 @@
     "loot": "dragon-hoard"
   },
   {
-    "kind": "shadowknight-despise",
+    "definitionId": "shadowknight-despise",
     "name": "shadowknight despise",
-    "body": 78,
+    "bodyId": 78,
     "hue": 1149,
     "hp": 580,
     "hpMax": 620,
@@ -20751,9 +20751,9 @@
     "fame": 10000
   },
   {
-    "kind": "shadowlords-guard",
+    "definitionId": "shadowlords-guard",
     "name": "Shadowlords Guard",
-    "body": 2,
+    "bodyId": 2,
     "hue": 71,
     "hp": 200,
     "hpMax": 230,
@@ -20787,9 +20787,9 @@
     "ai": "melee"
   },
   {
-    "kind": "shame-ogre",
+    "definitionId": "shame-ogre",
     "name": "shame ogre",
-    "body": 1,
+    "bodyId": 1,
     "hue": 0,
     "hp": 380,
     "hpMax": 410,
@@ -20826,9 +20826,9 @@
     "fame": 5500
   },
   {
-    "kind": "shame-troll",
+    "definitionId": "shame-troll",
     "name": "shame troll",
-    "body": 54,
+    "bodyId": 54,
     "hue": 0,
     "hp": 240,
     "hpMax": 270,
@@ -20865,9 +20865,9 @@
     "fame": 3500
   },
   {
-    "kind": "sheared-sheep",
+    "definitionId": "sheared-sheep",
     "name": "sheared sheep",
-    "body": 223,
+    "bodyId": 223,
     "hue": 0,
     "hp": 25,
     "hpMax": 35,
@@ -20900,9 +20900,9 @@
     "ai": "passive"
   },
   {
-    "kind": "sheep",
+    "definitionId": "sheep",
     "name": "a sheep",
-    "body": 207,
+    "bodyId": 207,
     "hp": 12,
     "str": 8,
     "notoriety": 3,
@@ -20914,9 +20914,9 @@
     ]
   },
   {
-    "kind": "shimmering-effusion",
+    "definitionId": "shimmering-effusion",
     "name": "a shimmering effusion",
-    "body": 261,
+    "bodyId": 261,
     "hp": 4000,
     "str": 550,
     "dex": 400,
@@ -20945,9 +20945,9 @@
     "peerless": true
   },
   {
-    "kind": "shimmering-ferret",
+    "definitionId": "shimmering-ferret",
     "name": "a shimmering ferret",
-    "body": 279,
+    "bodyId": 279,
     "hp": 50,
     "str": 48,
     "dex": 50,
@@ -20980,9 +20980,9 @@
     ]
   },
   {
-    "kind": "shocktroop",
+    "definitionId": "shocktroop",
     "name": "shocktroop",
-    "body": 400,
+    "bodyId": 400,
     "hue": 1149,
     "hp": 440,
     "hpMax": 490,
@@ -21024,9 +21024,9 @@
     "fame": 7500
   },
   {
-    "kind": "siege-bow",
+    "definitionId": "siege-bow",
     "name": "siege bow",
-    "body": 5,
+    "bodyId": 5,
     "hue": 68,
     "hp": 200,
     "hpMax": 230,
@@ -21064,9 +21064,9 @@
     "fame": 3000
   },
   {
-    "kind": "silk",
+    "definitionId": "silk",
     "name": "Silk",
-    "body": 78,
+    "bodyId": 78,
     "hue": 1153,
     "hp": 400,
     "hpMax": 450,
@@ -21107,9 +21107,9 @@
     "ai": "mage"
   },
   {
-    "kind": "silvani",
+    "definitionId": "silvani",
     "name": "Silvani",
-    "body": 176,
+    "bodyId": 176,
     "hp": 15000,
     "str": 400,
     "dex": 850,
@@ -21140,9 +21140,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "silver-dragon",
+    "definitionId": "silver-dragon",
     "name": "silver dragon",
-    "body": 59,
+    "bodyId": 59,
     "hue": 1153,
     "hp": 700,
     "hpMax": 740,
@@ -21185,9 +21185,9 @@
     "fame": 12500
   },
   {
-    "kind": "silver-serpent",
+    "definitionId": "silver-serpent",
     "name": "a silver serpent",
-    "body": 92,
+    "bodyId": 92,
     "hp": 216,
     "str": 360,
     "dex": 300,
@@ -21212,9 +21212,9 @@
     "loot": "kraken-common"
   },
   {
-    "kind": "sir-patrick",
+    "definitionId": "sir-patrick",
     "name": "Sir Patrick",
-    "body": 400,
+    "bodyId": 400,
     "hue": 1149,
     "hp": 1000,
     "hpMax": 1050,
@@ -21255,9 +21255,9 @@
     "ai": "paladin"
   },
   {
-    "kind": "skeletal-cleric",
+    "definitionId": "skeletal-cleric",
     "name": "skeletal cleric",
-    "body": 147,
+    "bodyId": 147,
     "hue": 1149,
     "hp": 380,
     "hpMax": 420,
@@ -21294,9 +21294,9 @@
     "fame": 6500
   },
   {
-    "kind": "skeletal-dragon",
+    "definitionId": "skeletal-dragon",
     "name": "a skeletal dragon",
-    "body": 104,
+    "bodyId": 104,
     "hp": 599,
     "str": 1030,
     "dex": 200,
@@ -21322,9 +21322,9 @@
     "loot": "dragon-hoard"
   },
   {
-    "kind": "skeletal-dragon-renowned",
+    "definitionId": "skeletal-dragon-renowned",
     "name": "Skeletal Dragon",
-    "body": 104,
+    "bodyId": 104,
     "hp": 599,
     "str": 1030,
     "dex": 200,
@@ -21358,9 +21358,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "skeletal-drake",
+    "definitionId": "skeletal-drake",
     "name": "a skeletal drake",
-    "body": 104,
+    "bodyId": 104,
     "hp": 400,
     "str": 700,
     "dex": 100,
@@ -21386,9 +21386,9 @@
     "loot": "dragon-hoard"
   },
   {
-    "kind": "skeletal-ghost-haunting",
+    "definitionId": "skeletal-ghost-haunting",
     "name": "skeletal ghost haunting",
-    "body": 24,
+    "bodyId": 24,
     "hue": 1149,
     "hp": 260,
     "hpMax": 290,
@@ -21432,9 +21432,9 @@
     "fame": 4500
   },
   {
-    "kind": "skeletal-knight",
+    "definitionId": "skeletal-knight",
     "name": "a skeletal knight",
-    "body": 57,
+    "bodyId": 57,
     "hp": 110,
     "str": 80,
     "notoriety": 5,
@@ -21446,9 +21446,9 @@
     ]
   },
   {
-    "kind": "skeletal-knight-champion",
+    "definitionId": "skeletal-knight-champion",
     "name": "skeletal knight champion",
-    "body": 147,
+    "bodyId": 147,
     "hue": 68,
     "hp": 480,
     "hpMax": 510,
@@ -21491,9 +21491,9 @@
     "fame": 9000
   },
   {
-    "kind": "skeletal-knight2",
+    "definitionId": "skeletal-knight2",
     "name": "skeletal knight",
-    "body": 147,
+    "bodyId": 147,
     "hue": 1149,
     "hp": 380,
     "hpMax": 410,
@@ -21530,9 +21530,9 @@
     "fame": 6000
   },
   {
-    "kind": "skeletal-lich",
+    "definitionId": "skeletal-lich",
     "name": "a skeletal lich",
-    "body": 309,
+    "bodyId": 309,
     "hp": 50,
     "str": 350,
     "dex": 50,
@@ -21558,9 +21558,9 @@
     "loot": "wraith-common"
   },
   {
-    "kind": "skeletal-mage",
+    "definitionId": "skeletal-mage",
     "name": "a skeletal mage",
-    "body": 148,
+    "bodyId": 148,
     "hp": 60,
     "str": 100,
     "dex": 75,
@@ -21587,9 +21587,9 @@
     "loot": "wraith-common"
   },
   {
-    "kind": "skeletal-magi",
+    "definitionId": "skeletal-magi",
     "name": "skeletal magi",
-    "body": 146,
+    "bodyId": 146,
     "hue": 1149,
     "hp": 360,
     "hpMax": 410,
@@ -21631,9 +21631,9 @@
     "fame": 6500
   },
   {
-    "kind": "skeletal-mount",
+    "definitionId": "skeletal-mount",
     "name": "a skeletal mount",
-    "body": 793,
+    "bodyId": 793,
     "hp": 230,
     "hpMax": 300,
     "str": 250,
@@ -21659,9 +21659,9 @@
     "loot": "skeleton-common"
   },
   {
-    "kind": "skeletal-warrior",
+    "definitionId": "skeletal-warrior",
     "name": "a skeletal warrior",
-    "body": 57,
+    "bodyId": 57,
     "hp": 120,
     "str": 130,
     "dex": 75,
@@ -21696,9 +21696,9 @@
     "ai": "melee"
   },
   {
-    "kind": "skeleton",
+    "definitionId": "skeleton",
     "name": "a skeleton",
-    "body": 50,
+    "bodyId": 50,
     "hp": 50,
     "str": 40,
     "notoriety": 5,
@@ -21711,9 +21711,9 @@
     "loot": "skeleton-common"
   },
   {
-    "kind": "skittering-hopper",
+    "definitionId": "skittering-hopper",
     "name": "a skittering hopper",
-    "body": 302,
+    "bodyId": 302,
     "hp": 45,
     "str": 65,
     "dex": 115,
@@ -21738,9 +21738,9 @@
     ]
   },
   {
-    "kind": "skree",
+    "definitionId": "skree",
     "name": "a skree",
-    "body": 733,
+    "bodyId": 733,
     "hp": 300,
     "str": 330,
     "dex": 124,
@@ -21766,9 +21766,9 @@
     ]
   },
   {
-    "kind": "slasher-of-veils",
+    "definitionId": "slasher-of-veils",
     "name": "The Slasher of Veils",
-    "body": 741,
+    "bodyId": 741,
     "hp": 65000,
     "str": 1010,
     "dex": 153,
@@ -21802,9 +21802,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "slime",
+    "definitionId": "slime",
     "name": "a slime",
-    "body": 51,
+    "bodyId": 51,
     "hp": 19,
     "str": 34,
     "dex": 21,
@@ -21829,9 +21829,9 @@
     ]
   },
   {
-    "kind": "slith",
+    "definitionId": "slith",
     "name": "a slith",
-    "body": 734,
+    "bodyId": 734,
     "hp": 85,
     "str": 136,
     "dex": 75,
@@ -21856,9 +21856,9 @@
     ]
   },
   {
-    "kind": "snake",
+    "definitionId": "snake",
     "name": "a giant serpent",
-    "body": 52,
+    "bodyId": 52,
     "hp": 60,
     "str": 45,
     "notoriety": 5,
@@ -21870,9 +21870,9 @@
     ]
   },
   {
-    "kind": "snow-elemental",
+    "definitionId": "snow-elemental",
     "name": "a snow elemental",
-    "body": 163,
+    "bodyId": 163,
     "hp": 213,
     "str": 355,
     "dex": 185,
@@ -21898,9 +21898,9 @@
     "loot": "elemental-earth-common"
   },
   {
-    "kind": "snow-elemental-event",
+    "definitionId": "snow-elemental-event",
     "name": "snow elemental event",
-    "body": 15,
+    "bodyId": 15,
     "hue": 1153,
     "hp": 460,
     "hpMax": 510,
@@ -21944,9 +21944,9 @@
     "fame": 7800
   },
   {
-    "kind": "snow-golem",
+    "definitionId": "snow-golem",
     "name": "snow golem",
-    "body": 4,
+    "bodyId": 4,
     "hue": 1153,
     "hp": 280,
     "hpMax": 290,
@@ -21981,9 +21981,9 @@
     "ai": "passive"
   },
   {
-    "kind": "snow-leopard",
+    "definitionId": "snow-leopard",
     "name": "a snow leopard",
-    "body": 64,
+    "bodyId": 64,
     "hp": 48,
     "str": 80,
     "dex": 85,
@@ -22011,9 +22011,9 @@
     ]
   },
   {
-    "kind": "spawned-orcish-lord",
+    "definitionId": "spawned-orcish-lord",
     "name": "Spawned Orcish Lord",
-    "body": 138,
+    "bodyId": 138,
     "hue": 53,
     "hp": 109,
     "str": 181,
@@ -22033,9 +22033,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/Summons/SpawnedOrcishLord.cs"
   },
   {
-    "kind": "spectral-armour",
+    "definitionId": "spectral-armour",
     "name": "spectral armour",
-    "body": 637,
+    "bodyId": 637,
     "hp": 201,
     "str": 110,
     "dex": 110,
@@ -22059,9 +22059,9 @@
     ]
   },
   {
-    "kind": "spectre",
+    "definitionId": "spectre",
     "name": "a spectre",
-    "body": 26,
+    "bodyId": 26,
     "hp": 60,
     "str": 100,
     "dex": 95,
@@ -22085,9 +22085,9 @@
     ]
   },
   {
-    "kind": "spellbinder",
+    "definitionId": "spellbinder",
     "name": "a spectral spellbinder",
-    "body": 26,
+    "bodyId": 26,
     "hp": 50,
     "str": 70,
     "dex": 65,
@@ -22110,9 +22110,9 @@
     ]
   },
   {
-    "kind": "spider",
+    "definitionId": "spider",
     "name": "a giant spider",
-    "body": 28,
+    "bodyId": 28,
     "hp": 70,
     "str": 50,
     "notoriety": 5,
@@ -22124,9 +22124,9 @@
     ]
   },
   {
-    "kind": "spite",
+    "definitionId": "spite",
     "name": "Spite",
-    "body": 78,
+    "bodyId": 78,
     "hue": 68,
     "hp": 600,
     "hpMax": 650,
@@ -22167,9 +22167,9 @@
     "ai": "mage"
   },
   {
-    "kind": "sprite",
+    "definitionId": "sprite",
     "name": "sprite",
-    "body": 58,
+    "bodyId": 58,
     "hue": 1150,
     "hp": 180,
     "hpMax": 200,
@@ -22206,9 +22206,9 @@
     "fame": 3000
   },
   {
-    "kind": "squirrel",
+    "definitionId": "squirrel",
     "name": "a squirrel",
-    "body": 278,
+    "bodyId": 278,
     "hp": 50,
     "str": 50,
     "dex": 50,
@@ -22233,9 +22233,9 @@
     ]
   },
   {
-    "kind": "stone-cobra",
+    "definitionId": "stone-cobra",
     "name": "stone cobra",
-    "body": 53,
+    "bodyId": 53,
     "hue": 68,
     "hp": 240,
     "hpMax": 270,
@@ -22272,9 +22272,9 @@
     "fame": 3500
   },
   {
-    "kind": "stone-gargoyle",
+    "definitionId": "stone-gargoyle",
     "name": "a stone gargoyle",
-    "body": 67,
+    "bodyId": 67,
     "hp": 165,
     "str": 275,
     "dex": 95,
@@ -22300,9 +22300,9 @@
     "loot": "lizardman-common"
   },
   {
-    "kind": "stone-gargoyle-shame",
+    "definitionId": "stone-gargoyle-shame",
     "name": "stone gargoyle shame",
-    "body": 4,
+    "bodyId": 4,
     "hue": 0,
     "hp": 380,
     "hpMax": 410,
@@ -22339,9 +22339,9 @@
     "fame": 6500
   },
   {
-    "kind": "stone-golem",
+    "definitionId": "stone-golem",
     "name": "stone golem",
-    "body": 4,
+    "bodyId": 4,
     "hue": 1150,
     "hp": 440,
     "hpMax": 470,
@@ -22378,9 +22378,9 @@
     "fame": 7500
   },
   {
-    "kind": "stone-harpy",
+    "definitionId": "stone-harpy",
     "name": "a stone harpy",
-    "body": 73,
+    "bodyId": 73,
     "hp": 192,
     "str": 320,
     "dex": 110,
@@ -22405,9 +22405,9 @@
     ]
   },
   {
-    "kind": "stone-monster",
+    "definitionId": "stone-monster",
     "name": "Stone Monster",
-    "body": 86,
+    "bodyId": 86,
     "hp": 155,
     "str": 320,
     "dex": 190,
@@ -22433,9 +22433,9 @@
     ]
   },
   {
-    "kind": "stone-phoenix",
+    "definitionId": "stone-phoenix",
     "name": "stone phoenix",
-    "body": 5,
+    "bodyId": 5,
     "hue": 68,
     "hp": 380,
     "hpMax": 410,
@@ -22471,9 +22471,9 @@
     "fame": 6500
   },
   {
-    "kind": "stone-slith",
+    "definitionId": "stone-slith",
     "name": "a stone slith",
-    "body": 734,
+    "bodyId": 734,
     "hp": 166,
     "str": 300,
     "dex": 90,
@@ -22499,9 +22499,9 @@
     ]
   },
   {
-    "kind": "strong-mongbat",
+    "definitionId": "strong-mongbat",
     "name": "a mongbat",
-    "body": 39,
+    "bodyId": 39,
     "hp": 6,
     "str": 10,
     "dex": 38,
@@ -22525,9 +22525,9 @@
     ]
   },
   {
-    "kind": "stygian-dragon",
+    "definitionId": "stygian-dragon",
     "name": "Stygian Dragon",
-    "body": 826,
+    "bodyId": 826,
     "hp": 50000,
     "str": 600,
     "dex": 200,
@@ -22561,9 +22561,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "stygian-drake",
+    "definitionId": "stygian-drake",
     "name": "Stygian Drake",
-    "body": 1422,
+    "bodyId": 1422,
     "hp": 510,
     "str": 830,
     "dex": 125,
@@ -22593,9 +22593,9 @@
     "loot": "dragon-hoard"
   },
   {
-    "kind": "succubus",
+    "definitionId": "succubus",
     "name": "a succubus",
-    "body": 149,
+    "bodyId": 149,
     "hp": 353,
     "str": 620,
     "dex": 170,
@@ -22621,9 +22621,9 @@
     ]
   },
   {
-    "kind": "summoned-air-elemental",
+    "definitionId": "summoned-air-elemental",
     "name": "Summoned Air Elemental",
-    "body": 13,
+    "bodyId": 13,
     "hue": 16385,
     "hp": 150,
     "str": 200,
@@ -22642,9 +22642,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/Summons/SummonedAirElemental.cs"
   },
   {
-    "kind": "summoned-daemon",
+    "definitionId": "summoned-daemon",
     "name": "summoned daemon",
-    "body": 9,
+    "bodyId": 9,
     "hue": 68,
     "hp": 580,
     "hpMax": 620,
@@ -22681,9 +22681,9 @@
     "fame": 10000
   },
   {
-    "kind": "summoned-earth-elemental",
+    "definitionId": "summoned-earth-elemental",
     "name": "Summoned Earth Elemental",
-    "body": 14,
+    "bodyId": 14,
     "hue": 53,
     "hp": 180,
     "str": 200,
@@ -22702,9 +22702,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/Summons/SummonedEarthElemental.cs"
   },
   {
-    "kind": "summoned-fire-elemental",
+    "definitionId": "summoned-fire-elemental",
     "name": "Summoned Fire Elemental",
-    "body": 15,
+    "bodyId": 15,
     "hue": 53,
     "hp": 130,
     "str": 200,
@@ -22723,9 +22723,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/Summons/SummonedFireElemental.cs"
   },
   {
-    "kind": "summoned-water-elemental",
+    "definitionId": "summoned-water-elemental",
     "name": "Summoned Water Elemental",
-    "body": 16,
+    "bodyId": 16,
     "hue": 53,
     "hp": 165,
     "str": 200,
@@ -22744,9 +22744,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/Summons/SummonedWaterElemental.cs"
   },
   {
-    "kind": "swamp-dragon",
+    "definitionId": "swamp-dragon",
     "name": "swamp dragon",
-    "body": 794,
+    "bodyId": 794,
     "hue": 102,
     "hp": 460,
     "hpMax": 490,
@@ -22782,9 +22782,9 @@
     "fame": 8000
   },
   {
-    "kind": "swamp-tendrils",
+    "definitionId": "swamp-tendrils",
     "name": "swamp tendrils",
-    "body": 157,
+    "bodyId": 157,
     "hue": 71,
     "hp": 260,
     "hpMax": 290,
@@ -22821,9 +22821,9 @@
     "fame": 4000
   },
   {
-    "kind": "swamp-tentacle",
+    "definitionId": "swamp-tentacle",
     "name": "a swamp tentacle",
-    "body": 66,
+    "bodyId": 66,
     "hp": 72,
     "str": 120,
     "dex": 85,
@@ -22848,9 +22848,9 @@
     ]
   },
   {
-    "kind": "swoop",
+    "definitionId": "swoop",
     "name": "Swoop",
-    "body": 5,
+    "bodyId": 5,
     "hue": 1149,
     "hp": 450,
     "hpMax": 500,
@@ -22891,9 +22891,9 @@
     "ai": "melee"
   },
   {
-    "kind": "szavetra",
+    "definitionId": "szavetra",
     "name": "Szavetra",
-    "body": 157,
+    "bodyId": 157,
     "hue": 1150,
     "hp": 800,
     "hpMax": 850,
@@ -22934,9 +22934,9 @@
     "ai": "necro"
   },
   {
-    "kind": "tangle",
+    "definitionId": "tangle",
     "name": "Tangle",
-    "body": 205,
+    "bodyId": 205,
     "hue": 1173,
     "hp": 600,
     "hpMax": 650,
@@ -22977,9 +22977,9 @@
     "ai": "mage"
   },
   {
-    "kind": "tangling-roots",
+    "definitionId": "tangling-roots",
     "name": "a tangling root",
-    "body": 8,
+    "bodyId": 8,
     "hp": 246,
     "str": 189,
     "dex": 64,
@@ -23002,9 +23002,9 @@
     ]
   },
   {
-    "kind": "tarantula",
+    "definitionId": "tarantula",
     "name": "tarantula",
-    "body": 728,
+    "bodyId": 728,
     "hue": 0,
     "hp": 425,
     "hpMax": 455,
@@ -23047,9 +23047,9 @@
     "fame": 4500
   },
   {
-    "kind": "tavara-sewel",
+    "definitionId": "tavara-sewel",
     "name": "Tavara Sewel",
-    "body": 401,
+    "bodyId": 401,
     "hp": 207,
     "str": 120,
     "dex": 120,
@@ -23077,9 +23077,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "tempest",
+    "definitionId": "tempest",
     "name": "Tempest",
-    "body": 13,
+    "bodyId": 13,
     "hp": 4000,
     "str": 135,
     "dex": 185,
@@ -23103,9 +23103,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "terathan-avenger",
+    "definitionId": "terathan-avenger",
     "name": "a terathan avenger",
-    "body": 152,
+    "bodyId": 152,
     "hp": 372,
     "str": 645,
     "dex": 95,
@@ -23132,9 +23132,9 @@
     "loot": "rat-common"
   },
   {
-    "kind": "terathan-drone",
+    "definitionId": "terathan-drone",
     "name": "a terathan drone",
-    "body": 71,
+    "bodyId": 71,
     "hp": 39,
     "str": 65,
     "dex": 145,
@@ -23160,9 +23160,9 @@
     "loot": "rat-common"
   },
   {
-    "kind": "terathan-matriarch",
+    "definitionId": "terathan-matriarch",
     "name": "a terathan matriarch",
-    "body": 72,
+    "bodyId": 72,
     "hp": 243,
     "str": 405,
     "dex": 115,
@@ -23189,9 +23189,9 @@
     "loot": "rat-common"
   },
   {
-    "kind": "terathan-queen",
+    "definitionId": "terathan-queen",
     "name": "Terathan Queen",
-    "body": 70,
+    "bodyId": 70,
     "hue": 102,
     "hp": 400,
     "hpMax": 430,
@@ -23226,9 +23226,9 @@
     "ai": "mage"
   },
   {
-    "kind": "terathan-warrior",
+    "definitionId": "terathan-warrior",
     "name": "a terathan warrior",
-    "body": 70,
+    "bodyId": 70,
     "hp": 129,
     "str": 215,
     "dex": 145,
@@ -23254,9 +23254,9 @@
     "loot": "rat-common"
   },
   {
-    "kind": "thrasher",
+    "definitionId": "thrasher",
     "name": "Thrasher",
-    "body": 206,
+    "bodyId": 206,
     "hp": 984,
     "str": 327,
     "dex": 201,
@@ -23283,9 +23283,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "tikitavi-renowned",
+    "definitionId": "tikitavi-renowned",
     "name": "Tikitavi",
-    "body": 42,
+    "bodyId": 42,
     "hp": 4000,
     "str": 354,
     "dex": 177,
@@ -23315,9 +23315,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "timber-wolf",
+    "definitionId": "timber-wolf",
     "name": "a timber wolf",
-    "body": 225,
+    "bodyId": 225,
     "hp": 48,
     "str": 80,
     "dex": 75,
@@ -23346,9 +23346,9 @@
     "loot": "wolf-common"
   },
   {
-    "kind": "titan",
+    "definitionId": "titan",
     "name": "a titan",
-    "body": 76,
+    "bodyId": 76,
     "hp": 240,
     "str": 130,
     "notoriety": 5,
@@ -23360,9 +23360,9 @@
     ]
   },
   {
-    "kind": "toad",
+    "definitionId": "toad",
     "name": "toad",
-    "body": 82,
+    "bodyId": 82,
     "hue": 0,
     "hp": 60,
     "hpMax": 90,
@@ -23399,9 +23399,9 @@
     "fame": 600
   },
   {
-    "kind": "tormented-minotaur",
+    "definitionId": "tormented-minotaur",
     "name": "Tormented Minotaur",
-    "body": 262,
+    "bodyId": 262,
     "hp": 4200,
     "str": 930,
     "dex": 415,
@@ -23418,9 +23418,9 @@
     ]
   },
   {
-    "kind": "townsman",
+    "definitionId": "townsman",
     "name": "townsman",
-    "body": 400,
+    "bodyId": 400,
     "hue": 33770,
     "hp": 40,
     "hpMax": 60,
@@ -23455,9 +23455,9 @@
     "fame": 100
   },
   {
-    "kind": "townswoman",
+    "definitionId": "townswoman",
     "name": "townswoman",
-    "body": 401,
+    "bodyId": 401,
     "hue": 33770,
     "hp": 40,
     "hpMax": 60,
@@ -23492,9 +23492,9 @@
     "fame": 100
   },
   {
-    "kind": "toxic-elemental",
+    "definitionId": "toxic-elemental",
     "name": "an acid elemental",
-    "body": 158,
+    "bodyId": 158,
     "hp": 213,
     "str": 355,
     "dex": 85,
@@ -23521,9 +23521,9 @@
     "loot": "elemental-earth-common"
   },
   {
-    "kind": "toxic-slith",
+    "definitionId": "toxic-slith",
     "name": "a toxic slith",
-    "body": 734,
+    "bodyId": 734,
     "hp": 215,
     "str": 306,
     "dex": 258,
@@ -23546,9 +23546,9 @@
     ]
   },
   {
-    "kind": "trapdoor-spider",
+    "definitionId": "trapdoor-spider",
     "name": "a trapdoor spider",
-    "body": 737,
+    "bodyId": 737,
     "hp": 144,
     "str": 104,
     "dex": 165,
@@ -23571,9 +23571,9 @@
     "loot": "snake-common"
   },
   {
-    "kind": "travesty",
+    "definitionId": "travesty",
     "name": "Travesty",
-    "body": 264,
+    "bodyId": 264,
     "hp": 35000,
     "str": 950,
     "dex": 950,
@@ -23609,9 +23609,9 @@
     "peerless": true
   },
   {
-    "kind": "travesty-dog",
+    "definitionId": "travesty-dog",
     "name": "a travesty dog",
-    "body": 217,
+    "bodyId": 217,
     "hue": 2301,
     "hp": 22,
     "str": 37,
@@ -23642,9 +23642,9 @@
     ]
   },
   {
-    "kind": "treefellow",
+    "definitionId": "treefellow",
     "name": "a treefellow",
-    "body": 301,
+    "bodyId": 301,
     "hp": 132,
     "str": 220,
     "dex": 55,
@@ -23667,9 +23667,9 @@
     ]
   },
   {
-    "kind": "treefellow-guardian",
+    "definitionId": "treefellow-guardian",
     "name": "a Treefellow Guardian",
-    "body": 301,
+    "bodyId": 301,
     "hp": 900,
     "str": 695,
     "dex": 55,
@@ -23692,9 +23692,9 @@
     ]
   },
   {
-    "kind": "triceratops",
+    "definitionId": "triceratops",
     "name": "Triceratops",
-    "body": 1415,
+    "bodyId": 1415,
     "hp": 1200,
     "str": 1300,
     "dex": 170,
@@ -23721,9 +23721,9 @@
     "loot": "rat-common"
   },
   {
-    "kind": "trick-or-treat-bat",
+    "definitionId": "trick-or-treat-bat",
     "name": "trick or treat bat",
-    "body": 317,
+    "bodyId": 317,
     "hue": 1149,
     "hp": 30,
     "hpMax": 40,
@@ -23758,9 +23758,9 @@
     "ai": "passive"
   },
   {
-    "kind": "triton",
+    "definitionId": "triton",
     "name": "Triton",
-    "body": 720,
+    "bodyId": 720,
     "hp": 700,
     "str": 250,
     "dex": 220,
@@ -23788,9 +23788,9 @@
     ]
   },
   {
-    "kind": "troglodyte",
+    "definitionId": "troglodyte",
     "name": "a troglodyte",
-    "body": 267,
+    "bodyId": 267,
     "hp": 340,
     "str": 217,
     "dex": 120,
@@ -23815,9 +23815,9 @@
     ]
   },
   {
-    "kind": "troll",
+    "definitionId": "troll",
     "name": "a troll",
-    "body": 53,
+    "bodyId": 53,
     "hp": 120,
     "str": 80,
     "notoriety": 5,
@@ -23830,9 +23830,9 @@
     "loot": "troll-common"
   },
   {
-    "kind": "true-britannian-guard",
+    "definitionId": "true-britannian-guard",
     "name": "True Britannian Guard",
-    "body": 2,
+    "bodyId": 2,
     "hue": 6,
     "hp": 200,
     "hpMax": 230,
@@ -23866,9 +23866,9 @@
     "ai": "melee"
   },
   {
-    "kind": "tsuki",
+    "definitionId": "tsuki",
     "name": "tsuki",
-    "body": 216,
+    "bodyId": 216,
     "hue": 1174,
     "hp": 260,
     "hpMax": 300,
@@ -23905,9 +23905,9 @@
     "fame": 2800
   },
   {
-    "kind": "tsuki-wolf",
+    "definitionId": "tsuki-wolf",
     "name": "a tsuki wolf",
-    "body": 250,
+    "bodyId": 250,
     "hp": 450,
     "str": 450,
     "dex": 200,
@@ -23935,9 +23935,9 @@
     "loot": "wolf-common"
   },
   {
-    "kind": "turkey",
+    "definitionId": "turkey",
     "name": "a turkey",
-    "body": 95,
+    "bodyId": 95,
     "hp": 50,
     "str": 50,
     "dex": 50,
@@ -23959,9 +23959,9 @@
     ]
   },
   {
-    "kind": "twaulo",
+    "definitionId": "twaulo",
     "name": "Twaulo",
-    "body": 101,
+    "bodyId": 101,
     "hp": 4000,
     "str": 1950,
     "dex": 450,
@@ -23991,9 +23991,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "undead-gargoyle",
+    "definitionId": "undead-gargoyle",
     "name": "an Undead Gargoyle",
-    "body": 722,
+    "bodyId": 722,
     "hp": 300,
     "str": 350,
     "dex": 140,
@@ -24019,9 +24019,9 @@
     "loot": "lizardman-common"
   },
   {
-    "kind": "undead-guardian",
+    "definitionId": "undead-guardian",
     "name": "an undead guardian",
-    "body": 722,
+    "bodyId": 722,
     "hp": 50,
     "str": 50,
     "dex": 50,
@@ -24037,9 +24037,9 @@
     ]
   },
   {
-    "kind": "unfrozen-mummy",
+    "definitionId": "unfrozen-mummy",
     "name": "an unfrozen mummy",
-    "body": 155,
+    "bodyId": 155,
     "hp": 50,
     "str": 500,
     "dex": 250,
@@ -24065,9 +24065,9 @@
     ]
   },
   {
-    "kind": "unholy-knight",
+    "definitionId": "unholy-knight",
     "name": "an unholy knight",
-    "body": 147,
+    "bodyId": 147,
     "hue": 1109,
     "hp": 420,
     "str": 320,
@@ -24108,9 +24108,9 @@
     "ai": "melee"
   },
   {
-    "kind": "unicorn",
+    "definitionId": "unicorn",
     "name": "a unicorn",
-    "body": 122,
+    "bodyId": 122,
     "hue": 1130,
     "hp": 130,
     "hpMax": 175,
@@ -24148,9 +24148,9 @@
     "ai": "mage"
   },
   {
-    "kind": "unstable-mage",
+    "definitionId": "unstable-mage",
     "name": "unstable mage",
-    "body": 400,
+    "bodyId": 400,
     "hue": 1150,
     "hp": 380,
     "hpMax": 410,
@@ -24188,9 +24188,9 @@
     "fame": 6500
   },
   {
-    "kind": "unstable-slith",
+    "definitionId": "unstable-slith",
     "name": "unstable slith",
-    "body": 33,
+    "bodyId": 33,
     "hue": 1150,
     "hp": 260,
     "hpMax": 300,
@@ -24228,9 +24228,9 @@
     "fame": 3800
   },
   {
-    "kind": "upa-female-nomad",
+    "definitionId": "upa-female-nomad",
     "name": "upa female nomad",
-    "body": 401,
+    "bodyId": 401,
     "hue": 16390,
     "hp": 260,
     "hpMax": 290,
@@ -24273,9 +24273,9 @@
     "fame": 4000
   },
   {
-    "kind": "upa-male-nomad",
+    "definitionId": "upa-male-nomad",
     "name": "upa male nomad",
-    "body": 400,
+    "bodyId": 400,
     "hue": 16390,
     "hp": 270,
     "hpMax": 300,
@@ -24318,9 +24318,9 @@
     "fame": 4200
   },
   {
-    "kind": "uraban-female-hunter",
+    "definitionId": "uraban-female-hunter",
     "name": "uraban female hunter",
-    "body": 401,
+    "bodyId": 401,
     "hue": 16386,
     "hp": 250,
     "hpMax": 280,
@@ -24363,9 +24363,9 @@
     "fame": 3000
   },
   {
-    "kind": "uraban-male-hunter",
+    "definitionId": "uraban-male-hunter",
     "name": "uraban male hunter",
-    "body": 400,
+    "bodyId": 400,
     "hue": 16386,
     "hp": 260,
     "hpMax": 290,
@@ -24408,9 +24408,9 @@
     "fame": 3200
   },
   {
-    "kind": "usagralem-ballem",
+    "definitionId": "usagralem-ballem",
     "name": "a usagralem ballem",
-    "body": 276,
+    "bodyId": 276,
     "hue": 2110,
     "hp": 700,
     "hpMax": 750,
@@ -24454,9 +24454,9 @@
     "fame": 22000
   },
   {
-    "kind": "valorite-elemental",
+    "definitionId": "valorite-elemental",
     "name": "a valorite elemental",
-    "body": 112,
+    "bodyId": 112,
     "hp": 153,
     "str": 255,
     "dex": 145,
@@ -24482,9 +24482,9 @@
     "loot": "elemental-earth-common"
   },
   {
-    "kind": "vampire",
+    "definitionId": "vampire",
     "name": "vampire",
-    "body": 24,
+    "bodyId": 24,
     "hue": 1149,
     "hp": 580,
     "hpMax": 610,
@@ -24521,9 +24521,9 @@
     "fame": 9500
   },
   {
-    "kind": "vampire-bat",
+    "definitionId": "vampire-bat",
     "name": "a vampire bat",
-    "body": 317,
+    "bodyId": 317,
     "hp": 66,
     "str": 110,
     "dex": 115,
@@ -24548,9 +24548,9 @@
     ]
   },
   {
-    "kind": "vampire-bat-familiar",
+    "definitionId": "vampire-bat-familiar",
     "name": "a vampire bat familiar",
-    "body": 317,
+    "bodyId": 317,
     "hp": 48,
     "str": 90,
     "dex": 105,
@@ -24589,9 +24589,9 @@
     ]
   },
   {
-    "kind": "vasanord",
+    "definitionId": "vasanord",
     "name": "a vasanord",
-    "body": 780,
+    "bodyId": 780,
     "hue": 2116,
     "hp": 625,
     "hpMax": 675,
@@ -24635,9 +24635,9 @@
     "fame": 20000
   },
   {
-    "kind": "verite-elemental",
+    "definitionId": "verite-elemental",
     "name": "a verite elemental",
-    "body": 113,
+    "bodyId": 113,
     "hp": 153,
     "str": 255,
     "dex": 145,
@@ -24663,9 +24663,9 @@
     "loot": "elemental-earth-common"
   },
   {
-    "kind": "virulent",
+    "definitionId": "virulent",
     "name": "Virulent",
-    "body": 11,
+    "bodyId": 11,
     "hp": 740,
     "str": 252,
     "dex": 194,
@@ -24690,9 +24690,9 @@
     ]
   },
   {
-    "kind": "viscera",
+    "definitionId": "viscera",
     "name": "Viscera",
-    "body": 775,
+    "bodyId": 775,
     "hp": 230,
     "str": 293,
     "dex": 130,
@@ -24717,9 +24717,9 @@
     ]
   },
   {
-    "kind": "vitavi-renowned",
+    "definitionId": "vitavi-renowned",
     "name": "Vitavi",
-    "body": 143,
+    "bodyId": 143,
     "hp": 50000,
     "str": 350,
     "dex": 300,
@@ -24749,9 +24749,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "void-manesfistation",
+    "definitionId": "void-manesfistation",
     "name": "a void manifestation",
-    "body": 740,
+    "bodyId": 740,
     "hp": 50,
     "str": 50,
     "dex": 50,
@@ -24777,9 +24777,9 @@
     ]
   },
   {
-    "kind": "void-manifestation",
+    "definitionId": "void-manifestation",
     "name": "Void Manifestation",
-    "body": 740,
+    "bodyId": 740,
     "hue": 2071,
     "hp": 2400,
     "str": 500,
@@ -24799,9 +24799,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/Normal/VoidManesfistation.cs"
   },
   {
-    "kind": "vorpal-bunny",
+    "definitionId": "vorpal-bunny",
     "name": "a vorpal bunny",
-    "body": 205,
+    "bodyId": 205,
     "hp": 50,
     "str": 50,
     "dex": 50,
@@ -24818,9 +24818,9 @@
     ]
   },
   {
-    "kind": "wailing-banshee",
+    "definitionId": "wailing-banshee",
     "name": "a wailing banshee",
-    "body": 310,
+    "bodyId": 310,
     "hp": 90,
     "str": 150,
     "dex": 100,
@@ -24845,9 +24845,9 @@
     ]
   },
   {
-    "kind": "walrus",
+    "definitionId": "walrus",
     "name": "a walrus",
-    "body": 221,
+    "bodyId": 221,
     "hp": 17,
     "str": 29,
     "dex": 55,
@@ -24875,9 +24875,9 @@
     ]
   },
   {
-    "kind": "wanderer",
+    "definitionId": "wanderer",
     "name": "wanderer",
-    "body": 400,
+    "bodyId": 400,
     "hue": 33770,
     "hp": 80,
     "hpMax": 110,
@@ -24912,9 +24912,9 @@
     "fame": 600
   },
   {
-    "kind": "wanderer-of-the-void",
+    "definitionId": "wanderer-of-the-void",
     "name": "a wanderer of the void",
-    "body": 316,
+    "bodyId": 316,
     "hp": 400,
     "str": 200,
     "dex": 125,
@@ -24940,9 +24940,9 @@
     ]
   },
   {
-    "kind": "warrior-guard",
+    "definitionId": "warrior-guard",
     "name": "Warrior Guard",
-    "body": 401,
+    "bodyId": 401,
     "hue": 0,
     "hp": 33,
     "str": 50,
@@ -24961,9 +24961,9 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/NPCs/WarriorGuard.cs"
   },
   {
-    "kind": "water-elemental",
+    "definitionId": "water-elemental",
     "name": "a water elemental",
-    "body": 16,
+    "bodyId": 16,
     "hp": 130,
     "str": 90,
     "notoriety": 5,
@@ -24975,9 +24975,9 @@
     ]
   },
   {
-    "kind": "whipping-vine",
+    "definitionId": "whipping-vine",
     "name": "a whipping vine",
-    "body": 8,
+    "bodyId": 8,
     "hp": 50,
     "str": 300,
     "dex": 100,
@@ -25002,9 +25002,9 @@
     ]
   },
   {
-    "kind": "whirlwind",
+    "definitionId": "whirlwind",
     "name": "whirlwind",
-    "body": 12,
+    "bodyId": 12,
     "hue": 0,
     "hp": 380,
     "hpMax": 410,
@@ -25041,9 +25041,9 @@
     "fame": 6000
   },
   {
-    "kind": "white-dragon",
+    "definitionId": "white-dragon",
     "name": "white dragon",
-    "body": 59,
+    "bodyId": 59,
     "hue": 1153,
     "hp": 700,
     "hpMax": 740,
@@ -25086,9 +25086,9 @@
     "fame": 12000
   },
   {
-    "kind": "white-wolf",
+    "definitionId": "white-wolf",
     "name": "a white wolf",
-    "body": 34,
+    "bodyId": 34,
     "hp": 48,
     "str": 80,
     "dex": 75,
@@ -25117,9 +25117,9 @@
     "loot": "wolf-common"
   },
   {
-    "kind": "white-wyrm",
+    "definitionId": "white-wyrm",
     "name": "a white wyrm",
-    "body": 180,
+    "bodyId": 180,
     "hp": 320,
     "hpMax": 380,
     "str": 510,
@@ -25162,9 +25162,9 @@
     "ai": "mage"
   },
   {
-    "kind": "wight",
+    "definitionId": "wight",
     "name": "a Wight",
-    "body": 252,
+    "bodyId": 252,
     "hp": 250,
     "str": 200,
     "dex": 60,
@@ -25189,9 +25189,9 @@
     ]
   },
   {
-    "kind": "wild-tiger",
+    "definitionId": "wild-tiger",
     "name": "wild tiger",
-    "body": 217,
+    "bodyId": 217,
     "hue": 0,
     "hp": 400,
     "hpMax": 430,
@@ -25235,9 +25235,9 @@
     "fame": 4000
   },
   {
-    "kind": "wisp",
+    "definitionId": "wisp",
     "name": "a wisp",
-    "body": 58,
+    "bodyId": 58,
     "hp": 130,
     "str": 100,
     "notoriety": 5,
@@ -25249,9 +25249,9 @@
     ]
   },
   {
-    "kind": "wolf",
+    "definitionId": "wolf",
     "name": "a timber wolf",
-    "body": 225,
+    "bodyId": 225,
     "hp": 50,
     "str": 40,
     "notoriety": 3,
@@ -25266,9 +25266,9 @@
     ]
   },
   {
-    "kind": "wolf-spider",
+    "definitionId": "wolf-spider",
     "name": "a Wolf spider",
-    "body": 736,
+    "bodyId": 736,
     "hp": 160,
     "str": 268,
     "dex": 165,
@@ -25294,9 +25294,9 @@
     "loot": "snake-common"
   },
   {
-    "kind": "wolf-spider-matriarch",
+    "definitionId": "wolf-spider-matriarch",
     "name": "a wolf spider matriarch",
-    "body": 736,
+    "bodyId": 736,
     "hue": 1153,
     "hp": 290,
     "hpMax": 320,
@@ -25347,9 +25347,9 @@
     ]
   },
   {
-    "kind": "wraith",
+    "definitionId": "wraith",
     "name": "a wraith",
-    "body": 26,
+    "bodyId": 26,
     "hp": 60,
     "str": 100,
     "dex": 95,
@@ -25374,9 +25374,9 @@
     "loot": "wraith-common"
   },
   {
-    "kind": "wrong-brigand",
+    "definitionId": "wrong-brigand",
     "name": "wrong brigand",
-    "body": 400,
+    "bodyId": 400,
     "hue": 1149,
     "hp": 240,
     "hpMax": 270,
@@ -25413,9 +25413,9 @@
     "fame": 4000
   },
   {
-    "kind": "wrong-corrupted",
+    "definitionId": "wrong-corrupted",
     "name": "wrong corrupted",
-    "body": 4,
+    "bodyId": 4,
     "hue": 1149,
     "hp": 440,
     "hpMax": 470,
@@ -25452,9 +25452,9 @@
     "fame": 7500
   },
   {
-    "kind": "wrong-prisoner",
+    "definitionId": "wrong-prisoner",
     "name": "a prisoner",
-    "body": 400,
+    "bodyId": 400,
     "hue": 33802,
     "hp": 80,
     "str": 70,
@@ -25475,9 +25475,9 @@
     "ai": "wander"
   },
   {
-    "kind": "wrong-ratman",
+    "definitionId": "wrong-ratman",
     "name": "wrong ratman",
-    "body": 54,
+    "bodyId": 54,
     "hue": 1149,
     "hp": 220,
     "hpMax": 250,
@@ -25514,9 +25514,9 @@
     "fame": 3500
   },
   {
-    "kind": "wrong-ratman-archer",
+    "definitionId": "wrong-ratman-archer",
     "name": "wrong ratman archer",
-    "body": 54,
+    "bodyId": 54,
     "hue": 68,
     "hp": 240,
     "hpMax": 270,
@@ -25553,9 +25553,9 @@
     "fame": 3500
   },
   {
-    "kind": "wrong-ratman-mage",
+    "definitionId": "wrong-ratman-mage",
     "name": "wrong ratman mage",
-    "body": 54,
+    "bodyId": 54,
     "hue": 1150,
     "hp": 240,
     "hpMax": 270,
@@ -25592,9 +25592,9 @@
     "fame": 3800
   },
   {
-    "kind": "wrong-warden",
+    "definitionId": "wrong-warden",
     "name": "the Warden of Wrong",
-    "body": 78,
+    "bodyId": 78,
     "hue": 1175,
     "hp": 14000,
     "str": 760,
@@ -25646,9 +25646,9 @@
     "ai": "necro"
   },
   {
-    "kind": "wyvern",
+    "definitionId": "wyvern",
     "name": "a wyvern",
-    "body": 62,
+    "bodyId": 62,
     "hp": 141,
     "str": 240,
     "dex": 172,
@@ -25674,9 +25674,9 @@
     "loot": "wyvern-common"
   },
   {
-    "kind": "wyvern-renowned",
+    "definitionId": "wyvern-renowned",
     "name": "Wyvern",
-    "body": 62,
+    "bodyId": 62,
     "hp": 2734,
     "str": 1422,
     "dex": 151,
@@ -25707,9 +25707,9 @@
     "loot": "boss-hoard"
   },
   {
-    "kind": "yamandon",
+    "definitionId": "yamandon",
     "name": "a yamandon",
-    "body": 249,
+    "bodyId": 249,
     "hp": 1800,
     "str": 930,
     "dex": 365,
@@ -25733,9 +25733,9 @@
     ]
   },
   {
-    "kind": "yeti",
+    "definitionId": "yeti",
     "name": "yeti",
-    "body": 243,
+    "bodyId": 243,
     "hue": 1153,
     "hp": 460,
     "hpMax": 490,
@@ -25772,9 +25772,9 @@
     "fame": 7500
   },
   {
-    "kind": "yomotsu-elder",
+    "definitionId": "yomotsu-elder",
     "name": "a yomotsu elder",
-    "body": 255,
+    "bodyId": 255,
     "hp": 900,
     "str": 830,
     "dex": 365,
@@ -25799,9 +25799,9 @@
     ]
   },
   {
-    "kind": "yomotsu-priest",
+    "definitionId": "yomotsu-priest",
     "name": "a yomotsu priest",
-    "body": 253,
+    "bodyId": 253,
     "hp": 530,
     "str": 530,
     "dex": 115,
@@ -25827,9 +25827,9 @@
     ]
   },
   {
-    "kind": "yomotsu-warrior",
+    "definitionId": "yomotsu-warrior",
     "name": "a yomotsu warrior",
-    "body": 245,
+    "bodyId": 245,
     "hp": 530,
     "str": 530,
     "dex": 165,
@@ -25854,9 +25854,9 @@
     ]
   },
   {
-    "kind": "young-ninja",
+    "definitionId": "young-ninja",
     "name": "a young ninja",
-    "body": 400,
+    "bodyId": 400,
     "hp": 30,
     "str": 50,
     "dex": 50,
@@ -25872,9 +25872,9 @@
     ]
   },
   {
-    "kind": "young-ronin",
+    "definitionId": "young-ronin",
     "name": "a young ronin",
-    "body": 400,
+    "bodyId": 400,
     "hp": 20,
     "str": 50,
     "dex": 50,
@@ -25890,9 +25890,9 @@
     ]
   },
   {
-    "kind": "zealot-of-khaldun",
+    "definitionId": "zealot-of-khaldun",
     "name": "zealot of khaldun",
-    "body": 400,
+    "bodyId": 400,
     "hue": 1149,
     "hp": 280,
     "hpMax": 310,
@@ -25930,9 +25930,9 @@
     "fame": 4500
   },
   {
-    "kind": "zombie",
+    "definitionId": "zombie",
     "name": "a zombie",
-    "body": 3,
+    "bodyId": 3,
     "hp": 50,
     "str": 40,
     "notoriety": 5,

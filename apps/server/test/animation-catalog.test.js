@@ -28,7 +28,7 @@ describe('mobile animation catalog', () => {
       new URL('../../scripts/src/data/config/monsters.json', import.meta.url),
       'utf8',
     ));
-    const byKind = new Map(rows.map((entry) => [entry.kind, entry]));
+    const byKind = new Map(rows.map((entry) => [entry.definitionId, entry]));
     const report = validateMonsterAnimations({
       kinds: () => [...byKind.keys()],
       get: (kind) => byKind.get(kind),

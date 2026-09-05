@@ -367,11 +367,18 @@ export class World {
    */
   createMobile(data) {
     const serial = this.serial.allocMobile();
+    const definitionId = String(data.definitionId ?? data.kind ?? '').trim() || undefined;
+    const bodyId = Number(data.bodyId ?? data.body ?? 0x0190);
+    if (!Number.isInteger(bodyId) || bodyId < 0 || bodyId > 0xFFFF) {
+      throw new Error(`createMobile: invalid bodyId for ${definitionId ?? data.name ?? '<unnamed mobile>'}`);
+    }
     /** @type {Mobile} */
     const m = {
       serial,
+      ...(definitionId ? { definitionId, kind: definitionId } : {}),
       name: data.name ?? 'Nameless',
-      body: data.body ?? 0x0190,        // male human
+      bodyId,
+      body: bodyId,                    // UO wire/rendering compatibility alias
       hue:  data.hue  ?? 0,
       // Spawn at Trinsic Gate — 54 statics with **39 walls + 6 roofs**
       // (verified column-major). Britain Inn (1496, 1624) is a virtue
@@ -419,6 +426,12 @@ export class World {
   }
 
   removeMobile(serial) {
+    const departing = this.mobiles.get(Number(serial) >>> 0);
+    // Follower ownership is a property of the concrete mobile instance, not
+    // of its graphic or AI script. Release it at the one canonical removal
+    // boundary so admin deletion, death, expiry and scripted despawn cannot
+    // leave a player's slot count permanently occupied.
+    if (departing) this.releaseFollowerSlots(departing);
     this.markMobileOffline(serial);
     this.mobiles.delete(serial);
     this.sectors.removeMobile(serial);
@@ -438,6 +451,21 @@ export class World {
         try { fn(serial); } catch (e) { console.error('[world] destroy hook threw:', e?.message); }
       }
     }
+  }
+
+  /** Release control slots consumed by a pet/summon exactly once. */
+  releaseFollowerSlots(mobOrSerial) {
+    const mob = typeof mobOrSerial === 'number'
+      ? this.mobiles.get(mobOrSerial >>> 0)
+      : mobOrSerial;
+    if (!mob) return 0;
+    const slots = Math.max(0, mob._followerCost | 0);
+    if (slots <= 0) return 0;
+    const masterSerial = (mob.controlMaster || mob.summonedBy) >>> 0;
+    const master = this.mobiles.get(masterSerial);
+    if (master) master.followers = Math.max(0, (master.followers | 0) - slots);
+    mob._followerCost = 0;
+    return slots;
   }
 
   /** Register a cleanup hook to fire when a mobile is removed. Used by

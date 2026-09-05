@@ -313,6 +313,10 @@ try {
   world.player = { serial: 0x01020304 };
   resetHouseCustomization();
   houseCustomization.beginEdit(0x4000);
+  // beginEdit legitimately sends the 0xD8 design-data request. This
+  // assertion covers only the subsequent 0xD7 authoring click flow.
+  assert.equal(sentHousePackets[0]?.[0], 0xBF, 'entering customization should request current design data');
+  sentHousePackets.length = 0;
   houseCustomization.setBrush(0x1234, 'item');
   houseCustomization.setPreviewTile(10, 20, 5);
   assert.equal(houseCustomization.isPreviewActive(), true, 'house customization preview should become active on tile hover');

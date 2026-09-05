@@ -27,7 +27,22 @@ export default function register(api) {
   }
 
   function setBindingState(mob, mutator) {
-    const binding = api.ai?.bindings?.get?.(mob.serial);
+    let binding = api.ai?.bindings?.get?.(mob.serial);
+    // Energy Vortex / Blade Spirits begin with autonomous aggressive AI but
+    // remain owned summons. An explicit owner command is the transition to
+    // controllable pet AI; mutating the aggressive state's similarly named
+    // fields had no effect and made the creature appear unresponsive.
+    if (mob.commandableSummon && binding?.behavior !== 'pet'
+        && api.ai?.behaviors?.has?.('pet')) {
+      mob.controlled = true;
+      mob.aiBehavior = 'pet';
+      api.ai.attach(mob, 'pet', {
+        command: 'follow', targetSerial: 0,
+        nextStepAt: 0, nextAttackAt: 0,
+        path: null, pathTargetX: 0, pathTargetY: 0, pathPlannedAt: 0,
+      });
+      binding = api.ai.bindings.get(mob.serial);
+    }
     if (!binding) return;
     mutator(binding.state);
   }

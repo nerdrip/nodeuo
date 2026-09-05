@@ -2,10 +2,31 @@ import { describe, expect, it, vi } from 'vitest';
 import { World } from '../src/world/world.js';
 import { createItem, setItemParent } from '../src/world/items.js';
 import {
-  buildCustomSpellScrollScript, buildSpellcraftKnowledgeScript,
+  buildCustomSpellScrollScript, buildSpellSchemaCodexScript, buildSpellcraftKnowledgeScript,
 } from '../../scripts/src/items/scripts/functional/spell-schema.js';
 
 describe('spellcraft knowledge items', () => {
+  it('migrates an old codex by definition-owned script and opens the composer', () => {
+    const sent = [];
+    const opened = [];
+    const user = { client: { send: (packet) => sent.push(packet), sendSystemMessage: vi.fn() } };
+    const codex = {
+      serial: 0x400001, definitionId: 'spell-schema-codex',
+      artId: 0x0EFA, itemId: 0x0EFA, parent: 0x400002,
+    };
+    const api = {
+      game: { inventory: { isInPack: () => true } },
+      spellComposer: { open: (_state, options) => { opened.push(options); return true; } },
+      protocol: { containerContentUpdate: (item) => new Uint8Array([item.itemId & 0xff]) },
+    };
+
+    buildSpellSchemaCodexScript(api).onUse({}, codex, user);
+
+    expect(codex).toMatchObject({ artId: 0x0FF0, itemId: 0x0FF0 });
+    expect(opened).toEqual([{ sourceSerial: codex.serial }]);
+    expect(sent).toHaveLength(1);
+  });
+
   it('teaches a discovery, grants research and consumes exactly one item', () => {
     const world = new World();
     const user = world.createMobile({ name: 'Scribe', x: 1, y: 1, z: 0, map: 1 });

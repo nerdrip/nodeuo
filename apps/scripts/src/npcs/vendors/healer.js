@@ -1,5 +1,5 @@
 import { spawnNPC } from './_spawn.js';
-import { nearbyClients, nearbyMobiles } from '../../_spatial.js';
+import { allMobiles, nearbyClients, nearbyMobiles } from '../../_spatial.js';
 
 // Healer NPC behavior.
 //
@@ -81,6 +81,47 @@ function broadcastHp(api, target) {
   }
 }
 
+function canTreat(patient) {
+  return patient && ((patient.notoriety ?? 1) === 1 || (patient.notoriety ?? 1) === 2);
+}
+
+function tryResurrect(api, ctx, healer, ghost, state) {
+  if (!ghost?.ghost || !api.corpse?.resurrectMobile) return false;
+  if ((ghost.kills | 0) >= 5) {
+    ctx.broadcastSpeech(healer, "Thou'rt not a decent and good person. I shall not resurrect thee.", 0x0026);
+  } else if ((ghost.criminalUntil ?? 0) > Date.now()) {
+    ctx.broadcastSpeech(healer, 'Thou art a criminal. I shall not resurrect thee.', 0x0026);
+  } else {
+    try { api.corpse.resurrectMobile(ctx.world, ghost); }
+    catch (e) { console.error('[healer] resurrectMobile threw:', e); return true; }
+    ctx.broadcastSpeech(healer, 'Thou shalt walk again, child.', 0x0044);
+    broadcastHealFx(api, healer, ghost);
+  }
+  state.nextActAt = ctx.now + COOLDOWN_MS;
+  return true;
+}
+
+function tryHeal(api, ctx, healer, patient, state, { answerWhenHealthy = false } = {}) {
+  if (!canTreat(patient) || patient.ghost || (patient.hp ?? 0) <= 0) return false;
+  const hp = patient.hp ?? 0;
+  const max = patient.hpMax ?? 1;
+  if (hp / max >= WOUND_FRAC) {
+    if (!answerWhenHealthy) return false;
+    ctx.broadcastSpeech(healer, 'Thou art already in good health.', 0x0044);
+    state.nextActAt = ctx.now + COOLDOWN_MS;
+    return true;
+  }
+  const int = healer.int ?? 50;
+  const base = 10 + Math.floor(int / 10);
+  const amount = patient.client ? base : Math.min(base, 15);
+  patient.hp = Math.min(max, hp + amount);
+  broadcastHealFx(api, healer, patient);
+  broadcastHp(api, patient);
+  ctx.broadcastSpeech(healer, 'Be at peace.', 0x0044);
+  state.nextActAt = ctx.now + COOLDOWN_MS;
+  return true;
+}
+
 /** @param {import('@uo/server/src/scripts.js').ScriptAPI} api */
 export default function register(api) {
   if (!api.ai) {
@@ -97,43 +138,31 @@ export default function register(api) {
       if (state.home === null) state.home = { x: mob.x, y: mob.y };
       if (ctx.now < state.nextActAt) return;
 
+      // Direct requests from speech and the mobile-use path. `[healer`
+      // instances used to be passive-only: speech was never queued and a
+      // double-click merely opened a paperdoll. Consume an explicit request
+      // first so the addressed player receives a deterministic answer.
+      const queue = mob._heardSpeech;
+      if (Array.isArray(queue)) {
+        while (queue.length > 0) {
+          const entry = queue.shift();
+          const patient = entry?.speaker;
+          if (!patient || patient.map !== mob.map || distanceTo(mob, patient) > HEAL_RANGE) continue;
+          const request = String(entry.text ?? '').toLowerCase();
+          if (!/(heal|resurrect|resurrection)/.test(request)) continue;
+          if (patient.ghost && distanceTo(mob, patient) <= RESS_RANGE
+              && tryResurrect(api, ctx, mob, patient, state)) return;
+          if (tryHeal(api, ctx, mob, patient, state, { answerWhenHealthy: true })) return;
+        }
+      }
+
       // 1) Resurrect any ghost in melee range.
       const ghost = findGhost(ctx.world, mob);
-      if (ghost && api.corpse?.resurrectMobile) {
-        // Audit #34 P2 #2 — ServUO `Healer.CheckResurrect` refuses
-        // murderers (kills ≥ 5) and criminally-flagged ghosts. Was a
-        // free pass — reds could shrine-bounce at the nearest NPC.
-        if ((ghost.kills | 0) >= 5) {
-          ctx.broadcastSpeech(mob, "Thou'rt not a decent and good person. I shall not resurrect thee.", 0x0026);
-          state.nextActAt = ctx.now + COOLDOWN_MS;
-          return;
-        }
-        if ((ghost.criminalUntil ?? 0) > Date.now()) {
-          ctx.broadcastSpeech(mob, "Thou art a criminal. I shall not resurrect thee.", 0x0026);
-          state.nextActAt = ctx.now + COOLDOWN_MS;
-          return;
-        }
-        try { api.corpse.resurrectMobile(ctx.world, ghost); }
-        catch (e) { console.error('[healer] resurrectMobile threw:', e); return; }
-        ctx.broadcastSpeech(mob, 'Thou shalt walk again, child.', 0x0044);
-        broadcastHealFx(api, mob, ghost);
-        state.nextActAt = ctx.now + COOLDOWN_MS;
-        return;
-      }
+      if (tryResurrect(api, ctx, mob, ghost, state)) return;
 
       // 2) Heal a wounded friendly.
       const patient = findWounded(ctx.world, mob);
-      if (patient) {
-        const int = mob.int ?? 50;
-        const base = 10 + Math.floor(int / 10);
-        const amount = patient.client ? base : Math.min(base, 15);
-        patient.hp = Math.min(patient.hpMax ?? 0, (patient.hp ?? 0) + amount);
-        broadcastHealFx(api, mob, patient);
-        broadcastHp(api, patient);
-        ctx.broadcastSpeech(mob, 'Be at peace.', 0x0044);
-        state.nextActAt = ctx.now + COOLDOWN_MS;
-        return;
-      }
+      if (tryHeal(api, ctx, mob, patient, state)) return;
 
       // 3) Idle drift toward home — healers don't wander far.
       if (api.ai.stepMobile && state.home) {
@@ -148,6 +177,28 @@ export default function register(api) {
       }
     },
   });
+
+  // Restore semantic identity and interaction metadata on healers loaded
+  // from older saves. A personal name (for example Roberta) stays intact;
+  // the profession is carried independently as the title/role.
+  for (const mob of allMobiles({ world: api.world })) {
+    const roles = [mob.kind, mob.npcKind, mob.npcRole, mob.vendorKind,
+      mob.behavior, mob.aiBehavior].map((v) => String(v ?? '').toLowerCase());
+    if (!roles.includes('healer')) continue;
+    mob.kind ??= 'healer';
+    mob.npcKind ??= 'healer';
+    mob.npcRole ??= 'healer';
+    mob.title ||= 'the healer';
+    if (/^(?:a |an |the )?healer$/i.test(String(mob.name ?? '').trim())) {
+      mob.name = api.names?.pickForMob?.({ body: mob.body }) ?? 'Roberta';
+    }
+    mob._listensToSpeech = true;
+    mob._speechKeywords = ['heal', 'resurrect', 'resurrection'];
+    if (!mob.aiBehavior) {
+      try { api.ai.attach?.(mob, 'healer'); mob.aiBehavior = 'healer'; }
+      catch { /* context-menu service routing remains available */ }
+    }
+  }
 
   // Spawn a healer at the caller's feet — mirror [crier.
   api.commands.register({
@@ -164,14 +215,16 @@ export default function register(api) {
       // re-sync had to fire before any worn item rendered.
       const npc = spawnNPC(api, ctx.sender, {
         name: tmpl.name, body: tmpl.body, hue: tmpl.hue ?? 0,
+        title: tmpl.title ?? 'the healer',
         kind: 'healer', outfit: 'mage',
         notoriety: tmpl.notoriety ?? 1,
         hp: tmpl.hp ?? 80, hpMax: tmpl.hp ?? 80,
         invulnerable: false,
         behavior: 'healer',
+        keywords: ['heal', 'resurrect', 'resurrection'],
         fields: { title: tmpl.title, str: tmpl.str, dex: tmpl.dex, int: tmpl.int },
       });
-      ctx.state.sendSystemMessage(`Healer 0x${npc.serial.toString(16)} appears.`);
+      ctx.state.sendSystemMessage(`${npc.name}, ${npc.title} (0x${npc.serial.toString(16)}) appears.`);
     },
   });
 

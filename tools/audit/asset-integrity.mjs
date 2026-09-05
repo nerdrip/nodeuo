@@ -70,9 +70,9 @@ function resolvedBody(body) {
 const unresolvedMonsters = [];
 const genericMonsters = [];
 for (const monster of monsters) {
-  const resolved = resolvedBody(monster.body | 0);
-  if (!resolved) unresolvedMonsters.push([monster.kind, monster.body]);
-  else if (resolved.via === 'generic') genericMonsters.push([monster.kind, monster.body, resolved.body]);
+  const resolved = resolvedBody(monster.bodyId | 0);
+  if (!resolved) unresolvedMonsters.push([monster.definitionId, monster.bodyId]);
+  else if (resolved.via === 'generic') genericMonsters.push([monster.definitionId, monster.bodyId, resolved.body]);
 }
 assert.deepEqual(unresolvedMonsters, [], `monster bodies without render path: ${JSON.stringify(unresolvedMonsters.slice(0, 20))}`);
 assert.deepEqual(genericMonsters, [], `monster bodies using generic art: ${JSON.stringify(genericMonsters.slice(0, 20))}`);

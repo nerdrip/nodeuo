@@ -15,6 +15,7 @@ const {
   resolveRenderableGroup,
 } = await import('../src/renderer/mobile-animation.js');
 const { mountInfoForItem } = await import('../src/shared/mount-data.js');
+const { normalizeUoHueIndex } = await import('../src/renderer/hue-filter.js');
 
 function action(...ids) {
   const actions = {};
@@ -94,6 +95,21 @@ assert.equal(assets.mobileRenderHue(794, 77), 77, 'exact mount art keeps the ser
 assets.mobilesAtlas.aliases[238] = { trueBody: 226, hue: 1444 };
 assert.equal(assets.mobileRenderHue(238, 77), 1444, 'a real Body.def replacement overrides hue like CUO');
 delete assets.mobilesAtlas.aliases[238];
+assets.applyAssetOverrides({
+  schemaVersion: 2,
+  animation: {
+    50000: {
+      name: 'voidling', type: 'MONSTER', updatedAt: 123,
+      actions: { 0: { dirs: { 0: [{ file: 'overrides/animation-50000-0-0-0.png', w: 17, h: 23, cx: 8, cy: 22 }] } } },
+    },
+  },
+});
+const customFrame = assets._tryMobileFrame(50000, 1, 4, 0);
+assert.equal(customFrame.realBody, 50000, 'custom mobile body wins without a native atlas row');
+assert.equal(customFrame.meta.customFile, 'overrides/animation-50000-0-0-0.png');
+assert.equal(customFrame.meta.customRevision, 123, 'custom frame URLs carry a cache-busting revision');
+assert.equal(assets.mobileRenderBody(50000), 50000);
+assert.deepEqual(assets.mobileBodyInfo(50000), { type: 'MONSTER', custom: true, name: 'voidling' });
 assert.deepEqual(
   assets.resolveEquipAnim(400, 100, 77),
   { animBody: 500, hue: 77 },
@@ -110,6 +126,10 @@ assert.deepEqual(
   'Layer.Mount swamp-dragon item resolves without relying on corrupt tiledata',
 );
 assert.equal(mountInfoForItem(0x3EB4).riderOffsetY, -9, 'unicorn rider offset mirrors ClassicUO');
+assert.equal(normalizeUoHueIndex(0), -1, 'unhued art bypasses the LUT');
+assert.equal(normalizeUoHueIndex(1), 0, 'UO hue one maps to LUT row zero');
+assert.equal(normalizeUoHueIndex(0x83EA), 1001, 'skin hue strips packet flag bits before LUT lookup');
+assert.equal(normalizeUoHueIndex(0xC3EA), 1001, 'partial-hue flag does not change the palette row');
 
 const anim = new MobileAnimation();
 anim.setBody(6);
@@ -188,5 +208,44 @@ gait._frameCount = 6;
 gait.tick(0.09);
 gait.tick(0.09);
 assert.equal(gait.frame, 4, 'run uses the same 80 ms frame timer instead of racing one cycle per tile');
+
+const sustainedRun = new MobileAnimation();
+sustainedRun.setBody(400);
+sustainedRun.setContext({ run: true, moveDurationMs: 200 });
+sustainedRun.setAction(Action.Run);
+sustainedRun._frameCount = 6;
+for (let i = 0; i < 30; i++) sustainedRun.tick(0.08);
+assert.equal(sustainedRun.action, Action.Run, 'locomotion remains active after multiple complete run cycles');
+assert.equal(sustainedRun.frame, 0, 'run animation continues wrapping instead of holding a mid-air frame');
+
+const fidgetInterruptedByRun = new MobileAnimation();
+fidgetInterruptedByRun.setAction(Action.Fidget, {
+  oneShot: true,
+  priority: ANIMATION_PRIORITY.Fidget,
+});
+assert.equal(
+  fidgetInterruptedByRun.setAction(Action.Run, { priority: ANIMATION_PRIORITY.Locomotion }),
+  true,
+  'movement immediately interrupts an idle fidget',
+);
+assert.equal(fidgetInterruptedByRun.action, Action.Run);
+
+assets.configureMobileAtlas({
+  shardSize: 64,
+  bodies: {},
+  aliases: { 524: { trueBody: 545, hue: 0 } },
+  shards: { 8: { file: 'mobiles-atlas-008.json' } },
+});
+assert.equal(
+  assets.isMobileBodyMetadataReady(524),
+  false,
+  'equipment metadata is transiently pending before its atlas shard lands',
+);
+assets._mobileLoadedShards.add('mobiles-atlas-008.json');
+assert.equal(
+  assets.isMobileBodyMetadataReady(524),
+  true,
+  'equipment metadata becomes authoritative once the shard is loaded',
+);
 
 console.log('[smoke:mobile-animation] ok');

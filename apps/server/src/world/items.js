@@ -9,7 +9,6 @@ import { staticWeightFor } from './movement.js';
 import {
   getItemByDefinition as contentItemByDefinition,
   getItemByTag as contentItemByTag,
-  itemVariants,
 } from '../content/items/index.js';
 import { runtimeGovernor } from '../systems/runtime-governor.js';
 import { EntityDirty } from './interest-management.js';
@@ -117,18 +116,6 @@ function applyItemCreationExtensions(item, data) {
 }
 
 /**
- * Setter for the template-by-itemId resolver. main.js wires this at
- * boot to avoid an items.js → templates.js → items.js cycle (templates
- * needs to call createItem from spawn(), and createItem needs to
- * back-fill `script` from the template registry — straight imports
- * deadlock on module init).
- */
-let _templateByItemId = null;
-export function setTemplateByItemIdResolver(fn) {
-  _templateByItemId = typeof fn === 'function' ? fn : null;
-}
-
-/**
  * @typedef {Object} Item
  * @property {number} serial
  * @property {string} [definitionId] stable gameplay/content identity
@@ -144,6 +131,9 @@ export function setTemplateByItemIdResolver(fn) {
  * @property {boolean} [movable]
  * @property {number | null} [parent]   serial of container/mobile holding the item, null = on ground
  * @property {number} [gumpId]          non-zero marks this item as a container; gump shown on 0x24
+ * @property {number} [paperdollGumpId] equipped-paperdoll art, independent of itemId/artId
+ * @property {number} [paperdollMaleGumpId] optional sex-specific equipped-paperdoll art
+ * @property {number} [paperdollFemaleGumpId] optional sex-specific equipped-paperdoll art
  * @property {number} [gridX]           grid position inside parent container (0..~160)
  * @property {number} [gridY]
  * @property {number} [gridLocation]    SA slot index
@@ -173,6 +163,7 @@ export function createItem(world, data) {
     data.definitionId
       ?? (typeof data.id === 'string' ? data.id : null)
       ?? contentDef?.definitionId
+      ?? data.tagId
       ?? '',
   ).trim() || undefined;
   /** @type {Item} */
@@ -304,22 +295,14 @@ export function createItem(world, data) {
   applyItemDefinitionDefaults(item, contentDef);
   applyItemCreationExtensions(item, data);
   if (item.kind === 'shield' && item.shield == null) item.shield = true;
-  // Back-fill the script tag from a template that ships the same
-  // graphic id. Without this, a bread loaf bought from a vendor
-  // (vendor.onBuy calls createItem with itemId only, no script) had
-  // no `food` onUse hook attached and double-clicking it produced
-  // "you see nothing special about that". Explicit `data.script`
-  // wins over the inferred one — callers that want a custom hook
-  // can opt out per-item.
+  // Runtime behaviour is selected exclusively by stable definition identity.
+  // `artId` is presentation data and is intentionally NOT consulted: any
+  // number of unrelated item definitions may share the same UO graphic.
+  // Factories must pass `definitionId` (preferred) or an explicit `script`.
   if (data.script != null) {
     item.script = data.script;
   } else if (contentDef?.script) {
     item.script = contentDef.script;
-  } else {
-    try {
-      const inferred = _templateByItemId?.(artId);
-      if (inferred?.script) item.script = inferred.script;
-    } catch { /* templates module unavailable in tests */ }
   }
   world.items.set(serial, item);
   world.interest?.mark?.(serial, EntityDirty.Created | EntityDirty.All, 'item');
@@ -373,21 +356,9 @@ function resolveContentDefinition(data = {}) {
       // Content registry can be absent in minimal test harnesses.
     }
   }
-  const artId = data.artId ?? data.itemId;
-  if (artId == null) return null;
-  try {
-    const variants = itemVariants?.(artId | 0) ?? [];
-    if (data.name) {
-      const want = String(data.name).trim().toLowerCase();
-      const exact = variants.find((def) => (
-        String(def.name ?? def.title ?? '').trim().toLowerCase() === want
-      ));
-      if (exact) return exact;
-    }
-    if (variants.length === 1) return variants[0];
-  } catch {
-    // Same as above: direct unit tests may not load the content registry.
-  }
+  // Never infer a gameplay definition from art. Even a currently unique
+  // graphic can gain another definition after a content reload, which used
+  // to make behaviour depend on registration order.
   return null;
 }
 
@@ -409,7 +380,32 @@ export function rehydrateWorldItemDefinitions(world) {
     }
     if (!definition) continue;
     const hadScript = !!item.script;
-    const fields = applyItemDefinitionDefaults(item, definition);
+    let fields = applyItemDefinitionDefaults(item, definition);
+    // Definition-owned appearance is also a migration boundary. Old saves may
+    // contain the pre-audit ground graphic, worn layer, or explicit zero gump
+    // placeholders. Stable definition identity lets us repair those safely;
+    // no lookup or precedence decision is ever made from shared artwork.
+    const definitionArtId = Number(definition.artId);
+    if (Number.isInteger(definitionArtId) && definitionArtId > 0) {
+      const previousBaseArt = Number(item.artId ?? item.itemId);
+      if (item.artId !== definitionArtId) { item.artId = definitionArtId; fields++; }
+      // Preserve stateful graphic flips (open doors, active lights): update the
+      // wire graphic only when it still equals the persisted base graphic.
+      if (!Number.isFinite(previousBaseArt) || Number(item.itemId) === previousBaseArt) {
+        if (item.itemId !== definitionArtId) { item.itemId = definitionArtId; fields++; }
+      }
+    }
+    for (const key of ['paperdollGumpId', 'paperdollMaleGumpId', 'paperdollFemaleGumpId']) {
+      const configured = Number(definition[key]);
+      if (configured > 0 && !(Number(item[key]) > 0)) { item[key] = configured; fields++; }
+    }
+    const owner = world?.mobiles?.get?.(item.parent);
+    const configuredLayer = Number(definition.equipLayer) | 0;
+    if (owner && configuredLayer > 0 && item.layer !== configuredLayer
+        && item.layer !== 21 && item.layer !== 0x1D) {
+      item.layer = configuredLayer;
+      fields++;
+    }
     if (!fields) continue;
     result.items++;
     result.fields += fields;
@@ -805,6 +801,7 @@ export function findMergeableStack(world, containerSerial, incoming) {
   if (!incoming) return null;
   if (!isStackableItemId(incoming.itemId)) return null;
   const incomingKey = stackKeyItemId(incoming.itemId);
+  const incomingDefinitionId = String(incoming.definitionId ?? incoming.tagId ?? '').trim();
   // BH #12 B1 — use reverse parent index. Was a full 110k items walk
   // for every container drop (gold pickup, ingot stack, …).
   const idx = world._childrenByParent?.get?.(containerSerial);
@@ -825,6 +822,12 @@ export function findMergeableStack(world, containerSerial, incoming) {
     if (it.serial === incoming.serial) continue;
     if ((it.layer ?? 0) > 0) continue;        // worn — never merge
     if (stackKeyItemId(it.itemId) !== incomingKey) continue;
+    const existingDefinitionId = String(it.definitionId ?? it.tagId ?? '').trim();
+    // Configured items are the same stack only when their stable identities
+    // match. Graphic equality is merely a presentation check and must never
+    // merge two definitions which intentionally reuse the same UO art.
+    if ((incomingDefinitionId || existingDefinitionId)
+      && incomingDefinitionId !== existingDefinitionId) continue;
     if ((it.hue ?? 0) !== (incoming.hue ?? 0)) continue;
     return it;
   }

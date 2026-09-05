@@ -258,13 +258,6 @@ setRuntimeSurfaceAt(function* runtimeSurfaceAt(facet, x, y) {
 // LOS reads the same tiledata table movement.js loaded — share the
 // height resolver so we don't re-parse the JSON.
 setStaticHeightResolver(staticHeightFor);
-// Wire the template-by-itemId resolver for createItem's auto script
-// inference. Avoids the items.js → templates.js → items.js circular
-// import that would break module initialisation.
-{
-  const { setTemplateByItemIdResolver } = await import('./world/items.js');
-  setTemplateByItemIdResolver(templates.getTemplateByItemId);
-}
 const authKeys = new AuthKeyRegistry();
 const handlers = buildHandlers();
 // Expose the resync helper on the handlers bag so scripts (notably the

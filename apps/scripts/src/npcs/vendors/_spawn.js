@@ -21,10 +21,17 @@ import { createMobile } from '../../_mobiles.js';
 /** Heuristic: an article-prefixed name like "a banker" / "an alchemist"
  *  is generic — replace it with a personal name from the pool. Anything
  *  else (caller passed "Lord British" or "Hawkins") wins as-is. */
-function looksGeneric(name) {
+function looksGeneric(name, kind = '') {
   if (!name) return true;
-  const lower = name.toLowerCase();
-  return lower.startsWith('a ') || lower.startsWith('an ') || lower.startsWith('the ');
+  const lower = String(name).trim().toLowerCase();
+  const role = String(kind).trim().toLowerCase().replace(/[_-]+/g, ' ');
+  return lower.startsWith('a ') || lower.startsWith('an ') || lower.startsWith('the ')
+    || (!!role && lower === role);
+}
+
+function titleForKind(kind) {
+  const role = String(kind ?? '').trim().toLowerCase().replace(/[_-]+/g, ' ');
+  return role ? `the ${role}` : '';
 }
 
 /**
@@ -46,7 +53,9 @@ const KIND_OUTFIT = {
  * @param {*} sender    the GM/player whose feet we spawn at (used for x/y/z/map)
  * @param {Object} opts
  * @param {string}  opts.name
- * @param {number}  opts.body
+ * @param {string}  [opts.definitionId]
+ * @param {number}  [opts.bodyId]
+ * @param {number}  [opts.body]        legacy alias of bodyId
  * @param {number}  [opts.hue]
  * @param {number}  [opts.notoriety]   default 7 (Invulnerable yellow)
  * @param {boolean} [opts.invulnerable]   default true
@@ -54,6 +63,7 @@ const KIND_OUTFIT = {
  * @param {string}  [opts.outfit]      preset name override (peasant|warrior|mage|noble|bandit|pirate)
  * @param {string[]} [opts.keywords]   speech-listen keywords; sets _listensToSpeech
  * @param {string}  [opts.behavior]    AI behavior name to attach via api.ai.attach
+ * @param {string}  [opts.title]       role suffix, e.g. "the banker"
  * @param {Object}  [opts.fields]      extra fields to copy onto the mob (teaches, vendorKind, etc.)
  * @returns {*}                        the freshly-spawned mob
  */
@@ -63,13 +73,14 @@ export function spawnNPC(api, sender, opts) {
   // ("a banker") or omitted name entirely, pick from the human pool.
   // Named callers (regional NPCs, Lord British, quest-givers) win.
   let displayName = opts.name;
-  if (looksGeneric(displayName)) {
-    const picked = api.names?.pickForMob?.({ body: opts.body });
+  if (looksGeneric(displayName, opts.kind)) {
+    const picked = api.names?.pickForMob?.({ body: opts.bodyId ?? opts.body });
     if (picked) displayName = picked;
   }
   const mob = createMobile(api, world, {
+    definitionId: opts.definitionId ?? opts.kind,
     name: displayName,
-    body: opts.body,
+    bodyId: opts.bodyId ?? opts.body,
     hue: opts.hue ?? 0,
     x: sender.x, y: sender.y, z: sender.z,
     map: sender.map ?? 1,
@@ -83,6 +94,16 @@ export function spawnNPC(api, sender, opts) {
   if (opts.fields) {
     for (const [k, v] of Object.entries(opts.fields)) mob[k] = v;
   }
+  // Keep identity and function separate. The personal name is presentation;
+  // role fields are authoritative service routing and survive even when many
+  // unrelated NPCs happen to share the same body or clothing graphics.
+  if (opts.kind) {
+    mob.definitionId ??= opts.definitionId ?? opts.kind;
+    mob.kind ??= mob.definitionId;
+    mob.npcKind ??= opts.kind;
+    mob.npcRole ??= opts.kind;
+  }
+  mob.title ??= opts.title ?? titleForKind(opts.kind);
 
   // Speech-listen flag + keywords. Without `_listensToSpeech` the speech
   // dispatcher in handlers.js drops chat before the AI sees it (PHASE AY

@@ -34,10 +34,28 @@ export const FLAG_HIDDEN     = 0x80;
 import { DEAD_BODIES, isDeadBody } from '../shared/bodies.js';
 export { DEAD_BODIES };
 
+const EQUIPMENT_PRESENTATION_KEYS = Object.freeze([
+  'definitionId', 'artId', 'paperdollGumpId',
+  'paperdollMaleGumpId', 'paperdollFemaleGumpId',
+]);
+
+function copyEquipmentPresentation(target, source) {
+  let changed = false;
+  if (!target || !source) return changed;
+  for (const key of EQUIPMENT_PRESENTATION_KEYS) {
+    if (source[key] === undefined || target[key] === source[key]) continue;
+    target[key] = source[key];
+    changed = true;
+  }
+  return changed;
+}
+
 class Mobile {
   constructor(serial) {
     this.serial = serial >>> 0;
     this.name = '';
+    this.definitionId = '';
+    this.bodyId = 0;
     this.body = 0;
     this.hue = 0;
     this.x = 0; this.y = 0; this.z = 0;
@@ -273,6 +291,8 @@ class Mobile {
 class Item {
   constructor(serial) {
     this.serial = serial >>> 0;
+    this.definitionId = '';
+    this.artId = 0;
     this.itemId = 0;
     this.hue = 0;
     this.amount = 1;
@@ -485,7 +505,9 @@ export class World {
     for (const row of rows) {
       const serial = row?.serial >>> 0; const layer = row?.layer | 0;
       if (!serial || layer <= 0 || next.has(layer)) return { ok: false, reason: 'invalid-or-duplicate-layer' };
-      next.set(layer, { ...row, serial, layer, itemId: row.itemId | 0, hue: row.hue | 0 });
+      const entry = { ...row, serial, layer, itemId: row.itemId | 0, artId: row.itemId | 0, hue: row.hue | 0 };
+      copyEquipmentPresentation(entry, this.items.get(serial));
+      next.set(layer, entry);
     }
     this.batchSpatialMutations(() => {
       const nextSerials = new Set([...next.values()].map((entry) => entry.serial >>> 0));
@@ -506,7 +528,8 @@ export class World {
         if (!item) { item = new Item(eq.serial); this.items.set(eq.serial, item); }
         const oldParent = item.parent >>> 0;
         const oldX = item.x; const oldY = item.y; const oldMap = item.map ?? this.mapId;
-        Object.assign(item, { itemId: eq.itemId, hue: eq.hue, layer, parent: mob.serial });
+        Object.assign(item, { itemId: eq.itemId, artId: eq.itemId, hue: eq.hue, layer, parent: mob.serial });
+        copyEquipmentPresentation(item, eq);
         this.linkItemParent(item, oldParent);
         this.reindexItem(item, oldX, oldY, oldMap, oldParent);
       }
@@ -994,15 +1017,33 @@ export class World {
   equipOnMobile(mob, layer, eq) {
     if (!mob || !eq) return;
     if (!mob.equipment) mob.equipment = new Map();
+    const normalized = { ...eq, serial: eq.serial >>> 0, layer: layer | 0,
+      itemId: eq.itemId | 0, artId: eq.itemId | 0, hue: eq.hue | 0 };
+    copyEquipmentPresentation(normalized, this.items.get(normalized.serial));
     const existing = mob.equipment.get(layer);
     if (existing
-        && (existing.serial >>> 0) === (eq.serial >>> 0)
-        && (existing.itemId | 0) === (eq.itemId | 0)
-        && (existing.hue | 0) === (eq.hue | 0)) return;
+        && (existing.serial >>> 0) === normalized.serial
+        && (existing.itemId | 0) === normalized.itemId
+        && (existing.hue | 0) === normalized.hue
+        && !copyEquipmentPresentation(existing, normalized)) return;
     if (existing) this._equipIndex.delete((existing.serial >>> 0));
-    mob.equipment.set(layer, eq);
-    this._equipIndex.set((eq.serial >>> 0), { mob, layer });
+    mob.equipment.set(layer, normalized);
+    this._equipIndex.set(normalized.serial, { mob, layer });
     mob._equipmentRevision = ((mob._equipmentRevision | 0) + 1) >>> 0;
+    mob._equipmentHashRevision = -1;
+  }
+
+  /** Merge definition-owned appearance arriving on the NodeUO component
+   * stream into the matching classic equipment slot. Returns the owner mobile
+   * so the network layer can refresh an already-open paperdoll. */
+  syncEquipmentPresentation(item) {
+    const slot = this._equipIndex.get(item?.serial >>> 0);
+    if (!slot?.mob?.equipment) return null;
+    const equipped = slot.mob.equipment.get(slot.layer);
+    if (!equipped || !copyEquipmentPresentation(equipped, item)) return null;
+    slot.mob._equipmentRevision = ((slot.mob._equipmentRevision | 0) + 1) >>> 0;
+    slot.mob._equipmentHashRevision = -1;
+    return slot.mob;
   }
 
   /** Inverse of equipOnMobile — pulls a worn item off a layer. */

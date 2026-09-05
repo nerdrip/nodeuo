@@ -189,8 +189,13 @@ export function entityDeltaRow(entity, mask, kind = null) {
   return {
     serial: entity.serial, entityType, mask,
     x: entity.x, y: entity.y, z: entity.z, map: entity.map, direction: entity.direction,
-    artId: entityType === NodeUOEntityType.Mobile ? entity.body : (entity.multiId ?? entity.itemId),
+    definitionId: entity.definitionId ?? entity.kind,
+    bodyId: entityType === NodeUOEntityType.Mobile ? (entity.bodyId ?? entity.body) : undefined,
+    artId: entityType === NodeUOEntityType.Mobile ? (entity.bodyId ?? entity.body) : (entity.multiId ?? entity.artId ?? entity.itemId),
     hue: entity.hue, flags: entity.flags, notoriety: entity.notoriety, amount: entity.amount,
+    paperdollGumpId: entity.paperdollGumpId,
+    paperdollMaleGumpId: entity.paperdollMaleGumpId,
+    paperdollFemaleGumpId: entity.paperdollFemaleGumpId,
     hp: entity.hp, hpMax: entity.hpMax, mana: entity.mana, manaMax: entity.manaMax,
     stam: entity.stam, stamMax: entity.stamMax, parent: entity.parent, layer: entity.layer,
     statusBits: statusBits(entity),
@@ -203,7 +208,11 @@ function componentEntityRow(row, revision = 0, subscription = null, viewer = nul
     x: row.x, y: row.y, z: row.z, map: row.map, direction: row.direction,
   };
   if (row.mask & NodeUOWorldField.Appearance) components.appearance = {
+    definitionId: row.definitionId, bodyId: row.bodyId,
     artId: row.artId, hue: row.hue, flags: row.flags, notoriety: row.notoriety, amount: row.amount,
+    paperdollGumpId: row.paperdollGumpId,
+    paperdollMaleGumpId: row.paperdollMaleGumpId,
+    paperdollFemaleGumpId: row.paperdollFemaleGumpId,
   };
   if (row.mask & NodeUOWorldField.Vitals) components.vitals = {
     hp: row.hp, hpMax: row.hpMax, mana: row.mana, manaMax: row.manaMax,
@@ -271,7 +280,12 @@ function componentFeature(state) {
 
 function visibleTo(state, serial, kind) {
   if ((state.mobile?.serial >>> 0) === (serial >>> 0)) return true;
-  return kind === 'item' ? state._visibleItems?.has?.(serial) : state._visibleMobiles?.has?.(serial);
+  if (kind !== 'item') return state._visibleMobiles?.has?.(serial);
+  if (state._visibleItems?.has?.(serial)) return true;
+  const item = state.ctx.world?.items?.get?.(serial >>> 0);
+  const parent = item?.parent >>> 0;
+  return (item?.layer | 0) > 0 && (parent === (state.mobile?.serial >>> 0)
+    || state._visibleMobiles?.has?.(parent));
 }
 
 function wireMaskForChange(dirty, entity) {
@@ -294,6 +308,10 @@ function subscriptionAllowsEntity(subscription, entity, viewer) {
   const area = subscription?.area;
   if (!area || !entity) return true;
   if ((entity.serial >>> 0) === (viewer?.serial >>> 0)) return true;
+  // Equipped rows are emitted only for mobiles already admitted to the
+  // snapshot. Their x/y are container coordinates, so filtering those again
+  // as ground positions would incorrectly discard custom wearable metadata.
+  if ((entity.parent >>> 0) && (entity.layer | 0) > 0) return true;
   if ((entity.map | 0) !== (area.map | 0)) return false;
   const dx = Math.abs((entity.x | 0) - area.x);
   const dy = Math.abs((entity.y | 0) - area.y);
@@ -308,15 +326,31 @@ function visibleSnapshot(state) {
     | NodeUOWorldField.Vitals | NodeUOWorldField.Status;
   const itemMask = NodeUOWorldField.Position | NodeUOWorldField.Appearance | NodeUOWorldField.Parent;
   const seen = new Set();
+  const addItem = (serial) => {
+    const entity = state.ctx.world.items.get(serial >>> 0);
+    if (entity && !seen.has(entity.serial)) {
+      seen.add(entity.serial);
+      rows.push(entityDeltaRow(entity, itemMask, 'item'));
+    }
+  };
   const addMobile = (serial) => {
     const entity = state.ctx.world.mobiles.get(serial >>> 0);
-    if (entity && !seen.has(entity.serial)) { seen.add(entity.serial); rows.push(entityDeltaRow(entity, mobileMask, 'mobile')); }
+    if (entity && !seen.has(entity.serial)) {
+      seen.add(entity.serial);
+      rows.push(entityDeltaRow(entity, mobileMask, 'mobile'));
+      // Equipped-item packets contain only serial/art/layer/hue. Include the
+      // concrete item component so custom paperdoll gumps stay tied to its
+      // definitionId, even when many definitions reuse the same artId.
+      for (const childSerial of state.ctx.world._childrenByParent?.get?.(entity.serial) ?? []) {
+        const child = state.ctx.world.items.get(childSerial >>> 0);
+        if ((child?.layer | 0) > 0) addItem(childSerial);
+      }
+    }
   };
   addMobile(state.mobile?.serial);
   for (const serial of state._visibleMobiles ?? []) addMobile(serial);
   for (const serial of state._visibleItems ?? []) {
-    const entity = state.ctx.world.items.get(serial >>> 0);
-    if (entity) rows.push(entityDeltaRow(entity, itemMask, 'item'));
+    addItem(serial);
   }
   return rows;
 }

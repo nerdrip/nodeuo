@@ -324,6 +324,18 @@ export function makeHueFilter(lutTexture, hueCount) {
 }
 
 /**
+ * Convert the 16-bit hue value carried by UO packets into the zero-based
+ * row used by the extracted hues LUT. Bits 14/15 are render flags
+ * (partial-hue / spectral), not part of the palette number; hue 1 selects
+ * LUT row 0. Passing raw skin hues such as 0x83EA to the shader sampled far
+ * below the texture and clamped every human to the final, near-black row.
+ */
+export function normalizeUoHueIndex(hue) {
+  const paletteHue = (Number(hue) | 0) & 0x3fff;
+  return paletteHue > 0 ? paletteHue - 1 : -1;
+}
+
+/**
  * Stamp a cached hue filter onto a Pixi DisplayObject. Sprites sharing
  * the same (hue, mode) pair use the same Filter instance and batch
  * together — saving GPU state-changes and V-RAM.
@@ -339,7 +351,8 @@ export function makeHueFilter(lutTexture, hueCount) {
  */
 export function applyHueTo(target, hueIndex, mode, lutTexture, hueCount) {
   if (!target) return;
-  if (!hueIndex || mode === 0) {
+  const normalizedHue = normalizeUoHueIndex(hueIndex);
+  if (normalizedHue < 0 || mode === 0) {
     if (target._uoHueFilterKey || target.filters) target.filters = null;
     target._uoHueFilterKey = '';
     return;
@@ -355,7 +368,7 @@ export function applyHueTo(target, hueIndex, mode, lutTexture, hueCount) {
     // its construction-time defaults (hue=0, mode=0) and the filter
     // is a no-op — matches ColorMatrixFilter._loadMatrix() in Pixi.
     const ug = f.resources.hueUniforms;
-    ug.uniforms.uHueIndex = hueIndex;
+    ug.uniforms.uHueIndex = normalizedHue;
     ug.uniforms.uMode     = mode;
     ug.update();
     target._uoHueFilterKey = '';
@@ -380,8 +393,8 @@ export function applyHueTo(target, hueIndex, mode, lutTexture, hueCount) {
   // cardinality flip by clearing first, then re-applying. The cost is
   // one extra `removeEffect`/`addEffect` pair per hue change, which is
   // negligible — hue changes are events, not per-frame.
-  const nextKey = _cacheKey(hueIndex, mode);
-  const next = _getCachedFilter(hueIndex, mode);
+  const nextKey = _cacheKey(normalizedHue, mode);
+  const next = _getCachedFilter(normalizedHue, mode);
   const cur = target.filters;
   if (target._uoHueFilterKey === nextKey && Array.isArray(cur) && cur[0] === next) return;
   if (Array.isArray(cur) && cur.length > 0 && cur[0] !== next) {

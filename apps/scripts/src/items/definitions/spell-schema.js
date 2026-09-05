@@ -1,6 +1,6 @@
 const DEFINITIONS = [
   {
-    definitionId: 'spell-schema-codex', artId: 0x0EFA,
+    definitionId: 'spell-schema-codex', artId: 0x0FF0,
     name: 'Arcane Schema Codex', hue: 0x0481,
     kind: 'book', category: 'spell-schema', script: 'spell-schema-codex',
     movable: true, weight: 3,

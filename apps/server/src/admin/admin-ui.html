@@ -138,25 +138,18 @@
   <button data-tab="dashboard" class="active">Dashboard</button>
   <button data-tab="accounts" data-min-rank="4">Accounts</button>
   <button data-tab="characters">Characters</button>
-  <button data-tab="items">Items</button>
-  <button data-tab="assets" data-min-rank="3" style="color:#f0c878">Assets</button>
   <button data-tab="studio" data-min-rank="3" style="color:#f0c878">Content Studio</button>
+  <button data-tab="assets" data-min-rank="3" style="color:#7ed39a">Assets</button>
   <button data-tab="scriptstudio" data-min-rank="3" style="color:#f0c878">Script Studio</button>
   <button data-tab="game-systems" data-min-rank="3" style="color:#e7b8ff">Game Systems</button>
-  <button data-tab="platform" data-min-rank="3" style="color:#9de5c6">Platform</button>
-  <button data-tab="docs" style="color:#72d5e8">Docs</button>
-  <button data-tab="scripts" data-min-rank="3">Scripts</button>
-  <button data-tab="data" data-min-rank="3">Data (raw)</button>
-  <button data-tab="data-editor" data-min-rank="3" style="color:#80ff80">🌳 Data Editor</button>
   <button data-tab="spawners" data-min-rank="3">Spawners</button>
-  <button data-tab="world-design" data-min-rank="3" style="color:#8fe3b0">World Design</button>
+  <button data-tab="isoeditor" data-min-rank="3" style="color:#80ff80">World Editor</button>
   <button data-tab="ai-graphs" data-min-rank="3" style="color:#80d8ff">AI Graphs</button>
   <button data-tab="simulators" style="color:#ffd080">Simulators</button>
-  <button data-tab="animations" style="color:#c69cff">Animations</button>
+  <button data-tab="platform" data-min-rank="3" style="color:#9de5c6">Platform</button>
   <button data-tab="operations" style="color:#6fe7ff">Operations</button>
   <button data-tab="logs">Logs</button>
-  <button data-tab="world">World</button>
-  <button data-tab="isoeditor" data-min-rank="3" style="color:#80ff80">🗺 Iso Editor</button>
+  <button data-tab="docs" style="color:#72d5e8">Docs</button>
 </nav>
 
 <main id="main"></main>
@@ -401,6 +394,17 @@ registerTab('characters', async () => {
       </div>
       <div id="mobs-result"></div>
     </div>
+    <div class="card inventory-locator">
+      <div class="row">
+        <div><h2 style="margin-bottom:2px">Item locator</h2><div class="muted">Search runtime items by definition, name, art ID or serial. Results resolve nested containers to the owning character and show backpack, bank or equipment.</div></div>
+      </div>
+      <form class="row" style="margin-top:10px" onsubmit="event.preventDefault();locateCharacterItems()">
+        <input id="character-item-filter" placeholder="e.g. katana, gold, 0x13ff…" autocomplete="off" />
+        <label><input id="character-item-owned" type="checkbox" checked> owned only</label>
+        <button class="primary" type="submit">Find items</button>
+      </form>
+      <div id="character-item-results" class="muted" style="margin-top:9px">Enter a query to locate an item. Nothing is loaded until you search.</div>
+    </div>
     <div class="card" id="mob-detail" style="display:none"></div>
   `;
   document.querySelectorAll('.kindbtn').forEach((b) => b.addEventListener('click', () => {
@@ -448,8 +452,11 @@ async function viewMob(serial) {
   // to throw, leaving the panel apparently inert.
   m.equipped         = m.equipped         ?? [];
   m.backpackContents = m.backpackContents ?? [];
-  const eq = m.equipped.map((e) => `<li>L${e.layer}: ${esc(e.name ?? '0x'+(e.itemId|0).toString(16))}</li>`).join('');
-  const pack = m.backpackContents.map((it) => `<li>${esc(it.name ?? '0x'+(it.itemId|0).toString(16))} ×${it.amount ?? 1}</li>`).join('');
+  m.backpack = m.backpack ?? { items: m.backpackContents, count: m.backpackContents.length };
+  m.bank = m.bank ?? { items: [], count: 0 };
+  const eq = m.equipped.map((item) => renderInventoryItem(item, 0, `Layer ${item.layer}`)).join('');
+  const pack = renderInventoryTree(m.backpack.items);
+  const bank = renderInventoryTree(m.bank.items);
   localStorage.setItem('uo-admin-tp-mob', m.serial);
   const panel = document.getElementById('mob-detail');
   if (!panel) { alert('mob-detail panel missing'); return; }
@@ -475,16 +482,50 @@ async function viewMob(serial) {
       </div>
       <div>
         <div class="preview">${renderMobileKV(m)}</div>
-        <h3>Equipped (${m.equipped.length})</h3>
-        <ul class="scroll-h">${eq || '<i>none</i>'}</ul>
-        <h3>Backpack (${m.backpackContents.length})</h3>
-        <ul class="scroll-h">${pack || '<i>empty</i>'}</ul>
+        <div class="inventory-columns">
+          <section class="inventory-pane"><h3>Equipped <span>${m.equipped.length}</span></h3><div class="inventory-tree">${eq || '<i class="muted">none</i>'}</div></section>
+          <section class="inventory-pane"><h3>Backpack <span>${m.backpack.count ?? 0}</span></h3><div class="inventory-tree">${pack || '<i class="muted">empty</i>'}</div>${m.backpack.truncated ? '<p class="muted">List truncated.</p>' : ''}</section>
+          <section class="inventory-pane"><h3>Bank <span>${m.bank.count ?? 0}</span></h3><div class="inventory-tree">${bank || '<i class="muted">empty</i>'}</div>${m.bank.truncated ? '<p class="muted">List truncated.</p>' : ''}</section>
+        </div>
         <div id="ai-debug-${m.serial}"></div>
         <div id="live-follow"></div><div id="live-events"></div>
       </div>
     </div>
   `;
 }
+function renderInventoryItem(item, depth = 0, prefix = '') {
+  const artId = Number(item.artId ?? item.itemId ?? 0);
+  const serial = escJS(item.serial);
+  return `<button class="inventory-item" style="--depth:${Math.min(8, depth)}" onclick="inspectItem('${serial}')" title="Inspect ${esc(item.definitionId ?? item.name ?? item.serial)}">
+    <img src="/api/studio/art/${artId}" alt="" loading="lazy"><span><b>${prefix ? `${esc(prefix)} · ` : ''}${esc(item.name ?? item.definitionId ?? '?')}</b><small>${esc(item.definitionId ?? 'untyped')} · ${item.amount ?? 1}× · ${esc(item.serial)}</small></span>
+  </button>`;
+}
+function renderInventoryTree(items, depth = 0) {
+  return (items ?? []).map((item) => renderInventoryItem(item, depth)
+    + (item.children?.length ? renderInventoryTree(item.children, depth + 1) : '')).join('');
+}
+async function locateCharacterItems() {
+  const input = document.getElementById('character-item-filter');
+  const host = document.getElementById('character-item-results');
+  if (!input || !host) return;
+  const query = input.value.trim();
+  if (!query) { host.textContent = 'Enter a definition, name, art ID or serial.'; input.focus(); return; }
+  host.innerHTML = '<div class="admin-state">Resolving owners and containers…</div>';
+  const owned = document.getElementById('character-item-owned')?.checked ? '1' : '';
+  try {
+    const result = await api('GET', `/api/items?filter=${encodeURIComponent(query)}&owned=${owned}&limit=200&offset=0`);
+    if (!result.items?.length) { host.innerHTML = '<div class="admin-state">No matching items.</div>'; return; }
+    host.innerHTML = `<div class="item-locator-grid">${result.items.map((item) => {
+      const artId = Number(item.artId ?? item.itemId ?? 0);
+      const owner = item.ownerSerial
+        ? `<button class="owner-link" onclick="viewMob('${escJS(item.ownerSerial)}')">${esc(item.ownerName)} <small>${esc(item.ownerSerial)}</small></button>`
+        : '<span class="muted">No character owner</span>';
+      const path = (item.containerPath ?? []).map((entry) => entry.name).join(' › ');
+      return `<article class="item-locator-card"><img src="/api/studio/art/${artId}" alt="" loading="lazy"><div><b>${esc(item.name ?? '?')}</b><small>${esc(item.definitionId ?? 'untyped')} · ${esc(item.serial)} · art 0x${artId.toString(16)}</small><div>${owner}<span class="location-pill">${esc(item.location)}</span></div>${path ? `<small>${esc(path)}</small>` : ''}</div><button onclick="inspectItem('${escJS(item.serial)}')">Inspect</button></article>`;
+    }).join('')}</div><p class="muted">${result.items.length} of ${result.count} matching runtime items.</p>`;
+  } catch (error) { host.innerHTML = `<p class="admin-inline-error">${esc(error.message)}</p>`; }
+}
+Object.assign(window, { locateCharacterItems, renderInventoryTree });
 async function followLive(serial){
   clearInterval(liveFollowTimer);
   const refresh=async()=>{const host=document.getElementById('live-follow');if(!host){clearInterval(liveFollowTimer);return}try{const r=await api('GET',`/api/live/follow/${serial}`);host.innerHTML=`<h3>Live follow · ${esc(serial)}</h3><div class="kv"><b>Position</b><div>${r.entity.x},${r.entity.y},${r.entity.z} map ${r.entity.map}</div><b>HP</b><div>${r.entity.hp??'—'}/${r.entity.hpMax??'—'}</div><b>Client</b><div>${esc(r.client?.clientVersion??r.entity.client?.version??'offline')} · ${esc(r.client?.transport??r.entity.client?.transport??'—')}</div><b>Ping</b><div>${Number.isFinite(r.client?.pingMs)?r.client.pingMs.toFixed(1)+' ms':r.client?'unavailable on this transport':'offline'}</div><b>Packets</b><div>${r.client?.rxPackets??0} RX / ${r.client?.txPackets??0} TX · last ${r.client?.lastPacketAt?new Date(r.client.lastPacketAt).toLocaleTimeString():'—'}</div><b>Pending</b><div>${r.client?.pendingBytes??r.entity.client?.pendingBytes??0} B</div><b>Regions</b><div>${esc(r.regions.map(x=>x.name).join(', ')||'none')}</div><b>Spawners</b><div>${esc(r.spawners.join(', ')||'none')}</div></div>`}catch(e){if(e.name!=='AbortError')host.textContent=e.message}};
@@ -571,18 +612,10 @@ function renderMobileKV(m) {
 let itemOffset = 0;
 const ITEM_PAGE = 200;
 registerTab('items', async () => {
-  document.getElementById('main').innerHTML = `
-    <div class="card">
-      <h2>Items</h2>
-      <div class="row">
-        <input id="i-filter" placeholder="filter by name / 0xItemId / 0xSerial" />
-        <label><input type="checkbox" id="i-ground" /> only on ground</label>
-        <button onclick="searchItems()">search</button>
-      </div>
-      <div id="items-result"></div>
-    </div>
-  `;
-  loadItems();
+  // Compatibility for old bookmarks. Runtime item inspection now lives in
+  // the owning character workflow instead of presenting a context-free dump.
+  activate('characters');
+  setTimeout(() => document.getElementById('character-item-filter')?.focus(), 0);
 });
 async function loadItems() {
   const f = document.getElementById('i-filter').value;
@@ -1156,7 +1189,7 @@ registerTab('game-systems', async () => {
   document.getElementById('main').innerHTML=`
     <div class="card"><div class="toolbar"><h2 style="margin-right:auto">Game Systems</h2><a href="/studio#game-systems">Edit definitions</a><a href="/docs#authoring">Authoring tutorial</a><button onclick="gameSystemsReload()">Validate & reload</button></div>
       <p class="muted">One authoritative server runtime powers Classic UO gumps and the negotiated NodeUO JSON workbench. Definitions, live instances, rewards, and compatibility are visible here.</p>
-      <div class="toolbar"><input id="gs-query" placeholder="Search 100 systems" oninput="gameSystemsFilter()"><select id="gs-category" onchange="gameSystemsFilter()"><option value="">All categories</option><option>world</option><option>pve</option><option>narrative</option><option>economy</option><option>pvp</option><option>culture</option><option>progression</option></select><select id="gs-system"></select><button class="primary" onclick="gameSystemsStart()">Start selected</button><button onclick="gameSystemsSimulate()">Simulate balance</button></div>
+      <div class="toolbar"><input id="gs-query" placeholder="Search 100 systems" aria-label="Search game systems" oninput="gameSystemsFilter()"><select id="gs-category" aria-label="Game-system category" onchange="gameSystemsFilter()"><option value="">All categories</option><option>world</option><option>pve</option><option>narrative</option><option>economy</option><option>pvp</option><option>culture</option><option>progression</option></select><select id="gs-system" aria-label="Game system to start"></select><button class="primary" onclick="gameSystemsStart()">Start selected</button><button onclick="gameSystemsSimulate()">Simulate balance</button></div>
       <div id="gs-catalog" style="height:430px;min-height:260px"></div>
     </div>
     <div class="card"><h2>Live instances</h2><div id="gs-instances"></div></div>

@@ -11,9 +11,15 @@ import { Time, tickClock } from './time.js';
 import { bus } from './event-bus.js';
 import { AdaptiveRenderScale, clientPerformanceGovernor, clientRuntimeProfile } from '../shared/runtime-governor.js';
 import { profile as profileManager } from '../managers/profile-manager.js';
+import { advanceRenderPoolFrame } from '../renderer/sprite-pool.js';
 
 const LONG_TASK_THRESHOLD_MS = 50;
 const LONG_TASK_HISTORY_SIZE = 32;
+export const SUSPENDED_FRAME_GAP_MS = 1_000;
+
+export function isSuspendedFrameGap(frameMs, hidden = globalThis.document?.hidden === true) {
+  return hidden || !Number.isFinite(frameMs) || frameMs >= SUSPENDED_FRAME_GAP_MS;
+}
 
 export const clientPerfStats = {
   frameMs: 0,
@@ -356,6 +362,7 @@ export class GameController {
   }
 
   _tick() {
+    advanceRenderPoolFrame();
     const now = performance.now();
     if (this._lastTickAt) {
       const frameMs = now - this._lastTickAt;
@@ -363,29 +370,35 @@ export class GameController {
       const lag = Math.max(0, frameMs - expectedMs);
       clientPerfStats.frameMs = frameMs;
       clientPerfStats.eventLoopLagMs = lag;
-      if (lag > clientPerfStats.maxEventLoopLagMs) clientPerfStats.maxEventLoopLagMs = lag;
-      if (frameMs >= LONG_TASK_THRESHOLD_MS) {
-        recordClientLongTask(frameMs, now, frameMs, lag);
-      }
-      const quality = clientPerformanceGovernor.observeFrame(frameMs, now);
-      if (quality) {
-        clientPerfStats.qualityLevel = quality.level;
-        clientPerfStats.frameP50Ms = quality.p50Ms;
-        clientPerfStats.frameP95Ms = quality.p95Ms;
-        clientPerfStats.frameP99Ms = quality.p99Ms;
-        if (quality.changed) bus.emit('performance:quality-changed', quality);
-        this._renderScale.minScale = Math.max(.5, Math.min(1,
-          Number(profileManager.get('graphics.dynamicResolutionMin')) || (clientRuntimeProfile.tier === 'low' ? .7 : .8)));
-        const renderScale = profileManager.get('graphics.dynamicResolution') === false
-          ? this._renderScale.observe('nominal', now)
-          : this._renderScale.observe(quality.level, now);
-        if (renderScale && this.app?.renderer) {
-          try {
-            this.app.renderer.resolution = renderScale.scale;
-            this.app.renderer.resize(this.mountPoint.clientWidth || innerWidth, this.mountPoint.clientHeight || innerHeight);
-            clientPerfStats.renderScale = renderScale.scale;
-            bus.emit('performance:render-scale-changed', renderScale);
-          } catch { /* backend may not allow live resolution changes */ }
+      // A background tab may resume with a 10-90 second RAF gap. It is not a
+      // slow rendered frame and must not degrade/resize the WebGL backbuffer;
+      // doing so produced SharedImage failures, terrain polygons and a flash
+      // of the avatar immediately after returning to the game.
+      if (!isSuspendedFrameGap(frameMs)) {
+        if (lag > clientPerfStats.maxEventLoopLagMs) clientPerfStats.maxEventLoopLagMs = lag;
+        if (frameMs >= LONG_TASK_THRESHOLD_MS) {
+          recordClientLongTask(frameMs, now, frameMs, lag);
+        }
+        const quality = clientPerformanceGovernor.observeFrame(frameMs, now);
+        if (quality) {
+          clientPerfStats.qualityLevel = quality.level;
+          clientPerfStats.frameP50Ms = quality.p50Ms;
+          clientPerfStats.frameP95Ms = quality.p95Ms;
+          clientPerfStats.frameP99Ms = quality.p99Ms;
+          if (quality.changed) bus.emit('performance:quality-changed', quality);
+          this._renderScale.minScale = Math.max(.5, Math.min(1,
+            Number(profileManager.get('graphics.dynamicResolutionMin')) || (clientRuntimeProfile.tier === 'low' ? .7 : .8)));
+          const renderScale = profileManager.get('graphics.dynamicResolution') === false
+            ? this._renderScale.observe('nominal', now)
+            : this._renderScale.observe(quality.level, now);
+          if (renderScale && this.app?.renderer) {
+            try {
+              this.app.renderer.resolution = renderScale.scale;
+              this.app.renderer.resize(this.mountPoint.clientWidth || innerWidth, this.mountPoint.clientHeight || innerHeight);
+              clientPerfStats.renderScale = renderScale.scale;
+              bus.emit('performance:render-scale-changed', renderScale);
+            } catch { /* backend may not allow live resolution changes */ }
+          }
         }
       }
     }

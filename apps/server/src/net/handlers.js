@@ -57,7 +57,7 @@ import {
   containerChildren, createItem, destroyItem, findMergeableStack, mergeStacks, splitStack,
 } from '../world/items.js';
 import {
-  useItem as useTemplateItem, spawn as spawnTemplate, getTemplate, getTemplateByItemId,
+  useItem as useTemplateItem, spawn as spawnTemplate, getTemplate,
 } from '../world/templates.js';
 import * as itemsMod from '../world/items.js';
 import { markAttrDirty } from '../world/attributes.js';
@@ -472,6 +472,10 @@ function handleLookReq(state, pkt) {
   if (target.client && typeof target.karma === 'number') {
     const karmaTitle = karmaTitleFor(target);
     if (karmaTitle) name = `${name}, ${karmaTitle}`;
+  }
+  if (!target.client && target.title
+      && !String(name).toLowerCase().includes(String(target.title).toLowerCase())) {
+    name = `${name}, ${target.title}`;
   }
   // PHASE GG: AFK marker in single-click. Pure UX — no gameplay effect.
   if (target.client && target.afk) name = `${name} (AFK)`;
@@ -1820,16 +1824,14 @@ function bringIntoWorld(state, nameOrChoice) {
         });
         // Every player may research custom spells. The codex is an editor
         // key, while progression and discoveries remain server-authoritative.
-        createItem(world, {
-          definitionId: 'spell-schema-codex', itemId: 0x0EFA, hue: 0x0481,
-          parent: backpack.serial, name: 'Arcane Schema Codex',
-          script: 'spell-schema-codex', kind: 'book', category: 'spell-schema',
-          movable: true, weight: 3,
+        spawnTemplate(world, 'spell-schema-codex', {
+          x: mob.x, y: mob.y, z: mob.z, map: mob.map,
+          parent: backpack.serial,
         });
         // Spellbook for mage / necromancer starters.
         if (presetName === 'mage' || presetName === 'necromancer') {
           createItem(world, {
-            itemId: 0x0EFA, hue: 0, parent: backpack.serial,
+            definitionId: 'spellbook', artId: 0x0EFA, hue: 0, parent: backpack.serial,
             name: 'a spellbook', spellbook: true, spells: 0xFFFFFFFFFFFFFFFFn,
           });
         }
@@ -3171,8 +3173,10 @@ function processPlayerSpeech(state, { type = 0, hue = 0x03B2, font = 3, lang = '
   // attack" etc. Routes to the same `[pet <cmd>` admin command so
   // there's a single code path. We still broadcast the speech so
   // bystanders see "<player> says: all follow".
-  if (!ghostSpeaker && text && /^all\s+(follow|stay|guard|attack|release|come)\s*$/i.test(text)) {
-    const sub = text.toLowerCase().split(/\s+/)[1];
+  if (!ghostSpeaker && text && /^all\s+(follow|stay|guard|attack|kill|release|come|stop|wait)\s*$/i.test(text)) {
+    const spoken = text.toLowerCase().split(/\s+/)[1];
+    const sub = spoken === 'come' ? 'follow'
+      : (spoken === 'kill' ? 'attack' : ((spoken === 'stop' || spoken === 'wait') ? 'stay' : spoken));
     state.ctx.commands.dispatch?.(`pet ${sub}`, {
       sender: mob, state, world: state.ctx.world,
     });
@@ -4208,6 +4212,29 @@ function handleUseSerial(state, serial) {
       });
       return;
     }
+    const mobileRoles = [mob.kind, mob.role, mob.npcRole, mob.vendorKind,
+      mob.behavior, mob.aiBehavior, mob.ai]
+      .map((value) => String(value ?? '').toLowerCase());
+    const isHealerRole = mobileRoles.some((role) => /^(?:healer|wandering-healer)$/.test(role));
+    if (mob !== state.mobile && isHealerRole) {
+      const distance = mob.map === state.mobile.map
+        ? Math.max(Math.abs(mob.x - state.mobile.x), Math.abs(mob.y - state.mobile.y))
+        : Infinity;
+      if (distance <= 8 && state.supportsNodeUO?.(NodeUOFeature.NpcDialog)
+          && npcDialogs().isScripted(state, mob)
+          && npcDialogs().open(state, mob)) {
+        return;
+      }
+      if (distance <= 8) {
+        mob._heardSpeech ??= [];
+        mob._heardSpeech.push({ speaker: state.mobile, text: 'heal', hue: 0 });
+        while (mob._heardSpeech.length > 16) mob._heardSpeech.shift();
+        state.sendSystemMessage?.(`${mob.name ?? 'The healer'} will tend to you.`);
+      } else {
+        state.sendSystemMessage?.('You are too far away from the healer.');
+      }
+      return;
+    }
     // Our negotiated browser client gets one server-authored interaction
     // surface instead of guessing whether this NPC is a vendor, banker,
     // trainer or quest giver. Other servers and classic clients never
@@ -4277,17 +4304,20 @@ function handleUseSerial(state, serial) {
 
   const item = state.ctx.world.items.get(serial);
   if (!item) return;
+
+  // A definition-owned lifecycle script is the item's behaviour. The art id
+  // is not part of dispatch, so two definitions sharing one graphic remain
+  // completely independent.
+  if (item.script && dispatchItemEvent(state.ctx.world, item, 'onUse', state.mobile)) {
+    return;
+  }
   if (bookRegistry.has(item.serial)) {
     books.open(state, item.serial);
     return;
   }
-  // Auto-register spellbook items by their canonical graphic id when
-  // the item template path didn't fire `onCreate` (items.json data-driven
-  // spawns and equip-from-pack flows skip the lifecycle hook). Mirrors
-  // CUO `Spellbook.OnDoubleClick` — it dispatches by class, we dispatch
-  // by graphic. Each graphic maps to the school's first-spell offset
-  // (Magery=1, Necro=101, Chiv=201, Bushido=401, Ninjitsu=501,
-  // Spellweaving=601, Mysticism=678).
+  // Register explicitly typed spellbooks when the item template path did not
+  // fire `onCreate`. The definition carries `spellbook` and its first spell
+  // id; the graphic is never consulted because unrelated items may share it.
   ensureSpellbookRegisteredFromItem(item);
   if (spellbookRegistry.has(item.serial)) {
     // BUGFIX #137 (PHASE JF): the previous code sent BOTH 0xBF 0x1B
@@ -5009,15 +5039,10 @@ function handleWearItem(state, pkt) {
   // below put an equipped spellbook back into the backpack. Prefer the
   // runtime/template declaration whenever one exists and use the packet only
   // for legacy emulator items which do not carry metadata.
-  const namedTemplate = item.template ? getTemplate(item.template) : null;
-  // Legacy saves and raw admin-created items may predate the `template`
-  // / `equipLayer` fields. Resolve by graphic as a final authoritative
-  // server fallback. Several variants can share one graphic (robe and
-  // gm-robe), but their canonical equip layer is the same, so this is
-  // deterministic and prevents a client-supplied stale layer=1 from
-  // displacing the spellbook.
-  const graphicTemplate = getTemplateByItemId(item.itemId);
-  const templateLayer = Number(namedTemplate?.equipLayer ?? graphicTemplate?.equipLayer ?? 0) | 0;
+  const namedTemplate = getTemplate(item.definitionId)
+    ?? getTemplate(item.template)
+    ?? getTemplate(item.tagId);
+  const templateLayer = Number(namedTemplate?.equipLayer ?? 0) | 0;
   const runtimeLayer = Number(item.equipLayer) | 0;
   const declaredLayer = runtimeLayer > 0 ? runtimeLayer : templateLayer;
   const spellbookLayer = item.spellbook ? 1 : 0;
@@ -5420,8 +5445,7 @@ function validateVendorReply(state, serial, kind, items) {
   if (kind === 'buy') {
     let addedWeight = 0;
     for (const { amount, offered } of accepted) {
-      const def = getTemplateByItemId?.(offered.itemId);
-      addedWeight += Math.max(0, Number(def?.weight) || 0) * amount;
+      addedWeight += Math.max(0, Number(offered.weight) || 0) * amount;
     }
     if (!canCarry(state.ctx.world, state.mobile, addedWeight)) return null;
   }
@@ -5664,17 +5688,6 @@ export const _bookWriteAllowedForTest = bookWriteAllowed;
 /** @type {Map<number, SpellbookRecord>} */
 const spellbookRegistry = new Map();
 
-const SPELLBOOK_OFFSETS_BY_ITEM_ID = Object.freeze({
-  0x0E3B: 1,   0x0EFA: 1,    // Magery
-  0x2253: 101,               // Necromancy
-  0x2252: 201,               // Chivalry / Paladin
-  0x238C: 401,               // Bushido
-  0x23A0: 501,               // Ninjitsu
-  0x2D50: 601,               // Spellweaving
-  0x2D9D: 678,               // Mysticism
-  0x225A: 700, 0x225B: 700,  // Mastery primers
-});
-
 const SPELLBOOK_OFFSET_BY_OPEN_TYPE = Object.freeze([
   1,    // 0 Magery
   101,  // 1 Necromancy
@@ -5722,8 +5735,9 @@ export const spellbooks = {
 
 function ensureSpellbookRegisteredFromItem(item) {
   if (!item || spellbookRegistry.has(item.serial)) return false;
-  const offset = SPELLBOOK_OFFSETS_BY_ITEM_ID[item.itemId | 0];
-  if (offset == null) return false;
+  if (!item.spellbook) return false;
+  const offset = Number(item.spellbookOffset ?? item.firstSpellId ?? 1) | 0;
+  if (offset <= 0) return false;
   // Default discovered books to "all spells learned" so the gump shows
   // the grid filled in. Admins can [teach to remove specific spells.
   spellbooks.register({ serial: item.serial, offset, content: 0xFFFFFFFFFFFFFFFFn });
