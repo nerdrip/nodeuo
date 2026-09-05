@@ -264,7 +264,6 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
     { id:'mobiles', label:'Mobiles & AI', icon:'🐉', files:['config/monsters.json','config/npcs.json'], preview:'mobile', tags:['definitionId','bodyId','hue','stats','skills','ai','equipment','loot','resists','mount','pet'] },
     { id:'items', label:'Item definitions', icon:'⚔️', files:['config/items.json','config/item-types.json'], preview:'item', tags:['definitionId','artId','hue','paperdoll','layer','weight','container','script'] },
     { id:'housing', label:'House customization', icon:'🏠', files:['config/housedata.json'], preview:'housing', tags:['walls','doors','floors','stairs','roofs','styles','pieces','cliloc'] },
-    { id:'multis', label:'Multis & add-ons', icon:'🏰', files:['world/addons.json','world/addons.generated.json'], preview:'multi', tags:['footprint','components','addon','house','boat'] },
     { id:'links', label:'Doors, signs & teleporters', icon:'🚪', files:['world/signs.json','world/teleporters.json'], preview:'link', tags:['door','sign','teleporter','links'] },
     { id:'vendors', label:'Vendor stock & store', icon:'🛒', files:['config/vendor-inventory.json','config/store-catalogue.json'], preview:'vendor', tags:['buy','sell','price','stock','restock','store','sku'] },
     { id:'crafting', label:'Crafting', icon:'🛠️', files:['config/recipes.json','config/magincia-recipes.json'], preview:'craft', tags:['profession','recipe','requirements','materials','chance','result','dependencies'] },
@@ -275,7 +274,7 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
     { id:'quests', label:'Quests & dialogue', icon:'📜', files:['world/quest-chains.json','world/quests-extracted.json','world/quest-reward-items.json'], preview:'quest', tags:['graph','step','condition','dialog','reward'] },
     { id:'books', label:'Books, BOD & collections', icon:'📚', files:['world/books-extended.json','world/books.servuo.generated.json','world/anniversary-tiers.json'], preview:'book', tags:['book','bod','collection','achievement'] },
     { id:'environment', label:'Weather, seasons & events', icon:'🌦️', files:['world/seasonal-events.json','world/camps.json','world/revamped-dungeons.json'], preview:'environment', tags:['weather','season','day','night','calendar','scheduler'] },
-    { id:'world', label:'Regions & world design', icon:'🗺️', files:['world/decorations.json','world/decoratives.json','world/xmlspawners.json'], preview:'world', tags:['region','geometry','guards','music','spawner'] },
+    { id:'world', label:'Regions, spawners & world', icon:'🗺️', files:['world/xmlspawners.json'], preview:'world', tags:['region','geometry','guards','music','spawner','spawn area','mobile'] },
     { id:'gumps', label:'Gumps & layouts', icon:'🪟', files:['config/gumps.json','config/server-gump-catalog.json','@client/client-gumps.json'], preview:'gump', tags:['layout','drag','resize','overflow','dialog','client-preview','server-source','json'] },
     { id:'game-systems', label:'Game systems', icon:'🎲', files:['config/game-systems.json'], preview:'game-system', tags:['activity','stages','events','rewards','client','compatibility'] },
   ];
@@ -1400,12 +1399,14 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
 
   registerAssetRoutes(routes, {
     assetsDir: clientAssetsDir,
+    multiCatalog: () => sharedCtx?.systems?.multiEditor?.catalog?.() ?? [],
     isMultiInUse: (id) => [...(world?.items?.values?.() ?? [])]
       .some((item) => item?._multiAnchor && (item.multiId | 0) === (id | 0))
       || sharedCtx.boats?.isMultiIdInUse?.(id) === true,
     onChanged: (change) => {
       studioAssetCatalogCache.clear();
       studioAppearanceAssets = null;
+      if (change?.kind === 'multi') sharedCtx?.systems?.multiEditor?.invalidate?.();
       world?.events?.emit?.('assets:changed', change);
       notifyNodeUOAssetChanged(sharedCtx.connections, change);
     },
@@ -1757,7 +1758,11 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
   routes.push({
     method: 'POST', path: '/api/spawners/simulate',
     run: ({ body }) => {
-      const checked = validateSpawnerDraft(body, sharedCtx?.monsters?.kinds?.() ?? []);
+      const spawnKinds = [...new Set([
+        ...(sharedCtx?.monsters?.kinds?.() ?? []),
+        ...(sharedCtx?.npcs?.kinds?.() ?? []),
+      ])];
+      const checked = validateSpawnerDraft(body, spawnKinds);
       return { ...checked, simulation: simulateSpawnerDraft(body, { rolls: body?.rolls, seed: body?.seed }) };
     },
   });
@@ -1892,25 +1897,32 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
     },
   });
 
-  // Enumerate spawnable monster kinds — fuels the "Add Spawner" modal
-  // dropdown in the ISO editor. The monsters registry is the source of
-  // truth for which `kind` strings the spawner.factory will resolve.
+  // Enumerate every spawnable definition — hostile monsters and scripted
+  // townsfolk share the same visual picker but retain their own definitionId.
   routes.push({
     method: 'GET', path: '/api/monster-kinds',
     run: () => {
       const monsters = sharedCtx?.monsters;
-      if (!monsters?.kinds) return { count: 0, kinds: [] };
-      const kinds = monsters.kinds().map((k) => {
-        const cfg = monsters.get(k) ?? {};
+      const npcs = sharedCtx?.npcs;
+      const definitions = [
+        ...(monsters?.kinds?.() ?? []).map((kind) => ({ kind, cfg: monsters.get(kind) ?? {}, source: 'monster' })),
+        ...(npcs?.kinds?.() ?? []).map((kind) => ({ kind, cfg: npcs.get(kind) ?? {}, source: 'npc' })),
+      ];
+      const seen = new Set();
+      const kinds = definitions.filter(({ kind }) => !seen.has(kind) && seen.add(kind)).map(({ kind: k, cfg, source }) => {
         return {
           kind: k,
           name: cfg.name ?? k,
-          body: cfg.body ?? null,
+          title: cfg.title ?? '',
+          body: cfg.bodyId ?? cfg.body ?? null,
+          hue: cfg.hue ?? 0,
+          source,
           fame: cfg.fame ?? 0,
           // Classification hint for the modal's color-coded label —
           // matches the editor.html spawner-overlay classifier so the
           // dropdown UI can mirror the admin map's red/green coding.
-          tier: cfg.fame >= 18000 ? 'boss'
+          tier: source === 'npc' ? 'npc'
+              : cfg.fame >= 18000 ? 'boss'
               : cfg.fame >= 8000  ? 'paragon'
               : cfg.fame >= 1500  ? 'monster'
               : cfg.tameable      ? 'tame'

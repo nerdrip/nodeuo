@@ -22,7 +22,7 @@ const ASSET_KINDS = Object.freeze({
   animation:  { label: 'Mobile animations', file: 'mobiles-atlas.json', path: ['bodies'], editable: false, preview: 'animation' },
   animdata:   { label: 'AnimData', file: 'animdata.json', path: ['entries'], editable: true },
   hue:        { label: 'Hues', file: 'hues.json', path: ['hues'], editable: true, preview: 'hue' },
-  multi:      { label: 'Multis', file: 'multi.json', path: ['multis'], editable: true },
+  multi:      { label: 'Multis — houses, boats & add-ons', file: 'multi.json', path: ['multis'], editable: false, preview: 'multi' },
   'radar-land':   { label: 'Radar colors — land', file: 'radarcol.json', path: ['land'], editable: true },
   'radar-static': { label: 'Radar colors — statics', file: 'radarcol.json', path: ['static'], editable: true },
   cliloc:     { label: 'Cliloc strings', file: 'cliloc.json', path: ['entries'], editable: true },
@@ -115,6 +115,28 @@ function sanitizeEntry(kind, value) {
   throw new Error(`${kind} entries are read-only; use a graphic override where supported`);
 }
 
+function sanitizeCustomMetadata(kind, value) {
+  if (!plainObject(value)) return {};
+  if (kind === 'land' || kind === 'static') {
+    const metadata = sanitizeEntry(kind, value).value;
+    if (Array.isArray(value.tags)) metadata.tags = value.tags.slice(0, 24).map((tag) => cleanString(tag, 32)).filter(Boolean);
+    if (value.notes != null) metadata.notes = cleanString(value.notes, 1000);
+    return metadata;
+  }
+  const metadata = {
+    role: cleanString(value.role, 64),
+    tags: Array.isArray(value.tags) ? value.tags.slice(0, 24).map((tag) => cleanString(tag, 32)).filter(Boolean) : [],
+    notes: cleanString(value.notes, 1000),
+  };
+  if (kind === 'gump' && plainObject(value.nineSlice)) {
+    metadata.nineSlice = Object.fromEntries(['left', 'top', 'right', 'bottom'].map((edge) => [
+      edge, finiteInt(value.nineSlice[edge], 0, 4096),
+    ]));
+  }
+  if (kind === 'texmap') metadata.scale = Math.max(0.01, Math.min(64, Number(value.scale) || 1));
+  return metadata;
+}
+
 function safeFile(assetsDir, name) {
   const file = path.resolve(assetsDir, name);
   if (!file.startsWith(`${path.resolve(assetsDir)}${path.sep}`)) throw new Error('invalid asset path');
@@ -158,7 +180,7 @@ function catalog(assetsDir) {
     modules.push({ kind, ...spec, ...status,
       nativeSource: 'Ultima client (MUL/UOP)',
       customCount: Object.keys(custom?.[customKind] ?? {}).length,
-      acceptsCustom: GRAPHIC_KINDS.has(customKind) || kind === 'animation' });
+      acceptsCustom: GRAPHIC_KINDS.has(customKind) || kind === 'animation' || kind === 'multi' });
   }
   const extraFiles = ['verdata.json', 'professions.json', 'speeches.json', 'housedata.json', 'multimap.json', 'unifont.json'];
   return {
@@ -179,9 +201,7 @@ function catalog(assetsDir) {
     editors: [
       { id: 'content-studio', label: 'Content Studio', href: '/studio', purpose: 'scripted gumps, NPCs, quests and server content' },
       { id: 'script-studio', label: 'Script Studio', href: '/script-studio', purpose: 'commands, AI, item hooks, mobile events and region automation' },
-      { id: 'data-editor', label: 'Data Editor', href: '/data-editor', purpose: 'structured server JSON' },
       { id: 'iso-editor', label: 'Iso World Editor', href: '/editor', purpose: 'terrain and placed world statics' },
-      { id: 'animations', label: 'Animation Inspector', href: '/#animations', purpose: 'body actions, frames and definition validation' },
     ],
   };
 }
@@ -223,9 +243,10 @@ function readOverrideManifest(assetsDir) {
   try {
     const value = JSON.parse(fs.readFileSync(overrideManifestFile(assetsDir), 'utf8'));
     value.animation = plainObject(value.animation) ? value.animation : {};
+    value.multi = plainObject(value.multi) ? value.multi : {};
     return value;
   } catch {
-    return { schemaVersion: 2, land: {}, static: {}, gump: {}, texmap: {}, animation: {} };
+    return { schemaVersion: 2, land: {}, static: {}, gump: {}, texmap: {}, animation: {}, multi: {} };
   }
 }
 function writeOverrideManifest(assetsDir, value) {
@@ -242,6 +263,11 @@ function customMapFor(manifest, kind) {
 
 function customEntryValue(kind, id, record) {
   if (kind === 'animation') return record;
+  if (kind === 'multi') return {
+    name: record?.name ?? `Custom multi ${id}`,
+    components: Array.isArray(record?.components) ? record.components : [],
+    mode: record?.mode ?? 'add',
+  };
   return {
     name: record?.name ?? `Custom ${kind} ${id}`,
     width: Number(record?.width) || 0,
@@ -259,7 +285,7 @@ function customSearchEntry(kind, id, record) {
 /** Register the decoded client-resource editor API. Large JSON parsing and
  * serialization happens in Worker Threads, outside the shard tick. */
 export function registerAssetRoutes(routes, {
-  assetsDir = DEFAULT_ASSETS_DIR, onChanged = null, isMultiInUse = null,
+  assetsDir = DEFAULT_ASSETS_DIR, onChanged = null, isMultiInUse = null, multiCatalog = null,
 } = {}) {
   const root = path.resolve(assetsDir || DEFAULT_ASSETS_DIR);
   const validationJobs = new Map();
@@ -281,11 +307,24 @@ export function registerAssetRoutes(routes, {
       await workerTask({ action: 'entry', file, collectionPath: ['tiles'], id });
       return true;
     } catch {
-      if (kind !== 'static') return false;
-      try {
-        await workerTask({ action: 'entry', file, collectionPath: ['tiles'], id: id + 0x4000 });
-        return true;
-      } catch { return false; }
+      if (kind === 'static') {
+        try {
+          await workerTask({ action: 'entry', file, collectionPath: ['tiles'], id: id + 0x4000 });
+          return true;
+        } catch { /* fall through to native tile metadata */ }
+      }
+      // A decoded tiledata row is also authoritative native ownership. This
+      // matters while atlases are being regenerated (and in lightweight
+      // editor fixtures): importing that ID is still an override, never a new
+      // custom allocation.
+      if (kind === 'land' || kind === 'static') {
+        try {
+          const tiledata = JSON.parse(fs.readFileSync(safeFile(root, 'tiledata.json'), 'utf8'));
+          const rows = kind === 'land' ? tiledata.land : tiledata.statics;
+          return Array.isArray(rows) && id >= 0 && id < rows.length && rows[id] != null;
+        } catch { /* no native metadata */ }
+      }
+      return false;
     }
   }
 
@@ -446,34 +485,45 @@ export function registerAssetRoutes(routes, {
             const atlas = JSON.parse(fs.readFileSync(safeFile(root, 'mobiles-atlas.json'), 'utf8'));
             nativeIds = Object.keys(atlas.bodies ?? {}).map(Number);
           }
-          const overriddenIds = new Set(customRows.map((entry) => String(entry.id)));
           const nativeRows = nativeIds
               .filter((id) => !q || String(id).includes(q) || `0x${id.toString(16)}`.includes(q))
-              .filter((id) => source !== 'ultima' || !overriddenIds.has(String(id)))
               .sort((a, b) => a - b)
               .map((id) => ({ id: String(id), value: { shard: index ? Math.floor(id / index.shardSize) : null },
                 source: custom[String(id)] ? 'custom-override' : 'ultima' }));
           const all = source === 'ultima'
             ? nativeRows
-            : [...customRows, ...nativeRows.filter((entry) => !overriddenIds.has(String(entry.id)))];
+            : [...customRows.filter((entry) => entry.source === 'custom'), ...nativeRows];
           return { kind: 'animation', label: ASSET_KINDS.animation.label, editable: false,
             preview: 'animation', total: all.length, filtered: all.length, offset, limit,
             entries: all.slice(offset, offset + limit), revision };
         }
         const spec = kindSpec(params.kind, root);
         if (!fs.existsSync(spec.absoluteFile)) return { error: `${spec.file} is missing` };
+        const additions = customRows.filter((entry) => entry.source === 'custom');
+        const customPage = source === 'all' ? additions.slice(offset, offset + limit) : [];
+        const nativeOffset = source === 'all' ? Math.max(0, offset - additions.length) : offset;
+        const nativeLimit = source === 'all' ? Math.max(0, limit - customPage.length) : limit;
         const native = await workerTask({
           action: 'entries', file: spec.absoluteFile, collectionPath: spec.path,
-          query: query?.get?.('q'), offset: query?.get?.('offset'), limit: query?.get?.('limit'),
+          query: query?.get?.('q'), offset: nativeOffset, limit: Math.max(1, nativeLimit),
         });
-        native.entries = native.entries.map((entry) => ({ ...entry,
-          source: custom[String(entry.id)] ? 'custom-override' : 'ultima' }));
-        if (source === 'ultima') native.entries = native.entries.filter((entry) => entry.source === 'ultima');
-        const additions = customRows.filter((entry) => entry.source === 'custom');
-        if (source === 'all' && offset === 0 && additions.length) {
-          native.entries = [...additions.slice(0, limit), ...native.entries].slice(0, limit);
+        const multiMetadata = params.kind === 'multi'
+          ? new Map((multiCatalog?.() ?? []).map((entry) => [String(entry.id), entry])) : null;
+        native.entries = native.entries.map((entry) => {
+          const metadata = multiMetadata?.get(String(entry.id));
+          return { ...entry,
+            value: params.kind === 'multi' ? {
+              name: metadata?.name ?? `Multi 0x${Number(entry.id).toString(16)}`,
+              kind: metadata?.kind ?? 'other', components: entry.value,
+            } : entry.value,
+            source: custom[String(entry.id)] ? 'custom-override' : 'ultima' };
+        });
+        if (source === 'all') {
+          native.entries = [...customPage, ...(nativeLimit ? native.entries.slice(0, nativeLimit) : [])];
           native.total += additions.length;
           native.filtered += additions.length;
+          native.offset = offset;
+          native.limit = limit;
         }
         return {
           kind: params.kind, label: spec.label, editable: spec.editable, preview: spec.preview ?? null,
@@ -491,6 +541,7 @@ export function registerAssetRoutes(routes, {
         if (params.kind === 'animation') {
           if (custom) return { kind: 'animation', id: String(params.id), editable: false,
             value: customEntryValue('animation', params.id, custom), source: custom.mode === 'override' ? 'custom-override' : 'custom',
+            nativeAvailable: custom.mode === 'override',
             mtime: Math.trunc(fs.statSync(overrideManifestFile(root)).mtimeMs) };
           const id = parseId(params.id);
           const shard = id == null ? null : mobileShardForId(root, id);
@@ -500,9 +551,24 @@ export function registerAssetRoutes(routes, {
         }
         const spec = kindSpec(params.kind, root);
         try {
-          return { kind: params.kind, editable: spec.editable, ...(await workerTask({
+          const native = await workerTask({
             action: 'entry', file: spec.absoluteFile, collectionPath: spec.path, id: params.id,
-          })), source: custom ? 'custom-override' : 'ultima' };
+          });
+          const customKind = params.kind === 'texture' ? 'texmap' : params.kind;
+          const graphic = GRAPHIC_KINDS.has(customKind);
+          const multiMetadata = params.kind === 'multi'
+            ? (multiCatalog?.() ?? []).find((entry) => String(entry.id) === String(params.id)) : null;
+          const nativeValue = params.kind === 'multi' ? {
+            name: multiMetadata?.name ?? `Multi 0x${Number(params.id).toString(16)}`,
+            kind: multiMetadata?.kind ?? 'other', components: native.value,
+          } : native.value;
+          return { kind: params.kind, editable: custom ? true : (graphic ? false : spec.editable), ...native,
+            value: custom ? (params.kind === 'multi'
+              ? customEntryValue('multi', params.id, custom)
+              : { ...native.value, ...customEntryValue(customKind, params.id, custom) }) : nativeValue,
+            nativeValue: custom ? native.value : undefined,
+            nativeAvailable: true, source: custom ? 'custom-override' : 'ultima',
+            ...(custom ? { mtime: Math.trunc(fs.statSync(overrideManifestFile(root)).mtimeMs) } : {}) };
         } catch (error) {
           if (!custom) throw error;
           return { kind: params.kind, id: String(params.id), editable: true,
@@ -519,30 +585,54 @@ export function registerAssetRoutes(routes, {
         const customManifest = readOverrideManifest(root);
         const customKind = params.kind === 'texture' ? 'texmap' : params.kind;
         const custom = customManifest?.[customKind]?.[String(params.id)];
-        if (custom?.mode === 'add' && GRAPHIC_KINDS.has(customKind)) {
+        if (params.kind === 'multi') {
+          const id = parseId(params.id);
+          if (id == null || id > 0xffff) return { error: 'multi ID must be in range 0..65535' };
+          if (isMultiInUse?.(id)) {
+            return { error: 'this multi is used by a placed structure; demolish or migrate those instances before changing its blueprint', conflict: true };
+          }
+          const clean = sanitizeEntry('multi', body?.value);
+          if (Buffer.byteLength(JSON.stringify(clean.value)) > 1024 * 1024) return { error: 'entry exceeds 1 MiB' };
+          const spec = kindSpec('multi', root);
+          let nativeAvailable = false;
+          try {
+            await workerTask({ action: 'entry', file: spec.absoluteFile, collectionPath: spec.path, id });
+            nativeAvailable = true;
+          } catch { /* a free ID becomes a new custom multi */ }
+          const previous = custom ? structuredClone(custom) : null;
+          customManifest.schemaVersion = 2;
+          customManifest._doc = 'NodeUO custom asset layer. Extractors replace native atlases only; this manifest and overrides/ are preserved.';
+          customManifest.multi = plainObject(customManifest.multi) ? customManifest.multi : {};
+          customManifest.multi[String(id)] = {
+            name: cleanString(body?.value?.name ?? custom?.name ?? `Custom multi ${id}`, 128),
+            components: clean.value,
+            source: 'custom', mode: nativeAvailable ? 'override' : 'add',
+            createdAt: custom?.createdAt ?? Date.now(), updatedAt: Date.now(),
+          };
+          writeOverrideManifest(root, customManifest);
+          const after = fs.statSync(overrideManifestFile(root));
+          const value = customEntryValue('multi', id, customManifest.multi[String(id)]);
+          changed({ type: 'override', action: 'metadata', kind: 'multi', id });
+          return { ok: true, id: String(id), previous, value, nativeAvailable,
+            before: null, after: { size: after.size, mtime: Math.trunc(after.mtimeMs) } };
+        }
+        if (custom && GRAPHIC_KINDS.has(customKind)) {
           const metadata = plainObject(body?.value) ? body.value : {};
           const previous = structuredClone(custom);
           custom.name = cleanString(metadata.name ?? custom.name, 128);
-          custom.metadata = plainObject(metadata) ? { ...metadata } : {};
-          delete custom.metadata.file;
-          delete custom.metadata.mode;
-          delete custom.metadata.width;
-          delete custom.metadata.height;
+          custom.metadata = sanitizeCustomMetadata(customKind, metadata);
           custom.updatedAt = Date.now();
           writeOverrideManifest(root, customManifest);
-          changed({ type: 'custom-metadata', kind: params.kind, id: parseId(params.id) });
+          changed({ type: 'override', action: 'metadata', kind: params.kind, id: parseId(params.id) });
           const after = fs.statSync(overrideManifestFile(root));
           return { ok: true, id: String(params.id), previous, value: customEntryValue(params.kind, params.id, custom),
             before: null, after: { size: after.size, mtime: Math.trunc(after.mtimeMs) } };
         }
+        if (GRAPHIC_KINDS.has(customKind)) {
+          return { error: 'Ultima metadata is protected; create a custom override before editing its properties' };
+        }
         const spec = kindSpec(params.kind, root);
         if (!spec.editable) return { error: 'this manifest is read-only; import a graphic override instead' };
-        if (params.kind === 'multi') {
-          const id = parseId(params.id);
-          if (id != null && isMultiInUse?.(id)) {
-            return { error: 'this multi is used by a placed structure; demolish or migrate those instances before changing its blueprint', conflict: true };
-          }
-        }
         const clean = sanitizeEntry(params.kind, body?.value);
         if (Buffer.byteLength(JSON.stringify(clean.value)) > 1024 * 1024) return { error: 'entry exceeds 1 MiB' };
         const result = await workerTask({
@@ -662,6 +752,9 @@ export function registerAssetRoutes(routes, {
             ...(plainObject(previous) ? previous : {}),
             file: `overrides/${name}`, width: meta.width, height: meta.height,
             name: cleanString(body?.name ?? previous?.name ?? `Custom ${kind} ${id}`, 128),
+            metadata: body?.metadata === undefined
+              ? (plainObject(previous?.metadata) ? previous.metadata : {})
+              : sanitizeCustomMetadata(kind, body.metadata),
             source: 'custom', mode,
             createdAt: previous?.createdAt ?? Date.now(), updatedAt: Date.now(),
           };
@@ -680,7 +773,7 @@ export function registerAssetRoutes(routes, {
     run: ({ params }) => {
       const kind = params.kind === 'texture' ? 'texmap' : params.kind;
       const id = parseId(params.id);
-      if (id == null || ![...GRAPHIC_KINDS, 'animation'].includes(kind)) return { error: 'invalid custom asset target' };
+      if (id == null || ![...GRAPHIC_KINDS, 'animation', 'multi'].includes(kind)) return { error: 'invalid custom asset target' };
       const manifest = readOverrideManifest(root);
       const relative = manifest?.[kind]?.[String(id)];
       if (!relative) return { error: 'custom asset not found' };
@@ -691,7 +784,7 @@ export function registerAssetRoutes(routes, {
             for (const frame of frames ?? []) if (frame?.file) files.add(frame.file);
           }
         }
-      } else files.add(typeof relative === 'string' ? relative : relative.file);
+      } else if (kind !== 'multi') files.add(typeof relative === 'string' ? relative : relative.file);
       delete manifest[kind][String(id)];
       writeOverrideManifest(root, manifest);
       for (const relativeFile of files) {
@@ -704,14 +797,15 @@ export function registerAssetRoutes(routes, {
   });
   routes.push({
     method: 'GET', path: '/api/assets/editor/preview/:kind/:id',
-    run: async ({ params, res }) => {
+    run: async ({ params, query, res }) => {
       try {
         const kind = params.kind === 'texture' ? 'texmap' : params.kind;
         if (![...GRAPHIC_KINDS, 'animation'].includes(kind)) throw new Error('preview is unavailable for this kind');
         const id = parseId(params.id);
         if (id == null) throw new Error('invalid resource id');
         const override = readOverrideManifest(root)?.[kind]?.[String(id)];
-        if (override) {
+        const nativeOnly = query?.get?.('layer') === 'ultima';
+        if (override && !nativeOnly) {
           let relative = typeof override === 'string' ? override : override.file;
           if (kind === 'animation') {
             const firstAction = Object.values(override.actions ?? {})[0];
@@ -725,7 +819,22 @@ export function registerAssetRoutes(routes, {
           fs.createReadStream(file).pipe(res);
           return undefined;
         }
-        if (kind === 'animation') throw new Error('native animations use the animation inspector preview');
+        if (kind === 'animation') {
+          const shard = mobileShardForId(root, id);
+          if (!shard) throw new Error('native animation body is unavailable');
+          const body = await workerTask({ action: 'entry', file: shard.file, collectionPath: ['bodies'], id });
+          const firstAction = Object.values(body.value?.actions ?? {})[0];
+          const firstFrames = Object.values(firstAction?.dirs ?? {})[0];
+          const frame = firstFrames?.find?.((candidate) => candidate && candidate.w > 0 && candidate.h > 0);
+          const pageFile = shard.index.pages?.[frame?.page]?.file;
+          if (!frame || !pageFile) throw new Error('native animation has no preview frame');
+          const png = await sharp(safeFile(root, path.basename(pageFile))).extract({
+            left: frame.u, top: frame.v, width: frame.w, height: frame.h,
+          }).png().toBuffer();
+          res.writeHead(200, { 'content-type': 'image/png', 'content-length': png.length, 'cache-control': 'private, max-age=300' });
+          res.end(png);
+          return undefined;
+        }
         const manifestName = kind === 'texmap' ? 'texmap-atlas.json' : `${kind}-atlas.json`;
         const manifestFile = safeFile(root, manifestName);
         let tileRecord;

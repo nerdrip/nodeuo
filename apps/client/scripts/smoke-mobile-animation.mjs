@@ -65,6 +65,14 @@ assets.mobilesAtlas = {
     },
   },
 };
+assets.tiledata = {
+  land: [{ name: 'native grass', flags: 1, texId: 0 }],
+  statics: [{ name: 'native chair', flags: 2, height: 4 }],
+};
+assets.multis = {
+  count: 1,
+  multis: { 42: [{ id: 100, x: 0, y: 0, z: 0, visible: true }] },
+};
 assets.prefetchMobileCycle = async () => {};
 
 assert.equal(resolveGroup(6, Action.Idle), 1, 'range-only resolver still sees body 6 as High');
@@ -97,6 +105,9 @@ assert.equal(assets.mobileRenderHue(238, 77), 1444, 'a real Body.def replacement
 delete assets.mobilesAtlas.aliases[238];
 assets.applyAssetOverrides({
   schemaVersion: 2,
+  land: { 0: { file: 'overrides/land-0.png', updatedAt: 123, metadata: { name: 'custom grass', flags: 7, texId: 3 } } },
+  static: { 0: { file: 'overrides/static-0.png', updatedAt: 123, metadata: { name: 'custom chair', flags: 8, height: 9 } } },
+  multi: { 42: { components: [{ id: 200, x: 1, y: 2, z: 3, visible: false }] } },
   animation: {
     50000: {
       name: 'voidling', type: 'MONSTER', updatedAt: 123,
@@ -104,12 +115,42 @@ assets.applyAssetOverrides({
     },
   },
 });
+assert.deepEqual(assets.tiledata.land[0], { name: 'custom grass', flags: 7, texId: 3 }, 'custom land metadata overlays native TileData in memory');
+assert.deepEqual(assets.tiledata.statics[0], { name: 'custom chair', flags: 8, height: 9 }, 'custom item metadata overlays native TileData in memory');
+assert.deepEqual(assets.multis.multis[42], [{ id: 200, x: 1, y: 2, z: 3, visible: false }], 'custom multi blueprint overlays the extracted native record');
 const customFrame = assets._tryMobileFrame(50000, 1, 4, 0);
 assert.equal(customFrame.realBody, 50000, 'custom mobile body wins without a native atlas row');
 assert.equal(customFrame.meta.customFile, 'overrides/animation-50000-0-0-0.png');
 assert.equal(customFrame.meta.customRevision, 123, 'custom frame URLs carry a cache-busting revision');
 assert.equal(assets.mobileRenderBody(50000), 50000);
 assert.deepEqual(assets.mobileBodyInfo(50000), { type: 'MONSTER', custom: true, name: 'voidling' });
+assets.tiledata = {
+  land: [{ name: 'regenerated grass', flags: 11, texId: 8, season: 'spring' }],
+  statics: [{ name: 'regenerated chair', flags: 12, height: 6, material: 'oak' }],
+};
+assets.applyAssetOverrides({ schemaVersion: 2,
+  land: { 0: { file: 'overrides/land-0.png', updatedAt: 124, metadata: { name: 'custom grass', flags: 7, texId: 3 } } },
+  static: { 0: { file: 'overrides/static-0.png', updatedAt: 124, metadata: { name: 'custom chair', flags: 8, height: 9 } } },
+  multi: { 42: { components: [{ id: 201, x: 4, y: 5, z: 6, visible: true }] } },
+  animation: {
+    50000: {
+      name: 'voidling', type: 'MONSTER', updatedAt: 123,
+      actions: { 0: { dirs: { 0: [{ file: 'overrides/animation-50000-0-0-0.png', w: 17, h: 23, cx: 8, cy: 22 }] } } },
+    },
+  },
+});
+assert.equal(assets.tiledata.land[0].season, 'spring', 'custom reload preserves fields from freshly regenerated native TileData');
+assert.equal(assets.tiledata.statics[0].material, 'oak', 'custom reload does not restore stale native item metadata');
+assert.deepEqual(assets.multis.multis[42], [{ id: 201, x: 4, y: 5, z: 6, visible: true }], 'hot reload replaces the active custom multi blueprint');
+assets.applyAssetOverrides({ schemaVersion: 2, land: {}, static: {}, multi: {}, animation: {
+  50000: {
+    name: 'voidling', type: 'MONSTER', updatedAt: 123,
+    actions: { 0: { dirs: { 0: [{ file: 'overrides/animation-50000-0-0-0.png', w: 17, h: 23, cx: 8, cy: 22 }] } } },
+  },
+} });
+assert.deepEqual(assets.tiledata.land[0], { name: 'regenerated grass', flags: 11, texId: 8, season: 'spring' }, 'removing a land override restores freshly regenerated native metadata');
+assert.deepEqual(assets.tiledata.statics[0], { name: 'regenerated chair', flags: 12, height: 6, material: 'oak' }, 'removing an item override restores freshly regenerated native metadata');
+assert.deepEqual(assets.multis.multis[42], [{ id: 100, x: 0, y: 0, z: 0, visible: true }], 'removing a multi override restores the extracted Ultima blueprint');
 assert.deepEqual(
   assets.resolveEquipAnim(400, 100, 77),
   { animBody: 500, hue: 77 },

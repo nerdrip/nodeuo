@@ -32,7 +32,7 @@ function route(routes, method, routePath) {
 }
 
 describe('admin asset routes', () => {
-  it('browses and atomically edits decoded records outside the shard tick', async () => {
+  it('protects native graphic metadata and stores visual properties in the custom layer', async () => {
     const assetsDir = fixture();
     const routes = [];
     const changes = [];
@@ -40,14 +40,28 @@ describe('admin asset routes', () => {
     const query = new URLSearchParams({ q: 'rock', limit: '20' });
     const list = await route(routes, 'GET', '/api/assets/editor/entries/:kind').run({ params: { kind: 'land' }, query });
     expect(list).toMatchObject({ total: 2, filtered: 1, entries: [{ id: '1' }] });
-    const saved = await route(routes, 'PUT', '/api/assets/editor/entry/:kind/:id').run({
+    const blocked = await route(routes, 'PUT', '/api/assets/editor/entry/:kind/:id').run({
       params: { kind: 'land', id: '1' },
       body: { expectedMtime: list.mtime, value: { flags: 7, flagsHi: 0, texId: 4, name: 'new rock' } },
     });
-    expect(saved.ok).toBe(true);
-    expect(saved.backup).toMatch(/^tiledata\.json\.bak\./);
-    expect(JSON.parse(fs.readFileSync(path.join(assetsDir, 'tiledata.json'))).land[1]).toMatchObject({ flags: 7, name: 'new rock' });
-    expect(changes).toEqual([{ type: 'metadata', kind: 'land', id: 1 }]);
+    expect(blocked.error).toMatch(/protected/i);
+    const pngBase64 = (await sharp({ create: { width: 4, height: 4, channels: 4,
+      background: { r: 80, g: 120, b: 20, alpha: 1 } } }).png().toBuffer()).toString('base64');
+    await route(routes, 'PUT', '/api/assets/editor/override/:kind/:id').run({
+      params: { kind: 'land', id: '1' }, body: { pngBase64, name: 'custom rock', metadata: { flags: 7, texId: 4, name: 'custom rock' } },
+    });
+    const saved = await route(routes, 'PUT', '/api/assets/editor/entry/:kind/:id').run({
+      params: { kind: 'land', id: '1' }, body: { value: { flags: 9, flagsHi: 2, texId: 5, name: 'edited custom rock' } },
+    });
+    expect(saved).toMatchObject({ ok: true, value: { flags: 9, flagsHi: 2, texId: 5, name: 'edited custom rock' } });
+    expect(JSON.parse(fs.readFileSync(path.join(assetsDir, 'tiledata.json'))).land[1]).toMatchObject({ flags: 1, name: 'rock' });
+    expect(JSON.parse(fs.readFileSync(path.join(assetsDir, 'asset-overrides.json'))).land[1]).toMatchObject({
+      mode: 'override', metadata: { flags: 9, flagsHi: 2, texId: 5, name: 'edited custom rock' },
+    });
+    expect(changes).toEqual([
+      { type: 'override', action: 'upsert', kind: 'land', id: 1 },
+      { type: 'override', action: 'metadata', kind: 'land', id: 1 },
+    ]);
   });
 
   it('imports and removes a reversible PNG override', async () => {
@@ -102,6 +116,54 @@ describe('admin asset routes', () => {
       params: { kind: 'land' }, query: new URLSearchParams({ q: 'rock' }),
     });
     expect(nativeList.entries[0]).toMatchObject({ id: '1', source: 'custom-override' });
+    const ultimaView = await route(routes, 'GET', '/api/assets/editor/entries/:kind').run({
+      params: { kind: 'land' }, query: new URLSearchParams({ source: 'ultima', q: 'rock' }),
+    });
+    expect(ultimaView.entries[0]).toMatchObject({ id: '1', source: 'custom-override' });
+    const customView = await route(routes, 'GET', '/api/assets/editor/entries/:kind').run({
+      params: { kind: 'land' }, query: new URLSearchParams({ source: 'custom' }),
+    });
+    expect(customView.entries[0]).toMatchObject({ id: '1', source: 'custom-override' });
+  });
+
+  it('stores multi blueprints as reversible custom overlays without rewriting Ultima multi.json', async () => {
+    const assetsDir = fixture();
+    const native = { multis: { 7: [{ id: 0x4000, x: 0, y: 0, z: 0, visible: true }] } };
+    fs.writeFileSync(path.join(assetsDir, 'multi.json'), JSON.stringify(native));
+    const routes = [];
+    const changes = [];
+    registerAssetRoutes(routes, { assetsDir, onChanged: (change) => changes.push(change) });
+
+    const saved = await route(routes, 'PUT', '/api/assets/editor/entry/:kind/:id').run({
+      params: { kind: 'multi', id: '7' },
+      body: { value: { name: 'custom keep', components: [{ id: 0x4001, x: 1, y: -2, z: 3, visible: true }] } },
+    });
+    expect(saved).toMatchObject({ ok: true, nativeAvailable: true,
+      value: { name: 'custom keep', mode: 'override', components: [{ id: 0x4001, x: 1, y: -2, z: 3, visible: true }] } });
+    expect(JSON.parse(fs.readFileSync(path.join(assetsDir, 'multi.json')))).toEqual(native);
+    expect(JSON.parse(fs.readFileSync(path.join(assetsDir, 'asset-overrides.json'))).multi['7']).toMatchObject({
+      source: 'custom', mode: 'override', name: 'custom keep',
+    });
+
+    const effective = await route(routes, 'GET', '/api/assets/editor/entry/:kind/:id').run({
+      params: { kind: 'multi', id: '7' },
+    });
+    expect(effective).toMatchObject({ source: 'custom-override', nativeAvailable: true,
+      nativeValue: native.multis[7], value: saved.value });
+    const removed = route(routes, 'DELETE', '/api/assets/editor/override/:kind/:id').run({
+      params: { kind: 'multi', id: '7' },
+    });
+    expect(removed).toMatchObject({ ok: true, kind: 'multi', id: 7 });
+    const restored = await route(routes, 'GET', '/api/assets/editor/entry/:kind/:id').run({
+      params: { kind: 'multi', id: '7' },
+    });
+    expect(restored).toMatchObject({ source: 'ultima', value: {
+      name: 'Multi 0x7', kind: 'other', components: native.multis[7],
+    } });
+    expect(changes).toEqual([
+      { type: 'override', action: 'metadata', kind: 'multi', id: 7 },
+      { type: 'override', action: 'remove', kind: 'multi', id: 7 },
+    ]);
   });
 
   it('authors persistent custom mobile animation frames outside the native atlas', async () => {
@@ -147,18 +209,34 @@ describe('admin asset routes', () => {
       .toFile(path.join(assetsDir, 'gump-atlas-000.png'));
     const routes = [];
     registerAssetRoutes(routes, { assetsDir });
-    const response = new PassThrough();
-    const chunks = [];
-    response.writeHead = (status, headers) => { response.status = status; response.headers = headers; };
-    response.on('data', (chunk) => chunks.push(chunk));
-    await route(routes, 'GET', '/api/assets/editor/preview/:kind/:id').run({
-      params: { kind: 'gump', id: '5' }, res: response,
-    });
-    await new Promise((resolve) => response.once('finish', resolve));
-    const png = Buffer.concat(chunks);
-    expect(response.status).toBe(200);
-    expect(response.headers['content-type']).toBe('image/png');
+    const preview = async (query = new URLSearchParams()) => {
+      const response = new PassThrough();
+      const chunks = [];
+      response.writeHead = (status, headers) => { response.status = status; response.headers = headers; };
+      response.on('data', (chunk) => chunks.push(chunk));
+      await route(routes, 'GET', '/api/assets/editor/preview/:kind/:id').run({
+        params: { kind: 'gump', id: '5' }, query, res: response,
+      });
+      await new Promise((resolve) => response.once('finish', resolve));
+      return { response, png: Buffer.concat(chunks) };
+    };
+    const native = await preview();
+    expect(native.response.status).toBe(200);
+    expect(native.response.headers['content-type']).toBe('image/png');
+    const png = native.png;
     expect([...png.subarray(0, 8)]).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
+
+    const customPng = await sharp({ create: { width: 2, height: 2, channels: 4,
+      background: { r: 240, g: 20, b: 30, alpha: 1 } } }).png().toBuffer();
+    const imported = await route(routes, 'PUT', '/api/assets/editor/override/:kind/:id').run({
+      params: { kind: 'gump', id: '5' }, body: { pngBase64: customPng.toString('base64') },
+    });
+    expect(imported.mode).toBe('override');
+    const active = await preview();
+    const untouchedNative = await preview(new URLSearchParams({ layer: 'ultima' }));
+    const activePixels = await sharp(active.png).removeAlpha().raw().toBuffer();
+    expect([...activePixels.subarray(0, 3)]).toEqual([240, 20, 30]);
+    expect(untouchedNative.png.equals(png)).toBe(true);
   });
 
   it('runs complete manifest validation as a pollable background job', async () => {

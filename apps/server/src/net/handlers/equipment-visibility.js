@@ -65,15 +65,23 @@ function addWornItem(byOwner, parent, item) {
 }
 
 function appendEquipment(out, items) {
-  for (const item of items) appendEquipmentItem(out, item);
+  const layers = new Set(out.map((entry) => entry.layer | 0));
+  for (const item of items) appendEquipmentItem(out, item, layers);
 }
 
-function appendEquipmentItem(out, item) {
+function appendEquipmentItem(out, item, layers = new Set(out.map((entry) => entry.layer | 0))) {
   if (!item?.layer) return;
+  const layer = item.layer | 0;
+  // A mobile-incoming snapshot can encode only one item per equipment
+  // layer. Legacy worlds occasionally retained duplicate bank boxes; keep
+  // the first stable entry instead of publishing a packet the client cannot
+  // represent (and previously rejected in full).
+  if (layers.has(layer)) return;
+  layers.add(layer);
   out.push({
     serial: item.serial,
     itemId: item.itemId,
-    layer: item.layer,
+    layer,
     hue: item.hue ?? 0,
   });
 }

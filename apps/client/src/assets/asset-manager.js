@@ -179,6 +179,10 @@ class AssetManager {
     this._assetOverrides = {
       land: new Map(), static: new Map(), gump: new Map(), texmap: new Map(),
     };
+    this._assetOverrideTiledataBase = { land: new Map(), static: new Map() };
+    this._assetOverrideTiledataOwner = { land: null, static: null };
+    this._assetOverrideMultiBase = new Map();
+    this._assetOverrideMultiOwner = null;
     this._overrideTextureLoads = new Map();
     /** Custom mobile bodies are direct PNG frame cycles and deliberately live
      * outside the extracted UO atlas. Re-extraction can replace the native
@@ -898,6 +902,33 @@ class AssetManager {
    * They remain separate from remaps so removing one restores atlas art. */
   applyAssetOverrides(manifest) {
     if (!manifest || typeof manifest !== 'object') return;
+    // Restore the extracted TileData view before applying the next custom
+    // layer. The baseline JSON is never mutated on disk; this in-memory
+    // overlay lets a newly-added art ID carry walkability/height/equipment
+    // metadata and makes deleting the override reveal native behavior again.
+    for (const kind of ['land', 'static']) {
+      const collection = this.tiledata?.[kind === 'land' ? 'land' : 'statics'];
+      // A metadata hot reload replaces the whole TileData collection. Old
+      // baseline rows only belong to the previous object and must not be
+      // copied into the freshly extracted document.
+      if (collection && this._assetOverrideTiledataOwner[kind] === collection) {
+        for (const [id, base] of this._assetOverrideTiledataBase[kind]) {
+          if (base.exists) collection[id] = base.value;
+          else delete collection[id];
+        }
+      }
+      this._assetOverrideTiledataBase[kind].clear();
+      this._assetOverrideTiledataOwner[kind] = null;
+    }
+    const multis = this.multis?.multis;
+    if (multis && this._assetOverrideMultiOwner === multis) {
+      for (const [id, base] of this._assetOverrideMultiBase) {
+        if (base.exists) multis[id] = base.value;
+        else delete multis[id];
+      }
+    }
+    this._assetOverrideMultiBase.clear();
+    this._assetOverrideMultiOwner = null;
     const cacheByKind = {
       land: this._landTextures, static: this._staticTextures,
       gump: this._gumpTextures, texmap: this._texmapTextures,
@@ -917,13 +948,44 @@ class AssetManager {
           width: Number(rawValue?.width) || 0,
           height: Number(rawValue?.height) || 0,
           revision: Number(rawValue?.updatedAt) || 0,
+          metadata: rawValue?.metadata && typeof rawValue.metadata === 'object'
+            ? { ...rawValue.metadata } : {},
         });
+        if ((kind === 'land' || kind === 'static') && rawValue?.metadata && typeof rawValue.metadata === 'object') {
+          const collection = this.tiledata?.[kind === 'land' ? 'land' : 'statics'];
+          if (collection) {
+            this._assetOverrideTiledataOwner[kind] = collection;
+            this._assetOverrideTiledataBase[kind].set(id, {
+              exists: Object.prototype.hasOwnProperty.call(collection, id), value: collection[id],
+            });
+            collection[id] = { ...(collection[id] ?? {}), ...rawValue.metadata };
+          }
+        }
       }
       for (const id of changedIds) {
         this._releaseCachedTexture(cacheByKind[kind].get(id));
         cacheByKind[kind].delete(id);
         this._overrideTextureLoads.delete(`${kind}:${id}`);
       }
+    }
+    if (multis) {
+      for (const [rawId, rawValue] of Object.entries(manifest.multi && typeof manifest.multi === 'object'
+        ? manifest.multi : {})) {
+        const id = Number(rawId);
+        if (!Number.isInteger(id) || id < 0 || id > 0xffff || !Array.isArray(rawValue?.components)) continue;
+        this._assetOverrideMultiOwner = multis;
+        this._assetOverrideMultiBase.set(id, {
+          exists: Object.prototype.hasOwnProperty.call(multis, id), value: multis[id],
+        });
+        multis[id] = rawValue.components.map((part) => ({
+          id: Number(part?.id) || 0,
+          x: Number(part?.x) || 0,
+          y: Number(part?.y) || 0,
+          z: Number(part?.z) || 0,
+          visible: part?.visible !== false,
+        }));
+      }
+      this.multis.count = Object.keys(multis).length;
     }
     this._customMobileBodies.clear();
     for (const [rawBody, rawValue] of Object.entries(manifest.animation && typeof manifest.animation === 'object'

@@ -93,9 +93,9 @@ for (let cy = cy0; cy <= cy1; cy++) {
 assert.ok([0x03e9, 0x03ea, 0x03eb, 0x03ec].includes(landAt(CENTER_X, CENTER_Y).id));
 assert.ok(seenStaticIds.has(0x05ce) && seenStaticIds.has(0x05cf) && seenStaticIds.has(0x05d0));
 
-// Trinsic/New Haven cliff regression. Abrupt 30-60 Z transitions are vertical
-// faces, not ordinary slopes; stretching a single diamond across them creates
-// screen-sized blue/brown polygons. Gentle hills still use the mesh path.
+// Trinsic/New Haven cliff regression. Abrupt 30-60 Z transitions still own a
+// valid texmap surface: the renderer subdivides that surface rather than
+// flattening its upper tile and opening holes along the coastline.
 let trinsicMaxCornerDelta = 0;
 for (let y = 2861 - 20; y <= 2861 + 20; y++) {
   for (let x = 1914 - 20; x <= 1914 + 20; x++) {
@@ -118,10 +118,23 @@ for (let y = 2750 - 24; y <= 2750 + 24; y++) {
   }
 }
 assert.ok(reportedTrinsicMaxCornerDelta >= 35, 'reported Trinsic coastline fixture lost its abrupt cliff');
+
+// Britain river regression from the latest report. The upper sand bank is
+// roughly 35 Z above the water. An old MAX_VISUAL_LAND_SLOPE cap rendered
+// those sand tiles as isolated flat diamonds instead of a connected shore.
+let britainShoreMaxCornerDelta = 0;
+for (let y = 1631 - 24; y <= 1631 + 24; y++) {
+  for (let x = 1516 - 24; x <= 1516 + 24; x++) {
+    const corners = [landAt(x, y), landAt(x + 1, y), landAt(x, y + 1), landAt(x + 1, y + 1)];
+    const delta = Math.max(...corners.map((tile) => tile.z)) - Math.min(...corners.map((tile) => tile.z));
+    britainShoreMaxCornerDelta = Math.max(britainShoreMaxCornerDelta, delta);
+  }
+}
+assert.ok(britainShoreMaxCornerDelta >= 30, 'Britain riverbank fixture lost its steep shore');
 const rendererSource = [paths.renderer, paths.chunkVisual]
   .map((path) => readFileSync(path, 'utf8')).join('\n');
-assert.ok(rendererSource.includes('cornerDelta <= MAX_VISUAL_LAND_SLOPE'));
-assert.ok(rendererSource.includes('export const MAX_VISUAL_LAND_SLOPE = 12'));
+assert.ok(rendererSource.includes('const stretched = cornersDiffer && hasTexmap;'));
+assert.ok(!rendererSource.includes('MAX_VISUAL_LAND_SLOPE'));
 assert.ok(rendererSource.includes('return makeStretchedTexmap(tmTex'));
 assert.ok(texmapAtlas?.tiles && Object.keys(texmapAtlas.tiles).length > 0, 'texmap atlas must be available');
 
@@ -140,4 +153,4 @@ assert.ok(rendererSource.includes('return makeStretchedLandArt(artTex'));
 assert.ok(rendererSource.includes('function buildSmoothLandMesh('));
 assert.ok(rendererSource.includes("mesh._uoLandTextureMode = 'texmap'"));
 
-console.log(`[smoke:map-coordinate] ok facet=${FACET} center=${CENTER_X},${CENTER_Y} land=${landCount} statics=${staticCount} pages=${landPages.size}+${staticPages.size} trinsicDelta=${trinsicMaxCornerDelta}/${reportedTrinsicMaxCornerDelta} britainDelta=${britainDelta}`);
+console.log(`[smoke:map-coordinate] ok facet=${FACET} center=${CENTER_X},${CENTER_Y} land=${landCount} statics=${staticCount} pages=${landPages.size}+${staticPages.size} trinsicDelta=${trinsicMaxCornerDelta}/${reportedTrinsicMaxCornerDelta} britainShore=${britainShoreMaxCornerDelta} britainDelta=${britainDelta}`);

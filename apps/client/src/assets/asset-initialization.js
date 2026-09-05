@@ -189,7 +189,9 @@ export async function loadWorldAssets(manager, opts = {}) {
     }
   } catch { /* localized overlay missing — silent fallback to ENU */ }
   manager.configureMobileAtlas?.(mobilesAtlas);
-  manager.multis = multis;
+  manager.multis = multis ?? { count: 0, multis: {} };
+  manager.multis.multis ??= {};
+  manager.multis.count = Object.keys(manager.multis.multis).length;
   manager.animdata = animdata;
   manager.texmapAtlas = texmapAtlas;
   manager.housedata = housedata;

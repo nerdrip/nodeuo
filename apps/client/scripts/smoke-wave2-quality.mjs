@@ -16,6 +16,15 @@ world.replaceEquipment(mob, [
 ]);
 assert.deepEqual([...mob.equipment.keys()], [5, 21]);
 assert.equal(world.validateGraph().ok, true);
+const duplicateSnapshot = world.replaceEquipment(mob, [
+  { serial: 0x40000001, layer: 5, itemId: 0x1517, hue: 1 },
+  { serial: 0x40000004, layer: 29, itemId: 0x09ab, hue: 0 },
+  { serial: 0x40000005, layer: 29, itemId: 0x09ab, hue: 50 },
+  { serial: 0x40000002, layer: 21, itemId: 0x0e75, hue: 0 },
+]);
+assert.equal(duplicateSnapshot.ok, true);
+assert.equal(duplicateSnapshot.ignored, 1);
+assert.deepEqual([...mob.equipment.keys()], [5, 29, 21]);
 world.replaceEquipment(mob, [{ serial: 0x40000002, layer: 21, itemId: 0x0e75, hue: 0 }]);
 assert.equal(world.items.has(0x40000001), false, 'stale worn art must leave the graph');
 world.replaceContainerContents(0x40000002, [

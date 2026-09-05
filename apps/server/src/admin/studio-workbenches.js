@@ -2,7 +2,7 @@
 (function installContentStudioWorkbenches(global) {
   'use strict';
 
-  const local = { selectedControl: 0, catalog: null, catalogPromise: null };
+  const local = { selectedControl: 0, catalog: null, catalogPromise: null, mobileDefinitions: null, mobileDefinitionsPromise: null };
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const num = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
   const esc = (value) => global.AdminCore?.escapeHtml?.(value) ?? String(value ?? '')
@@ -379,11 +379,31 @@
     </div>`;
   }
 
+  function renderWorld(value) {
+    const kinds = Array.isArray(value.kinds) ? value.kinds : [];
+    const x1 = num(value.x1), y1 = num(value.y1), x2 = num(value.x2, x1), y2 = num(value.y2, y1);
+    const width = Math.abs(x2 - x1) + 1, height = Math.abs(y2 - y1) + 1;
+    return `<div class="domain-workbench special-editor" data-special-editor="world-spawner">
+      <div class="definition-hero"><div class="definition-visual" style="font-size:56px">🗺️</div><div><span class="definition-kicker">World spawn definition</span><h3>${esc(value.name ?? 'Unnamed spawner')}</h3><code>map ${num(value.map)} · ${x1},${y1} → ${x2},${y2}</code><p>${width}×${height} tiles · limit <b>${num(value.maxCount)}</b> · ${value.isRunning === false ? '<span class="error">paused</span>' : '<span class="success">active</span>'}</p><p class="muted">Spawner placement, population and mobile selection live here. Terrain and placed decorations stay in the isometric World Editor.</p></div></div>
+      <div class="spawn-hero"><section class="special-section"><h5>Spawn area</h5><div class="spawn-map"><strong>${width} × ${height} tiles</strong><div class="spawn-coords"><span>${x1}, ${y1}</span><span>${x2}, ${y2}</span></div></div><div class="row" style="margin-top:8px"><a class="button" href="/editor">Open area in World Editor</a></div></section>
+      <section class="special-section"><h5>Identity, bounds and schedule</h5><div class="quick-grid">
+        ${quickField('Name', 'name', value.name)}${quickField('Facet', 'map', value.map ?? 0, 'select', [0, 1, 2, 3, 4, 5])}
+        ${quickField('X1', 'x1', x1, 'number')}${quickField('Y1', 'y1', y1, 'number')}${quickField('X2', 'x2', x2, 'number')}${quickField('Y2', 'y2', y2, 'number')}
+        ${quickField('Maximum population', 'maxCount', value.maxCount ?? 1, 'number')}${quickField('Active', 'isRunning', value.isRunning !== false, 'boolean')}
+        ${quickField('Minimum delay ms', 'minDelayMs', value.minDelayMs ?? 60_000, 'number')}${quickField('Maximum delay ms', 'maxDelayMs', value.maxDelayMs ?? 180_000, 'number')}
+        ${quickField('Player proximity', 'proximityRange', value.proximityRange ?? -1, 'number')}${quickField('Team', 'team', value.team ?? 0, 'number')}
+      </div></section></div>
+      <section class="special-section"><div class="appearance-summary"><div><h5 style="margin:0">Spawned mobiles</h5><small>Choose definitions visually; body and hue remain presentation fields owned by each mobile definition.</small></div><button data-spawn-kind-add>＋ Choose mobile</button></div><div class="spawn-kinds">${kinds.map((entry, index) => `<article class="spawn-kind" data-spawn-kind="${index}" data-spawn-name="${esc(entry?.name ?? entry)}"><img src="/api/studio/body-art/400" alt=""><label>Definition<input data-spawn-name-input="${index}" value="${esc(entry?.name ?? entry)}"><small data-spawn-detail>Resolving definition…</small></label><label>Max<input type="number" min="1" max="10000" data-spawn-max="${index}" value="${num(entry?.max, 1)}"></label><button class="danger" data-spawn-kind-delete="${index}" title="Remove mobile">×</button></article>`).join('') || '<p class="muted">This spawner has no mobile definitions yet.</p>'}</div></section>
+      <section class="special-section"><h5>Advanced source</h5><p class="muted">The complete JSON record remains available below as an optional fallback. Normal authoring does not require editing it.</p></section>
+    </div>`;
+  }
+
   function render(domain, value) {
     if (domain === 'gumps') return value?.scope === 'client' ? renderClientGump(value) : renderGump(value);
     if (domain === 'mobiles') return renderMobile(value);
     if (domain === 'items') return renderItem(value);
     if (domain === 'housing') return renderHousing(value);
+    if (domain === 'world') return renderWorld(value);
     if (domain === 'vendors') return renderVendor(value);
     if (domain === 'spells') return renderSpell(value);
     if (domain === 'game-systems') return renderGameSystem(value);
@@ -398,6 +418,46 @@
     if (local.catalog) return local.catalog;
     if (!local.catalogPromise) local.catalogPromise = ctx.request('GET', '/api/studio/script-catalog').then((value) => (local.catalog = value)).finally(() => { local.catalogPromise = null; });
     return local.catalogPromise;
+  }
+
+  async function loadMobileDefinitions(ctx) {
+    if (local.mobileDefinitions) return local.mobileDefinitions;
+    if (!local.mobileDefinitionsPromise) local.mobileDefinitionsPromise = Promise.all([
+      ctx.request('GET', '/api/data-tree/file?path=config%2Fmonsters.json'),
+      ctx.request('GET', '/api/data-tree/file?path=config%2Fnpcs.json'),
+    ]).then((rows) => {
+      local.mobileDefinitions = rows.flatMap((row) => Array.isArray(row?.data) ? row.data : [])
+        .filter((entry) => entry && (entry.definitionId || entry.kind));
+      return local.mobileDefinitions;
+    }).finally(() => { local.mobileDefinitionsPromise = null; });
+    return local.mobileDefinitionsPromise;
+  }
+
+  async function showSpawnerMobilePicker(ctx) {
+    const definitions = await loadMobileDefinitions(ctx);
+    const root = document.createElement('div');
+    root.className = 'modal-bg';
+    root.innerHTML = `<div class="modal asset-picker-modal" role="dialog" aria-modal="true"><div class="asset-picker-head"><label>Search mobile definitions<input data-mobile-search placeholder="name, definition ID or body"></label><button data-close>Close</button></div><div class="spawn-mobile-grid" data-mobile-grid></div><div class="asset-picker-foot"><span class="muted" data-mobile-status></span></div></div>`;
+    document.body.appendChild(root);
+    const search = root.querySelector('[data-mobile-search]'), grid = root.querySelector('[data-mobile-grid]'), status = root.querySelector('[data-mobile-status]');
+    const close = () => root.remove();
+    const renderList = () => {
+      const q = search.value.trim().toLowerCase();
+      const shown = definitions.filter((entry) => !q || `${entry.definitionId ?? entry.kind} ${entry.name ?? ''} ${entry.title ?? ''} ${entry.bodyId ?? entry.body ?? ''}`.toLowerCase().includes(q)).slice(0, 240);
+      grid.innerHTML = shown.map((entry) => { const id = entry.definitionId ?? entry.kind, body = num(entry.bodyId ?? entry.body, 400); return `<button class="spawn-mobile" data-mobile-id="${esc(id)}"><img loading="lazy" src="/api/studio/body-art/${body}" alt=""><b>${esc(entry.name ?? id)}</b><small>${esc(id)} · body ${body}</small></button>`; }).join('') || '<p class="muted">No matching definitions.</p>';
+      status.textContent = `${shown.length} shown · ${definitions.length} available`;
+      grid.querySelectorAll('[data-mobile-id]').forEach((button) => button.onclick = () => {
+        ctx.beforeMutate();
+        (ctx.value.kinds ??= []).push({ name: button.dataset.mobileId, max: 1 });
+        const sum = ctx.value.kinds.reduce((total, row) => total + Math.max(1, num(row?.max, 1)), 0);
+        ctx.value.maxCount = Math.max(num(ctx.value.maxCount, 1), sum);
+        close(); ctx.mutated({ rerender: true });
+      });
+    };
+    search.oninput = renderList;
+    root.querySelector('[data-close]').onclick = close;
+    root.addEventListener('mousedown', (event) => { if (event.target === root) close(); });
+    renderList(); search.focus();
   }
 
   function parseQuickValue(input) {
@@ -871,11 +931,48 @@
     });
   }
 
+  async function wireWorld(ctx) {
+    const kinds = ctx.value.kinds ?? (ctx.value.kinds = []);
+    const definitions = await loadMobileDefinitions(ctx).catch(() => []);
+    if (!ctx.root.isConnected) return;
+    const byId = new Map(definitions.map((entry) => [String(entry.definitionId ?? entry.kind).toLowerCase(), entry]));
+    ctx.root.querySelectorAll('[data-spawn-kind]').forEach((row) => {
+      const definition = byId.get(String(row.dataset.spawnName).toLowerCase());
+      const image = row.querySelector('img'), detail = row.querySelector('[data-spawn-detail]');
+      if (definition) {
+        const body = num(definition.bodyId ?? definition.body, 400);
+        image.src = `/api/studio/body-art/${body}`;
+        detail.textContent = `${definition.name ?? definition.definitionId} · body ${body} · hue ${num(definition.hue)}`;
+      } else detail.textContent = 'Legacy/imported name · no local definition match';
+    });
+    const addButton = ctx.root.querySelector('[data-spawn-kind-add]');
+    if (addButton) {
+      addButton.disabled = !ctx.canEdit;
+      addButton.addEventListener('click', () => { if (ctx.canEdit) showSpawnerMobilePicker(ctx); });
+    }
+    ctx.root.querySelectorAll('[data-spawn-kind-delete]').forEach((button) => button.onclick = () => {
+      if (!ctx.canEdit) return;
+      ctx.beforeMutate(); kinds.splice(Number(button.dataset.spawnKindDelete), 1); ctx.mutated({ rerender: true });
+    });
+    ctx.root.querySelectorAll('[data-spawn-name-input],[data-spawn-max]').forEach((input) => {
+      input.disabled = !ctx.canEdit;
+      input.onchange = () => {
+        const index = Number(input.dataset.spawnNameInput ?? input.dataset.spawnMax), row = kinds[index];
+        if (!row) return;
+        ctx.beforeMutate();
+        if (input.dataset.spawnNameInput != null) row.name = input.value.trim();
+        else row.max = Math.max(1, num(input.value, 1));
+        ctx.mutated({ rerender: true });
+      };
+    });
+  }
+
   function wire(ctx) {
     wireQuickFields(ctx);
     wireAssetPickers(ctx);
     if (ctx.domain === 'items') wireItemAppearance(ctx);
     if (ctx.domain === 'gumps') ctx.value?.scope === 'client' ? wireClientGump(ctx) : wireGump(ctx);
+    if (ctx.domain === 'world') wireWorld(ctx);
     if (ctx.domain === 'game-systems') wireGameSystem(ctx);
     if (ctx.domain === 'items' || (ctx.domain === 'create' && ctx.value?.bodyId == null && ctx.value?.body == null)) wireProperties(ctx);
     if (ctx.domain === 'items' || ctx.domain === 'mobiles' || ctx.domain === 'spells' || ctx.domain === 'create') wireScripts(ctx);
@@ -887,6 +984,7 @@
     if (domain === 'items') return { definitionId: `new-item-${Date.now().toString(36)}`, artId: 0, name: 'New item', hue: 0, weight: 1, movable: true, script: null };
     if (domain === 'mobiles') return { definitionId: `new-mobile-${Date.now().toString(36)}`, name: 'New mobile', bodyId: 400, hue: 0, hp: 50, str: 50, dex: 50, int: 50, dmgMin: 1, dmgMax: 4, ai: 'wander', script: 'wander' };
     if (domain === 'game-systems') return { id: `new-system-${Date.now().toString(36)}`, version: 1, name: 'New game system', category: 'world', archetype: 'campaign', summary: 'Describe the complete player-facing loop.', difficulty: 3, skill: 'Tactics', durationMinutes: 60, cooldownSeconds: 2, staminaCost: 1, clientMode: 'hybrid', enhancedView: 'campaign', enabled: true, party: { min: 1, max: 8, teams: 1 }, entry: { gold: 0, tokens: 0 }, availability: { maps: [], regions: [], daysOfWeek: [], startHourUtc: 0, endHourUtc: 24, minAccountAgeDays: 0, requiredCompletions: {} }, antiExploit: { completionCooldownMinutes: 15, dailyCompletionLimit: 10, maxActionsPerMinute: 30, maxEventContribution: 100, minParticipationPercent: 10, requireUniqueEventTarget: false, accountWide: true }, reward: { gold: 300, tokens: 15, title: '', reputation: 6, unlocks: [], items: [{ id: 'activity-sigil', name: 'Activity Sigil', artId: 5360, hue: 0, amount: 1, chancePermille: 200, accountBound: true }] }, stages: [{ id: 'discover', name: 'Discover the objective', description: 'Find and validate the objective.', goal: 10, event: 'activity:action', skill: 'Tactics', actions: ['investigate'], allowManual: true, targetKinds: [], sourceKinds: [], regions: [], maps: [], uniqueTargets: 0, contributionCap: 100, nextStageByAction: {} }, { id: 'challenge', name: 'Complete the central challenge', description: 'Complete the authoritative gameplay objective.', goal: 20, event: 'activity:action', skill: 'Tactics', actions: ['engage'], allowManual: true, targetKinds: [], sourceKinds: [], regions: [], maps: [], uniqueTargets: 0, contributionCap: 100, nextStageByAction: {} }, { id: 'resolve', name: 'Resolve and claim the outcome', description: 'Resolve the activity and claim rewards.', goal: 10, event: 'activity:action', skill: 'Tactics', actions: ['resolve'], allowManual: true, targetKinds: [], sourceKinds: [], regions: [], maps: [], uniqueTargets: 0, contributionCap: 100, nextStageByAction: {} }] };
+    if (domain === 'world') return { name: `new-spawner-${Date.now().toString(36)}`, map: 0, x1: 0, y1: 0, x2: 0, y2: 0, maxCount: 1, minDelayMs: 60_000, maxDelayMs: 180_000, proximityRange: -1, team: 0, isRunning: true, kinds: [] };
     return { name: 'New record' };
   }
 

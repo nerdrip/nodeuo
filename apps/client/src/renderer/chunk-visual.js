@@ -38,7 +38,6 @@ export const MAX_ADD_CHILD_BATCH = 256;
 export const MAX_CHUNK_POPULATES = 3;
 export const CHUNK_REVEAL_MS = 360;
 export const CHUNK_REVEAL_STAGGER_MS = 18;
-export const MAX_VISUAL_LAND_SLOPE = 12;
 // Native texmaps are deliberately different, coarse colour fields intended
 // for tall terrain.  On ordinary 1-8 Z rolling ground they form conspicuous
 // blue/grey strips between the much richer art.mul grass diamonds.  Preserve
@@ -635,9 +634,13 @@ export class ChunkVisual {
     // exposing the blue scene background as large coastline holes.
     const cornerDelta = Math.max(zTop, zRight, zLeft, zBottom)
       - Math.min(zTop, zRight, zLeft, zBottom);
-    // Very large neighbour-Z jumps describe a vertical cliff/coast face.
-    // Treating them as one elastic diamond creates screen-sized triangles.
-    const stretched = cornersDiffer && hasTexmap && cornerDelta <= MAX_VISUAL_LAND_SLOPE;
+    // A valid texmap owns the complete four-corner surface even at a steep
+    // coast/cliff transition. Flattening the tile above an arbitrary Z cap
+    // disconnects the upper sand bank from the water and leaves the exact
+    // row of floating diamonds visible around Britain (1516,1631). The
+    // subdivided mesh below keeps steep surfaces stable without changing the
+    // authored corner heights.
+    const stretched = cornersDiffer && hasTexmap;
     // CUO chooses the smoother diagonal for AverageZ; a four-corner mean
     // makes shoreline land sort too high and exposes dark saw-teeth between
     // the z=-5 water statics and z=0 bank.

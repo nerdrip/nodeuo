@@ -637,10 +637,6 @@ async function reloadAssets(assets, update) {
     const file = files.get('patches.json');
     assets.applyPatches(await fetchAsset('patches.json', revision, file?.sha256, file));
   }
-  if (changes.some((entry) => entry?.type === 'override')) {
-    const file = files.get('asset-overrides.json');
-    assets.applyAssetOverrides(await fetchAsset('asset-overrides.json', revision, file?.sha256, file));
-  }
   const kinds = new Set(changes.filter((entry) => entry?.type === 'metadata').map((entry) => entry.kind));
   for (const kind of kinds) {
     const record = ASSET_DOCUMENTS[kind];
@@ -649,6 +645,14 @@ async function reloadAssets(assets, update) {
     const descriptor = files.get(name);
     const document = await fetchAsset(name, revision, descriptor?.sha256, descriptor);
     assets[field] = field === 'cliloc' ? document?.entries : document;
+  }
+  // Apply individual custom PNGs after native metadata documents. This order
+  // is intentional: a release may replace tiledata.json and
+  // asset-overrides.json together, and the custom in-memory metadata overlay
+  // must remain the final view used by renderers and walkability.
+  if (changes.some((entry) => entry?.type === 'override')) {
+    const file = files.get('asset-overrides.json');
+    assets.applyAssetOverrides(await fetchAsset('asset-overrides.json', revision, file?.sha256, file));
   }
   bus.emit('assets:hot-reload-complete', { revision, changes });
   return true;

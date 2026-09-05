@@ -26,8 +26,50 @@ world.createMobile({ name: 'browser-audit-admin', x: 1495, y: 1625, map: 1 });
 const scriptsDir = join(ROOT, 'apps/scripts/src');
 const platformOperations = new PlatformOperations({ saveDir, scriptsDir });
 const contentDependencies = new ContentDependencyGraph({ scriptsDir, assetsDir: join(ROOT, 'apps/client/public') });
+const spawnableMonsters = new Map([
+  ['dragon', { name: 'Dragon', body: 0x3b, hue: 0x21, fame: 18000, tier: 'boss' }],
+  ['skeleton', { name: 'Skeleton', body: 0x32, hue: 0, fame: 450, tier: 'monster' }],
+]);
+const spawnableNpcs = new Map([
+  ['banker', { name: 'Avery', title: 'the banker', body: 0x190, hue: 0x83ea }],
+  ['healer', { name: 'Roberta', title: 'the healer', body: 0x191, hue: 0x83ea }],
+]);
+const spawnerGroups = new Map([['browser-audit-town', {
+  id: 'browser-audit-town', map: 1, rect: { x1: 1490, y1: 1620, x2: 1500, y2: 1630 },
+  kinds: [['banker', 1], ['healer', 1]], maxCount: 2, spawnedSerials: new Set(),
+  respawnMs: [60_000, 180_000], enabled: true, proximityRange: 24, homeRange: 4,
+}]]);
+const systemCatalog = Array.from({ length: 27 }, (_, index) => ({
+  id: `browser-system-${index + 1}`, name: `Browser System ${index + 1}`,
+  summary: `Audited activity definition ${index + 1}.`, category: index % 2 ? 'world' : 'pve',
+  archetype: index % 3 ? 'campaign' : 'defense', clientMode: index % 2 ? 'hybrid' : 'enhanced',
+  difficulty: 3 + index % 5, durationMinutes: 45 + index, party: { min: 1, max: 8 },
+  adapter: index % 2 ? 'auditAdapter' : '', stages: [
+    { id: 'discover', name: 'Discover', event: 'audit:discover', goal: 10 },
+    { id: 'resolve', name: 'Resolve', event: 'audit:resolve', goal: 20 },
+    { id: 'reward', name: 'Reward', event: 'audit:reward', goal: 1 },
+  ],
+}));
+const gameSystems = {
+  catalogSnapshot: () => ({ ok: true, systems: systemCatalog }),
+  definition: (id) => systemCatalog.find((row) => row.id === id),
+  serialize: () => ({ instances: [{ id: 'audit-instance', systemId: systemCatalog[0].id,
+    stageIndex: 0, progress: 4, participants: [], status: 'active' }] }),
+  history: [],
+  telemetrySnapshot: () => ({ ok: true, rows: [{ ...systemCatalog[0], version: 1, started: 2,
+    completed: 1, completionRate: 0.5, joined: 2, left: 1, progress: 4, active: 1 }],
+  adapters: [{ id: 'auditAdapter', healthy: true }] }),
+  reloadCatalog: () => ({ ok: true, count: systemCatalog.length }),
+};
 const server = startAdminServer({
-  port: 0, host: '127.0.0.1', accounts, sharedCtx: { world, platformOperations, contentDependencies },
+  port: 0, host: '127.0.0.1', accounts, sharedCtx: {
+    world, platformOperations, contentDependencies,
+    monsters: { kinds: () => [...spawnableMonsters.keys()], get: (kind) => spawnableMonsters.get(kind) },
+    npcs: { kinds: () => [...spawnableNpcs.keys()], get: (kind) => spawnableNpcs.get(kind) },
+    spawner: { groups: spawnerGroups, add: (group) => spawnerGroups.set(group.id, group),
+      remove: (id) => spawnerGroups.delete(id), tick: () => {} },
+    systems: { gameSystems },
+  },
   scriptsDir, saveDir,
 });
 if (!server.listening) await new Promise((ok) => server.once('listening', ok));
@@ -156,19 +198,15 @@ try {
   assert.equal(runtimePrimitives.mutation.conflicts.length, 1);
   assert.equal(runtimePrimitives.mutation.conflicts[0].payload.token, '[REDACTED]');
   assert.ok(runtimePrimitives.diagnosticShape.includes('broker') && runtimePrimitives.diagnosticShape.includes('longTasks'));
-  const internalTabs = ['dashboard', 'accounts', 'characters', 'spawners',
+  const internalTabs = ['dashboard', 'accounts', 'characters',
     'ai-graphs', 'simulators', 'platform', 'operations', 'logs'];
-  for (const removed of ['items', 'scripts', 'data', 'data-editor', 'world-design', 'animations', 'world']) {
+  for (const removed of ['items', 'scripts', 'data', 'data-editor', 'world-design', 'animations', 'world', 'spawners', 'game-systems']) {
     assert.equal(await page.locator(`[data-tab="${removed}"]`).count(), 0, `legacy duplicate tab ${removed} is visible`);
   }
   for (const tab of internalTabs) {
     await page.click(`[data-tab="${tab}"]`);
     await page.waitForTimeout(125);
     assert.ok((await page.locator('#main').innerText()).trim().length > 0, `admin tab ${tab} rendered empty`);
-    if (tab === 'spawners') {
-      assert.equal(await page.locator('#sp-bulk-dx').count(), 1, 'spawner bulk tools missing');
-      assert.ok(await page.locator('button', { hasText: 'Vendor' }).count(), 'spawner templates missing');
-    }
     if (tab === 'operations') {
       for (const id of ['ops-runtime','ops-network','ops-ai','ops-intelligence','ops-storage','ops-alerts','ops-health','ops-backups','ops-migrations','ops-flags','ops-nodeuo-delivery','ops-nodeuo-theme','ops-tests','ops-budgets'])
         assert.equal(await page.locator(`#${id}`).count(), 1, `operations section ${id} missing`);
@@ -211,6 +249,7 @@ try {
   ]);
   await page.waitForSelector('[data-domain="items"]');
   assert.equal(await page.locator('a[href="/"]', { hasText: 'Admin' }).count(), 1, 'studio return-to-admin link missing');
+  assert.equal(await page.locator('#work-tabs, .recent-chips').count(), 0, 'recent/open record chip bar returned');
   await page.goto(`${base}/`, { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('nav#tabs');
 
@@ -222,9 +261,29 @@ try {
     await page.click(`[data-tab="${embedded.tab}"]`);
     const iframe = page.locator('#main iframe');
     await iframe.waitFor({ state: 'visible' });
-    await page.frameLocator('#main iframe').locator(embedded.selector).waitFor({ state: 'attached', timeout: 12_000 });
+    const frame = page.frameLocator('#main iframe');
+    await frame.locator(embedded.selector).waitFor({ state: 'attached', timeout: 12_000 });
     const frameUrl = await iframe.getAttribute('src');
     assert.ok(frameUrl?.startsWith('/'), `embedded ${embedded.tab} has invalid src ${frameUrl}`);
+    if (embedded.tab === 'assets') {
+      await frame.locator('[data-kind="multi"]').click();
+      await frame.locator('#multi-preview').waitFor({ state: 'visible', timeout: 12_000 });
+      await frame.locator('#multi-preview .multi-tile').first().waitFor({ state: 'attached', timeout: 12_000 });
+      assert.ok(await frame.locator('#multi-preview .multi-tile').count(), 'multi visual preview rendered no components');
+      assert.equal(await frame.locator('#save-multi').count(), 1, 'safe custom multi editor is missing');
+      assert.ok(await frame.locator('.multi-components .multi-component').count(), 'multi component editor rendered no rows');
+      await frame.locator('[data-kind="animation"]').click();
+      await frame.locator('#animation-preview').waitFor({ state: 'visible', timeout: 12_000 });
+      await frame.locator('#animation-frame[src]').waitFor({ state: 'attached', timeout: 12_000 });
+      assert.ok(await frame.locator('#animation-controls select option').count(),
+        'mobile animation player rendered no actions');
+      await frame.locator('#new-custom').click();
+      await frame.locator('.modal-bg .upload-preview').waitFor({ state: 'visible' });
+      await frame.locator('.modal-bg [data-kind]').selectOption('static');
+      assert.equal(await frame.locator('.modal-bg [data-upload-properties] .field-grid').count(), 1,
+        'custom asset visual property editor missing');
+      await frame.locator('.modal-bg [data-cancel]').click();
+    }
   }
   // A stale admin document can remain visible after its Node process exits.
   // Verify that the workbench wrapper replaces Chromium's opaque refused-page
@@ -302,7 +361,7 @@ try {
   // Regression: renderState() used to replace the records host while the
   // cached VirtualList kept rendering into its detached viewport. The first
   // domain loaded, every later domain/file remained on "Loading records…".
-  for (const domain of ['items', 'spells', 'crafting', 'game-systems', 'mobiles']) {
+  for (const domain of ['items', 'spells', 'crafting', 'game-systems', 'world', 'mobiles']) {
     await page.click(`[data-domain="${domain}"]`);
     await page.waitForFunction((id) => {
       const active = document.querySelector(`[data-domain="${id}"]`)?.classList.contains('active');
@@ -329,6 +388,16 @@ try {
       assert.ok(await page.locator('[data-reward-add]').count(), 'game-system reward editor missing');
       assert.ok(await page.locator('[data-quick-path$=".event"]').count() >= 3,
         'game-system world-event bindings are not editable');
+    }
+    if (domain === 'world') {
+      assert.equal(await page.locator('[data-special-editor="world-spawner"]').count(), 1,
+        'visual world spawner editor missing');
+      assert.ok(await page.locator('.spawn-map').count(), 'spawner area preview missing');
+      assert.ok(await page.locator('[data-spawn-kind-add]').count(), 'visual mobile selector missing');
+      await page.click('[data-spawn-kind-add]');
+      await page.waitForSelector('.spawn-mobile-grid [data-mobile-id]');
+      assert.ok(await page.locator('.spawn-mobile-grid [data-mobile-id]').count(), 'spawner mobile catalogue rendered empty');
+      await page.click('.modal-bg [data-close]');
     }
   }
   const sourceOptions = await page.locator('#source option').evaluateAll((options) => options.map((option) => option.value));

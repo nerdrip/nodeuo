@@ -50,6 +50,7 @@ const __PM_DIR  = dirname(__PM_FILE);
 
 let _multiCache = null;
 let _multiMetadataCache = null;
+let _multiCustomNames = new Map();
 function loadMultis(api) {
   if (_multiCache) return _multiCache;
   // This file lives at `apps/scripts/src/commands/housing/placemulti.js`
@@ -71,9 +72,18 @@ function loadMultis(api) {
     if (!existsSync(path)) continue;
     try {
       const raw = JSON.parse(readFileSync(path, 'utf8'));
-      _multiCache = raw.multis ?? raw;
+      _multiCache = { ...(raw.multis ?? raw) };
+      _multiCustomNames = new Map();
+      try {
+        const overrides = JSON.parse(readFileSync(join(dirname(path), 'asset-overrides.json'), 'utf8'));
+        for (const [id, record] of Object.entries(overrides?.multi ?? {})) {
+          if (!Array.isArray(record?.components)) continue;
+          _multiCache[id] = record.components;
+          if (record.name) _multiCustomNames.set(Number(id) | 0, String(record.name));
+        }
+      } catch { /* the persistent custom layer is optional */ }
       _multiMetadataCache = null;
-      api.log?.(`[placemulti] loaded ${Object.keys(_multiCache).length} multis from ${path}`);
+      api.log?.(`[placemulti] loaded ${Object.keys(_multiCache).length} effective multis from ${path} (${_multiCustomNames.size} custom)`);
       return _multiCache;
     } catch (e) {
       api.log?.(`[placemulti] failed to parse ${path}: ${e.message}`);
@@ -190,7 +200,7 @@ export default function register(api) {
   };
   const removeSignHook = api.templates?.addUseItemHook?.(signHook) ?? (() => {});
   const removeAssetListener = api.world?.events?.on?.('assets:changed', (change) => {
-    if (change?.kind === 'multi') { _multiCache = null; _multiMetadataCache = null; }
+    if (change?.kind === 'multi') { _multiCache = null; _multiMetadataCache = null; _multiCustomNames = new Map(); }
   }) ?? (() => {});
 
   // `[signinfo` — target any item and dump its tile id + flags so we
@@ -623,6 +633,11 @@ export default function register(api) {
   api.systems ??= {};
   const previousMultiEditor = api.systems.multiEditor;
   api.systems.multiEditor = {
+    invalidate() {
+      _multiCache = null;
+      _multiMetadataCache = null;
+      _multiCustomNames = new Map();
+    },
     catalog() {
       if (_multiMetadataCache) return _multiMetadataCache;
       const catalogue = loadMultis(api) ?? {};
@@ -633,7 +648,7 @@ export default function register(api) {
           x1 = Math.min(x1, tile.x | 0); y1 = Math.min(y1, tile.y | 0);
           x2 = Math.max(x2, tile.x | 0); y2 = Math.max(y2, tile.y | 0);
         }
-        return { id: multiId, name: nameForMulti(multiId) || `Multi 0x${multiId.toString(16)}`,
+        return { id: multiId, name: _multiCustomNames.get(multiId) || nameForMulti(multiId) || `Multi 0x${multiId.toString(16)}`,
           kind: isHouseMulti(multiId) ? 'house' : isBoatMulti(multiId) ? 'boat' : 'other',
           tileCount: tiles?.length ?? 0, bounds: [x1, y1, x2, y2] };
       });

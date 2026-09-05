@@ -141,8 +141,6 @@
   <button data-tab="studio" data-min-rank="3" style="color:#f0c878">Content Studio</button>
   <button data-tab="assets" data-min-rank="3" style="color:#7ed39a">Assets</button>
   <button data-tab="scriptstudio" data-min-rank="3" style="color:#f0c878">Script Studio</button>
-  <button data-tab="game-systems" data-min-rank="3" style="color:#e7b8ff">Game Systems</button>
-  <button data-tab="spawners" data-min-rank="3">Spawners</button>
   <button data-tab="isoeditor" data-min-rank="3" style="color:#80ff80">World Editor</button>
   <button data-tab="ai-graphs" data-min-rank="3" style="color:#80d8ff">AI Graphs</button>
   <button data-tab="simulators" style="color:#ffd080">Simulators</button>
@@ -926,6 +924,41 @@ function wdPickQuest(i){document.getElementById('wd-quest-json').value=JSON.stri
 Object.assign(window,{wdPickRegion,wdNewRegion,wdSaveRegion,wdDeleteRegion,wdLoadHeatmap,wdPickLoot,wdSaveLoot,wdPickQuest,wdSaveQuest});
 
 // ---------------------------- Spawners ------------------------------------
+const spawnerSelections = new Map();
+
+function normalizedSpawnerKinds(kinds) {
+  return (kinds ?? []).map((entry) => Array.isArray(entry)
+    ? { kind:String(entry[0]), weight:Math.max(1,Number(entry[1])|0) }
+    : { kind:String(entry), weight:1 }).filter((entry) => entry.kind);
+}
+
+function syncSpawnerKinds(formId) {
+  const form=document.getElementById(formId),selected=spawnerSelections.get(formId)??[];
+  if(!form)return;
+  form.elements.kinds.value=selected.map((entry)=>entry.weight>1?`${entry.kind}:${entry.weight}`:entry.kind).join(', ');
+  const host=form.querySelector('[data-selected-mobs]');
+  if(!host)return;
+  host.innerHTML=selected.length?selected.map((entry,index)=>`<div class="selected-mob"><div><b>${esc(window.__spawnerKindMap?.get(entry.kind)?.name??entry.kind)}</b><small>${esc(entry.kind)}</small></div><input type="number" min="1" max="1000" value="${entry.weight}" aria-label="Weight for ${esc(entry.kind)}" onchange="setSpawnerKindWeight('${escJS(formId)}',${index},this.value)"><button class="danger" title="Remove" onclick="removeSpawnerKind('${escJS(formId)}',${index})">×</button></div>`).join(''):'<div class="gs-empty" style="min-height:130px">Choose at least one mobile from the catalogue.</div>';
+}
+
+function renderSpawnerMobChoices(formId) {
+  const form=document.getElementById(formId);if(!form)return;
+  const query=(form.querySelector('[data-mob-query]')?.value??'').trim().toLowerCase();
+  const tier=form.querySelector('[data-mob-tier]')?.value??'';
+  const selected=new Set((spawnerSelections.get(formId)??[]).map((entry)=>entry.kind));
+  const rows=(window.__spawnerKinds??[]).filter((entry)=>(!tier||entry.tier===tier)&&(!query||`${entry.kind} ${entry.name} ${entry.title??''}`.toLowerCase().includes(query))).slice(0,240);
+  const host=form.querySelector('[data-mob-list]');if(!host)return;
+  host.innerHTML=rows.length?rows.map((entry)=>`<button class="mob-choice" ${selected.has(entry.kind)?'disabled':''} onclick="addSpawnerKind('${escJS(formId)}','${escJS(entry.kind)}')"><img src="/api/studio/body-art/${entry.body??400}" alt="" loading="lazy"><span><b>${esc(entry.name)}</b><small>${esc(entry.kind)} · ${esc(entry.tier)}</small></span><span>＋</span></button>`).join(''):'<div class="gs-empty" style="min-height:160px">No spawnable definitions match this filter.</div>';
+}
+
+function initializeSpawnerPicker(formId,kinds) {
+  spawnerSelections.set(formId,normalizedSpawnerKinds(kinds));
+  syncSpawnerKinds(formId);renderSpawnerMobChoices(formId);
+}
+function addSpawnerKind(formId,kind){const rows=spawnerSelections.get(formId)??[];if(!rows.some((entry)=>entry.kind===kind))rows.push({kind,weight:1});spawnerSelections.set(formId,rows);syncSpawnerKinds(formId);renderSpawnerMobChoices(formId)}
+function removeSpawnerKind(formId,index){const rows=spawnerSelections.get(formId)??[];rows.splice(index,1);spawnerSelections.set(formId,rows);syncSpawnerKinds(formId);renderSpawnerMobChoices(formId)}
+function setSpawnerKindWeight(formId,index,value){const row=spawnerSelections.get(formId)?.[index];if(row)row.weight=Math.max(1,Number(value)|0);syncSpawnerKinds(formId)}
+
 async function deleteSpawner(id) {
   if (!confirm(`Delete spawner "${id}"? Active mobs survive; only the spawn-group is removed.`)) return;
   await api('DELETE', `/api/spawners/${encodeURIComponent(id)}`);
@@ -972,80 +1005,87 @@ async function saveSpawner(formId, existingId) {
   };
   const res = await api('POST', '/api/spawners', payload);
   if (res?.error) { alert('save failed: ' + res.error); return; }
+  closeModal();
   document.querySelector('[data-tab="spawners"]')?.click();
 }
 
 function spawnerForm(formId, existing) {
   const e = existing ?? {};
   return `
-    <form id="${formId}" onsubmit="return false" style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;font-size:11px;margin-top:8px">
-      ${existing ? '' : `<label>ID<input name="id" required style="width:100%" placeholder="custom-spawner-1"></label><div></div>`}
-      <label>Map<select name="map">
-        <option value="1" ${e.map===1?'selected':''}>1 Trammel</option>
-        <option value="0" ${e.map===0?'selected':''}>0 Felucca</option>
-        <option value="2" ${e.map===2?'selected':''}>2 Ilshenar</option>
-        <option value="3" ${e.map===3?'selected':''}>3 Malas</option>
-        <option value="4" ${e.map===4?'selected':''}>4 Tokuno</option>
-        <option value="5" ${e.map===5?'selected':''}>5 TerMur</option>
-      </select></label>
-      <label>Max count<input name="maxCount" type="number" value="${e.maxCount ?? 5}" min="1" max="50"></label>
-      <label>X1<input name="x1" type="number" value="${e.rect?.x1 ?? 0}"></label>
-      <label>Y1<input name="y1" type="number" value="${e.rect?.y1 ?? 0}"></label>
-      <label>X2<input name="x2" type="number" value="${e.rect?.x2 ?? 0}"></label>
-      <label>Y2<input name="y2" type="number" value="${e.rect?.y2 ?? 0}"></label>
-      <label style="grid-column:span 2">Kinds (comma-separated)<input name="kinds" value="${esc((e.kinds ?? []).map((k) => Array.isArray(k) ? k.join(':') : k).join(', '))}" placeholder="rat, scorpion, ettin:2"></label>
-      <label>Respawn lo (ms)<input name="respawnLo" type="number" value="${e.respawnMs?.[0] ?? 30000}"></label>
-      <label>Respawn hi (ms)<input name="respawnHi" type="number" value="${e.respawnMs?.[1] ?? 120000}"></label>
-      <label>Proximity range<input name="proximityRange" type="number" value="${e.proximityRange ?? 0}"></label>
-      <label>Home range<input name="homeRange" type="number" value="${e.homeRange ?? 5}"></label>
-      <label>Team<input name="team" type="number" value="${e.team ?? 0}" min="-1" max="255"></label>
-      <label>Roaming<select name="roaming"><option value="stationary" ${e.roaming==='stationary'?'selected':''}>Stationary</option><option value="home" ${!e.roaming||e.roaming==='home'?'selected':''}>Home range</option><option value="free" ${e.roaming==='free'?'selected':''}>Free</option></select></label>
-      <label><input name="enabled" type="checkbox" ${e.enabled!==false?'checked':''}> Enabled</label><div></div>
-      <label>Schedule days (0–6)<input name="scheduleDays" value="${esc((e.schedule?.days??[]).join(','))}" placeholder="e.g. 1,2,3,4,5"></label>
-      <label>UTC hours<div><input name="scheduleStart" type="number" min="0" max="23" value="${e.schedule?.startHour ?? ''}" placeholder="start"> – <input name="scheduleEnd" type="number" min="0" max="24" value="${e.schedule?.endHour ?? ''}" placeholder="end"></div></label>
-      <label>Region condition<input name="region" value="${esc(e.regionConditions?.region??'')}" placeholder="optional region"></label>
-      <label>Players in rect<div><input name="minPlayers" type="number" min="0" value="${e.regionConditions?.minPlayers??''}" placeholder="min"> – <input name="maxPlayers" type="number" min="0" value="${e.regionConditions?.maxPlayers??''}" placeholder="max"></div></label>
-      <div style="grid-column:span 2;display:flex;gap:6px">
+    <form id="${formId}" class="spawner-form" onsubmit="return false">
+      <input type="hidden" name="kinds" value="">
+      <section class="spawner-form-section"><h4>Identity and area</h4><div class="spawner-form-grid">
+        ${existing ? `<label>Spawner ID<input value="${esc(e.id)}" disabled></label>` : `<label>Spawner ID<input name="id" required placeholder="custom-spawner-1"></label>`}
+        <label>Facet<select name="map">${[[1,'Trammel'],[0,'Felucca'],[2,'Ilshenar'],[3,'Malas'],[4,'Tokuno'],[5,'TerMur']].map(([id,name])=>`<option value="${id}" ${e.map===id?'selected':''}>${id} · ${name}</option>`).join('')}</select></label>
+        <label>X1<input name="x1" type="number" value="${e.rect?.x1 ?? 0}"></label><label>Y1<input name="y1" type="number" value="${e.rect?.y1 ?? 0}"></label>
+        <label>X2<input name="x2" type="number" value="${e.rect?.x2 ?? 0}"></label><label>Y2<input name="y2" type="number" value="${e.rect?.y2 ?? 0}"></label>
+        <label>Max population<input name="maxCount" type="number" value="${e.maxCount ?? 5}" min="1" max="50"></label>
+        <label><span>State</span><span><input name="enabled" type="checkbox" ${e.enabled!==false?'checked':''}> Enabled</span></label>
+      </div></section>
+      <section class="spawner-form-section"><h4>Spawn catalogue</h4><div class="mob-picker-layout"><div class="mob-picker-browser"><div class="mob-picker-tools"><input data-mob-query placeholder="Search by name or definition ID…" aria-label="Search spawnable mobiles" oninput="renderSpawnerMobChoices('${escJS(formId)}')"><select data-mob-tier aria-label="Mobile category" onchange="renderSpawnerMobChoices('${escJS(formId)}')"><option value="">All categories</option><option value="npc">NPCs</option><option value="fauna">Fauna</option><option value="tame">Tameable</option><option value="monster">Monsters</option><option value="paragon">Paragons</option><option value="boss">Bosses</option></select></div><div class="mob-picker-list" data-mob-list></div></div><div><h4 style="margin-top:0">Selected population</h4><div class="selected-mobs" data-selected-mobs></div></div></div></section>
+      <section class="spawner-form-section"><h4>Behavior and timing</h4><div class="spawner-form-grid">
+        <label>Respawn minimum (ms)<input name="respawnLo" type="number" value="${e.respawnMs?.[0] ?? 30000}" min="1000"></label>
+        <label>Respawn maximum (ms)<input name="respawnHi" type="number" value="${e.respawnMs?.[1] ?? 120000}" min="1000"></label>
+        <label>Activation range<input name="proximityRange" type="number" value="${e.proximityRange ?? 0}" min="0" max="256"></label>
+        <label>Home range<input name="homeRange" type="number" value="${e.homeRange ?? 5}" min="0" max="256"></label>
+        <label>Team<input name="team" type="number" value="${e.team ?? 0}" min="-1" max="255"></label>
+        <label>Roaming<select name="roaming"><option value="stationary" ${e.roaming==='stationary'?'selected':''}>Stationary</option><option value="home" ${!e.roaming||e.roaming==='home'?'selected':''}>Home range</option><option value="free" ${e.roaming==='free'?'selected':''}>Free</option></select></label>
+      </div><details><summary>Schedule and region conditions</summary><div class="spawner-form-grid">
+        <label>Schedule days (0–6)<input name="scheduleDays" value="${esc((e.schedule?.days??[]).join(','))}" placeholder="1,2,3,4,5"></label>
+        <label>UTC start hour<input name="scheduleStart" type="number" min="0" max="23" value="${e.schedule?.startHour ?? ''}" placeholder="start"></label>
+        <label>UTC end hour<input name="scheduleEnd" type="number" min="0" max="24" value="${e.schedule?.endHour ?? ''}" placeholder="end"></label>
+        <label>Region<input name="region" value="${esc(e.regionConditions?.region??'')}" placeholder="optional region"></label>
+        <label>Minimum players<input name="minPlayers" type="number" min="0" value="${e.regionConditions?.minPlayers??''}"></label>
+        <label>Maximum players<input name="maxPlayers" type="number" min="0" value="${e.regionConditions?.maxPlayers??''}"></label>
+      </div></details></section>
+      <div class="toolbar">
         <button class="primary" onclick="saveSpawner('${escJS(formId)}', ${existing ? `'${escJS(existing.id)}'` : 'null'})">${existing ? 'Save' : 'Create'}</button>
         <button onclick="simulateSpawner('${escJS(formId)}', ${existing ? `'${escJS(existing.id)}'` : 'null'})">Simulate 5k</button>
       </div>
-      <div id="${formId}-simulation" style="grid-column:span 2"></div>
+      <div id="${formId}-simulation"></div>
     </form>`;
 }
 
 function toggleEditor(id) {
   const spawner=(window.__spawnerRows??[]).find(row=>row.id===id); if(!spawner)return;
   showModal(`Edit spawner: ${esc(id)}`,spawnerForm('spform-'+id,spawner));
+  document.querySelector('#modal-host .modal')?.classList.add('modal-wide');
+  initializeSpawnerPicker('spform-'+id,spawner.kinds);
+}
+
+function newSpawner(templateIndex=null) {
+  showModal('Create spawner',`${templateIndex==null?`<div class="toolbar">Templates: ${(window.__spawnerTemplates??[]).map((template,index)=>`<button onclick="applySpawnerTemplate('spform-new',${index})">${esc(template.label)}</button>`).join('')}</div>`:''}${spawnerForm('spform-new',null)}`);
+  document.querySelector('#modal-host .modal')?.classList.add('modal-wide');
+  initializeSpawnerPicker('spform-new',[]);
+  if(templateIndex!=null)applySpawnerTemplate('spform-new',templateIndex);
+}
+
+function renderSpawnerCards() {
+  const host=document.getElementById('spawners-list');if(!host)return;
+  const q=(document.getElementById('sp-query')?.value??'').trim().toLowerCase();
+  const map=document.getElementById('sp-map-filter')?.value??'';
+  const rows=(window.__spawnerRows??[]).filter((row)=>(map===''||String(row.map)===map)&&(!q||`${row.id} ${(row.kinds??[]).flat().join(' ')}`.toLowerCase().includes(q)));
+  const pageSize=18,pages=Math.max(1,Math.ceil(rows.length/pageSize));window.__spawnerPage=Math.min(window.__spawnerPage??0,pages-1);
+  const visible=rows.slice(window.__spawnerPage*pageSize,(window.__spawnerPage+1)*pageSize);
+  host.innerHTML=`<div class="spawner-grid">${visible.map((row)=>`<article class="spawner-card ${row.enabled===false?'off':''}"><div class="spawner-card-head"><input type="checkbox" data-spawner-select value="${esc(row.id)}" aria-label="Select ${esc(row.id)}"><div><b>${esc(row.id)}</b><small>Map ${row.map} · ${row.rect?`${row.rect.x1},${row.rect.y1} → ${row.rect.x2},${row.rect.y2}`:'no area'}</small></div><span class="pill ${row.enabled===false?'':'online'}">${row.enabled===false?'paused':'active'}</span></div><div class="spawner-population">${(row.kinds??[]).map((kind)=>{const id=Array.isArray(kind)?kind[0]:kind,weight=Array.isArray(kind)?kind[1]:1;return`<span class="spawn-kind-pill">${esc(window.__spawnerKindMap?.get(id)?.name??id)}${weight>1?` ×${weight}`:''}</span>`}).join('')}</div><div class="spawner-card-foot"><b>${row.active??0}/${row.maxCount??'?'} alive</b><span class="grow"></span><button onclick="tpToSpawner('${escJS(row.id)}')">TP</button><button onclick="respawnSpawner('${escJS(row.id)}')">Respawn</button><button onclick="toggleEditor('${escJS(row.id)}')">Edit</button><button class="danger" onclick="deleteSpawner('${escJS(row.id)}')">×</button></div></article>`).join('')}</div><div class="gs-pager"><button ${window.__spawnerPage<=0?'disabled':''} onclick="window.__spawnerPage--;renderSpawnerCards()">← Previous</button><span>${rows.length?window.__spawnerPage*pageSize+1:0}–${Math.min(rows.length,(window.__spawnerPage+1)*pageSize)} / ${rows.length}</span><button ${window.__spawnerPage>=pages-1?'disabled':''} onclick="window.__spawnerPage++;renderSpawnerCards()">Next →</button></div>`;
 }
 
 registerTab('spawners', async () => {
-  const [r, diagnostics, templateResult] = await Promise.all([
+  const [r, diagnostics, templateResult,kindResult] = await Promise.all([
     api('GET', '/api/spawners').catch(() => ({ spawners: [], count: 0 })),
     api('GET', '/api/spawners/diagnostics').catch(() => ({ issueCount: 0 })),
     api('GET', '/api/spawners/templates').catch(() => ({ templates: [] })),
+    api('GET', '/api/monster-kinds').catch(() => ({ kinds: [] })),
   ]);
   window.__spawnerTemplates = templateResult.templates ?? [];
   window.__spawnerRows=r.spawners??[];
+  window.__spawnerKinds=kindResult.kinds??[];window.__spawnerKindMap=new Map(window.__spawnerKinds.map((entry)=>[entry.kind,entry]));window.__spawnerPage=0;
+  const active=window.__spawnerRows.reduce((sum,row)=>sum+(row.active??0),0),capacity=window.__spawnerRows.reduce((sum,row)=>sum+(row.maxCount??0),0),enabled=window.__spawnerRows.filter((row)=>row.enabled!==false).length;
   document.getElementById('main').innerHTML = `
-    <div class="card">
-      <h2>Spawners (${r.count ?? 0})</h2>
-      <div style="opacity:.6;font-size:11px;margin-bottom:6px">
-        "tp" centres the last-selected character. "edit" opens an inline editor; "×" removes the spawn-group (active mobs survive). Use the iso editor's spawner overlay to drag-create a new rect; the map's <code>/api/locations</code> + this listing share the same coordinate space.
-      </div>
-      <div class="toolbar"><button onclick="bulkSpawners('enable')">Enable</button><button onclick="bulkSpawners('disable')">Disable</button><input id="sp-bulk-dx" type="number" value="0" title="Move X"><input id="sp-bulk-dy" type="number" value="0" title="Move Y"><select id="sp-bulk-map" aria-label="Destination facet"><option value="">same facet</option>${[0,1,2,3,4,5].map(n=>`<option>${n}</option>`).join('')}</select><button onclick="bulkSpawners('move')">Move</button><button class="danger" onclick="bulkSpawners('delete')">Delete</button></div>
-      <p class="${diagnostics.issueCount?'error':'muted'}">Diagnostics: ${diagnostics.issueCount??0} issue(s) · duplicate ${diagnostics.duplicatePairs?.length??0} · empty ${diagnostics.emptyKinds?.length??0} · stalled ${diagnostics.stalled?.length??0} · orphan ${diagnostics.orphanSerials?.length??0}</p>
-      <div id="spawners-table"></div>
-      <h3 style="margin-top:14px">Create new spawner</h3>
-      <div class="toolbar">Templates: ${(templateResult.templates??[]).map((t,i)=>`<button onclick="applySpawnerTemplate('spform-new',${i})">${esc(t.label)}</button>`).join('')}</div>
-      ${spawnerForm('spform-new', null)}
-    </div>
+    <section class="card"><div class="workbench-hero"><div><h2>Spawner workbench</h2><p class="muted">Create populations from actual mobile definitions, inspect live capacity and edit areas without typing kind names.</p></div><div class="toolbar"><button onclick="globalThis.activate('isoeditor')">Open world editor</button><button class="primary" onclick="newSpawner()">＋ New spawner</button></div></div><div class="workbench-metrics"><div class="workbench-metric"><b>${r.count??0}</b><span>groups</span></div><div class="workbench-metric"><b>${enabled}</b><span>enabled</span></div><div class="workbench-metric"><b>${active}/${capacity}</b><span>live / capacity</span></div><div class="workbench-metric"><b>${diagnostics.issueCount??0}</b><span>diagnostic issues</span></div></div></section>
+    <section class="card"><div class="spawner-toolbar"><input id="sp-query" type="search" placeholder="Search spawners or mobiles…" aria-label="Search spawners" oninput="window.__spawnerPage=0;renderSpawnerCards()"><select id="sp-map-filter" aria-label="Filter spawners by facet" onchange="window.__spawnerPage=0;renderSpawnerCards()"><option value="">All facets</option>${[0,1,2,3,4,5].map((map)=>`<option value="${map}">Map ${map}</option>`).join('')}</select><button onclick="bulkSpawners('enable')">Enable selected</button><button onclick="bulkSpawners('disable')">Pause selected</button></div><details><summary>Bulk move and delete</summary><div class="toolbar"><input id="sp-bulk-dx" type="number" value="0" aria-label="Move selected spawners on X axis"><input id="sp-bulk-dy" type="number" value="0" aria-label="Move selected spawners on Y axis"><select id="sp-bulk-map" aria-label="Destination facet"><option value="">same facet</option>${[0,1,2,3,4,5].map(n=>`<option>${n}</option>`).join('')}</select><button onclick="bulkSpawners('move')">Move selected</button><button class="danger" onclick="bulkSpawners('delete')">Delete selected</button></div></details><p class="${diagnostics.issueCount?'error':'muted'}">Diagnostics: ${diagnostics.issueCount??0} issue(s) · duplicate ${diagnostics.duplicatePairs?.length??0} · empty ${diagnostics.emptyKinds?.length??0} · stalled ${diagnostics.stalled?.length??0} · orphan ${diagnostics.orphanSerials?.length??0}</p><div id="spawners-list"></div></section>
   `;
-  const table=new AdminCore.VirtualTable(document.getElementById('spawners-table'),{
-    key:s=>s.id,
-    columns:[{label:'Select',width:'60px'},{label:'ID',width:'minmax(130px,1fr)'},{label:'Map',width:'55px'},{label:'Rect',width:'170px'},{label:'Center',width:'100px'},{label:'Kinds',width:'minmax(160px,1.5fr)'},{label:'Active/Max',width:'95px'},{label:'Actions',width:'260px'}],
-    renderCells:s=>[`<input type="checkbox" data-spawner-select value="${esc(s.id)}" aria-label="Select ${esc(s.id)}">`,`${esc(s.id)} ${s.enabled===false?'<span class="pill">paused</span>':''}`,s.map,s.rect?`${s.rect.x1},${s.rect.y1}–${s.rect.x2},${s.rect.y2}`:'?',s.center?`${s.center.x},${s.center.y}`:'—',esc(s.kinds?.map?.(k=>Array.isArray(k)?k.join(':'):k).join(', ')??''),`${s.active??0}/${s.maxCount??'?'}`,`<button onclick="tpToSpawner('${escJS(s.id)}')">tp</button><button onclick="respawnSpawner('${escJS(s.id)}')">respawn</button><button onclick="toggleEditor('${escJS(s.id)}')">edit</button><button class="danger" onclick="deleteSpawner('${escJS(s.id)}')">×</button>`],
-  });
-  table.setItems(window.__spawnerRows); AdminCore.reportClientMetrics({spawnersTable:table.snapshot()});
+  renderSpawnerCards();AdminCore.reportClientMetrics({spawners:window.__spawnerRows.length,spawnableDefinitions:window.__spawnerKinds.length});
 });
 // `tpToSpawner` is defined earlier (next to tpToItem) — both go through
 // `tpMe()` which uses the logged-in admin's character. This stub just
@@ -1111,8 +1151,9 @@ async function bulkSpawners(action){
 }
 function applySpawnerTemplate(formId,index){
   const t=window.__spawnerTemplates?.[index]?.value;if(!t)return;const f=document.getElementById(formId);if(!f)return;
-  for(const [name,value] of Object.entries({maxCount:t.maxCount,respawnLo:t.respawnMs?.[0],respawnHi:t.respawnMs?.[1],proximityRange:t.proximityRange,homeRange:t.homeRange,team:t.team,roaming:t.roaming,kinds:(t.kinds??[]).map(k=>Array.isArray(k)?k.join(':'):k).join(', ')})){if(f.elements[name]&&value!=null)f.elements[name].value=value;}
+  for(const [name,value] of Object.entries({maxCount:t.maxCount,respawnLo:t.respawnMs?.[0],respawnHi:t.respawnMs?.[1],proximityRange:t.proximityRange,homeRange:t.homeRange,team:t.team,roaming:t.roaming})){if(f.elements[name]&&value!=null)f.elements[name].value=value;}
   if(f.elements.enabled)f.elements.enabled.checked=t.enabled!==false;
+  initializeSpawnerPicker(formId,t.kinds??[]);
 }
 function renderAiNode(node,index,graph) {
   const ids=[''].concat(graph.nodes.map((n)=>n.id));
@@ -1185,35 +1226,65 @@ Object.assign(window,{loadAnimationBody,restartAnimation,validateAnimations});
 let logTimer = null;
 // ---------------------- Game-system operations ----------------------------
 let gameSystemCatalog=[];
+let gameSystemInstances=[];
+let gameSystemTelemetry={rows:[],adapters:[]};
+let gameSystemView='catalog';
+let gameSystemPage=0;
+const gameSystemPageSize=12;
 registerTab('game-systems', async () => {
   document.getElementById('main').innerHTML=`
-    <div class="card"><div class="toolbar"><h2 style="margin-right:auto">Game Systems</h2><a href="/studio#game-systems">Edit definitions</a><a href="/docs#authoring">Authoring tutorial</a><button onclick="gameSystemsReload()">Validate & reload</button></div>
-      <p class="muted">One authoritative server runtime powers Classic UO gumps and the negotiated NodeUO JSON workbench. Definitions, live instances, rewards, and compatibility are visible here.</p>
-      <div class="toolbar"><input id="gs-query" placeholder="Search 100 systems" aria-label="Search game systems" oninput="gameSystemsFilter()"><select id="gs-category" aria-label="Game-system category" onchange="gameSystemsFilter()"><option value="">All categories</option><option>world</option><option>pve</option><option>narrative</option><option>economy</option><option>pvp</option><option>culture</option><option>progression</option></select><select id="gs-system" aria-label="Game system to start"></select><button class="primary" onclick="gameSystemsStart()">Start selected</button><button onclick="gameSystemsSimulate()">Simulate balance</button></div>
-      <div id="gs-catalog" style="height:430px;min-height:260px"></div>
-    </div>
-    <div class="card"><h2>Live instances</h2><div id="gs-instances"></div></div>
-    <div class="card"><h2>Balance telemetry & adapter health</h2><div id="gs-telemetry"></div></div>`;
+    <section class="card gs-shell"><div class="workbench-hero"><div><h2>Game Systems</h2><p class="muted">Browse authored activities without mixing their catalogue, live state and telemetry into one unbounded table.</p></div><div class="toolbar"><a href="/studio#game-systems">Edit definitions</a><a href="/docs#authoring">Authoring guide</a><button onclick="gameSystemsReload()">Validate & reload</button></div></div><div id="gs-summary" class="workbench-metrics"></div><div class="toolbar" style="margin-top:12px"><select id="gs-system" aria-label="Game system to start"></select><button class="primary" onclick="gameSystemsStart()">Start selected</button><button onclick="gameSystemsSimulate()">Simulate balance</button></div><nav class="workbench-tabs" aria-label="Game-system views"><button data-gs-view="catalog" onclick="gameSystemsTab('catalog')">Catalogue</button><button data-gs-view="instances" onclick="gameSystemsTab('instances')">Live instances</button><button data-gs-view="telemetry" onclick="gameSystemsTab('telemetry')">Telemetry & adapters</button></nav></section>
+    <section class="card" id="gs-panel"><div class="gs-empty">Loading game systems…</div></section>`;
   await gameSystemsRefresh();
 });
 async function gameSystemsRefresh(){
-  const [catalog,live,telemetry]=await Promise.all([api('GET','/api/game-systems/catalog'),api('GET','/api/game-systems/instances'),api('GET','/api/game-systems/telemetry')]);
+  const [catalog,live,telemetry]=await Promise.all([
+    api('GET','/api/game-systems/catalog').catch((error)=>({systems:[],error:error.message})),
+    api('GET','/api/game-systems/instances').catch((error)=>({instances:[],error:error.message})),
+    api('GET','/api/game-systems/telemetry').catch((error)=>({rows:[],adapters:[],error:error.message})),
+  ]);
   gameSystemCatalog=catalog.systems??[];
+  gameSystemInstances=live.instances??[];
+  gameSystemTelemetry=telemetry;
   const select=document.getElementById('gs-system');if(select)select.innerHTML=gameSystemCatalog.map(row=>`<option value="${esc(row.id)}">${esc(row.name)}</option>`).join('');
-  gameSystemsFilter();
-  const host=document.getElementById('gs-instances');if(host)host.innerHTML=`<table><thead><tr><th>System / instance</th><th>Stage</th><th>Players</th><th>Status</th><th>Control</th></tr></thead><tbody>${(live.instances??[]).map(row=>`<tr><td>${esc(row.systemId)}<br><span class="muted">${esc(row.id)}</span></td><td>${row.stageIndex+1} · ${row.progress}</td><td>${row.participants?.length??0}</td><td>${esc(row.status)}</td><td>${['completed','failed','cancelled'].includes(row.status)?'—':`<button onclick="gameSystemsTransition('${esc(row.id)}','${row.status==='paused'?'active':'paused'}')">${row.status==='paused'?'Resume':'Pause'}</button> <button onclick="gameSystemsTransition('${esc(row.id)}','completed')">Complete</button> <button class="danger" onclick="gameSystemsTransition('${esc(row.id)}','cancelled')">Cancel</button>`}</td></tr>`).join('')||'<tr><td colspan="5">No activity instances yet.</td></tr>'}</tbody></table>`;
-  const metrics=document.getElementById('gs-telemetry');if(metrics)metrics.innerHTML=`<table><thead><tr><th>System</th><th>Started / completed</th><th>Join / leave</th><th>Progress</th><th>Rejected</th><th>Active</th></tr></thead><tbody>${(telemetry.rows??[]).filter(row=>row.started||row.active).map(row=>`<tr><td>${esc(row.name)} <span class="muted">v${row.version}</span></td><td>${row.started??0} / ${row.completed??0} (${Math.round((row.completionRate??0)*100)}%)</td><td>${row.joined??0} / ${row.left??0}</td><td>${row.progress??0}</td><td>${(row.rateLimited??0)+(row.duplicateEvents??0)+(row.specialRejected??0)}</td><td>${row.active??0}</td></tr>`).join('')||'<tr><td colspan="6">Telemetry appears after the first activity starts.</td></tr>'}</tbody></table><details><summary>Adapter health</summary><pre>${esc(JSON.stringify(telemetry.adapters??[],null,2))}</pre></details>`;
+  const active=gameSystemInstances.filter((row)=>row.status==='active').length;
+  const measured=(telemetry.rows??[]).filter((row)=>row.started||row.active).length;
+  const summary=document.getElementById('gs-summary');if(summary)summary.innerHTML=`<div class="workbench-metric"><b>${gameSystemCatalog.length}</b><span>definitions</span></div><div class="workbench-metric"><b>${active}</b><span>active instances</span></div><div class="workbench-metric"><b>${gameSystemInstances.length}</b><span>instance history</span></div><div class="workbench-metric"><b>${measured}</b><span>measured systems</span></div>`;
+  renderGameSystemView({error:catalog.error||live.error||telemetry.error});
 }
 function gameSystemsFilter(){
-  const host=document.getElementById('gs-catalog');if(!host)return;const q=(document.getElementById('gs-query')?.value??'').toLowerCase(),category=document.getElementById('gs-category')?.value??'';
+  gameSystemPage=0;
+  const query=document.getElementById('gs-query')?.value??'',category=document.getElementById('gs-category')?.value??'';
+  renderGameSystemCatalog(query,category);
+}
+function gameSystemsTab(view){gameSystemView=['catalog','instances','telemetry'].includes(view)?view:'catalog';gameSystemPage=0;renderGameSystemView()}
+function gameSystemsPageBy(delta){gameSystemPage=Math.max(0,gameSystemPage+delta);const query=document.getElementById('gs-query')?.value??'',category=document.getElementById('gs-category')?.value??'';renderGameSystemCatalog(query,category)}
+function gameSystemsChoose(id){const select=document.getElementById('gs-system');if(select){select.value=id;select.focus()}}
+function renderGameSystemView(state={}){
+  document.querySelectorAll('[data-gs-view]').forEach((button)=>button.classList.toggle('active',button.dataset.gsView===gameSystemView));
+  const host=document.getElementById('gs-panel');if(!host)return;
+  if(state.error&&!gameSystemCatalog.length&&!gameSystemInstances.length){host.innerHTML=`<div class="gs-empty"><div><b>Game-system runtime is unavailable</b><p>${esc(state.error)}</p></div></div>`;return}
+  if(gameSystemView==='catalog'){
+    host.innerHTML=`<div class="gs-controls"><input id="gs-query" type="search" placeholder="Search name, ID or summary…" aria-label="Search game systems" oninput="gameSystemsFilter()"><select id="gs-category" aria-label="Game-system category" onchange="gameSystemsFilter()"><option value="">All categories</option>${['world','pve','narrative','economy','pvp','culture','progression'].map((category)=>`<option>${category}</option>`).join('')}</select></div><div id="gs-catalog"></div>`;
+    renderGameSystemCatalog();return;
+  }
+  if(gameSystemView==='instances'){
+    host.innerHTML=gameSystemInstances.length?`<div class="gs-table-wrap"><table><thead><tr><th>System / instance</th><th>Stage</th><th>Players</th><th>Status</th><th>Control</th></tr></thead><tbody>${gameSystemInstances.map(row=>`<tr><td><b>${esc(gameSystemCatalog.find((system)=>system.id===row.systemId)?.name??row.systemId)}</b><br><span class="muted">${esc(row.id)}</span></td><td>${(row.stageIndex??0)+1} · ${row.progress??0}</td><td>${row.participants?.length??0}</td><td><span class="pill ${row.status==='active'?'online':''}">${esc(row.status)}</span></td><td>${['completed','failed','cancelled'].includes(row.status)?'—':`<button onclick="gameSystemsTransition('${escJS(row.id)}','${row.status==='paused'?'active':'paused'}')">${row.status==='paused'?'Resume':'Pause'}</button> <button onclick="gameSystemsTransition('${escJS(row.id)}','completed')">Complete</button> <button class="danger" onclick="gameSystemsTransition('${escJS(row.id)}','cancelled')">Cancel</button>`}</td></tr>`).join('')}</tbody></table></div>`:'<div class="gs-empty">No live or recent activity instances.</div>';return;
+  }
+  const rows=(gameSystemTelemetry.rows??[]).filter((row)=>row.started||row.active);
+  host.innerHTML=`${rows.length?`<div class="gs-table-wrap"><table><thead><tr><th>System</th><th>Started / completed</th><th>Join / leave</th><th>Progress</th><th>Rejected</th><th>Active</th></tr></thead><tbody>${rows.map(row=>`<tr><td>${esc(row.name)} <span class="muted">v${row.version}</span></td><td>${row.started??0} / ${row.completed??0} (${Math.round((row.completionRate??0)*100)}%)</td><td>${row.joined??0} / ${row.left??0}</td><td>${row.progress??0}</td><td>${(row.rateLimited??0)+(row.duplicateEvents??0)+(row.specialRejected??0)}</td><td>${row.active??0}</td></tr>`).join('')}</tbody></table></div>`:'<div class="gs-empty">Telemetry appears after the first activity starts.</div>'}<details><summary>Adapter health (${gameSystemTelemetry.adapters?.length??0})</summary><pre>${esc(JSON.stringify(gameSystemTelemetry.adapters??[],null,2))}</pre></details>`;
+}
+function renderGameSystemCatalog(query='',category=''){
+  const host=document.getElementById('gs-catalog');if(!host)return;const q=query.trim().toLowerCase();
   const rows=gameSystemCatalog.filter(row=>(!category||row.category===category)&&(!q||`${row.id} ${row.name} ${row.summary}`.toLowerCase().includes(q)));
-  host.innerHTML=`<table><thead><tr><th>System</th><th>Loop</th><th>Client</th><th>Rules</th></tr></thead><tbody>${rows.map(row=>`<tr><td><b>${esc(row.name)}</b><br><span class="muted">${esc(row.id)} · ${esc(row.category)} · ${esc(row.archetype)}</span></td><td>${(row.stages??[]).map((stage,index)=>`${index+1}. ${esc(stage.name)}`).join('<br>')}<br><span class="muted">${esc(row.summary)}</span></td><td><span class="pill ${row.clientMode==='enhanced'?'':'online'}">${esc(row.clientMode)}</span><br>${row.adapter?`<span class="muted">adapter: ${esc(row.adapter)}</span>`:''}</td><td>difficulty ${row.difficulty}/10<br>${row.party.min}-${row.party.max} players · ${row.party.teams} team(s)<br>${row.durationMinutes} min · ${row.reward.gold}g + ${row.reward.tokens} tokens</td></tr>`).join('')||'<tr><td colspan="4">No matching systems.</td></tr>'}</tbody></table>`;
+  const pages=Math.max(1,Math.ceil(rows.length/gameSystemPageSize));gameSystemPage=Math.min(gameSystemPage,pages-1);const visible=rows.slice(gameSystemPage*gameSystemPageSize,(gameSystemPage+1)*gameSystemPageSize);
+  host.innerHTML=visible.length?`<div class="gs-card-grid">${visible.map((row)=>`<article class="gs-system-card"><header><div><h3>${esc(row.name)}</h3><small>${esc(row.id)} · ${esc(row.category)} · ${esc(row.archetype)}</small></div><span class="pill ${row.clientMode==='enhanced'?'':'online'}">${esc(row.clientMode)}</span></header><p>${esc(row.summary)}</p><div class="gs-stage-list">${(row.stages??[]).slice(0,5).map((stage,index)=>`<span><b>${index+1}.</b> ${esc(stage.name)}</span>`).join('')}</div><div class="gs-card-meta"><div><b>${row.difficulty??'—'}/10</b><small>difficulty</small></div><div><b>${row.party?.min??1}–${row.party?.max??1}</b><small>players</small></div><div><b>${row.durationMinutes??'—'} min</b><small>duration</small></div></div><div class="toolbar"><button onclick="gameSystemsChoose('${escJS(row.id)}')">Select</button>${row.adapter?`<small>adapter: ${esc(row.adapter)}</small>`:''}</div></article>`).join('')}</div><div class="gs-pager"><button ${gameSystemPage<=0?'disabled':''} onclick="gameSystemsPageBy(-1)">← Previous</button><span>${gameSystemPage*gameSystemPageSize+1}–${Math.min(rows.length,(gameSystemPage+1)*gameSystemPageSize)} / ${rows.length}</span><button ${gameSystemPage>=pages-1?'disabled':''} onclick="gameSystemsPageBy(1)">Next →</button></div>`:'<div class="gs-empty">No systems match these filters.</div>';
 }
 async function gameSystemsStart(){const systemId=document.getElementById('gs-system').value,r=await api('POST','/api/game-systems/instances',{systemId});flashToast(r.ok?(r.existing?'Already active':'Activity started'):r.error);await gameSystemsRefresh()}
 async function gameSystemsTransition(id,status){const r=await api('POST',`/api/game-systems/instances/${encodeURIComponent(id)}/transition`,{status});flashToast(r.ok?`Activity ${status}`:r.error);await gameSystemsRefresh()}
 async function gameSystemsReload(){const r=await api('POST','/api/game-systems/reload',{});flashToast(r.ok?`${r.count} systems validated and reloaded`:r.error);await gameSystemsRefresh()}
 function gameSystemsSimulate(){const systemId=document.getElementById('gs-system').value;showModal('Balance simulation',`<label>Skill value (0–120)<input id="gs-sim-skill" type="number" min="0" max="120" value="70" style="width:100%"></label><p class="muted">This is a read-only deterministic preview; it does not modify a player or live activity.</p>`,[{label:'Run simulation',primary:true,action:async()=>{const skill=Math.max(0,Math.min(120,Number(document.getElementById('gs-sim-skill').value)||0));const r=await api('POST','/api/game-systems/simulate',{systemId,skill});const tactics=(r.tactics??[]).map(row=>`<tr><td>${esc(row.tactic)}</td><td>${Math.round(row.successChance*100)}%</td><td>${row.expectedContribution}</td><td>${row.tactic==='execute'?'highest progress; consumes focus':row.tactic==='support'?'builds team momentum':'half stamina; builds focus'}</td></tr>`).join('');const stages=(r.stageGoals??[]).map(row=>`<tr><td>${esc(row.id)}</td><td>${row.goal}</td><td>${esc(row.event)}</td></tr>`).join('');setTimeout(()=>showModal('Game-system balance simulation',r.ok?`<h3>Skill ${r.skill}</h3><table><thead><tr><th>Tactic</th><th>Success</th><th>Expected progress / base unit</th><th>Role</th></tr></thead><tbody>${tactics}</tbody></table><h3>Stages</h3><table><thead><tr><th>Stage</th><th>Goal</th><th>Source</th></tr></thead><tbody>${stages}</tbody></table><details><summary>Entry, anti-exploit and rewards</summary><pre>${esc(JSON.stringify({entry:r.entry,availability:r.availability,antiExploit:r.antiExploit,reward:r.reward},null,2))}</pre></details>`:`<p class="error">${esc(r.error??'Simulation failed')}</p>`),0)}},{label:'Cancel'}])}
-Object.assign(window,{gameSystemsRefresh,gameSystemsFilter,gameSystemsStart,gameSystemsTransition,gameSystemsReload,gameSystemsSimulate});
+Object.assign(window,{gameSystemsRefresh,gameSystemsFilter,gameSystemsTab,gameSystemsPageBy,gameSystemsChoose,gameSystemsStart,gameSystemsTransition,gameSystemsReload,gameSystemsSimulate});
 
 // ---------------------- Platform safety workbench -------------------------
 let platformPreviewId='';

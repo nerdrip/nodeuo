@@ -100,6 +100,8 @@ describe('admin route safety and editor behavior', () => {
   it('keeps internal ServUO parity metadata out of the authoring catalogue', async () => {
     const { route, scriptsDir } = fixture();
     fs.writeFileSync(path.join(scriptsDir, 'data', 'config', 'housedata.json'), '{"walls":[]}');
+    fs.mkdirSync(path.join(scriptsDir, 'data', 'world'), { recursive: true });
+    fs.writeFileSync(path.join(scriptsDir, 'data', 'world', 'xmlspawners.json'), '[]');
     const catalog = await route('GET', '/api/studio/catalog').run({});
     expect(catalog.domains.some((domain) => domain.id === 'commands')).toBe(false);
     expect(catalog.domains.find((domain) => domain.id === 'gumps')).toMatchObject({ preview: 'gump' });
@@ -107,7 +109,10 @@ describe('admin route safety and editor behavior', () => {
     expect(catalog.domains.find((domain) => domain.id === 'housing')).toMatchObject({
       files: ['config/housedata.json'], preview: 'housing',
     });
-    expect(catalog.domains.find((domain) => domain.id === 'multis').files).not.toContain('config/housedata.json');
+    expect(catalog.domains.some((domain) => domain.id === 'multis')).toBe(false);
+    expect(catalog.domains.find((domain) => domain.id === 'world')).toMatchObject({
+      files: ['world/xmlspawners.json'], preview: 'world',
+    });
     expect(catalog.domains.some((domain) => domain.id === 'create')).toBe(false);
     expect(catalog.domains.some((domain) => domain.id === 'combat')).toBe(false);
   });
@@ -193,6 +198,22 @@ describe('admin route safety and editor behavior', () => {
     expect(spawner.groups.get('advanced-a')).toMatchObject({ map: 3, rect: { x1: 15, y1: 18, x2: 17, y2: 20 } });
     await route('POST', '/api/spawners/bulk').run({ body: { ids: ['advanced-a'], action: 'disable' } });
     expect(spawner.groups.get('advanced-a').enabled).toBe(false);
+  });
+
+  it('feeds the visual spawner picker with both monster and NPC definitions', async () => {
+    const monsters = { kinds: () => ['dragon'], get: () => ({ name: 'Dragon', bodyId: 59, fame: 22_000 }) };
+    const npcs = { kinds: () => ['banker'], get: () => ({ name: 'Avery', title: 'the banker', bodyId: 400, hue: 100 }) };
+    const { route } = fixture({ monsters, npcs });
+    const catalog = await route('GET', '/api/monster-kinds').run({});
+    expect(catalog).toMatchObject({ count: 2, kinds: [
+      { kind: 'dragon', body: 59, tier: 'boss', source: 'monster' },
+      { kind: 'banker', name: 'Avery', title: 'the banker', body: 400, hue: 100, tier: 'npc', source: 'npc' },
+    ] });
+    const preview = await route('POST', '/api/spawners/simulate').run({ body: {
+      id: 'bank', map: 1, rect: { x1: 0, y1: 0, x2: 1, y2: 1 }, maxCount: 1,
+      respawnMs: [1000, 2000], kinds: ['banker'], rolls: 10, seed: 1,
+    } });
+    expect(preview.ok).toBe(true);
   });
 
   it('plans and applies snapshot migrations with rollback, then manages feature rollout', async () => {

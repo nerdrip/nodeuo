@@ -5159,18 +5159,6 @@ function handleWearItem(state, pkt) {
 }
 
 /**
- * Dress a freshly-created player mobile. Each entry equips an item on the
- * given layer; the item is parented to the mobile so both the paperdoll and
- * the mobile-incoming equipment loop will pick it up.
- *
- * Item ids are the classic newbie outfit (shoes, short pants, tunic) plus
- * a backpack. If the mobile already has equipment (returning player from a
- * save) we skip.
- *
- * @param {import('../world/world.js').World} world
- * @param {import('../world/world.js').Mobile} mob
- */
-/**
  * Make sure `mob` has a backpack equipped on layer 21. Returning players
  * sometimes lost theirs (cursor-held during disconnect, for one) and ended
  * up unable to pick anything up. Idempotent — bails out if a backpack already
@@ -5182,18 +5170,41 @@ function handleWearItem(state, pkt) {
 function ensureBackpack(world, mob) {
   // Reverse parent index — walks ≤10 worn items per check. Bug-hunt #3 A4.
   const idx = world._childrenByParent?.get?.(mob.serial);
+  let backpack = null;
   if (idx) {
     for (const s of idx) {
       const it = world.items.get(s);
-      if (it?.layer === 21) return;
+      if (it?.layer === 21 && (it.definitionId === 'backpack' || (it.artId ?? it.itemId) === 0x0E75)) {
+        backpack = it;
+        break;
+      }
     }
   } else {
     for (const it of world.items.values()) {
-      if (it.parent === mob.serial && it.layer === 21) return;
+      if (it.parent === mob.serial && it.layer === 21
+          && (it.definitionId === 'backpack' || (it.artId ?? it.itemId) === 0x0E75)) {
+        backpack = it;
+        break;
+      }
     }
   }
-  createItem(world, {
-    itemId: 0x0E75,
+  if (backpack) {
+    // One-time migration for old saves created before item definitions were
+    // persisted. The graphic is only presentation; this assignment is safe
+    // because the equipped layer + canonical bag graphic already identify an
+    // actual legacy backpack, not an arbitrary item sharing its art.
+    backpack.definitionId ||= 'backpack';
+    backpack.artId = backpack.itemId = 0x0E75;
+    backpack.gumpId ||= 0x003C;
+    backpack.container = true;
+    backpack.capacity ||= 125;
+    backpack.name ||= 'a backpack';
+    backpack.movable = true;
+    return backpack;
+  }
+  return createItem(world, {
+    definitionId: 'backpack',
+    artId: 0x0E75,
     hue: 0,
     x: mob.x, y: mob.y, z: mob.z, map: mob.map,
     parent: mob.serial,
@@ -5204,20 +5215,23 @@ function ensureBackpack(world, mob) {
 }
 
 function outfitFreshMobile(world, mob) {
-  // Reverse parent index — walks worn slots only. Bug-hunt #3 A4.
+  // Fill missing canonical slots independently. The old all-or-nothing guard
+  // returned as soon as it saw layer 21, so ensureBackpack() followed by
+  // outfitFreshMobile() guaranteed a returning naked player stayed naked.
+  const occupiedLayers = new Set();
   const idx = world._childrenByParent?.get?.(mob.serial);
   if (idx) {
     for (const s of idx) {
       const it = world.items.get(s);
-      if (it?.layer) return;
+      if (it?.layer) occupiedLayers.add(it.layer | 0);
     }
   } else {
     for (const it of world.items.values()) {
-      if (it.parent === mob.serial && it.layer) return;
+      if (it.parent === mob.serial && it.layer) occupiedLayers.add(it.layer | 0);
     }
   }
   const female = (mob.body | 0) === 401;
-  /** @type {Array<{itemId:number, layer:number, hue:number}>} */
+  /** @type {Array<{definitionId:string, artId:number, layer:number, hue:number}>} */
   // Layer numbers come straight from tiledata.quality (UO Layer enum):
   //   3 = Shoes, 4 = Pants, 5 = Shirt, 21 = Backpack. The original outfit
   //   table swapped 3 and 4, which silently broke every paperdoll lift on
@@ -5225,56 +5239,58 @@ function outfitFreshMobile(world, mob) {
   //   were stored) and the server lifted the boots instead, so the visible
   //   pants stayed on the doll while the user was suddenly carrying shoes.
   const outfit = [
-    { itemId: 0x170B, layer:  3, hue: 0x021C }, // Shoes (boots)
-    { itemId: 0x1539, layer:  4, hue: 0x03BA }, // Pants (long pants)
-    { itemId: 0x1517, layer:  5, hue: 0x0388 }, // Shirt
+    { definitionId: 'boots',      artId: 0x170B, layer: 3, hue: 0x021C },
+    { definitionId: 'long-pants', artId: 0x1539, layer: 4, hue: 0x03BA },
+    { definitionId: 'shirt',      artId: 0x1517, layer: 5, hue: 0x0388 },
   ];
   if (female) {
-    // Swap the long pants for a plain skirt — same Pants slot.
-    outfit[1] = { itemId: 0x1516, layer: 4, hue: 0x03BA };
+    // Tiledata defines the skirt on its own layer 23; don't force it into the
+    // pants slot merely because it is part of the same starter outfit.
+    outfit[1] = { definitionId: 'skirt', artId: 0x1516, layer: 23, hue: 0x03BA };
   }
-  // Backpack (layer 21 = Backpack). It's a container, so gumpId != 0 so
-  // double-clicking opens the backpack gump.
-  outfit.push({ itemId: 0x0E75, layer: 21, hue: 0, gumpId: 0x003C });
 
   /** @type {Record<number, {serial:number}>} */
   const created = {};
   for (const piece of outfit) {
+    if (occupiedLayers.has(piece.layer)) continue;
     const it = createItem(world, {
-      itemId: piece.itemId,
+      definitionId: piece.definitionId,
+      artId: piece.artId,
       hue: piece.hue,
       x: mob.x, y: mob.y, z: mob.z, map: mob.map,
       parent: mob.serial,
       layer: piece.layer,
-      gumpId: piece.gumpId ?? 0,
       movable: true,
     });
     created[piece.layer] = it;
   }
+
+  const backpackWasMissing = !occupiedLayers.has(21);
+  const backpack = ensureBackpack(world, mob);
 
   // Stash a handful of spare clothes inside the backpack so players can
   // dress/undress their character and watch the animation overlays swap
   // in real time. Each entry is a test-only wardrobe item placed at a
   // distinct (gridX, gridY) so they don't stack on top of each other in
   // the backpack gump.
-  const backpack = created[21];
-  if (backpack) {
+  if (backpack && backpackWasMissing) {
     /**
      * @type {Array<{itemId:number, hue:number, gx:number, gy:number}>}
      * Gump grid positions — backpack inner bounds roughly 44..142 × 65..140.
      */
     const wardrobe = [
-      { itemId: 0x1F03, hue: 0x0481, gx:  60, gy:  80 }, // Robe (red)
-      { itemId: 0x1F03, hue: 0x0021, gx:  80, gy:  80 }, // Robe (blue)
-      { itemId: 0x1517, hue: 0x0495, gx: 100, gy:  80 }, // Shirt (green)
-      { itemId: 0x1539, hue: 0x0386, gx: 120, gy:  80 }, // Pants (tan)
-      { itemId: 0x1711, hue: 0x0000, gx:  60, gy: 110 }, // Leather cap
-      { itemId: 0x1712, hue: 0x0000, gx:  80, gy: 110 }, // Boots
-      { itemId: 0x1515, hue: 0x0455, gx: 100, gy: 110 }, // Cloak
+      { definitionId: 'robe',        artId: 0x1F03, hue: 0x0481, gx:  60, gy:  80 },
+      { definitionId: 'robe',        artId: 0x1F03, hue: 0x0021, gx:  80, gy:  80 },
+      { definitionId: 'shirt',       artId: 0x1517, hue: 0x0495, gx: 100, gy:  80 },
+      { definitionId: 'long-pants',  artId: 0x1539, hue: 0x0386, gx: 120, gy:  80 },
+      { definitionId: 'thigh-boots', artId: 0x1711, hue: 0x0000, gx:  60, gy: 110 },
+      { definitionId: 'boots',       artId: 0x170B, hue: 0x0000, gx:  80, gy: 110 },
+      { definitionId: 'cloak',       artId: 0x1515, hue: 0x0455, gx: 100, gy: 110 },
     ];
     for (const w of wardrobe) {
       createItem(world, {
-        itemId: w.itemId,
+        definitionId: w.definitionId,
+        artId: w.artId,
         hue: w.hue,
         x: 0, y: 0, z: 0, map: mob.map,
         parent: backpack.serial,

@@ -502,9 +502,14 @@ export class World {
   replaceEquipment(mob, rows = []) {
     if (!mob) return { ok: false, reason: 'missing-mobile' };
     const next = new Map();
+    let ignored = 0;
     for (const row of rows) {
       const serial = row?.serial >>> 0; const layer = row?.layer | 0;
-      if (!serial || layer <= 0 || next.has(layer)) return { ok: false, reason: 'invalid-or-duplicate-layer' };
+      // Old saves can contain two bank boxes on layer 29. A duplicate or
+      // malformed row must not reject the complete 0x78 snapshot: doing so
+      // made every valid shirt, cloak and backpack disappear together. Keep
+      // the first authoritative row per layer and tolerate the legacy tail.
+      if (!serial || layer <= 0 || next.has(layer)) { ignored++; continue; }
       const entry = { ...row, serial, layer, itemId: row.itemId | 0, artId: row.itemId | 0, hue: row.hue | 0 };
       copyEquipmentPresentation(entry, this.items.get(serial));
       next.set(layer, entry);
@@ -537,7 +542,7 @@ export class World {
       mob._equipmentHashRevision = -1;
     });
     const integrity = this.validateGraph({ repair: true });
-    return { ok: integrity.ok, equipment: next, integrity };
+    return { ok: integrity.ok, equipment: next, integrity, ignored };
   }
 
   /** Verify the three live relationships used by containers and paperdolls.
