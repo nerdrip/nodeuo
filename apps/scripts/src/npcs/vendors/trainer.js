@@ -1,6 +1,6 @@
 import { spawnNPC } from './_spawn.js';
 import { normalizeSkillValue } from '../../_rules.js';
-import { findInPack } from '../../_inventory.js';
+import { packItems } from '../../_inventory.js';
 import { destroyItemBySerial } from '../../_items.js';
 
 // Trainer NPC — port of ServUO `Engines/SkillTeachers/SBSkillTeacher.cs`.
@@ -77,8 +77,29 @@ function destroyWorldItem(api, item) {
   destroyItemBySerial(api, item.serial);
 }
 
-function findGoldPile(api, mob, atLeast) {
-  return findInPack(api, mob, (it) => it.itemId === 0x0EED && (it.amount | 0) >= atLeast);
+function debitPackGold(api, mob, amount) {
+  const piles = [...packItems(api, mob)]
+    .filter((item) => item.itemId === 0x0EED && (item.amount ?? 1) > 0);
+  if (piles.reduce((sum, item) => sum + (item.amount ?? 1), 0) < amount) return false;
+  let remaining = amount;
+  for (const pile of piles) {
+    if (remaining <= 0) break;
+    const available = pile.amount ?? 1;
+    const take = Math.min(available, remaining);
+    pile.amount = available - take;
+    remaining -= take;
+    if (pile.amount <= 0) {
+      destroyWorldItem(api, pile);
+      mob.client?.send?.(api.protocol.removeEntity(pile.serial));
+    } else {
+      mob.client?.send?.(api.protocol.containerContentUpdate({
+        serial: pile.serial, itemId: pile.itemId, amount: pile.amount,
+        hue: pile.hue ?? 0, gridX: pile.gridX ?? 0, gridY: pile.gridY ?? 0,
+        gridLocation: pile.gridLocation ?? 0,
+      }, pile.parent ?? mob.serial));
+    }
+  }
+  return remaining === 0;
 }
 
 export default function register(api) {
@@ -135,20 +156,9 @@ export default function register(api) {
           continue;
         }
         // Charge gold.
-        const pile = findGoldPile(api, speaker, TEACH_COST_GOLD);
-        if (!pile) {
+        if (!debitPackGold(api, speaker, TEACH_COST_GOLD)) {
           ctx.broadcastSpeech?.(mob, `That will cost you ${TEACH_COST_GOLD} gold. Bring it and try again.`, 0x35);
           continue;
-        }
-        pile.amount -= TEACH_COST_GOLD;
-        if (pile.amount <= 0) {
-          destroyWorldItem(api, pile);
-          if (speaker.client) speaker.client.send(api.protocol.removeEntity(pile.serial));
-        } else if (speaker.client) {
-          speaker.client.send(api.protocol.containerContentUpdate({
-            serial: pile.serial, itemId: pile.itemId, amount: pile.amount,
-            hue: pile.hue ?? 0, gridX: 0, gridY: 0, gridLocation: 0,
-          }, pile.parent ?? speaker.serial));
         }
         // Teach to 30.0 if below; otherwise nudge by 1.
         speaker.skills ??= {};
@@ -172,7 +182,7 @@ export default function register(api) {
         ctx.state.sendSystemMessage(`Unknown trainer kind. Try: ${Object.keys(TRAINER_KINDS).join(', ')}`);
         return;
       }
-      // BUGFIX #44 (FAZA CB): same fix as banker — was created without
+      // BUGFIX #44 (PHASE CB): same fix as banker — was created without
       // mobileIncoming broadcast and naked. Routes through spawnNPC.
       const lcSkillNames = (cfg.teaches || [])
         .map((id) => (api.skills?.byId?.get?.(id)?.name ?? '').toLowerCase())

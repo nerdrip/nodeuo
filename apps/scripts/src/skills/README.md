@@ -17,7 +17,7 @@ behavior* of those skills.
 | 5  | Arms Lore               | [wpn.js](wpn.js) |
 | 7  | Begging                 | [beg.js](beg.js) |
 | 11 | Camping                 | [camp.js](camp.js) |
-| 13 | Cartography             | [cartography.js](cartography.js) |
+| 13 | Cartography             | [crafting recipes](../crafting/cartography.js) from UseSkill; [drawmap/decodemap](cartography.js) for treasure maps |
 | 14 | Cooking                 | [cook.js](cook.js) |
 | 15 | Detect Hidden           | [detect-hidden.js](detect-hidden.js) |
 | 18 | Healing                 | [bandage.js](bandage.js) |
@@ -45,20 +45,22 @@ behavior* of those skills.
   Throwing, Wrestling, Tactics, Parrying) — these are passive; their
   formulas live in `server/src/combat-formulas.js` (engine).
 - **Magic skills** (Magery, Necromancy, Chivalry, Bushido, Ninjitsu,
-  Spellweaving, Mysticism, Bard Mastery) — implemented as spell
-  schools in [../spells/schools/](../spells/schools/).
-- **Bard skills** (Peacemaking, Provocation, Discordance) — engine
-  side in `server/src/systems/bard-skills.js`, command wrappers in
-  `../commands/{peace,provoke,discord}.js` (TODO: move here).
+  Spellweaving, Mysticism, and Bard Mastery) — implemented as authored
+  definitions under [../spells/](../spells/) and dispatched by the server's
+  spell system.
+- **Bard skills** (Peacemaking, Provocation, Discordance) — authoritative
+  effects live in `apps/server/src/systems/bards/bard-skills.js`; the player
+  command adapters live in [../commands/economy/bard.js](../commands/economy/bard.js).
 - **Crafting skills** (Alchemy, Blacksmithy, Bowcraft, Carpentry,
   Cooking-as-craft, Inscription, Tailoring, Tinkering, Glassblowing,
   Imbuing, Masonry) — implemented as recipe registries in
   [../crafting/](../crafting/) and triggered by `[craft` /
   `[imbue` / `[reforge` etc. commands.
-- **Meditation** (47), **Focus** (51), **Evaluating Intelligence**
-  (17), **Eval Mage Resistance** (27), **Item ID extension** etc. —
-  these are passive modifiers that affect other skills' rolls; their
-  formulas live in `server/src/regen.js` and spell dispatcher.
+- **Meditation** (47) has a direct action, while **Focus** (51),
+  **Magic Resistance** (27), and the combat skills train or contribute
+  passively. **Evaluating Intelligence** (17) is directly usable through
+  `evalint`. Their formulas live in server regeneration, combat, and spell
+  systems.
 - **Musicianship** (30) — passive prerequisite for bard skills; no
   standalone command.
 
@@ -79,6 +81,8 @@ export default function register(api) {
 }
 ```
 
-The paperdoll skill button (opcode 0x12 type 0x24) is routed via the
-SKILL_TO_COMMAND map in `server/src/net/handlers.js`. Adding a new
-skill = add a file here + add the (skill_id → command) entry to the map.
+The paperdoll skill button (opcode 0x12 type 0x24) is routed through the
+canonical `SKILL_TO_COMMAND` table in
+`apps/server/src/net/skill-actions.js`. Adding an active skill requires an
+implementation plus a 1-based skill-id entry there; passive skills must remain
+absent so the client receives the correct passive-action message.

@@ -165,7 +165,7 @@ export function hitChance(attacker, defender) {
 
   const a = effectiveWeaponSkill(attacker);
   const dWeapon = effectiveWeaponSkill(defender);
-  // BUGFIX #125 (FAZA HK): the previous code applied the defender's
+  // BUGFIX #125 (PHASE HK): the previous code applied the defender's
   // Parrying skill regardless of whether they actually had a shield
   // equipped. ServUO `Mobile.cs::CheckShield` requires a shield item
   // (BaseShield) on layer 2 (left hand) AND no two-handed weapon
@@ -212,8 +212,20 @@ export function hitChance(attacker, defender) {
   // far more accurate; Heightened Senses is the defensive counterpart.
   if ((attacker?._focusedEyeUntil ?? 0) > now) hci += 50;
   if ((defender?._heightenedUntil ?? 0) > now) dci += 10;
+  if ((attacker?._inspireUntil ?? attacker?.inspireUntil ?? 0) > now) hci += 15;
+  if ((defender?._perseveranceUntil ?? defender?.dmgReductionUntil ?? 0) > now) dci += 22;
+  if ((attacker?._playingOddsUntil ?? 0) > now) hci += 45;
+  if ((attacker?._combatTrainingUntil ?? 0) > now) hci += 15;
+  if ((attacker?.ethicHonorUntil ?? 0) > now && defender?.ethic === 'evil') hci += 25;
+  if ((defender?.ethicRageUntil ?? 0) > now) dci -= 10;
+  if ((attacker?._tribulationUntil ?? attacker?.tribulationUntil ?? 0) > now) {
+    hci -= Math.round((attacker._tribulationPct ?? attacker.tribulationPct ?? 0.2) * 100);
+  }
   if (hci || dci) {
     chance = chance * (1 + hci / 100) / (1 + dci / 100);
+  }
+  if ((defender?.ethicDreadUntil ?? 0) > now) {
+    chance *= 1 - clamp(Number(defender.ethicDreadMissChance) || 0.25, 0, 0.95);
   }
   return clamp(chance, 0.02, 1.0);
 }
@@ -230,6 +242,10 @@ export function effectiveStat(mob, statKey, now = Date.now()) {
   if (debuffUntil > now) val -= (mob[`${statKey}Debuff`] ?? 10);
   const buffUntil = Number(mob?.[`${statKey}BuffUntil`]) || 0;
   if (buffUntil > now) val += (mob[`${statKey}Buff`] ?? 20);
+  if ((Number(mob?.statDebuffUntil) || 0) > now) {
+    val = Math.floor(val * (1 - clamp(Number(mob.statDebuffPct) || 0.1, 0, 0.9)));
+  }
+  if ((Number(mob?._invigorateUntil) || 0) > now) val += 8;
   return Math.max(0, val);
 }
 
@@ -310,7 +326,16 @@ export function rollDamage(attacker, defender, rng = Math.random) {
   const weaponHi = Number(attacker?._weapon?.maxDamage);
   const hasWeaponRange = Number.isFinite(weaponLo) && Number.isFinite(weaponHi)
     && weaponLo >= 0 && weaponHi >= weaponLo;
-  const { lo, hi } = hasWeaponRange
+  const nowMs = Date.now();
+  const horrificActive = (attacker?.horrificBeastUntil ?? 0) > nowMs;
+  if (!horrificActive && attacker?.horrificBeastUntil) {
+    attacker.horrificBeastUntil = 0;
+    attacker._horrificDamageBonus = 0;
+    attacker._horrificHpRegen = 0;
+  }
+  const { lo, hi } = !hasWeaponRange && horrificActive
+    ? { lo: 5, hi: 15 }
+    : hasWeaponRange
     ? { lo: weaponLo | 0, hi: weaponHi | 0 }
     : unarmedDamageRange(effectiveStat(attacker, 'str'));
   const base = lo + Math.floor(rng() * (hi - lo + 1));
@@ -319,7 +344,6 @@ export function rollDamage(attacker, defender, rng = Math.random) {
   // Bushido / Ninjitsu single-shot buff readers. Each cast stamps a
   // `<name>Until` field; mirror the ServUO multipliers and consume the
   // buff on first swing.
-  const nowMs = Date.now();
   if ((attacker?.honorableExecUntil ?? 0) > nowMs) {
     scaled = Math.floor(scaled * 1.2);
     attacker.honorableExecUntil = 0;
@@ -327,6 +351,15 @@ export function rollDamage(attacker, defender, rng = Math.random) {
   if ((attacker?.lightningStrikeUntil ?? 0) > nowMs) {
     scaled = Math.floor(scaled * 1.5);
     attacker.lightningStrikeUntil = 0;
+  }
+  // Honor invocation — consume the one-swing embrace on the first damage
+  // roll. This marker used to be written by the virtue system but had no
+  // combat reader, making the invocation cosmetic.
+  if ((attacker?._honorEmbraceUntil ?? 0) > nowMs) {
+    scaled = Math.max(1, Math.floor(scaled * 2));
+    attacker._honorEmbraceUntil = 0;
+  } else if (attacker?._honorEmbraceUntil) {
+    attacker._honorEmbraceUntil = 0;
   }
   if ((attacker?.momentumStrikeUntil ?? 0) > nowMs) {
     scaled = Math.floor(scaled * 1.4);
@@ -352,6 +385,30 @@ export function rollDamage(attacker, defender, rng = Math.random) {
   if ((attacker?._warcryUntil ?? 0) > nowMs) scaled = Math.floor(scaled * 1.10);
   if ((attacker?._whiteTigerUntil ?? 0) > nowMs) scaled = Math.floor(scaled * 1.15);
   if ((attacker?._onslaughtUntil ?? 0) > nowMs) scaled = Math.floor(scaled * 1.10);
+  if ((attacker?._inspireUntil ?? attacker?.inspireUntil ?? 0) > nowMs) {
+    scaled = Math.floor(scaled * (1 + clamp(
+      Number(attacker._inspireDmgBonus ?? attacker.inspireDmgBonus) || 0.2, 0, 1,
+    )));
+  }
+  if ((attacker?._combatTrainingUntil ?? 0) > nowMs) scaled = Math.floor(scaled * 1.15);
+  if ((attacker?._defenseMasteryUntil ?? 0) > nowMs) scaled = Math.floor(scaled * 0.75);
+  if ((attacker?._dualWieldUntil ?? 0) > nowMs) scaled = Math.floor(scaled * 1.5);
+  if ((attacker?._movingShotUntil ?? 0) > nowMs) {
+    scaled = Math.max(1, Math.floor(scaled * 0.8));
+    attacker._movingShotUntil = 0;
+  }
+  if ((attacker?.ethicRageUntil ?? 0) > nowMs) {
+    scaled = Math.floor(scaled * (1 + clamp(Number(attacker.ethicRageBonus) || 0.5, 0, 2)));
+  }
+  if ((attacker?.ethicCurseUntil ?? 0) > nowMs) {
+    scaled = Math.max(1, Math.floor(scaled * (1 - clamp(
+      Number(attacker.ethicCurseMalus) || 0.2, 0, 0.95,
+    ))));
+  }
+  if ((attacker?.ethicHonorUntil ?? 0) > nowMs) {
+    if (defender?.ethic === 'evil') scaled = Math.floor(scaled * 1.5);
+    attacker.ethicHonorUntil = 0;
+  }
 
   if (hasEffect(attacker, 'honorable-execution')) scaled = Math.floor(scaled * 1.2);
   // Audit #38 P1 #1 — Stone Form flat damage bonus from
@@ -387,6 +444,7 @@ export function rollDamage(attacker, defender, rng = Math.random) {
     armour = 0;
     attacker._armorIgnoreUntil = 0;   // single-use proc
   }
+  if ((attacker?._mysticWeaponUntil ?? 0) > nowMs) armour = Math.floor(armour * 0.75);
 
   let dmg = applyArmor(scaled, armour);
   // AOS elemental conversion. A weapon authored with
@@ -418,9 +476,10 @@ export function rollDamage(attacker, defender, rng = Math.random) {
   }
   // AOS Damage Increase (raw post-mitigation bump, capped at 100). Keeps
   // crafted weapons relevant against high-AR targets.
-  const di = _attrs(attacker)?.damageIncrease | 0;
+  const di = (_attrs(attacker)?.damageIncrease | 0)
+    + (horrificActive ? ((attacker?._horrificDamageBonus | 0) || 25) : 0);
   if (di > 0) dmg = Math.floor(dmg * (1 + di / 100));
-  // FAZA EW: slayer weapons. The wielded weapon's `slayer` tag triples
+  // PHASE EW: slayer weapons. The wielded weapon's `slayer` tag triples
   // damage against matching creature kinds. ServUO ships ~10 slayer
   // matchups; we read the active weapon's tag from `attacker._weapon`
   // (combat layer captures this on swing resolution).
@@ -457,6 +516,21 @@ export function rollDamage(attacker, defender, rng = Math.random) {
   }
   if ((defender?._toughnessUntil ?? 0) > now) dmg = Math.floor(dmg * 0.90);
   if ((defender?._toleranceUntil ?? 0) > now) dmg = Math.floor(dmg * 0.85);
+  if ((defender?._perseveranceUntil ?? defender?.dmgReductionUntil ?? 0) > now) {
+    const reduction = clamp(
+      Number(defender._perseveranceReduction ?? defender.dmgReductionPct) || 0.15,
+      0,
+      0.75,
+    );
+    dmg = Math.floor(dmg * (1 - reduction));
+  }
+  if ((defender?._tribulationUntil ?? defender?.tribulationUntil ?? 0) > now) {
+    const bonus = clamp(Number(defender._tribulationPct ?? defender.tribulationPct) || 0.2, 0, 1);
+    dmg = Math.floor(dmg * (1 + bonus));
+  }
+  if ((defender?.ethicShieldUntil ?? 0) > now) {
+    dmg = Math.floor(dmg * clamp(Number(defender.ethicShieldFactor) || 0.5, 0.1, 1));
+  }
   return Math.max(1, dmg);
 }
 
@@ -562,6 +636,7 @@ export function swingDelayMs(attacker, weaponSpeed = attacker?._weapon?.speed ??
   if ((attacker?._rampageUntil ?? 0) > Date.now()) {
     ssi += Math.min(25, (attacker._rampageStacks | 0) * 5);
   }
+  if ((attacker?._playingOddsUntil ?? 0) > Date.now()) ssi += 30;
   ssi = clamp(ssi, -90, 60);
   const divisor = Math.max(1, (stam + 100) * speed * (1 + ssi / 100));
   let raw = Math.floor(40000 / divisor) * 500;
@@ -570,7 +645,9 @@ export function swingDelayMs(attacker, weaponSpeed = attacker?._weapon?.speed ??
   raw = clamp(raw || 1250, 1250, 10_000);
   if (hasEffect(attacker, 'divine-fury'))     raw = Math.floor(raw * 0.5);
   if (hasEffect(attacker, 'essence-of-wind')) raw = Math.floor(raw * 1.5);
-  if (attacker?._dualWield) raw = Math.floor(raw * 1.3);
+  if (attacker?._dualWield || (attacker?._dualWieldUntil ?? 0) > Date.now()) {
+    raw = Math.floor(raw * 1.3);
+  }
   if ((attacker?._staggerUntil ?? 0) > Date.now()) raw = Math.floor(raw * 1.5);
   return clamp(raw, 1250, 10_000);
 }
@@ -671,8 +748,20 @@ function applyEpiphanySurges(defender, damage) {
 export function onHitProcs(attacker, defender, weaponRange, baseDmg) {
   const result = { bonusDamage: 0, applyBleed: false };
   const a = _attrs(attacker);
-  if (!a) return result;
   const now = Date.now();
+  if (defender && attacker?._onslaughtCharge) {
+    attacker._onslaughtCharge = 0;
+    result.bonusDamage += Math.max(1, Math.floor(baseDmg * 0.1));
+  }
+  if (defender && attacker?._pierceCharge) {
+    attacker._pierceCharge = 0;
+    defender.stam = Math.max(0, (defender.stam ?? 0) - 20);
+  }
+  if (defender && attacker?._staggerCharge) {
+    attacker._staggerCharge = 0;
+    defender._staggerUntil = Math.max(defender._staggerUntil ?? 0, now + 10_000);
+  }
+  if (!a) return result;
   // Audit #38 P1 #3 — Blood Oath +20 % damage taken by the defender.
   // ServUO `AOS.cs:255` scales `totalDamage = floor(totalDamage * 1.2)`
   // when the defender is under Blood Oath. Folded into `bonusDamage`

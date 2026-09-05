@@ -24,10 +24,10 @@
 // `kinds[].name` keeps the raw ServUO PascalCase token; the [xmlload
 // command normalises it to our kebab-case kind ids at register time.
 //
-// Output: apps/scripts/src/data/xmlspawners.json
+// Output: apps/scripts/src/data/world/xmlspawners.json
 //
 //   node packages/extractor/xmlspawner.js [--src templates/ServUO]
-//                                     [--out apps/scripts/src/data/xmlspawners.json]
+//                                     [--out apps/scripts/src/data/world/xmlspawners.json]
 
 import { readdirSync, readFileSync, writeFileSync, existsSync, mkdirSync, statSync } from 'node:fs';
 import { join, dirname, basename } from 'node:path';
@@ -144,7 +144,7 @@ function parseArgs(argv) {
 
 const args = parseArgs(process.argv.slice(2));
 const srcRoot = args.src ?? 'templates/ServUO';
-const out = args.out ?? 'apps/scripts/src/data/xmlspawners.json';
+const out = args.out ?? 'apps/scripts/src/data/world/xmlspawners.json';
 
 const dirs = [join(srcRoot, 'Spawns'), join(srcRoot, 'RevampedSpawns')];
 let files = [];

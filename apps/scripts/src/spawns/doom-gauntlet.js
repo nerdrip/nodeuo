@@ -22,6 +22,8 @@ import url from 'node:url';
 import { canCreateItem, createItem, destroyItemBySerial } from '../_items.js';
 import { allItems, allMobiles } from '../_spatial.js';
 import { createMobile } from '../_mobiles.js';
+import { registerWorldContentSeed } from '../_world-content.js';
+import { itemBySerial } from '../_entities.js';
 
 const __HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const __DATA = path.resolve(__HERE, '../data/world/spawns/doom-gauntlet.json');
@@ -42,7 +44,7 @@ const GAUNTLET_KEYS = __CFG.gauntletKeys;
 const BOSS_KIND_TO_KEY = new Map(GAUNTLET_KEYS.map((k) => [k.bossKind, k]));
 const DOOM_ARTIFACTS = __CFG.doomArtifacts;
 
-/** Walk world.items for ALL gauntlet keys the player carries. Returns
+/** Walk the item collection for ALL gauntlet keys the player carries. Returns
  *  a Map<keyId, item> so the caller can verify all 10 are present and
  *  consume them on the summon ritual. */
 function findCarriedKeys(world, mob) {
@@ -81,6 +83,15 @@ function spawnKeyDrop(api, world, def, corpse) {
  *  Doom center. Used by `[doom summon` players to trigger the ritual.
  *  Marked `_isDarkAltar` so the use-hook can identify it. */
 function placeDarkAltar(api) {
+  const existing = [...allItems(api)].find((item) =>
+    (item._isDarkAltar || item.name === 'Dark Altar') &&
+    item.map === DARK_ALTAR_MAP && item.x === DARK_ALTAR_X &&
+    item.y === DARK_ALTAR_Y && item.z === DARK_ALTAR_Z);
+  if (existing) {
+    existing._isDarkAltar = true;
+    existing._worldContentSeed = 'doom-dark-altar';
+    return existing;
+  }
   if (!canCreateItem(api, api.world)) return null;
   try {
     const altar = createItem(api, api.world, {
@@ -92,6 +103,7 @@ function placeDarkAltar(api) {
       hue: 0x489,                       // bruise-purple
     });
     altar._isDarkAltar = true;
+    altar._worldContentSeed = 'doom-dark-altar';
     return altar;
   } catch (e) {
     api.log?.(`[doom] altar place threw: ${e.message}`);
@@ -154,10 +166,42 @@ function summonDarkFather(api, mob, carried) {
 export default function register(api) {
   if (!api.commands || !api.world) return () => {};
   let altarItem = null;
-  // Defer placement — script-init runs before world.items might be
-  // ready in some test harnesses. setImmediate gets us past the boot
-  // tick so the altar lands cleanly.
-  (api.lifecycle?.setImmediate ?? setImmediate)(() => { altarItem = placeDarkAltar(api); });
+  const applyDarkAltar = (opts = {}) => {
+    if (opts.facets && !opts.facets.includes(DARK_ALTAR_MAP)) return { added: 0 };
+    const existed = [...allItems(api)].some((item) =>
+      (item._isDarkAltar || item.name === 'Dark Altar') &&
+      item.map === DARK_ALTAR_MAP && item.x === DARK_ALTAR_X && item.y === DARK_ALTAR_Y);
+    altarItem = placeDarkAltar(api);
+    return { added: altarItem && !existed ? 1 : 0, failed: altarItem ? 0 : 1 };
+  };
+  const removeDarkAltar = (opts = {}) => {
+    if (opts.facets && !opts.facets.includes(DARK_ALTAR_MAP)) return { removed: 0 };
+    const serials = new Set();
+    for (const item of allItems(api)) {
+      if (item._isDarkAltar || item._worldContentSeed === 'doom-dark-altar' ||
+          (item.name === 'Dark Altar' && item.map === DARK_ALTAR_MAP &&
+           item.x === DARK_ALTAR_X && item.y === DARK_ALTAR_Y)) {
+        serials.add(item.serial >>> 0);
+      }
+    }
+    if (altarItem) serials.add(altarItem.serial >>> 0);
+    let removed = 0;
+    for (const serial of serials) {
+      try { if (itemBySerial(api, serial)) { destroyItemBySerial(api, serial); removed++; } }
+      catch (error) { api.log?.(`[doom] altar remove failed: ${error.message}`); }
+    }
+    altarItem = null;
+    return { removed };
+  };
+  const unregisterSeed = registerWorldContentSeed(api, 'doom-dark-altar', {
+    apply: applyDarkAltar,
+    remove: removeDarkAltar,
+  });
+  // Defer populated-world restoration until the boot tick. An explicitly
+  // clean world remains empty until `[createworld` calls this seed.
+  if (api.world._createWorldDone !== false) {
+    (api.lifecycle?.setImmediate ?? setImmediate)(applyDarkAltar);
+  }
 
   // ---- Boss-kill hook ----------------------------------------------
   // Register with `corpse.addKillHook` — the canonical post-death
@@ -247,7 +291,7 @@ export default function register(api) {
           ctx.state.sendSystemMessage('Only staff can re-spawn the Dark Altar.');
           return;
         }
-        altarItem = placeDarkAltar(api);
+        applyDarkAltar();
         ctx.state.sendSystemMessage(
           altarItem
             ? `Dark Altar placed at (${DARK_ALTAR_X},${DARK_ALTAR_Y}).`
@@ -283,6 +327,7 @@ export default function register(api) {
   });
 
   return () => {
+    unregisterSeed();
     try { api.commands.unregister('doom'); } catch { /* ignore */ }
   };
 }

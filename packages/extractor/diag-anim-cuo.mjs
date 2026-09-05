@@ -1,4 +1,4 @@
-// Diagnoza: porównaj nasz offset (body*175) z CUO ((body-400)*175+35000) w anim5.idx
+// Diagnostic: compare our offset (body*175) with CUO ((body-400)*175+35000) in anim5.idx.
 import { open } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -43,7 +43,7 @@ for (const [fileIndex, idxName, mulName] of [[0, 'anim.idx', 'anim.mul'], [4, 'a
 
   for (const body of [0, 200, 400]) {
     console.log(`\n--- body=${body} ---`);
-    // Nasz wzór:
+    // Our formula:
     const ourIdx = body * 175;
     // CUO People:
     const cuoPeople = (body - 400) * 175 + 35000;

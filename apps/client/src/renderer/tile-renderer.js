@@ -19,10 +19,11 @@ import {
 } from './sprite-pool.js';
 import { profile as profileManager } from '../managers/profile-manager.js';
 import { lightPoints, staticLightSpec } from './light-points.js';
-import { houseCustomization } from '../managers/house-customization-manager.js';
+import { houseCustomization, HouseCustomState } from '../managers/house-customization-manager.js';
+import { houseManager } from '../managers/house-manager.js';
 import { isNoDrawStatic, staticEntry } from '../shared/tiledata.js';
 import { displayItemIdForAmount } from '../shared/stack-graphics.js';
-import { clientRuntimeProfile, FrameTaskScheduler } from '../shared/runtime-governor.js';
+import { clientPerformanceGovernor, clientRuntimeProfile, FrameTaskScheduler } from '../shared/runtime-governor.js';
 import { MobileAnimation, Action } from './mobile-animation.js';
 import { corpseManager } from '../managers/corpse-manager.js';
 import {
@@ -109,6 +110,10 @@ export class TileRenderer {
     this._chunkDebugOverlay.eventMode = 'none';
     this._chunkDebugOverlay.zIndex = 0x7ffff0;
     this.parent.addChild(this._chunkDebugOverlay);
+    this._houseCollaborationOverlay = new Graphics();
+    this._houseCollaborationOverlay.eventMode = 'none';
+    this._houseCollaborationOverlay.zIndex = 0x7fff00;
+    this.parent.addChild(this._houseCollaborationOverlay);
     this._zDepthDebugLabel = new Text({ text: '', style: ROOF_DEBUG_LABEL_STYLE });
     this._zDepthDebugLabel.eventMode = 'none';
     this._zDepthDebugLabel.visible = false;
@@ -148,9 +153,14 @@ export class TileRenderer {
     this._housePreviewLoadSeq = 0;
     this._houseDraftSprites = [];
     this._houseDraftGeneration = 0;
+    this._customHouseSprites = new Map();
+    this._customHouseGenerations = new Map();
     this._unsubs = [
       bus.on('item:placed',    (it) => this._enqueueMount(it)),
-      bus.on('entity:removed', ({ serial }) => this._removeItem(serial)),
+      bus.on('entity:removed', ({ serial }) => {
+        this._removeItem(serial);
+        this._clearCustomHouse(serial);
+      }),
       bus.on('corpse:facing-changed', ({ serial }) => {
         const it = world.items.get(serial >>> 0);
         if (!it) return;
@@ -209,8 +219,11 @@ export class TileRenderer {
           const background = globalThis.document?.hidden === true;
           const stressed = background || this._streamFrameEma > 24;
           const healthy = !background && this._streamFrameEma < 18;
-          this._maxChunkPopulates = stressed ? 1 : healthy ? clientRuntimeProfile.chunkPopulates : Math.min(2, clientRuntimeProfile.chunkPopulates);
-          this._mountBatchSize = stressed ? Math.min(10, clientRuntimeProfile.mountBatch) : healthy ? clientRuntimeProfile.mountBatch : Math.min(20, clientRuntimeProfile.mountBatch);
+          const qualityScale = clientPerformanceGovernor.qualityScale();
+          const qualityPopulates = Math.max(1, Math.round(clientRuntimeProfile.chunkPopulates * qualityScale));
+          const qualityMountBatch = Math.max(8, Math.round(clientRuntimeProfile.mountBatch * qualityScale));
+          this._maxChunkPopulates = stressed ? 1 : healthy ? qualityPopulates : Math.min(2, qualityPopulates);
+          this._mountBatchSize = stressed ? Math.min(10, qualityMountBatch) : healthy ? qualityMountBatch : Math.min(20, qualityMountBatch);
         }
         this._streamFrameAt = Number(now) || performance.now();
         this._streamScheduler.observeFrame(this._streamFrameEma);
@@ -229,6 +242,17 @@ export class TileRenderer {
       bus.on('house:draft-changed', ({ tiles } = {}) => {
         this._setHouseDraft(tiles ?? []).catch(() => { /* optimistic preview only */ });
       }),
+      bus.on('house:custom-start', ({ serial } = {}) => this._clearCustomHouse(serial)),
+      bus.on('house:design', ({ serial, tiles } = {}) => {
+        if (!serial || !Array.isArray(tiles)) return;
+        if (houseCustomization.state !== HouseCustomState.Idle
+            && houseCustomization.targetSerial === (serial >>> 0)) {
+          this._clearCustomHouse(serial);
+          return;
+        }
+        this._setCustomHouseDesign(serial, tiles).catch(() => { /* next revision retries */ });
+      }),
+      bus.on('house:collaboration', (snapshot) => this._drawHouseCollaborators(snapshot)),
     ];
 
     // Login streams nearby world items before GameScene finishes loading.
@@ -242,6 +266,26 @@ export class TileRenderer {
     for (const item of world.items.values()) {
       if (!item || item.parent) continue;
       this._enqueueMount(item);
+    }
+    for (const house of houseManager.values()) {
+      if (Array.isArray(house.tiles) && !house.editingPayload) {
+        this._setCustomHouseDesign(house.serial, house.tiles).catch(() => {});
+      }
+    }
+  }
+
+  _drawHouseCollaborators(snapshot) {
+    const overlay = this._houseCollaborationOverlay;
+    if (!overlay || overlay.destroyed) return;
+    overlay.clear();
+    for (const participant of (snapshot?.participants ?? []).slice(0, 16)) {
+      const cursor = participant?.cursor;
+      if (!cursor || (participant.serial >>> 0) === (world.player?.serial >>> 0)) continue;
+      const x = worldToScreenX(cursor.x, cursor.y);
+      const y = worldToScreenY(cursor.x, cursor.y, cursor.z);
+      overlay.moveTo(x - 9, y).lineTo(x + 9, y).moveTo(x, y - 9).lineTo(x, y + 9)
+        .stroke({ width: 2, color: 0x70d7ff, alpha: 0.95 });
+      overlay.circle(x, y, 5).stroke({ width: 1, color: 0xffffff, alpha: 0.9 });
     }
   }
 
@@ -325,6 +369,29 @@ export class TileRenderer {
     };
   }
 
+  /** Warm server-suggested chunks using the same frame-budgeted population
+   * queue as local viewport prediction. Suggestions are hints only and are
+   * bounded so a server cannot force an unbounded client allocation. */
+  prefetchChunks(chunks, facet = assets.activeFacet) {
+    if ((facet | 0) !== (assets.activeFacet | 0)) return 0;
+    const centerCx = Math.floor((world.player?.x ?? 0) / CHUNK_SIZE);
+    const centerCy = Math.floor((world.player?.y ?? 0) / CHUNK_SIZE);
+    let scheduled = 0;
+    for (const row of (Array.isArray(chunks) ? chunks : []).slice(0, 64)) {
+      const cx = Number(row?.x) | 0;
+      const cy = Number(row?.y) | 0;
+      if (cx < 0 || cy < 0 || cx >= assets.mapMeta.blocksWide || cy >= assets.mapMeta.blocksTall) continue;
+      if (Math.max(Math.abs(cx - centerCx), Math.abs(cy - centerCy)) > 8) continue;
+      const key = (cy << 16) | (cx & 0xffff);
+      if (this.visuals.has(key)) continue;
+      const vis = new ChunkVisual(cx, cy, this.parent);
+      this.visuals.set(key, vis);
+      this._scheduleChunkPopulate(vis, centerCx, centerCy, 2 + Math.max(0, Number(row.priority) | 0));
+      scheduled++;
+    }
+    return scheduled;
+  }
+
   _scheduleChunkPopulate(vis, centerCx, centerCy, tier = 0) {
     if (!vis || vis._populateQueued || vis.ready || vis._destroyed) return;
     vis._populateQueued = true;
@@ -362,7 +429,12 @@ export class TileRenderer {
         if ((this._chunkPopulateQueue[i]._populatePriority ?? Infinity)
             < (this._chunkPopulateQueue[best]._populatePriority ?? Infinity)) best = i;
       }
-      const vis = this._chunkPopulateQueue.splice(best, 1)[0];
+      // Priority is recomputed above, so queue order carries no meaning.
+      // Swap-pop avoids shifting the rest of the visible-window array on
+      // every completed chunk (noticeable during teleports/facet changes).
+      const vis = this._chunkPopulateQueue[best];
+      const last = this._chunkPopulateQueue.pop();
+      if (best < this._chunkPopulateQueue.length) this._chunkPopulateQueue[best] = last;
       vis._populateQueued = false;
       if (vis._destroyed || vis.ready || this.visuals.get((vis.cy << 16) | (vis.cx & 0xffff)) !== vis) {
         continue;
@@ -423,6 +495,7 @@ export class TileRenderer {
     // OLD facet's coordinates and skip the distant-chunk eviction.
     this._lastCenterX = null;
     this._lastCenterY = null;
+    this._clearCustomHouses();
     this._clearRoofDebugOverlay();
   }
 
@@ -565,7 +638,10 @@ export class TileRenderer {
       const list = this._dynamicTallsByTile.get(key);
       if (!list) continue;
       const idx = list.indexOf(t);
-      if (idx >= 0) list.splice(idx, 1);
+      if (idx >= 0) {
+        list[idx] = list[list.length - 1];
+        list.pop();
+      }
       if (list.length === 0) this._dynamicTallsByTile.delete(key);
     }
     this._dynamicTallsRevision = (this._dynamicTallsRevision + 1) >>> 0;
@@ -762,8 +838,7 @@ export class TileRenderer {
         // so the LightOverlay subtracts a glow around them at night.
         // Previously only baked-into-the-map STATICS got light (the
         // tile-renderer chunk path at line ~493 calls staticLightSpec);
-        // items missed entirely → forges dark at night. User report
-        // 2026-05-18 "uliczne latarnie nie generują światła".
+        // items missed entirely, leaving forges and street lamps dark at night.
         const litSpec = staticLightSpec(it.itemId | 0);
         if (litSpec) {
           // Release any prior light id when re-mounting (item update,
@@ -880,8 +955,7 @@ export class TileRenderer {
     // order — visible as floor-on-walls / props-under-floor when a
     // multi has overlapping authored tiles. Mirroring the chunk rule
     // (background −1, height>0 +1, bridge floor-priority) brings multi
-    // depth ordering in line with the static map. Marcin: "podloga
-    // jest na ścianach / źle renderowane".
+    // depth ordering in line with the static map instead of drawing floors over walls.
     const tdEntry = staticEntry(assets.tiledata, itemId);
     const flags  = tdEntry?.flags ?? 0;
     const height = tdEntry?.height ?? 0;
@@ -1002,10 +1076,95 @@ export class TileRenderer {
     this._houseDraftSprites.length = 0;
   }
 
+  _clearCustomHouse(serial) {
+    const key = Number(serial) >>> 0;
+    if (!key) return;
+    this._customHouseGenerations.set(key, (this._customHouseGenerations.get(key) ?? 0) + 1);
+    for (const sprite of this._customHouseSprites.get(key) ?? []) releaseSprite(sprite);
+    this._customHouseSprites.delete(key);
+    this._deleteDynamicTalls((key | 0x80000000) >>> 0);
+  }
+
+  _clearCustomHouses() {
+    for (const serial of [...this._customHouseSprites.keys()]) this._clearCustomHouse(serial);
+    this._customHouseGenerations.clear();
+  }
+
+  async _setCustomHouseDesign(serial, tiles) {
+    const key = Number(serial) >>> 0;
+    const foundation = world.items.get(key);
+    if (!key || !foundation) return;
+    this._clearCustomHouse(key);
+    const generation = this._customHouseGenerations.get(key) ?? 0;
+    const sprites = [];
+    this._customHouseSprites.set(key, sprites);
+    const list = tiles.slice(0, 10_000);
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const tile of list) {
+      const x = (foundation.x | 0) + (tile.x | 0);
+      const y = (foundation.y | 0) + (tile.y | 0);
+      x0 = Math.min(x0, x); y0 = Math.min(y0, y);
+      x1 = Math.max(x1, x); y1 = Math.max(y1, y);
+    }
+    const bounds = Number.isFinite(x0) ? { x0, y0, x1, y1 } : null;
+    const tallList = [];
+    for (let index = 0; index < list.length; index++) {
+      const tile = list[index];
+      const graphic = tile.graphic | 0;
+      if (!graphic) continue;
+      const texture = assets.staticTextureSync?.(graphic) ?? await assets.staticTexture(graphic);
+      if ((this._customHouseGenerations.get(key) ?? 0) !== generation) return;
+      if (!texture) continue;
+      const x = (foundation.x | 0) + (tile.x | 0);
+      const y = (foundation.y | 0) + (tile.y | 0);
+      const z = (foundation.z | 0) + (tile.z | 0);
+      const sprite = acquireSprite(texture);
+      sprite.anchor.set(0.5, 1);
+      sprite.eventMode = 'none';
+      sprite._worldX = x;
+      sprite._worldY = y;
+      sprite.position.set(worldToScreenX(x, y), worldToScreenY(x, y, z) + TILE_HALF_H);
+      sprite.zIndex = depthKey(x, y, z, LAYER_ITEM);
+      this.parent.addChild(sprite);
+      sprites.push(sprite);
+      const tall = this._classifyTall(graphic, x, y, z, sprite, {
+        sourceSerial: key, bounds,
+      });
+      if (tall) tallList.push(tall);
+      if ((index & 63) === 63) {
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+        if ((this._customHouseGenerations.get(key) ?? 0) !== generation) return;
+      }
+    }
+    if ((this._customHouseGenerations.get(key) ?? 0) === generation && tallList.length) {
+      this._setDynamicTalls((key | 0x80000000) >>> 0, tallList);
+    }
+  }
+
+  _updateCustomHouseRange(centerX, centerY) {
+    const range = 32;
+    for (const house of houseManager.values()) {
+      const serial = house.serial >>> 0;
+      const foundation = world.items.get(serial);
+      const near = foundation
+        && Math.abs((foundation.x | 0) - centerX) <= range
+        && Math.abs((foundation.y | 0) - centerY) <= range;
+      if (!near || house.editingPayload) {
+        if (this._customHouseSprites.has(serial)) this._clearCustomHouse(serial);
+        continue;
+      }
+      if (!this._customHouseSprites.has(serial) && Array.isArray(house.tiles)) {
+        this._setCustomHouseDesign(serial, house.tiles).catch(() => {});
+      }
+    }
+  }
+
   async _setHouseDraft(tiles) {
     this._clearHouseDraft();
     const generation = this._houseDraftGeneration;
-    for (const tile of tiles.slice(-512)) {
+    const list = tiles.slice(0, 10_000);
+    for (let index = 0; index < list.length; index++) {
+      const tile = list[index];
       const graphic = tile.graphic | 0;
       if (!graphic) continue;
       const texture = assets.staticTextureSync?.(graphic) ?? await assets.staticTexture(graphic);
@@ -1023,6 +1182,7 @@ export class TileRenderer {
       sprite.zIndex = depthKey(tile.x | 0, tile.y | 0, (tile.z | 0) + 1, LAYER_ITEM) + 1;
       this.parent.addChild(sprite);
       this._houseDraftSprites.push(sprite);
+      if ((index & 63) === 63) await new Promise((resolve) => requestAnimationFrame(resolve));
     }
   }
 
@@ -1042,9 +1202,8 @@ export class TileRenderer {
     let maxZ = Infinity;
     // CUO `UpdateMaxDrawZ` only triggers the indoor cutoff for actual
     // CEILINGS / WALLS — small props (tables, beds, anvils, urns) at
-    // elevated z don't form a roof and must not be treated as one.
-    // User report 2026-05-19 "podszedłem do stołu i zniknęły mi
-    // przedmioty z niego" was: a table at z=5 set maxDrawZ=5, then
+    // elevated z don't form a roof and must not be treated as one. A table at
+    // z=5 previously set maxDrawZ=5, then
     // every item sitting on top of it (also at z=5) got `t.z >= 5`
     // and was hidden. Tighten the filter to roofs, elevated surfaces
     // (Britain Bank-style ceiling/floor layers), and tall walls so only
@@ -1235,6 +1394,7 @@ export class TileRenderer {
     // gated on that — the player's logical tile.
     const px = (world?.player?.x ?? centerX) | 0;
     const py = (world?.player?.y ?? centerY) | 0;
+    this._updateCustomHouseRange(px, py);
     this._applyItemRangeColor(px, py);
     const lastX = this._lastPlayerX, lastY = this._lastPlayerY;
     this._lastPlayerX = px;
@@ -1683,9 +1843,7 @@ export class TileRenderer {
    *  remove the shared world entry locally, the server still thinks
    *  the client has it; walking back into range produces no
    *  `worldItemSA` re-broadcast and the item is GONE FOREVER from the
-   *  client view until reconnect. User report 2026-05-19 "jak odejdę
-   *  od banku britani to nie ma drzwi znaków etc tak jakby się to nie
-   *  doładowywało" — items past the initial chunk never reappeared
+   *  client view until reconnect. Items beyond the initial chunk never reappeared
    *  because this prune was clobbering them every camera-pan jump. */
   _pruneDistantItems(centerX, centerY) {
     const FAR = 30;
@@ -1735,9 +1893,11 @@ export class TileRenderer {
     this._chunkRevision = (this._chunkRevision + 1) >>> 0;
     this._clearHousePreview();
     this._clearHouseDraft();
+    this._clearCustomHouses();
     this._clearCotDebugOverlay();
     this._clearRoofDebugOverlay();
     try { this._chunkDebugOverlay?.destroy?.(); } catch { /* ignore */ }
+    try { this._houseCollaborationOverlay?.destroy?.(); } catch { /* ignore */ }
     try { this._zDepthDebugLabel?.destroy?.(); } catch { /* ignore */ }
   }
 }

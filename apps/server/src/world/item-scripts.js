@@ -86,7 +86,7 @@ export function dispatchItemEvent(world, item, eventName, ...args) {
 }
 
 /**
- * FAZA BQ — fire walk-on / walk-off lifecycle hooks for every grounded
+ * PHASE BQ — fire walk-on / walk-off lifecycle hooks for every grounded
  * scripted item at the source and destination tiles of a step. Centralises
  * the logic so both player movement (handlers.js) and AI movement (ai.js
  * stepMobile) get identical trap / pressure-plate semantics.
@@ -208,7 +208,9 @@ export function tickAllItemScripts(world, dt) {
   // is wired.
   const idx = world._tickingItems;
   if (idx) {
-    for (const serial of [...idx]) {
+    // Deleting the current Set entry during iteration is defined and safe;
+    // avoid cloning the whole ticking index once per second.
+    for (const serial of idx) {
       const item = world.items.get(serial);
       if (!item) { idx.delete(serial); continue; }
       const s = item.script ? REGISTRY.get(item.script) : null;

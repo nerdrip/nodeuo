@@ -1,5 +1,5 @@
 import { spawnNPC } from './_spawn.js';
-import { allMobiles } from '../../_spatial.js';
+import { nearbyClients, nearbyMobiles } from '../../_spatial.js';
 
 // Healer NPC behavior.
 //
@@ -21,7 +21,7 @@ function distanceTo(a, b) {
 }
 
 function findGhost(world, healer) {
-  for (const other of allMobiles({ world })) {
+  for (const other of nearbyMobiles({ world }, healer, healer, RESS_RANGE)) {
     if (!other.ghost) continue;
     if (other.map !== healer.map) continue;
     if (distanceTo(healer, other) > RESS_RANGE) continue;
@@ -33,7 +33,7 @@ function findGhost(world, healer) {
 function findWounded(world, healer) {
   let best = null;
   let bestDeficit = 0;
-  for (const other of allMobiles({ world })) {
+  for (const other of nearbyMobiles({ world }, healer, healer, HEAL_RANGE)) {
     if (other === healer) continue;
     if (other.ghost) continue;
     if (other.map !== healer.map) continue;
@@ -64,11 +64,7 @@ function broadcastHealFx(api, healer, target) {
     fixedDirection: 1, explodes: 0,
     hue: 0, renderMode: 0,
   });
-  for (const other of allMobiles(api)) {
-    if (!other.client) continue;
-    if (other.map !== target.map) continue;
-    if (Math.abs(other.x - target.x) > 18) continue;
-    if (Math.abs(other.y - target.y) > 18) continue;
+  for (const other of nearbyClients(api, target, null, 18)) {
     other.client.send(fx);
   }
 }
@@ -80,11 +76,7 @@ function broadcastHp(api, target) {
   });
   if (target.client) target.client.send(pkt);
   // Nearby players also see the refreshed bar in their "recent targets" UI.
-  for (const other of allMobiles(api)) {
-    if (!other.client || other === target) continue;
-    if (other.map !== target.map) continue;
-    if (Math.abs(other.x - target.x) > 18) continue;
-    if (Math.abs(other.y - target.y) > 18) continue;
+  for (const other of nearbyClients(api, target, target, 18)) {
     other.client.send(pkt);
   }
 }
@@ -166,7 +158,7 @@ export default function register(api) {
         name: 'Sister Margery', title: 'the healer',
         body: 0x0191, hue: 33770, hp: 80, int: 90, notoriety: 1,
       };
-      // FAZA CB: route through spawnNPC so the healer arrives wearing a
+      // PHASE CB: route through spawnNPC so the healer arrives wearing a
       // robe + has equipment broadcast in the same mobileIncoming as the
       // body. The previous loop sent equipment=[] so the paperdoll
       // re-sync had to fire before any worn item rendered.

@@ -6,10 +6,8 @@
 // Art-id ranges (canonical UO):
 //   Magery     0x1F2D + (id-1)         id 1..64   (Clumsy = 1)
 //   Necromancy 0x2260 + (id-101)       id 101..117
-//   Chivalry   doesn't have scrolls in OSI; included as a stub for
-//              parity with ServUO `ChivalryScroll` (drops only from
-//              specific encounters; we use art 0x2D9E onward).
-//   Mysticism  0x2D9E + (id-678)       id 678..693
+//   Chivalry   has no ordinary spell-scroll variants in canonical UO.
+//   Mysticism  0x2D9E + (id-677)       internal ids 677..692
 //   Bushido / Ninjitsu / Spellweaving — no scroll variants in OSI.
 //
 // Cast semantics: scroll cast skips the mana check (delegated to
@@ -17,6 +15,7 @@
 // (scrolls bypass reagents). LOS / skill / target rules still apply.
 
 import { normalizeSkillValue } from '../../_rules.js';
+import { ALL as AUTHORED_SPELLS } from '../../spells/index.js';
 
 // --- script loader pattern: queue at module-load, flush in default register() ---
 const __PENDING__ = [];
@@ -101,8 +100,8 @@ function generateAll(spells) {
       registerScroll(MAGERY_BASE + (sp.id - 1), `Scroll of ${sp.name}`, sp.id, 'magery');
     } else if (sp.school === 'necromancy' && sp.id >= 101 && sp.id <= 117) {
       registerScroll(NECRO_BASE + (sp.id - 101), `Necromancy Scroll: ${sp.name}`, sp.id, 'necromancy');
-    } else if (sp.school === 'mysticism' && sp.id >= 678 && sp.id <= 693) {
-      registerScroll(MYSTIC_BASE + (sp.id - 678), `Mysticism Scroll: ${sp.name}`, sp.id, 'mysticism');
+    } else if (sp.school === 'mysticism' && sp.id >= 677 && sp.id <= 692) {
+      registerScroll(MYSTIC_BASE + (sp.id - 677), `Mysticism Scroll: ${sp.name}`, sp.id, 'mysticism');
     }
     // Chivalry / Bushido / Ninjitsu / Spellweaving: no spell-scroll variants
     // in canonical UO. Scrolls of Transcendence are registered by the
@@ -129,7 +128,10 @@ export default function register(api) {
     api.log?.('scrolls: spells system missing, skipping');
     return () => { _spells = null; };
   }
-  generateAll(_spells);
+  // Item definitions activate before the runtime spell registrar during a
+  // cold start. Generate from the authored module catalogue so the first load
+  // cannot permanently freeze an empty scroll list.
+  generateAll({ allSpells: () => AUTHORED_SPELLS });
   const reg = api.catalog?.items?.registerItem;
   if (!reg) { api.log?.('scrolls: registerItem missing, skipping'); return () => { _spells = null; }; }
   let count = 0;

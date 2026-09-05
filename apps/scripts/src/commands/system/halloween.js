@@ -26,7 +26,7 @@ export default function register(api) {
     run(ctx, args) {
       const sub = String(args?.[0] ?? '').toLowerCase();
       if (sub === 'gump' || sub === 'costumes') {
-        // Faza H.2 — open the costume / treats ledger overlay.
+        // Phase H.2 — open the costume / treats ledger overlay.
         ctx.state.sendSystemMessage?.('@@OPEN_TOT_GUMP@@');
         return;
       }

@@ -9,7 +9,7 @@ export default function register(api) {
     run(ctx, args) {
       const sub = String(args?.[0] ?? '').toLowerCase();
       if (sub === 'gump' || sub === 'dice') {
-        // Faza H.2 — emit sentinel so the dice gump opens client-side.
+        // Phase H.2 — emit sentinel so the dice gump opens client-side.
         ctx.state.sendSystemMessage?.('@@OPEN_CASINO_GUMP@@');
         return;
       }

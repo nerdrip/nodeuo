@@ -7,7 +7,7 @@ import { World } from '../src/world/world.js';
 import { isYoung, canDamage, tickYoungTimer, _YOUNG_CONST } from '../src/systems/young-player.js';
 import { _resetVeinsForTest } from '../../scripts/src/skills/mine.js';
 
-describe('young player rules (FAZA DM / #81)', () => {
+describe('young player rules (PHASE DM / #81)', () => {
   it('flags new players as young and ages them out at 40 hours', () => {
     const mob = { client: {}, youngPlayedMs: 0 };
     expect(isYoung(mob)).toBe(true);
@@ -31,7 +31,7 @@ describe('young player rules (FAZA DM / #81)', () => {
   });
 });
 
-describe('mining vein depletion (FAZA DO)', () => {
+describe('mining vein depletion (PHASE DO)', () => {
   beforeEach(() => _resetVeinsForTest());
   it('exposes the reset helper without crashing', () => {
     // Smoke: the import path itself is the regression check — the

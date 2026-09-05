@@ -12,8 +12,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
-import { allMobiles, nearbyClients } from '../_spatial.js';
-import { canCreateItem, createItem } from '../_items.js';
+import { allItems, allMobiles, nearbyClients } from '../_spatial.js';
+import { canCreateItem, createItem, destroyItemBySerial } from '../_items.js';
+import { registerWorldContentSeed } from '../_world-content.js';
+import { itemBySerial } from '../_entities.js';
 const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const DATA = path.resolve(HERE, '../data/world/spawns/despise-pillars.json');
 
@@ -33,7 +35,10 @@ function placePillar(api, def) {
       x: def.x, y: def.y, z: def.z, map: def.map,
       name: def.name, hue: def.hue, movable: false,
     });
-    if (item) item[def.tag] = true;
+    if (item) {
+      item[def.tag] = true;
+      item._worldContentSeed = 'despise-pillars';
+    }
     return item;
   } catch (e) {
     api.log?.(`[despise] pillar place failed: ${e.message}`);
@@ -72,14 +77,64 @@ function pulseAura(api, pillar, def) {
 
 export default function register(api) {
   if (!api.world || !api.items) return () => {};
-  // Defer placement until world.items is ready.
-  const defer = api.lifecycle?.setImmediate ?? setImmediate;
-  defer(() => {
+  const applyPillars = (opts = {}) => {
+    const facets = opts.facets ? new Set(opts.facets) : null;
+    if (!facets) _placed.length = 0;
+    let added = 0; let failed = 0;
     for (const def of CONFIG.pillars) {
-      const item = placePillar(api, def);
-      if (item) _placed.push({ def, item });
+      if (facets && !facets.has(def.map)) continue;
+      let item = [...allItems(api)].find((candidate) =>
+        (candidate[def.tag] || candidate.name === def.name) &&
+        candidate.map === def.map && candidate.x === def.x &&
+        candidate.y === def.y && candidate.z === def.z);
+      if (!item) {
+        item = placePillar(api, def);
+        if (item) added++;
+        else failed++;
+      } else {
+        item[def.tag] = true;
+        item._worldContentSeed = 'despise-pillars';
+      }
+      if (item && !_placed.some((row) => row.def.tag === def.tag)) _placed.push({ def, item });
     }
+    return { added, failed };
+  };
+  const removePillars = (opts = {}) => {
+    const facets = opts.facets ? new Set(opts.facets) : null;
+    const serials = new Set();
+    for (const item of allItems(api)) {
+      const canonical = CONFIG.pillars.some((def) =>
+        (item[def.tag] || item.name === def.name) && item.map === def.map &&
+        item.x === def.x && item.y === def.y && item.z === def.z &&
+        (!facets || facets.has(def.map)));
+      if ((item._worldContentSeed === 'despise-pillars' && (!facets || facets.has(item.map))) || canonical) {
+        serials.add(item.serial >>> 0);
+      }
+    }
+    for (const { item } of _placed) {
+      if (!facets || facets.has(item.map)) serials.add(item.serial >>> 0);
+    }
+    let removed = 0;
+    for (const serial of serials) {
+      try { if (itemBySerial(api, serial)) { destroyItemBySerial(api, serial); removed++; } }
+      catch (error) { api.log?.(`[despise] pillar remove failed: ${error.message}`); }
+    }
+    if (facets) {
+      for (let i = _placed.length - 1; i >= 0; i--) {
+        if (facets.has(_placed[i].item.map)) _placed.splice(i, 1);
+      }
+    } else _placed.length = 0;
+    return { removed };
+  };
+  const unregisterSeed = registerWorldContentSeed(api, 'despise-pillars', {
+    apply: applyPillars,
+    remove: removePillars,
   });
+
+  // Defer populated-world restoration until the item store is ready. A clean
+  // shard keeps the seed registered without placing physical objects.
+  const defer = api.lifecycle?.setImmediate ?? setImmediate;
+  if (api.world._createWorldDone !== false) defer(applyPillars);
 
   _interval = api.lifecycle?.setInterval?.(() => {
     for (const { def, item } of _placed) pulseAura(api, item, def);
@@ -89,6 +144,7 @@ export default function register(api) {
   _interval.unref?.();
 
   return () => {
+    unregisterSeed();
     if (!api.lifecycle && _interval) clearInterval(_interval);
     _interval = null;
     _placed.length = 0;

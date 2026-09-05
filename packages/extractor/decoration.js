@@ -20,11 +20,11 @@
 //   - map:     resolved from the folder name. Britannia → both Felucca (0)
 //              and Trammel (1). Single-facet folders → that facet only.
 //
-// Output: apps/scripts/src/data/decorations.json (one big array). Optimised
+// Output: apps/scripts/src/data/world/decorations.json (one big array). Optimised
 // for fast load — string interning happens on the runtime side.
 //
 //   node packages/extractor/decoration.js [--src templates/ServUO/Data/Decoration] \
-//                                      [--out apps/scripts/src/data/decorations.json]
+//                                      [--out apps/scripts/src/data/world/decorations.json]
 
 import { readdirSync, readFileSync, writeFileSync, existsSync, mkdirSync, statSync } from 'node:fs';
 import { join, basename, dirname } from 'node:path';
@@ -160,11 +160,11 @@ function parseArgs(argv) {
 
 const args = parseArgs(process.argv.slice(2));
 const src = args.src ?? 'templates/ServUO/Data/Decoration';
-const out = args.out ?? 'apps/scripts/src/data/decorations.json';
+const out = args.out ?? 'apps/scripts/src/data/world/decorations.json';
 const signsSrc = args.signs ?? 'templates/ServUO/Data/signs.cfg';
-const signsOut = args.signsOut ?? 'apps/scripts/src/data/signs.json';
+const signsOut = args.signsOut ?? 'apps/scripts/src/data/world/signs.json';
 const teleSrc  = args.teleporters ?? 'templates/ServUO/Data/teleporters.csv';
-const teleOut  = args.teleportersOut ?? 'apps/scripts/src/data/teleporters.json';
+const teleOut  = args.teleportersOut ?? 'apps/scripts/src/data/world/teleporters.json';
 
 if (!existsSync(src)) {
   console.error(`[decorate] source missing: ${src}`);

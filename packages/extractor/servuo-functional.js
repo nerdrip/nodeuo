@@ -24,7 +24,8 @@ const RX = {
 };
 
 function kebab(s) {
-  return s.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+  return String(s).trim().replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+    .replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase();
 }
 
 function categorise(text, className) {
@@ -75,10 +76,12 @@ function parseFile(path, isAddon) {
   const flip   = text.match(RX.flipable);
   const weight = text.match(RX.weight);
   const role   = categorise(text, className);
+  const definitionId = kebab(className);
   const out = {
-    name: kebab(className),
-    itemId,
-    label: `a ${className.replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase()}`,
+    definitionId,
+    artId: itemId,
+    name: `a ${className.replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase()}`,
+    servuoClass: className,
     slot: 'world',
     role,
   };
@@ -119,18 +122,20 @@ export async function extractServUOFunctional(servuoPath, out) {
     uniq.push(it);
   }
   uniq.sort((a, b) => a.name.localeCompare(b.name));
-  // Merge into items.json.
-  const outFile = join(out, 'data', 'items.json');
+  // Merge into the canonical item catalogue.
+  const outFile = join(out, 'data', 'config', 'items.json');
   /** @type {any[]} */
   const existing = JSON.parse(readFileSync(outFile, 'utf8'));
-  const knownByName = new Set(existing.map((e) => e.name));
+  const knownDefinitions = new Set(existing.map((entry) => entry.definitionId ?? entry.id ?? entry.name));
+  const knownArt = new Set(existing.map((entry) => entry.artId ?? entry.itemId).filter(Number.isInteger));
   let added = 0;
   // Tally roles for the log.
   const byRole = {};
   for (const it of uniq) {
-    if (knownByName.has(it.name)) continue;
+    if (knownDefinitions.has(it.definitionId) || knownArt.has(it.artId)) continue;
     existing.push(it);
-    knownByName.add(it.name);
+    knownDefinitions.add(it.definitionId);
+    knownArt.add(it.artId);
     byRole[it.role] = (byRole[it.role] ?? 0) + 1;
     added++;
   }

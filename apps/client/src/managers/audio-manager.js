@@ -91,8 +91,7 @@ class AudioManager {
     // (38/39/40) on war-enter and stops it on war-exit, client-side.
     // We piggy-back on the same `_onCombatState` path so the war toggle
     // gets audible feedback parity even when no actual hits have flown
-    // yet. User report 2026-05-19 "brakuje dźwięków przy zmianie
-    // peace↔war".
+    // yet, which keeps peace/war transitions audible.
     bus.on('player:warmode', ({ warMode }) => this._onCombatState(!!warMode));
     // Client audit #3 #9 — stop music + ambient on disconnect. Without
     // this the britain theme kept playing through LoginScene after a

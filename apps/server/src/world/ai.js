@@ -11,9 +11,10 @@
 
 import { nearbyClients } from './visibility.js';
 import { resolveStep } from './movement.js';
-import { findPath } from './pathfind.js';
+import { PathfindingGovernor } from './pathfind.js';
 import { dispatchTileWalkEvents } from './item-scripts.js';
 import { runtimeGovernor } from '../systems/runtime-governor.js';
+import { simulationReplay } from '../systems/simulation-replay.js';
 
 /**
  * @typedef {Object} AIContext
@@ -54,17 +55,37 @@ export class AIScheduler {
     this.behaviors = new Map();
     /** @type {Map<number, {behavior: string, state: any}>} */
     this.bindings = new Map();
+    // Stable, tombstoned iteration order. Building `[...bindings]` every
+    // 500 ms allocated an array proportional to the entire persisted NPC
+    // population even when almost every creature was asleep.
+    this._bindingOrder = [];
+    this._bindingSlots = new Map();
+    this._bindingHoles = 0;
     /** @type {Map<number, {x:number,y:number,z:number,map:number}>} */
     this._lastBroadcastPositions = new Map();
     /** Lightweight per-mobile diagnostics; bounded to one snapshot per binding. */
     this.diagnostics = new Map();
+    /** Aggregated behavior timings and circuit-breaker state. */
+    this.behaviorDiagnostics = new Map();
+    this._groupBlackboards = new Map();
+    // Candidate lists are shared by NPCs in the same coarse cell for one AI
+    // pulse. Packs no longer repeat the same sector traversal merely to pick
+    // their nearest online target; per-NPC hostility filters still run.
+    this._perceptionCache = new Map();
     /** @type {NodeJS.Timeout | null} */
     this._timer = null;
     this.tickIntervalMs = 500;
     this.tickBudgetMs = Math.max(2, Number(deps?.tickBudgetMs) || 12);
     this.maxTicksPerPulse = Math.max(1, Number(deps?.maxTicksPerPulse) || 500);
+    this.scheduler = deps?.scheduler ?? null;
+    this.pathfinding = new PathfindingGovernor(world, deps?.pathfinding);
     this._tickCursor = 0;
-    this.schedulerDiagnostics = { pulses: 0, budgetYields: 0, maxPulseMs: 0, lastPulseMs: 0 };
+    this.schedulerDiagnostics = {
+      pulses: 0, budgetYields: 0, maxPulseMs: 0, lastPulseMs: 0,
+      checked: 0, ticked: 0, hibernating: 0, circuitSkips: 0,
+      wakeups: 0, orderCompactions: 0,
+      perceptionHits: 0, perceptionMisses: 0,
+    };
     // Production shards can hold 10k+ persisted NPC bindings. There is no
     // useful simulation work while nobody is online, and walking every
     // binding would otherwise compete with startup/script loading. Tests keep
@@ -78,18 +99,27 @@ export class AIScheduler {
       throw new Error('behavior must have name + tick()');
     }
     this.behaviors.set(b.name, b);
+    if (!this.behaviorDiagnostics.has(b.name)) {
+      this.behaviorDiagnostics.set(b.name, {
+        name: b.name, calls: 0, errors: 0, consecutiveErrors: 0,
+        totalMs: 0, maxMs: 0, disabledUntil: 0,
+      });
+    }
   }
 
-  unregisterBehavior(name) {
+  unregisterBehavior(name, { detach = true } = {}) {
     this.behaviors.delete(name);
-    // Detach any mobiles bound to this behavior so they don't leak ticks.
-    for (const [serial, binding] of this.bindings) {
-      if (binding.behavior === name) {
-        this.bindings.delete(serial);
-        this._lastBroadcastPositions.delete(serial >>> 0);
-        this.diagnostics.delete(serial >>> 0);
+    // Normal removals detach bindings. Script Studio hot reloads can preserve
+    // them for the few milliseconds between dispose and replacement; the
+    // pulse loop already skips bindings whose behavior is temporarily absent.
+    if (detach) {
+      for (const [serial, binding] of this.bindings) {
+        if (binding.behavior === name) {
+          this._removeBinding(serial);
+        }
       }
     }
+    this.behaviorDiagnostics.delete(name);
   }
 
   attach(mob, behaviorName, state) {
@@ -97,16 +127,165 @@ export class AIScheduler {
       throw new Error(`unknown behavior: ${behaviorName}`);
     }
     const b = this.behaviors.get(behaviorName);
-    this.bindings.set(mob.serial, {
+    const serial = mob.serial >>> 0;
+    if (!this.bindings.has(serial)) {
+      this._bindingSlots.set(serial, this._bindingOrder.length);
+      this._bindingOrder.push(serial);
+    }
+    this.bindings.set(serial, {
       behavior: behaviorName,
       state: state ?? (b.initState ? b.initState() : {}),
+      nextEligibleAt: 0,
+      lod: 'active',
     });
   }
 
   detach(mob) {
-    this.bindings.delete(mob.serial);
-    this._lastBroadcastPositions.delete(mob.serial >>> 0);
-    this.diagnostics.delete(mob.serial >>> 0);
+    this._removeBinding(mob?.serial);
+  }
+
+  _removeBinding(serialLike) {
+    const serial = Number(serialLike) >>> 0;
+    if (!this.bindings.delete(serial)) return false;
+    const slot = this._bindingSlots.get(serial);
+    if (slot !== undefined) {
+      this._bindingOrder[slot] = 0;
+      this._bindingSlots.delete(serial);
+      this._bindingHoles++;
+    }
+    this._lastBroadcastPositions.delete(serial);
+    this.diagnostics.delete(serial);
+    return true;
+  }
+
+  _compactBindingOrder() {
+    if (this._bindingHoles < 64 || this._bindingHoles * 4 < this._bindingOrder.length) return;
+    let write = 0;
+    for (let read = 0; read < this._bindingOrder.length; read++) {
+      const serial = this._bindingOrder[read];
+      if (!serial || !this.bindings.has(serial)) continue;
+      this._bindingOrder[write] = serial;
+      this._bindingSlots.set(serial, write++);
+    }
+    this._bindingOrder.length = write;
+    this._bindingHoles = 0;
+    this._tickCursor = write ? this._tickCursor % write : 0;
+    this.schedulerDiagnostics.orderCompactions++;
+  }
+
+  /** Wake one AI immediately, optionally directing it at the source that
+   * caused the event (damage, pet command, player entering its sector). */
+  wake(mobOrSerial, source = null, lingerMs = 5_000) {
+    const serial = typeof mobOrSerial === 'number' ? mobOrSerial >>> 0 : mobOrSerial?.serial >>> 0;
+    const binding = this.bindings.get(serial);
+    const mob = this.world.mobiles.get(serial);
+    if (!binding || !mob) return false;
+    binding.nextEligibleAt = 0;
+    binding.lod = 'active';
+    mob._aiActiveUntil = Math.max(mob._aiActiveUntil ?? 0, Date.now() + Math.max(500, lingerMs | 0));
+    const sourceSerial = typeof source === 'number' ? source >>> 0 : source?.serial >>> 0;
+    if (sourceSerial && sourceSerial !== serial && binding.state && typeof binding.state === 'object') {
+      const current = this.world.mobiles.get(binding.state.targetSerial >>> 0);
+      if (!current || (current.hp ?? 1) <= 0) binding.state.targetSerial = sourceSerial;
+      this.publishGroupTarget(mob, source, lingerMs);
+    }
+    this.schedulerDiagnostics.wakeups++;
+    return true;
+  }
+
+  _groupKey(mob) {
+    const group = mob?.aiGroup ?? mob?.packId ?? mob?.team ?? mob?.kind;
+    return group == null ? '' : `${mob.map | 0}:${(mob.x | 0) >> 5}:${(mob.y | 0) >> 5}:${group}`;
+  }
+
+  publishGroupTarget(mob, target, ttlMs = 5_000) {
+    const keyValue = this._groupKey(mob);
+    const serial = typeof target === 'number' ? target >>> 0 : target?.serial >>> 0;
+    if (!keyValue || !serial) return false;
+    simulationReplay.decision('ai', mob?.serial, 'group-target', { targetSerial: serial, ttlMs });
+    this._groupBlackboards.set(keyValue, {
+      targetSerial: serial, sourceSerial: mob.serial >>> 0,
+      expiresAt: Date.now() + Math.max(500, Math.min(30_000, ttlMs | 0)),
+    });
+    while (this._groupBlackboards.size > 4096) this._groupBlackboards.delete(this._groupBlackboards.keys().next().value);
+    return true;
+  }
+
+  groupTarget(mob, now = Date.now()) {
+    const keyValue = this._groupKey(mob);
+    const row = keyValue && this._groupBlackboards.get(keyValue);
+    if (!row) return null;
+    const target = this.world.mobiles.get(row.targetSerial);
+    if (row.expiresAt < now || !target || target.ghost || (target.hp ?? 0) <= 0 || target.map !== mob.map) {
+      this._groupBlackboards.delete(keyValue); return null;
+    }
+    return target;
+  }
+
+  nearestOnline(mob, range = 18, predicate = null) {
+    if (!mob) return null;
+    const radius = Math.max(1, Math.min(64, Number(range) | 0));
+    const cellSize = Math.max(8, radius);
+    const cacheKey = `${mob.map | 0}:${Math.floor((mob.x | 0) / cellSize)}`
+      + `:${Math.floor((mob.y | 0) / cellSize)}:${radius}`;
+    let candidates = this._perceptionCache.get(cacheKey);
+    if (!candidates) {
+      candidates = [];
+      const sectors = this.world.sectors;
+      if (sectors?.mobileSerialsNear) {
+        const centerX = Math.floor((mob.x | 0) / cellSize) * cellSize + (cellSize >> 1);
+        const centerY = Math.floor((mob.y | 0) / cellSize) * cellSize + (cellSize >> 1);
+        const queryRadius = radius + cellSize;
+        for (const serial of sectors.mobileSerialsNear(mob.map, centerX, centerY, queryRadius)) {
+          const candidate = this.world.mobiles.get(serial);
+          if (candidate?.client && candidate.map === mob.map && !candidate.ghost && (candidate.hp ?? 0) > 0) {
+            candidates.push(candidate);
+          }
+        }
+      } else {
+        for (const candidate of this.world.mobiles.values()) {
+          if (candidate?.client && candidate.map === mob.map && !candidate.ghost && (candidate.hp ?? 0) > 0) {
+            candidates.push(candidate);
+          }
+        }
+      }
+      this._perceptionCache.set(cacheKey, candidates);
+      this.schedulerDiagnostics.perceptionMisses++;
+    } else this.schedulerDiagnostics.perceptionHits++;
+    let best = null;
+    let bestDistance = radius + 1;
+    for (const candidate of candidates) {
+      if (candidate === mob || (predicate && !predicate(candidate))) continue;
+      const distance = Math.max(Math.abs(candidate.x - mob.x), Math.abs(candidate.y - mob.y));
+      if (distance <= radius && distance < bestDistance) { best = candidate; bestDistance = distance; }
+    }
+    return best ? { target: best, dist: bestDistance } : null;
+  }
+
+  /** Spatial wake-up used when an online player moves/teleports. */
+  wakeNear(center, range = 48) {
+    if (!center || !this.world.sectors?.mobileSerialsNear) return 0;
+    let count = 0;
+    for (const serial of this.world.sectors.mobileSerialsNear(center.map, center.x, center.y, range)) {
+      if (serial === (center.serial >>> 0)) continue;
+      if (this.wake(serial, null, 1_500)) count++;
+    }
+    return count;
+  }
+
+  runtimeSnapshot() {
+    return {
+      ...this.schedulerDiagnostics,
+      bindings: this.bindings.size,
+      orderSlots: this._bindingOrder.length,
+      orderHoles: this._bindingHoles,
+      behaviors: Object.fromEntries([...this.behaviorDiagnostics].map(([name, row]) => [name, {
+        ...row,
+        averageMs: row.calls ? Number((row.totalMs / row.calls).toFixed(3)) : 0,
+      }])),
+      pathfinding: this.pathfinding.snapshot(),
+      groupBlackboards: this._groupBlackboards.size,
+    };
   }
 
   inspect(serial) {
@@ -165,7 +344,7 @@ export class AIScheduler {
    * Exposed here so scripted behaviors can share it via `api.ai.stepMobile`
    * without importing server internals.
    *
-   * FAZA BQ: pets and wanderers trigger pressure plates / traps just
+   * PHASE BQ: pets and wanderers trigger pressure plates / traps just
    * like players. The instance method has access to `this.world`, which
    * the standalone `stepMobile` export does not (kept world-agnostic so
    * isolated unit tests don't need a world wired up).
@@ -181,7 +360,7 @@ export class AIScheduler {
    * fails (wall in the way) — see `npcs/aggressive.js`.
    */
   findPath(mob, gx, gy, opts = {}) {
-    return findPath({
+    return this.pathfinding.find({
       facet: mob.map, sx: mob.x, sy: mob.y, sz: mob.z,
       gx, gy, ...opts,
     });
@@ -189,18 +368,27 @@ export class AIScheduler {
 
   start() {
     if (this._timer) return;
-    this._timer = setInterval(() => this._tickAll(), this.tickIntervalMs);
+    this._timer = this.scheduler?.every
+      ? this.scheduler.every('ai', this.tickIntervalMs, () => this._tickAll())
+      : setInterval(() => this._tickAll(), this.tickIntervalMs);
     // Node-only: don't hold the event loop open for AI.
     if (typeof this._timer.unref === 'function') this._timer.unref();
   }
 
   stop() {
-    if (this._timer) { clearInterval(this._timer); this._timer = null; }
+    if (this._timer) {
+      if (typeof this._timer.cancel === 'function') this._timer.cancel();
+      else clearInterval(this._timer);
+      this._timer = null;
+    }
   }
 
   _tickAll() {
     const pulseStarted = performance.now();
     const now = Date.now();
+    simulationReplay.beginTick('ai', now);
+    this.pathfinding.beginPulse();
+    this._perceptionCache.clear();
     const ctx = {
       world: this.world,
       now,
@@ -224,25 +412,35 @@ export class AIScheduler {
       ? (this.world.hasOnlineMobiles?.()
         ?? [...this.world.mobiles.values()].some((m) => !!m.client))
       : false;
-    if (this.pauseWhenNoPlayers && !anyOnline) return;
+    if (this.pauseWhenNoPlayers && !anyOnline) {
+      const pulseMs = performance.now() - pulseStarted;
+      this.schedulerDiagnostics.pulses++;
+      this.schedulerDiagnostics.lastPulseMs = Math.round(pulseMs * 1000) / 1000;
+      this.schedulerDiagnostics.maxPulseMs = Math.max(this.schedulerDiagnostics.maxPulseMs, this.schedulerDiagnostics.lastPulseMs);
+      runtimeGovernor.watchdog.record('ai', pulseMs);
+      return;
+    }
     const hibernateEnabled = anyOnline && !!sectors?.mobileSerialsNear;
-    const entries = [...this.bindings.entries()];
-    const total = entries.length;
+    const total = this.bindings.size;
+    const slots = this._bindingOrder;
+    const slotCount = slots.length;
     const adaptiveBudget = runtimeGovernor.budgets.ai;
     const mobileBudget = Math.max(1, Math.min(this.maxTicksPerPulse, adaptiveBudget.current | 0));
-    const start = total > 0 ? this._tickCursor % total : 0;
-    let visited = 0;
-    for (; visited < total && visited < mobileBudget; visited++) {
-      if (visited > 0 && performance.now() - pulseStarted >= this.tickBudgetMs) {
+    const start = slotCount > 0 ? this._tickCursor % slotCount : 0;
+    let scanned = 0;
+    let ticked = 0;
+    for (; scanned < slotCount && ticked < mobileBudget; scanned++) {
+      if (scanned > 0 && performance.now() - pulseStarted >= this.tickBudgetMs) {
         this.schedulerDiagnostics.budgetYields++;
         break;
       }
-      const [serial, binding] = entries[(start + visited) % total];
+      const serial = slots[(start + scanned) % slotCount];
+      if (!serial) continue;
+      const binding = this.bindings.get(serial);
+      if (!binding) continue;
       const mob = this.world.mobiles.get(serial);
       if (!mob) {
-        this.bindings.delete(serial);
-        this._lastBroadcastPositions.delete(serial >>> 0);
-        this.diagnostics.delete(serial >>> 0);
+        this._removeBinding(serial);
         continue;
       }
       // Mounted pets stay persisted/indexed but are not independent world
@@ -250,12 +448,10 @@ export class AIScheduler {
       // pet/wander AI tick here broadcasts a fresh 0x77 after `[mount` sent
       // removeEntity, resurrecting a duplicate horse on every client.
       if (mob.mounted) {
-        const prev = this.diagnostics.get(serial) ?? {};
-        this.diagnostics.set(serial, {
-          ...prev,
-          status: 'mounted',
-          skippedCount: (prev.skippedCount ?? 0) + 1,
-        });
+        const diag = this.diagnostics.get(serial) ?? { tickCount: 0, skippedCount: 0 };
+        diag.status = 'mounted';
+        diag.skippedCount++;
+        this.diagnostics.set(serial, diag);
         continue;
       }
       const b = this.behaviors.get(binding.behavior);
@@ -271,6 +467,7 @@ export class AIScheduler {
       } else if ((mob._provokedUntil ?? 0) > now && mob._provokedTarget) {
         mob.combatant = mob._provokedTarget >>> 0;
       }
+      let cadenceMs = this.tickIntervalMs;
       if (hibernateEnabled) {
         // ServUO `BaseAI.Action == Combat` keeps `IsActive` true while
         // an aggro target is set, regardless of player perception. The
@@ -287,46 +484,99 @@ export class AIScheduler {
                          || stateTargetSerial !== 0
                          || (mob._fleeingUntil ?? 0) > now;
         if (!forceActive && (mob._aiActiveUntil ?? 0) < now) {
-          let nearPlayer = false;
-          for (const s of sectors.mobileSerialsNear(mob.map, mob.x, mob.y, 24)) {
-            const m = this.world.mobiles.get(s);
-            if (m?.client) { nearPlayer = true; break; }
-          }
-          mob._aiActiveUntil = now + (nearPlayer ? 1000 : 4000);
-          if (!nearPlayer) {
-            const prev = this.diagnostics.get(serial) ?? {};
-            this.diagnostics.set(serial, { ...prev, status: 'hibernating', skippedCount: (prev.skippedCount ?? 0) + 1 });
+          const nearest = this.world._onlineMobilesAuthoritative && sectors.nearestOnlineDistance
+            ? sectors.nearestOnlineDistance(this.world, mob.map, mob.x, mob.y, 48)
+            : (() => {
+              let distance = Number.POSITIVE_INFINITY;
+              for (const s of sectors.mobileSerialsNear(mob.map, mob.x, mob.y, 48)) {
+                const m = this.world.mobiles.get(s);
+                if (!m?.client || m.map !== mob.map) continue;
+                distance = Math.min(distance, Math.max(Math.abs(m.x - mob.x), Math.abs(m.y - mob.y)));
+              }
+              return distance;
+            })();
+          if (Number.isFinite(nearest)) {
+            binding.lod = nearest <= 24 ? 'active' : 'background';
+            mob._aiActiveUntil = now + 1000;
+          } else {
+            binding.lod = 'hibernating';
+            mob._aiActiveUntil = now + 4000;
+            binding.nextEligibleAt = mob._aiActiveUntil;
+            const diag = this.diagnostics.get(serial) ?? { tickCount: 0, skippedCount: 0 };
+            diag.status = 'hibernating';
+            diag.skippedCount++;
+            this.diagnostics.set(serial, diag);
+            this.schedulerDiagnostics.hibernating++;
             continue;
           }
+        } else if (forceActive) {
+          binding.lod = 'active';
         }
+        cadenceMs = binding.lod === 'background' ? 2000 : this.tickIntervalMs;
+        if (now < (binding.nextEligibleAt ?? 0)) continue;
+      }
+      const behaviorStats = this.behaviorDiagnostics.get(binding.behavior);
+      if (behaviorStats?.disabledUntil > now) {
+        const diag = this.diagnostics.get(serial) ?? { tickCount: 0, skippedCount: 0 };
+        diag.status = 'circuit-open';
+        diag.skippedCount++;
+        this.diagnostics.set(serial, diag);
+        this.schedulerDiagnostics.circuitSkips++;
+        continue;
       }
       const started = performance.now();
+      ticked++;
       try {
         b.tick(ctx, mob, binding.state);
-        const prev = this.diagnostics.get(serial) ?? {};
-        this.diagnostics.set(serial, {
-          ...prev, status: 'active', lastTickAt: now,
-          lastTickMs: Math.round((performance.now() - started) * 1000) / 1000,
-          tickCount: (prev.tickCount ?? 0) + 1, lastError: null,
-        });
+        const elapsed = performance.now() - started;
+        const diag = this.diagnostics.get(serial) ?? { tickCount: 0, skippedCount: 0 };
+        diag.status = binding.lod === 'background' ? 'background' : 'active';
+        diag.lastTickAt = now;
+        diag.lastTickMs = Math.round(elapsed * 1000) / 1000;
+        diag.tickCount++;
+        diag.lastError = null;
+        this.diagnostics.set(serial, diag);
+        if (behaviorStats) {
+          behaviorStats.calls++;
+          behaviorStats.totalMs += elapsed;
+          behaviorStats.maxMs = Math.max(behaviorStats.maxMs, elapsed);
+          behaviorStats.consecutiveErrors = 0;
+          behaviorStats.disabledUntil = 0;
+        }
       } catch (e) {
-        const prev = this.diagnostics.get(serial) ?? {};
-        this.diagnostics.set(serial, {
-          ...prev, status: 'error', lastTickAt: now,
-          lastTickMs: Math.round((performance.now() - started) * 1000) / 1000,
-          tickCount: (prev.tickCount ?? 0) + 1,
-          lastError: String(e?.stack ?? e?.message ?? e).slice(0, 2000),
-        });
+        const elapsed = performance.now() - started;
+        const diag = this.diagnostics.get(serial) ?? { tickCount: 0, skippedCount: 0 };
+        diag.status = 'error';
+        diag.lastTickAt = now;
+        diag.lastTickMs = Math.round(elapsed * 1000) / 1000;
+        diag.tickCount++;
+        diag.lastError = String(e?.stack ?? e?.message ?? e).slice(0, 2000);
+        this.diagnostics.set(serial, diag);
+        if (behaviorStats) {
+          behaviorStats.calls++;
+          behaviorStats.errors++;
+          behaviorStats.consecutiveErrors++;
+          behaviorStats.totalMs += elapsed;
+          behaviorStats.maxMs = Math.max(behaviorStats.maxMs, elapsed);
+          if (behaviorStats.consecutiveErrors >= 3) {
+            behaviorStats.disabledUntil = now + Math.min(60_000, 5_000 * (behaviorStats.consecutiveErrors - 2));
+          }
+        }
         console.error(`[ai] ${binding.behavior} tick threw:`, e);
       }
+      binding.nextEligibleAt = hibernateEnabled ? now + cadenceMs : 0;
     }
-    if (total > 0) this._tickCursor = (start + Math.max(1, visited)) % total;
+    if (slotCount > 0) this._tickCursor = (start + Math.max(1, scanned)) % slotCount;
+    this._compactBindingOrder();
     const pulseMs = performance.now() - pulseStarted;
     adaptiveBudget.observe(pulseMs);
-    if (visited < total) adaptiveBudget.noteSkipped(total - visited);
+    if (scanned < slotCount || ticked >= mobileBudget) adaptiveBudget.noteSkipped(Math.max(0, total - ticked));
     this.schedulerDiagnostics.pulses++;
+    this.schedulerDiagnostics.checked += scanned;
+    this.schedulerDiagnostics.ticked += ticked;
     this.schedulerDiagnostics.lastPulseMs = Math.round(pulseMs * 1000) / 1000;
     this.schedulerDiagnostics.maxPulseMs = Math.max(this.schedulerDiagnostics.maxPulseMs, this.schedulerDiagnostics.lastPulseMs);
+    runtimeGovernor.watchdog.record('ai', pulseMs);
   }
 
   _broadcastMove(mob) {
@@ -380,7 +630,9 @@ export class AIScheduler {
           }
           state._visibleMobiles.add(mobSerial);
         }
-        other.client.send(this.deps.mobileMovingPacketFor(mob, other));
+        const packet = this.deps.mobileMovingPacketFor(mob, other);
+        if (typeof state?.sendEntityDelta === 'function') state.sendEntityDelta(mobSerial, 1, packet);
+        else other.client.send(packet);
       }
       return;
     }
@@ -394,7 +646,8 @@ export class AIScheduler {
         }
         state._visibleMobiles.add(mobSerial);
       }
-      other.client.send(pkt);
+      if (typeof state?.sendEntityDelta === 'function') state.sendEntityDelta(mobSerial, 1, pkt);
+      else other.client.send(pkt);
     }
   }
 
@@ -412,7 +665,7 @@ export class AIScheduler {
  * ask the land/statics provider via `resolveStep` and only commit the move
  * when the step is walkable. Returns true on any change (turn or step).
  *
- * FAZA BQ: when a `world` is supplied, fire onWalkOff/onWalkOn lifecycle
+ * PHASE BQ: when a `world` is supplied, fire onWalkOff/onWalkOn lifecycle
  * hooks for items at the source / destination tile. The world is optional
  * so unit tests that exercise pure walkability still construct a free
  * mob without a world reference. AIScheduler.stepMobile / wanderBehavior
@@ -424,7 +677,10 @@ export function stepMobile(mob, direction, world = null) {
   // expiresAt is past. Returning false here matches how a blocked tile is
   // reported, which keeps callers (AI behavior + player movement) from
   // broadcasting a fake position change.
-  if (mob.effects?.some((e) => e.name === 'paralyze')) return false;
+  if (mob.effects?.some((e) => e.name === 'paralyze')
+      || Math.max(Number(mob._paralyzedUntil) || 0, Number(mob.paralyzedUntil) || 0) > Date.now()) {
+    return false;
+  }
   const [dx, dy] = DIRECTION_DELTAS[direction & 7];
   const facing = direction & 7;
   const previous = { x: mob.x | 0, y: mob.y | 0, z: mob.z | 0, map: mob.map ?? 1 };

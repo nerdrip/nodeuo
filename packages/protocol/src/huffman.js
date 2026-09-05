@@ -183,38 +183,72 @@ const DECODE_TREE = buildDecodeTree();
  * @param {Uint8Array} input compressed bytes
  * @returns {Uint8Array} decoded bytes
  */
-export function huffmanDecompress(input) {
-  const tree = DECODE_TREE;
-  // Worst-case expansion is 8 output bits per 2 input bits = 4x; pad for safety.
-  const out = new Uint8Array(input.length * 4 + 16);
-  let outPos = 0;
-  let node = 0;
+export class UOHuffmanStreamDecoder {
+  constructor() {
+    // A TCP read boundary is unrelated to a Huffman packet boundary. Keep the
+    // current decode-tree node between pushes so a symbol split across two
+    // reads is decoded exactly once. Packet terminators are byte-aligned by
+    // the canonical encoder, therefore no separate bit reservoir is needed.
+    this.node = 0;
+    this.bytesIn = 0;
+    this.bytesOut = 0;
+    this.packets = 0;
+  }
 
-  for (let i = 0; i < input.length; i++) {
-    const byte = input[i];
-    let terminated = false;
-    for (let bit = 7; bit >= 0; bit--) {
-      const b = (byte >>> bit) & 1;
-      const child = tree[node + b];
-      if (child > 0) {
-        node = child;
-      } else if (child < 0) {
+  /** Decode one arbitrary fragment of the server -> client TCP stream. */
+  push(input) {
+    const source = input instanceof Uint8Array ? input : new Uint8Array(input ?? 0);
+    const tree = DECODE_TREE;
+    // Worst-case expansion is 8 output bits per 2 input bits = 4x. A small
+    // pad also covers output already implied by a partial prefix from the
+    // previous fragment.
+    const out = new Uint8Array(source.length * 4 + 16);
+    let outPos = 0;
+    let node = this.node;
+
+    for (let i = 0; i < source.length; i++) {
+      const byte = source[i];
+      for (let bit = 7; bit >= 0; bit--) {
+        const child = tree[node + ((byte >>> bit) & 1)];
+        if (child > 0) {
+          node = child;
+          continue;
+        }
+        if (child === 0) {
+          this.node = 0;
+          throw new Error('Huffman decode: traversed into unassigned node (malformed stream)');
+        }
         const sym = -child - 1;
         if (sym === 256) {
-          // Terminator: skip remaining bits in this byte (encoder pads them
-          // with zeros to byte-align the next packet) and start fresh.
+          // The rest of this byte is canonical zero padding. Resume at the
+          // root on the next byte, which may begin another compressed packet.
           node = 0;
-          terminated = true;
+          this.packets++;
           break;
         }
         out[outPos++] = sym;
         node = 0;
-      } else {
-        throw new Error('Huffman decode: traversed into unassigned node (malformed stream)');
       }
     }
-    void terminated; // intentionally unused — `break` already exited the bit loop
+
+    this.node = node;
+    this.bytesIn += source.length;
+    this.bytesOut += outPos;
+    return out.subarray(0, outPos);
   }
 
-  return out.subarray(0, outPos);
+  reset() { this.node = 0; }
+
+  snapshot() {
+    return {
+      bytesIn: this.bytesIn,
+      bytesOut: this.bytesOut,
+      packets: this.packets,
+      partialSymbol: this.node !== 0,
+    };
+  }
+}
+
+export function huffmanDecompress(input) {
+  return new UOHuffmanStreamDecoder().push(input);
 }

@@ -233,8 +233,8 @@ export class PaperdollGump extends Gump {
     // slot GumpPics (the per-layer overlays added in `_refresh`) DON'T
     // set `onDrop`, so a drop landing exactly on a worn item (e.g.
     // existing robe sprite) would fall through to the gump → no onDrop
-    // → world drop. User report 2026-05-19 "upuściłem item na paperdolla
-    // i mi nie wrócił do plecaka". Mounting equipFromHeld at the gump
+    // → world drop, instead of returning to the backpack on failure.
+    // Mounting equipFromHeld at the gump
     // root means any drop inside the paperdoll bounds routes to equip,
     // and a failed equip bounces via the server's 0x27 PickUpRejected.
     this.onDrop = equipFromHeld;

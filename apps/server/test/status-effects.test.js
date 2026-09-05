@@ -61,6 +61,7 @@ describe('statusEffects.tickAll', () => {
     const ticks = [];
     statusEffects.apply(mob, {
       name: 'poison', durationMs: 10_000, tickIntervalMs: 2000,
+      lastTickAt: 0,
       tick: (_m, _w, now) => ticks.push(now),
     });
     const world = makeWorld([mob]);
@@ -93,6 +94,7 @@ describe('statusEffects.tickAll', () => {
       name: 'poison',
       expiresAt: 10_000,
       tickIntervalMs: 2000,
+      lastTickAt: 0,
       tick: (m) => { m.hp -= 5; },
     });
     const world = makeWorld([mob]);
@@ -104,5 +106,24 @@ describe('statusEffects.tickAll', () => {
     expect(mob.hp).toBeLessThanOrEqual(30);
     expect(mob.hp).toBeGreaterThanOrEqual(25);
     expect(statusEffects.has(mob, 'poison')).toBe(false);
+  });
+
+  it('waits one full interval in production time and indexes the mobile', () => {
+    const world = { mobiles: new Map(), _mobsWithEffects: new Set() };
+    const mob = makeMob({ _world: world });
+    world.mobiles.set(mob.serial, mob);
+    const ticks = [];
+    const appliedAt = Date.now();
+    statusEffects.apply(mob, {
+      name: 'renewal', durationMs: 10_000, tickIntervalMs: 2_000,
+      tick: (_mob, _world, now) => ticks.push(now),
+    });
+    expect(world._mobsWithEffects.has(mob.serial)).toBe(true);
+    statusEffects.tickAll(world, appliedAt + 1_999);
+    expect(ticks).toEqual([]);
+    statusEffects.tickAll(world, appliedAt + 2_000);
+    expect(ticks).toEqual([appliedAt + 2_000]);
+    statusEffects.remove(mob, 'renewal', world);
+    expect(world._mobsWithEffects.has(mob.serial)).toBe(false);
   });
 });

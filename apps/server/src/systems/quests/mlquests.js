@@ -41,6 +41,8 @@ function normalizeQuest(def) {
     uncompleteCliloc: def.uncompleteCliloc ?? null,
     completeCliloc: def.completeCliloc ?? null,
     rewardChoices: (def.rewardChoices ?? []).map((r) => ({ ...r })),
+    chain: def.chain ?? null,
+    requires: def.requires ?? null,
     extracted: !!def.extracted,
     unique: !!def.unique,
   });
@@ -65,16 +67,33 @@ export function replaceQuest(def) {
 /** Lookup. */
 export function getQuest(id) { return _registry.get(id) ?? null; }
 export function listQuests() { return [..._registry.values()]; }
+export function unregisterQuest(id) { return _registry.delete(id); }
+
+/** Return hydrated journal rows for a mobile. */
+export function listActive(mob) {
+  if (!mob?.mlQuests) return [];
+  return mob.mlQuests.map((progress) => ({
+    ...(getQuest(progress.id) ?? {}),
+    ...progress,
+    progress: { ...(progress.progress ?? {}) },
+  }));
+}
 
 /** Begin `questId` for `mob`. Returns { ok, reason }. */
 export function offer(mob, questId) {
   const def = getQuest(questId);
   if (!def) return { ok: false, reason: 'no-such-quest' };
   if (!mob.mlQuests) mob.mlQuests = [];
+  if (def.requires) {
+    const prerequisite = mob.mlQuests.find((q) => q.id === def.requires);
+    if (!prerequisite?.turnedIn) {
+      return { ok: false, reason: 'prerequisite-not-complete', requires: def.requires };
+    }
+  }
   const existing = mob.mlQuests.find((q) => q.id === questId);
   if (existing) {
-    if (def.unique) return { ok: false, reason: 'already-completed' };
     if (!existing.completed) return { ok: false, reason: 'already-active' };
+    if (def.unique) return { ok: false, reason: 'already-completed' };
     // Unique=false → reset for replay.
     Object.assign(existing, _initProgress(def));
     return { ok: true, def };
@@ -145,7 +164,8 @@ export function trackTalk(mob, npcSerial, keyword) {
     for (const obj of def.objectives) {
       if (obj.type !== 'talk') continue;
       if (obj.npcSerial && obj.npcSerial !== npcSerial) continue;
-      if (obj.keyword && obj.keyword !== keyword) continue;
+      if (obj.keyword && String(obj.keyword).toLocaleLowerCase('en-US')
+        !== String(keyword ?? '').toLocaleLowerCase('en-US')) continue;
       q.progress['talk:' + (obj.keyword ?? '?')] = true;
       _maybeComplete(q, def);
       out.push({ q, def });
@@ -211,7 +231,7 @@ export function turnIn(mob, questId) {
         const cur = normalizeSkillValue(skills[id] ?? skills[String(id)] ?? 0);
         if (cur < cap) {
           mob.skills ??= {};
-          mob.skills[id] = Math.min(cap, cur + (r.amount ?? 0));
+          mob.skills[id] = Math.min(cap, cur + (r.amount ?? r.points ?? 0));
         }
         break;
       }

@@ -1,8 +1,7 @@
-// FAZA CX — virtue accrual.
+// PHASE CX — virtue accrual.
 //
-// FAZA DC: client mirrors `mob.virtues` from a 0xBF 0xCD VirtueState
-// push (see packages/protocol extVirtueState). `pushVirtues(state, mob)`
-// emits the packet to the player's client. We auto-push on rank-cross
+// The NodeUO client mirrors `mob.virtues` through a typed JSON v2 snapshot.
+// We auto-push on rank-cross
 // (already done via sendSystemMessage) AND on every awardVirtue call so
 // the in-game gump refreshes live.
 //
@@ -22,7 +21,8 @@
 // Persistence: `mob.virtues` is in MOBILE_EXT_KEYS so the field round-
 // trips through the JSON snapshot.
 
-import { extVirtueState, NodeUOCapability } from '@uo/protocol';
+import { NodeUOFeature, NodeUOJsonKind } from '@uo/nodeuo-protocol';
+import { sendNodeUOFeature } from '../../net/handlers/nodeuo-modern.js';
 
 export const VIRTUES = Object.freeze([
   'humility', 'sacrifice', 'compassion', 'spirituality',
@@ -66,16 +66,14 @@ export function awardVirtue(mob, key, amount) {
 }
 
 /**
- * Push a 0xBF 0xCD VirtueState packet to `mob.client` so the browser
- * gump can render up-to-date numbers. No-op for NPCs (no client) or
- * when the wire builder/protocol is missing in tests.
+ * Push a typed virtue snapshot so the NodeUO gump stays current.
  */
 export function pushVirtues(mob) {
-  if (!mob?.client?.send) return;
-  if (!mob.client.supportsNodeUO?.(NodeUOCapability.RichGumps)) return;
-  if (typeof extVirtueState !== 'function') return;
+  if (!mob?.client?.supportsNodeUO?.(NodeUOFeature.RichGumps)) return false;
   const v = mob.virtues ?? {};
-  mob.client.send(extVirtueState({
+  return sendNodeUOFeature(mob.client, {
+    feature: 'character.virtues', kind: NodeUOJsonKind.Snapshot,
+    payload: {
     humility:     v.humility     | 0,
     sacrifice:    v.sacrifice    | 0,
     compassion:   v.compassion   | 0,
@@ -84,15 +82,16 @@ export function pushVirtues(mob) {
     honor:        v.honor        | 0,
     justice:      v.justice      | 0,
     honesty:      v.honesty      | 0,
-  }));
+    },
+  });
 }
 
 /**
  * Subtract `amount` from `mob.virtues[key]`. Floors at 0. Used for
  * decay or virtue-burning rituals.
  *
- * BUGFIX #76 (FAZA DH): the awardVirtue path auto-pushed the new
- * VirtueState packet to the client, but spendVirtue silently mutated
+ * BUGFIX #76 (PHASE DH): the awardVirtue path auto-pushed the new
+ * virtue-state update to the client, but spendVirtue silently mutated
  * mob.virtues without notifying — players invoking [honor saw the
  * Ctrl+V gump still showing the pre-spend honor value until the next
  * awardVirtue call. Symmetry restored.
@@ -177,16 +176,20 @@ const INVOCATION_COSTS = {
  * 'valor-altar' (Valor — spawn champ altar nearby — out-of-scope here).
  */
 export function invokeVirtue(mob, key, target = null, now = Date.now()) {
-  const cfg = INVOCATION_COSTS[key];
+  const virtueKey = VIRTUES.find((candidate) => candidate === String(key).toLowerCase());
+  const invocationKey = virtueKey
+    ? virtueKey.charAt(0).toUpperCase() + virtueKey.slice(1)
+    : String(key);
+  const cfg = INVOCATION_COSTS[invocationKey];
   if (!cfg) return { ok: false, reason: 'unknown-virtue' };
-  const v = mob.virtues?.[key] | 0;
+  const v = mob.virtues?.[virtueKey] | 0;
   if (v < cfg.cost) return { ok: false, reason: 'low-virtue', need: cfg.cost };
   if (!mob._virtueCooldown) mob._virtueCooldown = {};
-  const until = mob._virtueCooldown[key] | 0;
+  const until = Number(mob._virtueCooldown[virtueKey]) || 0;
   if (now < until) return { ok: false, reason: 'cooldown', untilMs: until };
 
   let effect = null;
-  switch (key) {
+  switch (invocationKey) {
     case 'Compassion':
       if (!target || !target.ghost) return { ok: false, reason: 'need-ghost-target' };
       effect = 'res';
@@ -233,8 +236,8 @@ export function invokeVirtue(mob, key, target = null, now = Date.now()) {
       return { ok: false, reason: 'unimplemented' };
   }
 
-  spendVirtue(mob, key, cfg.cost);
-  mob._virtueCooldown[key] = now + cfg.cooldownMs;
+  spendVirtue(mob, virtueKey, cfg.cost);
+  mob._virtueCooldown[virtueKey] = now + cfg.cooldownMs;
   return { ok: true, effect, target };
 }
 

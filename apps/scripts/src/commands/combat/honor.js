@@ -1,5 +1,5 @@
 import { mobileBySerial } from '../../_entities.js';
-// FAZA DH — `[honor` virtue invocation.
+// PHASE DH — `[honor` virtue invocation.
 //
 // ServUO's Honor virtue (Skills/AnimalLore.cs + Misc/Virtues.cs) lets
 // the player target an enemy creature and "honor" it before combat:

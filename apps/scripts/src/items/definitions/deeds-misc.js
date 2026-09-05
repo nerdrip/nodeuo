@@ -20,7 +20,7 @@ __PENDING__.push({
   _isPersonalBlessDeed: true,
 });
 
-// Faza F.1.2 — Item Bless Deed (ServUO `Items/Functional/ItemBlessDeed.cs`).
+// Phase F.1.2 — Item Bless Deed (ServUO `Items/Functional/ItemBlessDeed.cs`).
 // Single-use deed: targets any item in player's pack, sets `_blessed = true`.
 __PENDING__.push({
   tagId: 'item-bless-deed',
@@ -32,7 +32,7 @@ __PENDING__.push({
   script: 'item-bless-deed',
 });
 
-// Faza F.1.2 — Clothing Bless Deed (ServUO `Items/Functional/ClothingBlessDeed.cs`).
+// Phase F.1.2 — Clothing Bless Deed (ServUO `Items/Functional/ClothingBlessDeed.cs`).
 // Only works on clothing layers (shirt/pants/cloak/robe/etc).
 __PENDING__.push({
   tagId: 'clothing-bless-deed',
@@ -44,7 +44,7 @@ __PENDING__.push({
   script: 'clothing-bless-deed',
 });
 
-// Faza F.1.2 — Bless Scroll (ServUO `Items/Consumables/BlessScroll.cs`).
+// Phase F.1.2 — Bless Scroll (ServUO `Items/Consumables/BlessScroll.cs`).
 // Functionally identical to ItemBlessDeed; different art (scroll vs deed).
 __PENDING__.push({
   tagId: 'bless-scroll',

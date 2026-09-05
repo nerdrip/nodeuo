@@ -157,7 +157,7 @@ export function fireCannon(cannon, deps = {}, now = Date.now()) {
   if (!c) return { ok: false, reason: 'not-a-cannon' };
   if (c.stage !== 'primed') return { ok: false, reason: 'not-primed' };
   const def = CANNON_KINDS[c.kind];
-  if (now - (c.lastFiredAt | 0) < def.cooldownMs) {
+  if (now - (Number(c.lastFiredAt) || 0) < def.cooldownMs) {
     return { ok: false, reason: 'cooldown' };
   }
   const impact = targetTile(cannon);

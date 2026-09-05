@@ -1,10 +1,8 @@
 import { allItems } from '../../_spatial.js';
 // House ACL — owner / co-owner / friend / stranger access tiers.
-// Mirrors ServUO `BaseHouse.cs` permission system. ACL state lives on
-// every tile of the multi (denormalised — duplicated across the ~140
-// tiles of a small house, but each tile is just a few small fields so
-// the memory cost is negligible vs the lookup-cost saving of "every
-// item already knows its house").
+// Mirrors ServUO `BaseHouse.cs` permission system. ACL state lives on the
+// compact multi anchor and the small number of interactive children (doors,
+// signs, planks). Immutable walls/floors are resolved by MultiSpatialIndex.
 //
 // Access tiers (highest privilege first):
 //   • OWNER     — full control, can demolish / transfer / customise
@@ -26,9 +24,9 @@ export const ACL_NONE     = 0;
 export const DEFAULT_LOCKDOWN_CAP = 425;
 
 /** Maximum days of inactivity before the house decays + auto-demolishes.
- *  ServUO uses 15 days for a fresh, owner-visited house; we keep the
- *  same window. The grace period rolls forward on every owner visit. */
-export const DECAY_DAYS = 15;
+ *  This matches the registry's 150-day ladder plus its five-day IDOC
+ *  window. The grace period rolls forward on every owner visit. */
+export const DECAY_DAYS = 155;
 export const DECAY_MS   = DECAY_DAYS * 24 * 60 * 60 * 1000;
 
 /** Build a freshly-initialised ACL for a multi placed by `owner`. */
@@ -64,9 +62,9 @@ export function getAclLevel(mob, acl, ctxAccess = 'Player') {
   }
   const serial = (mob.serial >>> 0);
   if ((acl.owner?.serial >>> 0) === serial) return ACL_OWNER;
+  if (acl.bans?.some?.((e) => (e.serial >>> 0) === serial))     return ACL_NONE;
   if (acl.coOwners?.some?.((e) => (e.serial >>> 0) === serial)) return ACL_CO_OWNER;
   if (acl.friends?.some?.((e) => (e.serial >>> 0) === serial))  return ACL_FRIEND;
-  if (acl.bans?.some?.((e) => (e.serial >>> 0) === serial))     return ACL_NONE;   // explicitly banished
   return ACL_STRANGER;
 }
 
@@ -77,7 +75,16 @@ export function addToRoster(acl, rosterName, mob) {
   const roster = acl[rosterName];
   if (!Array.isArray(roster)) return false;
   const serial = mob.serial >>> 0;
+  if ((acl.owner?.serial >>> 0) === serial) return false;
   if (roster.some((e) => (e.serial >>> 0) === serial)) return false;
+  // ACL roles are mutually exclusive. Banning an existing friend/co-owner
+  // must revoke their access immediately rather than leaving two roles.
+  for (const name of ['coOwners', 'friends', 'bans']) {
+    if (name === rosterName || !Array.isArray(acl[name])) continue;
+    for (let i = acl[name].length - 1; i >= 0; i--) {
+      if ((acl[name][i]?.serial >>> 0) === serial) acl[name].splice(i, 1);
+    }
+  }
   roster.push({ serial, name: mob.name });
   return true;
 }
@@ -104,6 +111,7 @@ export function lockdownItem(acl, item) {
   if (acl.lockedDown.includes(s)) return false;
   if (acl.lockedDown.length >= acl.lockdownCap) return false;
   acl.lockedDown.push(s);
+  if (item._movableBeforeLockdown == null) item._movableBeforeLockdown = item.movable !== false;
   item.movable = false;
   item.lockedDown = true;
   return true;
@@ -116,7 +124,8 @@ export function releaseItem(acl, item) {
   const idx = acl.lockedDown.indexOf(s);
   if (idx < 0) return false;
   acl.lockedDown.splice(idx, 1);
-  item.movable = true;
+  item.movable = item._movableBeforeLockdown !== false;
+  delete item._movableBeforeLockdown;
   item.lockedDown = false;
   return true;
 }
@@ -139,12 +148,13 @@ export function hasDecayed(acl, now = Date.now()) {
  *  `placemulti` right after `stampMultiAt` so the freshly-stamped
  *  tiles all share the new ACL by reference. */
 export function applyAclToTiles(world, multiId, facet, acl, instanceId = null) {
+  if (instanceId == null && multiId == null) return 0;
   let n = 0;
   for (const it of allItems({ world })) {
     if ((it.map ?? 1) !== facet) continue;
     if (instanceId != null) {
       if ((it._multiInstance >>> 0) !== (instanceId >>> 0)) continue;
-    } else if ((it._multi | 0) !== (multiId | 0)) continue;
+    } else if (it._multi == null || (it._multi | 0) !== (multiId | 0)) continue;
     it._multiAcl = acl;
     n++;
   }

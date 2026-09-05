@@ -1,6 +1,6 @@
 import { allMobiles } from '../../_spatial.js';
 import { itemBySerial, mobileBySerial } from '../../_entities.js';
-// FAZA HF — `[set <field> <value>` GM property editor.
+// PHASE HF — `[set <field> <value>` GM property editor.
 //
 // ServUO `Scripts/Commands/Properties.cs` is the swiss-army GM tool:
 // target an entity, type `[set Hits 9999`, watch the mob become
@@ -21,7 +21,7 @@ const ALLOWED_FIELDS = new Set([
   // Decoration / decay opt-outs
   //   `isDecoration` — placed by `[createworld`; persistence skips, decay
   //                    skips. Set true to make a hand-spawned item permanent
-  //                    AND keep the world.json save tiny.
+  //                    AND keep persistent entity rows compact.
   //   `_noDecay`     — keep a movable ground item even though it WOULD be
   //                    eligible for decay. Quest rewards / GM marks / event
   //                    drops live here.

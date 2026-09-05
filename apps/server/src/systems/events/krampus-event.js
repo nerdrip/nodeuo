@@ -82,7 +82,7 @@ export function scoreOf(account) {
 export function shouldSpawn(now = Date.now()) {
   if (!isInSeason()) return false;
   ensureState();
-  return now - (_state.lastSpawnAt | 0) >= SPAWN_INTERVAL_MS;
+  return now - (Number(_state.lastSpawnAt) || 0) >= SPAWN_INTERVAL_MS;
 }
 
 /** Spawn Krampus at a random town. Returns the spawned mob (or null

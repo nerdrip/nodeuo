@@ -30,6 +30,12 @@ function getNode(tree, nodeId) {
   return tree.nodes?.find((n) => n.id === nodeId);
 }
 
+function skillValue(player, skillId) {
+  const raw = player?.skills?.[skillId] ?? player?.skills?.[String(skillId)] ?? 0;
+  const value = Number(raw?.value ?? raw?.base ?? raw) || 0;
+  return value > 120 ? value / 10 : value;
+}
+
 /**
  * Begin a conversation. Returns the entry node payload to render.
  * @param {{playerState:any, npc:any, kind:string}} ctx
@@ -62,9 +68,16 @@ export function advanceConversation({ playerState, npc, input }) {
   if (cur.choices?.length) {
     const choice = cur.choices.find((c) => c.key === input);
     if (choice) {
-      nextId = typeof choice.next === 'function'
-        ? choice.next({ playerState, npc, input, conversation: tree, node: cur })
-        : choice.next;
+      const context = { playerState, npc, input, conversation: tree, node: cur };
+      if (choice.skillCheck) {
+        const check = choice.skillCheck;
+        const skill = skillValue(playerState.mobile, check.skillId);
+        const difficulty = Math.max(0, Math.min(120, Number(check.difficulty) || 0));
+        const chance = Math.max(0.05, Math.min(0.95, (skill - difficulty + 50) / 100));
+        const passed = Math.random() < chance;
+        session.lastCheck = { skillId: check.skillId | 0, skill, difficulty, chance, passed };
+        nextId = passed ? (choice.success ?? choice.next) : (choice.failure ?? choice.next);
+      } else nextId = typeof choice.next === 'function' ? choice.next(context) : choice.next;
     }
   }
   // Keyword match (case-insensitive substring).
@@ -95,7 +108,11 @@ function nodeToPayload(node) {
   return {
     id: node.id,
     text: node.text,
-    choices: node.choices?.map(({ key, text }) => ({ key, text })) ?? [],
+    speaker: node.speaker, expression: node.expression, voice: node.voice,
+    portrait: node.portrait, rewards: node.rewards, tags: node.tags,
+    choices: node.choices?.map(({ key, text, skillCheck, requiresSkill }) => ({
+      key, text, skillCheck, requiresSkill,
+    })) ?? [],
     terminal: !!node.terminal,
   };
 }

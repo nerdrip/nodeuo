@@ -1,4 +1,4 @@
-// FAZA HI — `[polymorph <form>` form picker.
+// PHASE HI — `[polymorph <form>` form picker.
 //
 // ServUO `Spells/Seventh/Polymorph.cs` opens a gump (PolymorphGump.cs)
 // with a clickable list of bodies. We expose the same as a text
@@ -74,7 +74,7 @@ export default function register(api) {
 
 function broadcastBody(api, mob) {
   if (!api.protocol?.mobileIncoming) return;
-  // BUGFIX #123 (FAZA HI): the old polymorph-via-spell path used
+  // BUGFIX #123 (PHASE HI): the old polymorph-via-spell path used
   // _helpers.broadcastBodyChange. Direct-command path (no spell)
   // missed it — body changed server-side, every observer's screen
   // kept the old sprite. Send 0x78 mobileIncoming with the new body

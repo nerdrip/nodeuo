@@ -1,6 +1,6 @@
 // ServUO vendor inventory extractor — reads every `SB*.cs` under
 // `templates/ServUO/Scripts/VendorInfo/` and pulls out the buy/sell
-// lists. Output: `apps/scripts/src/data/vendor-inventory.json`.
+// lists. Output: `apps/scripts/src/data/config/vendor-inventory.json`.
 //
 // Each SB-class follows a stable shape:
 //   public class SBAlchemist : SBInfo
@@ -39,9 +39,12 @@ import { fileURLToPath } from 'node:url';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..', '..');
 const SBINFO_DIR = join(ROOT, 'templates', 'ServUO', 'Scripts', 'VendorInfo');
-const OUT = join(ROOT, 'apps', 'scripts', 'src', 'data', 'vendor-inventory.json');
+const OUT = join(ROOT, 'apps', 'scripts', 'src', 'data', 'config', 'vendor-inventory.json');
 
-const RX_BUY = /Add\(\s*new\s+GenericBuyInfo\(\s*typeof\(([A-Za-z0-9_]+)\)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(0x[0-9A-Fa-f]+|\d+)\s*,\s*(0x[0-9A-Fa-f]+|\d+)/g;
+// GenericBuyInfo has both `(typeof(T), price, stock, art, hue, ...)` and
+// `(nameOrCliloc, typeof(T), price, stock, art, hue, ...)` overloads.
+// Missing the latter silently removed specialist shops and manuals.
+const RX_BUY = /Add\(\s*new\s+GenericBuyInfo\(\s*(?:(?:"[^"]*"|\d+)\s*,\s*)?typeof\(([A-Za-z0-9_]+)\)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(0x[0-9A-Fa-f]+|\d+)\s*,\s*(0x[0-9A-Fa-f]+|\d+)/g;
 const RX_SELL = /Add\(\s*typeof\(([A-Za-z0-9_]+)\)\s*,\s*(\d+)\s*\)/g;
 const RX_CLASS_NAME = /public\s+class\s+(SB[A-Za-z0-9_]+)\s*:\s*SBInfo/;
 

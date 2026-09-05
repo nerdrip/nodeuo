@@ -1,5 +1,5 @@
 // DeathGump — post-death option menu (ServUO `Gumps/DeathGump.cs`).
-// Faza F.3.11.
+// Phase F.3.11.
 //
 // Shown when the local player enters ghost state. Options:
 //   • Resurrect at nearest Healer (free, but penalty/stat loss)

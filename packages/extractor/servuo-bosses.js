@@ -39,7 +39,8 @@ const RX = {
 };
 
 function kebab(s) {
-  return s.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+  return String(s).trim().replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+    .replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase();
 }
 
 function parseFile(path, kindHint) {
@@ -128,7 +129,7 @@ export async function extractServUOBosses(servuoPath, out) {
   // Stable sort by kind + role.
   all.sort((a, b) => a.kind.localeCompare(b.kind));
   // Merge into existing monsters.json.
-  const outFile = join(out, 'data', 'monsters.json');
+  const outFile = join(out, 'data', 'config', 'monsters.json');
   /** @type {Record<string, any>} */
   const existing = JSON.parse(readFileSync(outFile, 'utf8'));
   const knownKinds = new Set(Object.values(existing).map((e) => e.kind));

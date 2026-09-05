@@ -1,4 +1,4 @@
-import { NodeUOSpellComposerMessage, NodeUOSpecializationMessage } from '@uo/protocol';
+import { NodeUOSpellComposerMessage, NodeUOSpecializationMessage } from '@uo/nodeuo-protocol';
 
 const lazySpellComposer = () => import('../ui/gumps/spell-composer-gump.js')
   .then((module) => module.SpellComposerGump);

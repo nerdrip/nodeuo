@@ -21,10 +21,11 @@
 // boats and scenery remain plain canonical multis.
 
 import { readFileSync, existsSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import {
   getAcl, getAclLevel,
   addToRoster, removeFromRoster, lockdownItem, releaseItem,
-  bumpVisit, findDecayedMultis,
+  bumpVisit,
   ACL_OWNER, ACL_CO_OWNER, ACL_FRIEND, ACL_STRANGER, ACL_NONE,
   DECAY_DAYS,
 } from '../../items/behaviors/house-acl.js';
@@ -92,6 +93,20 @@ function multiInstanceId(item) {
   return item?._multiInstance == null ? null : (item._multiInstance >>> 0);
 }
 
+function itemIsCarriedBy(api, item, mobileSerial) {
+  let current = item;
+  const owner = mobileSerial >>> 0;
+  const seen = new Set();
+  while (current?.parent != null) {
+    const parent = current.parent >>> 0;
+    if (parent === owner) return true;
+    if (!parent || seen.has(parent)) return false;
+    seen.add(parent);
+    current = itemBySerial(api, parent);
+  }
+  return false;
+}
+
 /** Match one concrete placed structure. Older saves have no instance id,
  * so they retain the historical facet + template-id fallback. */
 function sameMultiInstance(item, reference) {
@@ -104,8 +119,16 @@ function sameMultiInstance(item, reference) {
 
 function matchesMultiRef(item, multiId, facet, instanceId = null) {
   if (!item || (item.map ?? 1) !== facet) return false;
-  if (instanceId != null) return multiInstanceId(item) === (instanceId >>> 0);
-  return (item._multi | 0) === (multiId | 0);
+  if (instanceId != null) {
+    const wanted = Number(instanceId) >>> 0;
+    return wanted !== 0 && multiInstanceId(item) === wanted;
+  }
+  // Never coerce an absent legacy brand to zero. `undefined | 0` and
+  // `null | 0` both evaluate to 0, which used to make a malformed legacy
+  // house record match every ordinary item on the facet during demolition.
+  if (multiId == null || item._multi == null) return false;
+  const wanted = Number(multiId);
+  return Number.isInteger(wanted) && wanted >= 0 && (item._multi | 0) === (wanted | 0);
 }
 
 // House / vendor sign tile-id ranges. Classic UO ships sign graphics
@@ -147,9 +170,8 @@ export default function register(api) {
     // wall / door / roof / floor of a placed multi route through the
     // sign dialog — visible bug: double-clicking the front DOOR of a
     // house opened the sign info gump (with Demolish button) instead
-    // of toggling the door open. Marcin: "nadal nie można wejść do
-    // domu bo drzwi nie działają — po kliknięciu odpala się gump z
-    // tabliczki". With both gates, doors fall through to doorHook,
+    // of toggling the door open. This made houses inaccessible because a
+    // door click opened the sign gump. With both gates, doors fall through to doorHook,
     // walls/floors/roofs to the default "you see nothing special"
     // message, and only the actual sign tile (graphic 0xBC8..0xC26
     // range etc.) brings up the house menu.
@@ -164,7 +186,10 @@ export default function register(api) {
     openHouseSignGump(api, world, item, user);
     return true;
   };
-  api.templates?.addUseItemHook?.(signHook);
+  const removeSignHook = api.templates?.addUseItemHook?.(signHook) ?? (() => {});
+  const removeAssetListener = api.world?.events?.on?.('assets:changed', (change) => {
+    if (change?.kind === 'multi') _multiCache = null;
+  }) ?? (() => {});
 
   // `[signinfo` — target any item and dump its tile id + flags so we
   // can confirm whether the sign-hook range covers it. The user
@@ -348,8 +373,7 @@ export default function register(api) {
   // A deed is a regular packable item with `_deedMulti` stamped to a
   // multi id; double-click triggers placeMultiInteractive at the
   // current owner so they target a tile in the world. On successful
-  // placement the deed is consumed. Marcin: "najlepiej dorób deedy
-  // odpowiednie bo to też chyba było".
+  // placement the deed is consumed, preserving the expected deed workflow.
   api.itemScripts?.register?.({
     name: 'house-deed',
     onUse(world, item, user) {
@@ -391,26 +415,58 @@ export default function register(api) {
       state.targetCallbacks.set(cursorId, (picked) => {
         if (!picked) { user.client.sendSystemMessage?.('House placement cancelled.'); return; }
         const ox = picked.x | 0, oy = picked.y | 0, oz = picked.z | 0;
-        const placement = canPlaceMultiAt(api, tiles, ox, oy, oz, user.map ?? 1);
+        const liveDeed = itemBySerial(api, deedSerial);
+        if (!liveDeed || liveDeed !== item || liveDeed._housePlacementPending
+            || (liveDeed._deedMulti | 0) !== multiId
+            || !itemIsCarriedBy(api, liveDeed, user.serial)) {
+          user.client.sendSystemMessage?.('The house deed is no longer in your possession.');
+          return;
+        }
+        if (Math.max(Math.abs(ox - (user.x | 0)), Math.abs(oy - (user.y | 0))) > 18) {
+          user.client.sendSystemMessage?.('That location is too far away.');
+          return;
+        }
+        if (!isHousingStaff(user) && (api.houses?.housesOf?.(user.serial) ?? []).length > 0) {
+          user.client.sendSystemMessage?.('You already own a house.');
+          return;
+        }
+        const placement = canPlaceMultiAt(api, tiles, ox, oy, oz, user.map ?? 1, {
+          house: true,
+          allowRestrictedRegions: isHousingStaff(user),
+        });
         if (!placement.ok) {
           user.client.sendSystemMessage?.(`Placement blocked: ${placement.reason}.`);
           return;
         }
-        const result = stampMultiAt(api, multiId, hue, tiles, ox, oy, oz, user.map ?? 1);
-        if (result.placed > 0) {
-          consumePlacedHouseDeed(api, state, deedSerial);
+        liveDeed._housePlacementPending = true;
+        let result = null;
+        let house = null;
+        try {
+          result = stampMultiAt(api, multiId, hue, tiles, ox, oy, oz, user.map ?? 1, { broadcast: false });
+          house = registerMultiHouse(api, result.anchor, user, {
+            source: 'house-deed', title: item.name ?? nameForMulti(multiId),
+          });
+          if (!house) throw new Error('house registry rejected the structure');
+          if (!consumePlacedHouseDeed(api, state, deedSerial)) throw new Error('deed could not be consumed');
+          broadcastPlacedMulti(api, result.visibleItems, user.map ?? 1);
           user.client.sendSystemMessage?.(
             `You place a multi 0x${multiId.toString(16)} (${result.placed} components).`,
           );
-          registerMultiHouse(api, result.anchor, user, {
-            source: 'house-deed', title: item.name ?? nameForMulti(multiId),
-          });
           user.client.sendSystemMessage?.(
             `You are now the owner. Use the house sign to manage friends, co-owners, and lockdowns.`,
           );
           api.log?.(`[house-deed] ${user.name ?? 'admin'} placed 0x${multiId.toString(16)} at (${ox},${oy},${oz})`);
-        } else {
-          user.client.sendSystemMessage?.('Placement failed — the deed remains in your pack.');
+        } catch (error) {
+          if (house) api.houses?.remove?.(house.id);
+          if (result?.instanceId != null) {
+            destroyMultiByBrandDetailed(api, multiId, user.map ?? 1, result.instanceId, {
+              extraSerials: result.items?.map((created) => created.serial) ?? [],
+            });
+          }
+          api.log?.(`[house-deed] placement transaction rolled back: ${error.message}`);
+          user.client.sendSystemMessage?.('House placement failed safely; the deed remains in your pack.');
+        } finally {
+          if (itemBySerial(api, deedSerial) === liveDeed) delete liveDeed._housePlacementPending;
         }
       });
       try {
@@ -480,7 +536,7 @@ export default function register(api) {
 
   // `[destroymulti` / `[removemulti` — target any tile of a placed multi and remove every
   // tile sharing that `_multi` brand. Equivalent to ServUO's "Demolish"
-  // option in the House menu. Marcin: "żeby dało się je zniszczyć".
+  // option in the House menu, allowing a placed structure to be demolished.
   // Idempotent (running on an already-destroyed multi reports 0 removed).
   api.commands.register({
     name: 'destroymulti',
@@ -497,33 +553,25 @@ export default function register(api) {
     run(ctx) { requestDestroyMulti(ctx, 'removemulti'); },
   });
 
-  // Decay sweeper — every 30 min walk world.items, find multis whose
-  // ACL `lastVisitAt` is older than DECAY_MS (15 days canon), and
-  // auto-demolish them. Mirrors ServUO `BaseHouse.Decay_OnTick`.
-  // Owner can refresh by visiting the sign or opening a house door.
-  const DECAY_TICK_MS = 30 * 60 * 1000;
-  const tickHouseDecay = () => {
-    try {
-      const expired = findDecayedMultis(api.world);
-      for (const { multiId, instanceId, facet, acl } of expired) {
-        const removed = destroyMultiByBrand(api, multiId, facet, instanceId);
-        const ownerName = acl.owner?.name ?? 'unknown';
-        api.log?.(`[house-decay] 0x${multiId.toString(16)} (owner: ${ownerName}) decayed → ${removed} tiles wiped`);
-        // Drop a notification to the owner if they're online so they
-        // know what just happened. ServUO mails the owner a deed
-        // refund; we just log + system-message for MVP.
-        const ownerMob = mobileBySerial(api, acl.owner?.serial >>> 0);
-        if (ownerMob?.client) {
-          ownerMob.client.sendSystemMessage?.(
-            `Your house (multi 0x${multiId.toString(16)}) has decayed and collapsed.`,
-          );
-        }
-      }
-    } catch (e) { api.log?.(`[house-decay] sweeper threw: ${e.message}`); }
+  // HouseRegistry owns the single decay clock. This handler couples removal
+  // of the physical structure to removal of its registry row: the latter is
+  // committed only when every known structural item was removed.
+  const decayHandler = (house) => {
+    const extraSerials = [...(house.spawnedItems ?? []), ...(house.customItemSerials ?? [])];
+    const result = destroyMultiByBrandDetailed(
+      api, house.multiId, house.map, house.multiInstance, { extraSerials },
+    );
+    const complete = result.expected > 0 && result.removed === result.expected && result.failed.length === 0;
+    if (!complete) {
+      api.log?.(`[house-decay] house #${house.id} teardown incomplete (${result.removed}/${result.expected})`);
+      return false;
+    }
+    const ownerMob = mobileBySerial(api, house.ownerSerial >>> 0);
+    ownerMob?.client?.sendSystemMessage?.('Your house has decayed and collapsed.');
+    api.log?.(`[house-decay] house #${house.id} (${house.ownerName ?? 'unknown'}) collapsed; ${result.removed} structural items removed`);
+    return true;
   };
-  const decayTimer = api.lifecycle?.setInterval?.(tickHouseDecay, DECAY_TICK_MS)
-    ?? setInterval(tickHouseDecay, DECAY_TICK_MS);
-  decayTimer.unref?.();
+  api.houses?.setDecayHandler?.(decayHandler);
 
   // `[housedecay` — admin override to force a decay sweep immediately
   // (testing) or to print the current decay state per house. Useful
@@ -536,10 +584,7 @@ export default function register(api) {
     run(ctx) {
       const sub = String(ctx.args[0] ?? 'status').toLowerCase();
       if (sub === 'force') {
-        const expired = findDecayedMultis(api.world);
-        for (const { multiId, instanceId, facet } of expired) {
-          destroyMultiByBrand(api, multiId, facet, instanceId);
-        }
+        const expired = api.houses?.sweepDecay?.(Number.MAX_SAFE_INTEGER) ?? [];
         ctx.state.sendSystemMessage(`Forced decay swept ${expired.length} houses.`);
         return;
       }
@@ -568,7 +613,9 @@ export default function register(api) {
     // re-fired `placeMultiInteractive` 2×/3×/… and stale targetCallbacks
     // leaked on the state. `world.events.on` returns the unsubscribe fn.
     try { off?.(); } catch { /* ignore */ }
-    clearInterval(decayTimer);
+    try { removeSignHook(); } catch { /* ignore */ }
+    try { removeAssetListener(); } catch { /* ignore */ }
+    if (api.houses?._decayHandler === decayHandler) api.houses.setDecayHandler(null);
     api.commands.unregister('placemulti');
     api.commands.unregister('fixmultis');
     api.commands.unregister('signinfo');
@@ -684,8 +731,8 @@ export function demolishMultiWithDeed(api, state, mob, {
 
 /** Pop the deed-picker gump. Mirrors the structure of [createworld
  *  gump]: header + filter input + paginated row list + action buttons.
- *  Marcin: "zrób gumpa do tego, będzie wygodniej" (vs typing hex ids
- *  for 680 multis catalogued in multi.json).
+ *  A gump is considerably safer than typing hex IDs for the 680 multis
+ *  catalogued in multi.json.
  *
  *  Button ids:
  *    0        Cancel / close
@@ -842,7 +889,7 @@ function openHouseSignGump(api, world, signItem, user) {
     actions.push({ id: 300, label: 'Show multi info',     art: [4023, 4024], hue: 1153 });
     actions.push({ id: 301, label: 'Highlight tiles',     art: [4023, 4024], hue: 1153 });
   }
-  if (tier >= ACL_FRIEND) {
+  if (tier >= ACL_CO_OWNER) {
     actions.push({ id: 400, label: 'Lock down item',      art: [4023, 4024], hue: 1153 });
     actions.push({ id: 401, label: 'Release locked item', art: [4023, 4024], hue: 1153 });
   }
@@ -853,6 +900,9 @@ function openHouseSignGump(api, world, signItem, user) {
     actions.push({ id: 421, label: 'Lift ban',            art: [4023, 4024], hue: 1153 });
   }
   if (tier >= ACL_OWNER) {
+    if (registeredHouse?.customizable) {
+      actions.push({ id: 202, label: 'Customize foundation', art: [4023, 4024], hue: 1153 });
+    }
     actions.push({ id: 412, label: 'Add co-owner',        art: [4023, 4024], hue: 1153 });
     actions.push({ id: 413, label: 'Remove co-owner',     art: [4023, 4024], hue: 1153 });
     actions.push({ id: 200, label: 'Re-colour walls',     art: [4023, 4024], hue: 1153 });
@@ -914,7 +964,7 @@ function handleHouseSignButton(api, world, signItem, user, resp) {
     ? ACL_OWNER
     : ([412, 413].includes(btn) ? ACL_OWNER
       : ([410, 411, 420, 421].includes(btn) ? ACL_CO_OWNER
-        : ([400, 401].includes(btn) ? ACL_FRIEND : ACL_STRANGER)));
+        : ([400, 401].includes(btn) ? ACL_CO_OWNER : ACL_STRANGER)));
   if (tier < requiredTier) {
     user.client?.sendSystemMessage?.('You no longer have permission to perform that house action.');
     return;
@@ -995,13 +1045,15 @@ function handleHouseSignButton(api, world, signItem, user, resp) {
       sendHuePicker(user.client, { start: 0, count: 1000 }, (hue) => {
         if (!hasSignTier(signItem, user, ACL_OWNER)) return;
         if (hue == null) return;
-        let touched = 0;
+        let blueprintComponents = 0;
+        let dynamicComponents = 0;
         const changedVisible = [];
         for (const it of allItems(api)) {
           if (!sameMultiInstance(it, signItem)) continue;
           if (it.hue === hue) continue;
           it.hue = hue;
-          if (!it._multiAnchor) touched++;
+          if (it._multiAnchor) blueprintComponents = Math.max(1, it._multiComponentCount | 0);
+          else dynamicComponents++;
           // Collision proxies are not client entities; broadcasting them
           // here would recreate the duplicate sprites the anchor replaced.
           if (it._multiAnchor || it.visible !== false) changedVisible.push(it);
@@ -1022,16 +1074,13 @@ function handleHouseSignButton(api, world, signItem, user, resp) {
             }
           }
         }
+        const touched = blueprintComponents || dynamicComponents;
         user.client?.sendSystemMessage?.(`Re-hued ${touched} tile${touched === 1 ? '' : 's'} to 0x${hue.toString(16)}.`);
       });
       return;
     }
     case 201: {     // Rename
-      api.gumps?.sendTextEntry?.(user.client, {
-        title: 'House name',
-        prompt: 'New name:',
-        initial: signItem._multiName ?? '',
-      }, (newName) => {
+      const applyName = (newName) => {
         if (!hasSignTier(signItem, user, ACL_OWNER)) return;
         if (newName == null) return;
         const trimmed = String(newName).slice(0, 60);
@@ -1043,12 +1092,38 @@ function handleHouseSignButton(api, world, signItem, user, resp) {
         const house = api.houses?.houseByMultiInstance?.(multiInstanceId(signItem));
         if (house) house.sign = { ...(house.sign ?? {}), title: trimmed };
         user.client?.sendSystemMessage?.(`House renamed to "${trimmed}".`);
-      });
-      // Fallback when the gump runtime doesn't have a text-entry helper:
-      // we don't expose a one yet, so just print instructions.
-      if (!api.gumps?.sendTextEntry) {
-        user.client?.sendSystemMessage?.('Renaming requires gump text entry — not wired yet. Use [setmulti to script.');
+      };
+      if (api.gumps?.sendTextEntry) {
+        api.gumps.sendTextEntry(user.client, {
+          title: 'House name',
+          prompt: 'New name:',
+          initial: signItem._multiName ?? '',
+        }, applyName);
+      } else if (api.prompts?.ask) {
+        api.prompts.ask(user.client, { text: 'New house name:' }, (reply) => {
+          if (!reply?.cancelled) applyName(reply?.text);
+        });
+      } else {
+        user.client?.sendSystemMessage?.('Text input is unavailable on this server configuration.');
       }
+      return;
+    }
+    case 202: {     // Enter classic 0xBF/0x20 customization mode
+      const house = api.houses?.houseByMultiInstance?.(multiInstanceId(signItem));
+      if (!house?.customizable || !api.houses.beginEditing?.(house, user)) {
+        user.client?.sendSystemMessage?.('This foundation cannot enter design mode.');
+        return;
+      }
+      user.client._activeHouseId = house.id;
+      const serial = house.multiSerial ?? signItem.serial;
+      const packet = api.protocol?.extHouseCustomization?.({
+        serial, type: 4, x: -1, y: -1, z: -1,
+      });
+      if (packet) user.client.send?.(packet);
+      const revision = api.protocol?.extHouseRevision?.({
+        serial, revision: house.revision | 0,
+      });
+      if (revision) user.client.send?.(revision);
       return;
     }
     case 300: {     // Show multi info — re-dump headers to chat
@@ -1126,6 +1201,17 @@ function aclRemoveTarget(api, signItem, user, rosterName, label) {
  *  enforced inside `lockdownItem`. Items must already be on the floor
  *  (not in a backpack) — i.e. `parent == null`. */
 function multiBoundsFor(api, reference) {
+  const anchor = reference?._multiAnchor
+    ? reference
+    : [...allItems(api)].find((item) => sameMultiInstance(item, reference) && item._multiAnchor);
+  if (anchor && Array.isArray(anchor._multiBounds) && anchor._multiBounds.length >= 4) {
+    return {
+      minX: (anchor.x | 0) + (anchor._multiBounds[0] | 0),
+      minY: (anchor.y | 0) + (anchor._multiBounds[1] | 0),
+      maxX: (anchor.x | 0) + (anchor._multiBounds[2] | 0),
+      maxY: (anchor.y | 0) + (anchor._multiBounds[3] | 0),
+    };
+  }
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (const it of allItems(api)) {
     if (!sameMultiInstance(it, reference) || it._multiAnchor) continue;
@@ -1146,7 +1232,7 @@ function aclLockdownTarget(api, signItem, user) {
   }
   user.client?.sendSystemMessage?.('Target an item to lock down.');
   api.targeting?.request(user.client, (picked) => {
-    if (!hasSignTier(signItem, user, ACL_FRIEND)) return;
+    if (!hasSignTier(signItem, user, ACL_CO_OWNER)) return;
     if (!picked?.serial) return;
     const item = itemBySerial(api, picked.serial >>> 0);
     if (!item) { user.client?.sendSystemMessage?.('Not an item.'); return; }
@@ -1178,7 +1264,7 @@ function aclReleaseTarget(api, signItem, user) {
   if (!acl) { user.client?.sendSystemMessage?.('This house has no ACL.'); return; }
   user.client?.sendSystemMessage?.('Target a locked-down item to release.');
   api.targeting?.request(user.client, (picked) => {
-    if (!hasSignTier(signItem, user, ACL_FRIEND)) return;
+    if (!hasSignTier(signItem, user, ACL_CO_OWNER)) return;
     if (!picked?.serial) return;
     const item = itemBySerial(api, picked.serial >>> 0);
     if (!item) { user.client?.sendSystemMessage?.('Not an item.'); return; }
@@ -1201,6 +1287,9 @@ function countMultiTiles(api, multiId, facet, instanceId = null) {
   let n = 0;
   for (const it of allItems(api)) {
     if (!matchesMultiRef(it, multiId, facet, instanceId)) continue;
+    if (it._multiAnchor && Number.isInteger(it._multiComponentCount)) {
+      return it._multiComponentCount;
+    }
     if (it._multiAnchor) continue;
     n++;
   }
@@ -1353,7 +1442,9 @@ function placeMultiInteractive(api, state, mob, multiId, hue, tiles) {
 
 // CUO TileDataLoader.cs:404 — bits we care about for static tiles.
 const FLAG_IMPASSABLE = 1 <<  6; // 0x40 — blocks walking
+const FLAG_WET        = 1 <<  7;
 const FLAG_SURFACE    = 1 <<  9; // 0x200 — walkable top
+const FLAG_BRIDGE     = 1 << 10;
 const FLAG_DOOR       = 1 << 29;
 
 /** Whether a static tile id should physically block a walker. Walls,
@@ -1414,8 +1505,13 @@ function zRangesOverlap(aZ, aH, bZ, bH) {
   return aZ < bZ + bH && bZ < aZ + aH;
 }
 
-function canPlaceMultiAt(api, tiles, ox, oy, oz, map) {
+export function canPlaceMultiAt(api, tiles, ox, oy, oz, map, options = {}) {
+  if (!Array.isArray(tiles) || tiles.length === 0) return { ok: false, reason: 'multi has no components' };
+  if (!Number.isInteger(ox) || !Number.isInteger(oy) || !Number.isInteger(oz)) {
+    return { ok: false, reason: 'invalid placement coordinates' };
+  }
   const checks = [];
+  const footprint = new Set();
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
   for (const t of tiles) {
     if (!t || (!t.id && !t.itemId)) continue;
@@ -1423,15 +1519,66 @@ function canPlaceMultiAt(api, tiles, ox, oy, oz, map) {
     const x = ox + (t.x | 0);
     const y = oy + (t.y | 0);
     const z = oz + (t.z | 0);
+    if (x < 0 || x > 7167 || y < 0 || y > 4095 || z < -128 || z > 127) {
+      return { ok: false, reason: `component falls outside map bounds at (${x},${y},${z})` };
+    }
+    footprint.add(`${x}:${y}`);
+    minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+    minY = Math.min(minY, y); maxY = Math.max(maxY, y);
     const solid = isTileSolid(api, tileId);
     const door = !!(api.tileData?.table?.()?.statics?.[tileId | 0]?.flags & FLAG_DOOR);
     if (!solid && !door) continue;
     const h = tileFootprint(api, tileId);
     checks.push({ x, y, z, h, tileId });
-    minX = Math.min(minX, x); maxX = Math.max(maxX, x);
-    minY = Math.min(minY, y); maxY = Math.max(maxY, y);
   }
-  if (!checks.length) return { ok: true };
+  if (!footprint.size) return { ok: false, reason: 'multi has no drawable footprint' };
+
+  const landTable = api.tileData?.table?.()?.land;
+  const staticsTable = api.tileData?.table?.()?.statics;
+  if (api.landProvider) {
+    for (const key of footprint) {
+      const [x, y] = key.split(':').map(Number);
+      const land = api.landProvider.landAt?.(map, x, y);
+      const statics = api.landProvider.staticsAt?.(map, x, y) ?? [];
+      if (!land && statics.length === 0) return { ok: false, reason: `map data unavailable at (${x},${y})` };
+      if (land) {
+        const flags = landTable?.[land.tileId | 0]?.flags | 0;
+        if (options.house && (flags & (FLAG_WET | FLAG_IMPASSABLE))) {
+          return { ok: false, reason: `foundation cannot be placed on wet or impassable land at (${x},${y})` };
+        }
+        if (options.house && Math.abs((land.z | 0) - oz) > 12) {
+          return { ok: false, reason: `terrain is too uneven at (${x},${y})` };
+        }
+      }
+      if (options.house) {
+        for (const s of statics) {
+          const info = staticsTable?.[s.tileId | 0];
+          const flags = info?.flags | 0;
+          const height = Math.max(1, info?.height | 0);
+          if ((flags & (FLAG_IMPASSABLE | FLAG_SURFACE))
+              && zRangesOverlap(oz, 20, s.z | 0, height)) {
+            return { ok: false, reason: `map static 0x${(s.tileId | 0).toString(16)} blocks (${x},${y})` };
+          }
+        }
+      }
+      if (options.house && !options.allowRestrictedRegions) {
+        const restricted = (api.regions?.at?.(map, x, y) ?? []).find((region) =>
+          region.noHousing === true || region.guarded === true
+          || region.type === 'town' || region.type === 'dungeon');
+        if (restricted) return { ok: false, reason: `housing is not permitted in ${restricted.name ?? 'this region'}` };
+      }
+      if (options.house && api.houses?.houseAt?.(x, y, map)) {
+        return { ok: false, reason: `another house occupies (${x},${y})` };
+      }
+    }
+  } else if (options.house) {
+    // Isolated unit-test/script hosts may omit map data. Runtime servers
+    // always provide it; do not make the generic stamping helper unusable.
+    for (const key of footprint) {
+      const [x, y] = key.split(':').map(Number);
+      if (api.houses?.houseAt?.(x, y, map)) return { ok: false, reason: `another house occupies (${x},${y})` };
+    }
+  }
 
   const byCell = new Map();
   for (const c of checks) {
@@ -1441,11 +1588,29 @@ function canPlaceMultiAt(api, tiles, ox, oy, oz, map) {
     arr.push(c);
   }
 
-  for (const it of allItems(api)) {
+  const candidateItems = new Map();
+  if (api.world?.sectors?.itemSerialsAt) {
+    for (const key of footprint) {
+      const [x, y] = key.split(':').map(Number);
+      for (const serial of api.world.sectors.itemSerialsAt(map, x, y)) {
+        const item = itemBySerial(api, serial);
+        if (item) candidateItems.set(item.serial >>> 0, item);
+      }
+    }
+  } else {
+    for (const item of allItems(api)) candidateItems.set(item.serial >>> 0, item);
+  }
+  for (const it of candidateItems.values()) {
     if (!it || it.parent != null || (it.map ?? 1) !== map) continue;
     const x = it.x | 0, y = it.y | 0;
     if (x < minX || x > maxX || y < minY || y > maxY) continue;
     const arr = byCell.get(`${x}:${y}`);
+    if (options.house && footprint.has(`${x}:${y}`)) {
+      return {
+        ok: false,
+        reason: `item 0x${(it.serial >>> 0).toString(16)} occupies the foundation at (${x},${y})`,
+      };
+    }
     if (!arr) continue;
     const existingBlocks = !it._multiAnchor && (it.solid || it.door || it._multi != null);
     if (!existingBlocks) continue;
@@ -1461,11 +1626,33 @@ function canPlaceMultiAt(api, tiles, ox, oy, oz, map) {
     }
   }
 
-  for (const mob of allMobiles(api)) {
+  for (const c of checks) {
+    for (const blocker of api.world?.multiSpatial?.blockersAt?.(map, c.x, c.y) ?? []) {
+      if (zRangesOverlap(c.z, c.h, blocker.z | 0, Math.max(1, blocker.height | 0))) {
+        return { ok: false, reason: `another multi blocks (${c.x},${c.y},${blocker.z | 0})` };
+      }
+    }
+  }
+
+  const candidateMobiles = new Map();
+  if (api.world?.sectors?.mobileSerialsNear) {
+    const cx = (minX + maxX) >> 1, cy = (minY + maxY) >> 1;
+    const range = Math.max(maxX - minX, maxY - minY) + 1;
+    for (const serial of api.world.sectors.mobileSerialsNear(map, cx, cy, range)) {
+      const mobile = mobileBySerial(api, serial);
+      if (mobile) candidateMobiles.set(mobile.serial >>> 0, mobile);
+    }
+  } else {
+    for (const mobile of allMobiles(api)) candidateMobiles.set(mobile.serial >>> 0, mobile);
+  }
+  for (const mob of candidateMobiles.values()) {
     if (!mob || (mob.map ?? 1) !== map || (mob.hp ?? 0) <= 0 || mob.ghost) continue;
     const x = mob.x | 0, y = mob.y | 0;
     if (x < minX || x > maxX || y < minY || y > maxY) continue;
     const arr = byCell.get(`${x}:${y}`);
+    if (options.house && footprint.has(`${x}:${y}`)) {
+      return { ok: false, reason: `${mob.name ?? 'a mobile'} is standing at (${x},${y},${mob.z | 0})` };
+    }
     if (!arr) continue;
     const mz = mob.z | 0;
     for (const c of arr) {
@@ -1478,10 +1665,10 @@ function canPlaceMultiAt(api, tiles, ox, oy, oz, map) {
     }
   }
 
-  return { ok: true };
+  return { ok: true, footprint };
 }
 
-export function stampMultiAt(api, multiId, hue, tiles, ox, oy, oz, map) {
+export function stampMultiAt(api, multiId, hue, tiles, ox, oy, oz, map, options = {}) {
   // A real UO multi is a single world entity whose graphic is an index into
   // multi.mul/MultiCollection.uop. The client expands that index locally.
   // Keep component items only as collision/interaction proxies so placement
@@ -1518,23 +1705,44 @@ export function stampMultiAt(api, multiId, hue, tiles, ox, oy, oz, map) {
   const createdItems = [anchor];
   const clientVisibleItems = [anchor];
   const statics = api.tileData?.table?.()?.statics;
-  for (const t of tiles) {
-    if (!t || (t.id == null && t.itemId == null)) continue;
-    const x = ox + (t.x | 0);
-    const y = oy + (t.y | 0);
-    const z = oz + (t.z | 0);
-    const tileId = (t.id ?? t.itemId) | 0;
-    const tileName = String(statics?.[tileId]?.name ?? '').trim();
-    // Multi data commonly carries hidden 0x0001 "No Draw" markers. They
-    // are implementation metadata, not dynamic world entities.
-    if (tileId === 0x0001 || /\bno\s*draw\b/i.test(tileName)) continue;
+  const collision = [];
+  const surfaces = [];
+  const footprintKeys = new Set();
+  let relX1 = Infinity, relY1 = Infinity, relX2 = -Infinity, relY2 = -Infinity;
+  try {
+    for (const t of tiles) {
+      if (!t || (t.id == null && t.itemId == null)) continue;
+      const x = ox + (t.x | 0);
+      const y = oy + (t.y | 0);
+      const z = oz + (t.z | 0);
+      const tileId = (t.id ?? t.itemId) | 0;
+      const tileName = String(statics?.[tileId]?.name ?? '').trim();
+      // Multi data commonly carries hidden 0x0001 "No Draw" markers. They
+      // are implementation metadata, not dynamic world entities.
+      if (tileId === 0x0001 || /\bno\s*draw\b/i.test(tileName)) continue;
 
-    const solid  = isTileSolid(api, tileId);
-    try {
+      const solid  = isTileSolid(api, tileId);
+      const flags = statics?.[tileId]?.flags | 0;
+      const height = Math.max(0, tileHeight(api, tileId));
+      const isDoor = (flags & FLAG_DOOR) !== 0;
+      const isSurface = (flags & FLAG_SURFACE) !== 0 && (flags & FLAG_IMPASSABLE) === 0;
+      const dx = t.x | 0, dy = t.y | 0, dz = t.z | 0;
+      footprintKeys.add(`${dx}:${dy}`);
+      relX1 = Math.min(relX1, dx); relY1 = Math.min(relY1, dy);
+      relX2 = Math.max(relX2, dx); relY2 = Math.max(relY2, dy);
+      const clientVisible = t.visible === false;
+
+      // Immutable visible blueprint geometry is represented compactly on the
+      // anchor and indexed by cell. Only interactive/dynamic pieces become
+      // full world Items.
+      if (solid && !clientVisible) collision.push([dx, dy, dz, Math.max(1, height || 20)]);
+      if (isSurface && !clientVisible) surfaces.push([dx, dy, dz, height, (flags & FLAG_BRIDGE) ? 1 : 0]);
+      placed++;
+      if (!clientVisible && !isDoor) continue;
+
       // Visible blueprint parts are already drawn by the multi anchor and
       // therefore stay invisible on the wire. Hidden components represent
       // doors/signs/holds/planks and must remain regular interactive items.
-      const clientVisible = t.visible === false;
       const it = createItem(api, api.world, {
         itemId: tileId, x, y, z, map,
         hue: hue | 0,
@@ -1555,7 +1763,12 @@ export function stampMultiAt(api, multiId, hue, tiles, ox, oy, oz, map) {
       it.movable      = false;
       if (solid) {
         it.solid  = true;
-        it.height = tileHeight(api, tileId) || 20;
+        it.height = height || 20;
+      }
+      if (isSurface) {
+        it.surface = true;
+        it.bridge = (flags & FLAG_BRIDGE) !== 0;
+        it.height = height;
       }
       // Pre-bind door payload so the tile blocks while closed and the
       // double-click toggle works without waiting for `autoBindDoor` to
@@ -1563,20 +1776,50 @@ export function stampMultiAt(api, multiId, hue, tiles, ox, oy, oz, map) {
       bindDoorTile(api, it);
       createdItems.push(it);
       if (clientVisible) clientVisibleItems.push(it);
-      placed++;
-    } catch (e) {
-      api.log?.(`[placemulti] tile ${tileId} at (${x},${y},${z}) threw: ${e.message}`);
     }
+    anchor._multiCollision = collision;
+    anchor._multiSurfaces = surfaces;
+    anchor._multiFootprint = [...footprintKeys].map((key) => key.split(':').map(Number));
+    anchor._multiBounds = Number.isFinite(relX1) ? [relX1, relY1, relX2, relY2] : [0, 0, 0, 0];
+    anchor._multiComponentCount = placed;
+    anchor._multiBlueprintHash = createHash('sha256')
+      .update(JSON.stringify(tiles.map((tile) => [tile.id ?? tile.itemId, tile.x, tile.y, tile.z, tile.visible])))
+      .digest('hex').slice(0, 24);
+    api.world?.multiSpatial?.register?.(anchor);
+  } catch (error) {
+    for (let i = createdItems.length - 1; i >= 0; i--) {
+      try { destroyItemBySerial(api, createdItems[i].serial); } catch { /* best effort */ }
+    }
+    throw new Error(`Multi placement rolled back: ${error.message}`, { cause: error });
   }
 
   // One anchor plus a handful of interactive pieces replaces the old
   // component-per-packet fan-out. Compute the range once per structure.
-  if (clientVisibleItems.length) {
+  if (options.broadcast !== false) broadcastPlacedMulti(api, clientVisibleItems, map);
+  return { placed, anchor, instanceId, items: createdItems, visibleItems: clientVisibleItems };
+}
+
+export function broadcastPlacedMulti(api, clientVisibleItems, map) {
+  if (clientVisibleItems?.length) {
     const RANGE = 24;
-    const minX = createdItems.reduce((m, it) => Math.min(m, it.x | 0),  Infinity);
-    const maxX = createdItems.reduce((m, it) => Math.max(m, it.x | 0), -Infinity);
-    const minY = createdItems.reduce((m, it) => Math.min(m, it.y | 0),  Infinity);
-    const maxY = createdItems.reduce((m, it) => Math.max(m, it.y | 0), -Infinity);
+    const anchor = clientVisibleItems.find((item) => item?._multiAnchor);
+    const bounds = anchor?._multiBounds;
+    const minX = Math.min(
+      clientVisibleItems.reduce((m, it) => Math.min(m, it.x | 0), Infinity),
+      bounds ? (anchor.x | 0) + (bounds[0] | 0) : Infinity,
+    );
+    const maxX = Math.max(
+      clientVisibleItems.reduce((m, it) => Math.max(m, it.x | 0), -Infinity),
+      bounds ? (anchor.x | 0) + (bounds[2] | 0) : -Infinity,
+    );
+    const minY = Math.min(
+      clientVisibleItems.reduce((m, it) => Math.min(m, it.y | 0), Infinity),
+      bounds ? (anchor.y | 0) + (bounds[1] | 0) : Infinity,
+    );
+    const maxY = Math.max(
+      clientVisibleItems.reduce((m, it) => Math.max(m, it.y | 0), -Infinity),
+      bounds ? (anchor.y | 0) + (bounds[3] | 0) : -Infinity,
+    );
     const cx = (minX + maxX) >> 1;
     const cy = (minY + maxY) >> 1;
     const halfBox = Math.max((maxX - minX) >> 1, (maxY - minY) >> 1) + RANGE;
@@ -1607,5 +1850,5 @@ export function stampMultiAt(api, multiId, hue, tiles, ox, oy, oz, map) {
       }
     }
   }
-  return { placed, anchor, instanceId };
+  return clientVisibleItems?.length ?? 0;
 }

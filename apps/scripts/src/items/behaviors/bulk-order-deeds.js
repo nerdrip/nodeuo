@@ -1,4 +1,4 @@
-// FAZA BU — Bulk Order Deed lifecycle script + `[bod` admin command.
+// PHASE BU — Bulk Order Deed lifecycle script + `[bod` admin command.
 //
 // Registers an item-script named `bulk-order-deed` that:
 //   - on double-click, prints the BOD's status (label, progress, reward)
@@ -29,7 +29,7 @@ export default function register(api) {
         user?.client?.sendSystemMessage?.('This deed is blank.');
         return true;
       }
-      // Faza H.2 — large BODs open the rich overlay; small BODs keep
+      // Phase H.2 — large BODs open the rich overlay; small BODs keep
       // the text-dump (single-row content fits in chat fine).
       if (bod.large && user?.client?.sendSystemMessage) {
         const slots = (bod.slots ?? []).map((s) =>

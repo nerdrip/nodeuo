@@ -2,7 +2,7 @@
 // `templates/ServUO/Scripts/Items/Artifacts/` recursively and emits
 // the unique magical-property profile for each item that declares
 // `IsArtifact { get { return true; } }`. Output:
-// `apps/scripts/src/data/artifacts.json`.
+// `apps/scripts/src/data/world/artifacts.json`.
 //
 // Per artifact we capture:
 //   { name, base, attributes:{}, skillBonuses:[], resists:{},
@@ -21,7 +21,7 @@ import { fileURLToPath } from 'node:url';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..', '..');
 const ART_DIR = join(ROOT, 'templates', 'ServUO', 'Scripts', 'Items', 'Artifacts');
-const OUT = join(ROOT, 'apps', 'scripts', 'src', 'data', 'artifacts.json');
+const OUT = join(ROOT, 'apps', 'scripts', 'src', 'data', 'world', 'artifacts.json');
 
 const RX_CLASS = /public\s+class\s+([A-Za-z0-9_]+)\s*:\s*([A-Za-z0-9_]+)/;
 const RX_ARTIFACT = /IsArtifact\s*\{\s*get\s*\{\s*return\s+true/;

@@ -684,7 +684,10 @@ export function deleteXmlSpawners(api, opts = {}) {
       const map = m ? parseInt(m[1], 10) : null;
       if (map != null && !wantFacets.has(map)) { keep.add(id); continue; }
     }
-    try { api.spawner.remove(id); removed++; }
+    // XmlWipe/DeleteWorld owns both the definition and every creature it
+    // spawned. Leaving those mobiles behind produced thousands of orphaned
+    // AI actors after a nominally successful delete/recreate cycle.
+    try { api.spawner.remove(id, { despawn: true }); removed++; }
     catch { /* ignore */ }
   }
   world._xmlSpawnersApplied = keep;

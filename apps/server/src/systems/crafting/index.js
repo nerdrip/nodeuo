@@ -9,7 +9,15 @@
 //           success roll, exceptional roll, consume + spawn).
 
 import { effectiveSkill } from '../../combat-formulas.js';
-import { getRecipe, registerRecipe, allRecipes, recipesForSkill, recipesByCategory, recipeCatalogDiagnostics } from './registry.js';
+import {
+  getRecipe,
+  registerRecipe,
+  unregisterRecipe,
+  allRecipes,
+  recipesForSkill,
+  recipesByCategory,
+  recipeCatalogDiagnostics,
+} from './registry.js';
 import { recordCraftForBods } from '../economy/bods.js';
 import { findRunicTool, applyRunicTier, METAL_TIERS } from './runic.js';
 import { playSound } from '@uo/protocol';
@@ -20,7 +28,7 @@ import { runtimeGovernor } from '../runtime-governor.js';
 // played by `CraftItem.InternalTimer` mid-craft (every tick except the
 // last). Our craft() is synchronous, so we emit ONE sample per attempt
 // — the same clip the canonical timer would emit on its first tick.
-// User report 2026-05-19 "przy craftingu chyba nie ma dźwięków".
+// This also fixes missing crafting sounds reported for synchronous attempts.
 //   smith        → 0x02A  DefBlacksmithy
 //   tinker       → 0x23B  DefTinkering  (NOT 0x241 — that's a hue test)
 //   fletcher     → 0x055  DefBowFletching
@@ -90,11 +98,19 @@ import {
   extractedRecipesForSkill, extractedRecipeSkills, extractedRecipeCount,
 } from './extracted-recipes.js';
 
-export { getRecipe, registerRecipe, allRecipes, recipesForSkill, recipesByCategory, recipeCatalogDiagnostics };
+export {
+  getRecipe,
+  registerRecipe,
+  unregisterRecipe,
+  allRecipes,
+  recipesForSkill,
+  recipesByCategory,
+  recipeCatalogDiagnostics,
+};
 export { extractedRecipesForSkill, extractedRecipeSkills, extractedRecipeCount };
 
 /**
- * BUGFIX #37 (FAZA BU): the ServUO original craft() set
+ * BUGFIX #37 (PHASE BU): the ServUO original craft() set
  * `container: ctx.crafter.backpack` on every spawned item, but our
  * `Mobile` shape has no `.backpack` field — inventories are kept
  * implicitly via `item.parent === mob.serial && item.layer === 21`.
@@ -194,7 +210,7 @@ function craftCore(ctx) {
   const regionalBonus = Math.max(-0.25, Math.min(0.25, Number(ctx.region?.craftSuccessBonus ?? 0)));
   const pSuccess = Math.max(0, Math.min(1, (skill - recipe.minSkill) / span + regionalBonus));
 
-  // BUGFIX #94 (FAZA DZ): the original fail path called
+  // BUGFIX #94 (PHASE DZ): the original fail path called
   // consumeIngredients(0.5) WITHOUT checking the return — meaning a
   // crafter who didn't have the materials at all (e.g. ran out
   // mid-stream of a [craft loop) was told "failed" but kept all
@@ -327,7 +343,7 @@ function craftCore(ctx) {
       ctx.crafter?.client?.sendSystemMessage?.('Your crafting tool crumbles to pieces.');
     }
   }
-  // FAZA BU: notify any matching bulk-order deeds in the crafter's pack.
+  // PHASE BU: notify any matching bulk-order deeds in the crafter's pack.
   // Failures (above) deliberately don't count — the deed only credits
   // *successful* crafts, exceptional-required deeds gate further on
   // the `isExceptional` roll.

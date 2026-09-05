@@ -286,7 +286,22 @@
     ]
   },
   "architect": {
-    "buy": [],
+    "buy": [
+      {
+        "type": "InteriorDecorator",
+        "price": 10001,
+        "stock": 20,
+        "itemId": 4033,
+        "hue": 0
+      },
+      {
+        "type": "HousePlacementTool",
+        "price": 627,
+        "stock": 20,
+        "itemId": 5366,
+        "hue": 0
+      }
+    ],
     "sell": [
       {
         "type": "InteriorDecorator",
@@ -394,6 +409,13 @@
   },
   "baker": {
     "buy": [
+      {
+        "type": "FreshGinger",
+        "price": 505,
+        "stock": 10,
+        "itemId": 11235,
+        "hue": 0
+      },
       {
         "type": "BreadLoaf",
         "price": 6,
@@ -530,6 +552,39 @@
         "price": 1
       }
     ]
+  },
+  "banker": {
+    "buy": [
+      {
+        "type": "ContractOfEmployment",
+        "price": 1252,
+        "stock": 20,
+        "itemId": 5360,
+        "hue": 0
+      },
+      {
+        "type": "VendorRentalContract",
+        "price": 1252,
+        "stock": 20,
+        "itemId": 5360,
+        "hue": 1650
+      },
+      {
+        "type": "CommissionContractOfEmployment",
+        "price": 28127,
+        "stock": 20,
+        "itemId": 5360,
+        "hue": 1650
+      },
+      {
+        "type": "CommodityDeed",
+        "price": 5,
+        "stock": 20,
+        "itemId": 5360,
+        "hue": 71
+      }
+    ],
+    "sell": []
   },
   "bard": {
     "buy": [],
@@ -671,6 +726,20 @@
         "hue": 0
       },
       {
+        "type": "Chessboard",
+        "price": 2,
+        "stock": 20,
+        "itemId": 4006,
+        "hue": 0
+      },
+      {
+        "type": "CheckerBoard",
+        "price": 2,
+        "stock": 20,
+        "itemId": 4006,
+        "hue": 0
+      },
+      {
         "type": "Backgammon",
         "price": 2,
         "stock": 20,
@@ -683,6 +752,27 @@
         "stock": 20,
         "itemId": 4007,
         "hue": 0
+      },
+      {
+        "type": "ContractOfEmployment",
+        "price": 1252,
+        "stock": 20,
+        "itemId": 5360,
+        "hue": 0
+      },
+      {
+        "type": "BarkeepContract",
+        "price": 1252,
+        "stock": 20,
+        "itemId": 5360,
+        "hue": 0
+      },
+      {
+        "type": "VendorRentalContract",
+        "price": 1252,
+        "stock": 20,
+        "itemId": 5360,
+        "hue": 1650
       }
     ],
     "sell": [
@@ -1386,6 +1476,13 @@
         "stock": 20,
         "itemId": 9917,
         "hue": 0
+      },
+      {
+        "type": "MalleableAlloy",
+        "price": 50,
+        "stock": 500,
+        "itemId": 7139,
+        "hue": 2949
       }
     ],
     "sell": [
@@ -1980,6 +2077,13 @@
         "stock": 20,
         "itemId": 3763,
         "hue": 0
+      },
+      {
+        "type": "SolventFlask",
+        "price": 50,
+        "stock": 500,
+        "itemId": 7192,
+        "hue": 2969
       }
     ],
     "sell": [
@@ -2361,6 +2465,13 @@
         "stock": 20,
         "itemId": 4158,
         "hue": 0
+      },
+      {
+        "type": "Skillet",
+        "price": 3,
+        "stock": 20,
+        "itemId": 2431,
+        "hue": 0
       }
     ],
     "sell": [
@@ -2468,6 +2579,13 @@
   },
   "farmer": {
     "buy": [
+      {
+        "type": "FreshGinger",
+        "price": 505,
+        "stock": 10,
+        "itemId": 11235,
+        "hue": 0
+      },
       {
         "type": "Cabbage",
         "price": 5,
@@ -2997,6 +3115,27 @@
         "stock": 100,
         "itemId": 6217,
         "hue": 0
+      },
+      {
+        "type": "GlassblowingBook",
+        "price": 10637,
+        "stock": 30,
+        "itemId": 4084,
+        "hue": 0
+      },
+      {
+        "type": "SandMiningBook",
+        "price": 10637,
+        "stock": 30,
+        "itemId": 4084,
+        "hue": 0
+      },
+      {
+        "type": "Blowpipe",
+        "price": 21,
+        "stock": 100,
+        "itemId": 3722,
+        "hue": 953
       }
     ],
     "sell": [
@@ -3087,7 +3226,29 @@
     ]
   },
   "hairstylist": {
-    "buy": [],
+    "buy": [
+      {
+        "type": "SpecialBeardDye",
+        "price": 500000,
+        "stock": 20,
+        "itemId": 3622,
+        "hue": 0
+      },
+      {
+        "type": "SpecialHairDye",
+        "price": 500000,
+        "stock": 20,
+        "itemId": 3622,
+        "hue": 0
+      },
+      {
+        "type": "HairDye",
+        "price": 60,
+        "stock": 20,
+        "itemId": 3839,
+        "hue": 0
+      }
+    ],
     "sell": [
       {
         "type": "HairDye",
@@ -3536,6 +3697,144 @@
       }
     ]
   },
+  "housedeed": {
+    "buy": [
+      {
+        "type": "StonePlasterHouseDeed",
+        "price": 43800,
+        "stock": 20,
+        "itemId": 5360,
+        "hue": 0
+      },
+      {
+        "type": "FieldStoneHouseDeed",
+        "price": 43800,
+        "stock": 20,
+        "itemId": 5360,
+        "hue": 0
+      },
+      {
+        "type": "SmallBrickHouseDeed",
+        "price": 43800,
+        "stock": 20,
+        "itemId": 5360,
+        "hue": 0
+      },
+      {
+        "type": "WoodHouseDeed",
+        "price": 43800,
+        "stock": 20,
+        "itemId": 5360,
+        "hue": 0
+      },
+      {
+        "type": "WoodPlasterHouseDeed",
+        "price": 43800,
+        "stock": 20,
+        "itemId": 5360,
+        "hue": 0
+      },
+      {
+        "type": "ThatchedRoofCottageDeed",
+        "price": 43800,
+        "stock": 20,
+        "itemId": 5360,
+        "hue": 0
+      },
+      {
+        "type": "BrickHouseDeed",
+        "price": 144500,
+        "stock": 20,
+        "itemId": 5360,
+        "hue": 0
+      },
+      {
+        "type": "TwoStoryWoodPlasterHouseDeed",
+        "price": 192400,
+        "stock": 20,
+        "itemId": 5360,
+        "hue": 0
+      },
+      {
+        "type": "TowerDeed",
+        "price": 433200,
+        "stock": 20,
+        "itemId": 5360,
+        "hue": 0
+      },
+      {
+        "type": "KeepDeed",
+        "price": 665200,
+        "stock": 20,
+        "itemId": 5360,
+        "hue": 0
+      },
+      {
+        "type": "CastleDeed",
+        "price": 1022800,
+        "stock": 20,
+        "itemId": 5360,
+        "hue": 0
+      },
+      {
+        "type": "LargePatioDeed",
+        "price": 152800,
+        "stock": 20,
+        "itemId": 5360,
+        "hue": 0
+      },
+      {
+        "type": "LargeMarbleDeed",
+        "price": 192000,
+        "stock": 20,
+        "itemId": 5360,
+        "hue": 0
+      },
+      {
+        "type": "SmallTowerDeed",
+        "price": 88500,
+        "stock": 20,
+        "itemId": 5360,
+        "hue": 0
+      },
+      {
+        "type": "LogCabinDeed",
+        "price": 97800,
+        "stock": 20,
+        "itemId": 5360,
+        "hue": 0
+      },
+      {
+        "type": "SandstonePatioDeed",
+        "price": 90900,
+        "stock": 20,
+        "itemId": 5360,
+        "hue": 0
+      },
+      {
+        "type": "VillaDeed",
+        "price": 136500,
+        "stock": 20,
+        "itemId": 5360,
+        "hue": 0
+      },
+      {
+        "type": "StoneWorkshopDeed",
+        "price": 60600,
+        "stock": 20,
+        "itemId": 5360,
+        "hue": 0
+      },
+      {
+        "type": "MarbleWorkshopDeed",
+        "price": 63000,
+        "stock": 20,
+        "itemId": 5360,
+        "hue": 0
+      }
+    ],
+    "sell": []
+  },
   "innkeeper": {
     "buy": [
       {
@@ -3728,6 +4027,20 @@
         "hue": 0
       },
       {
+        "type": "Chessboard",
+        "price": 2,
+        "stock": 20,
+        "itemId": 4006,
+        "hue": 0
+      },
+      {
+        "type": "CheckerBoard",
+        "price": 2,
+        "stock": 20,
+        "itemId": 4006,
+        "hue": 0
+      },
+      {
         "type": "Backgammon",
         "price": 2,
         "stock": 20,
@@ -3740,6 +4053,27 @@
         "stock": 20,
         "itemId": 4007,
         "hue": 0
+      },
+      {
+        "type": "ContractOfEmployment",
+        "price": 1252,
+        "stock": 20,
+        "itemId": 5360,
+        "hue": 0
+      },
+      {
+        "type": "BarkeepContract",
+        "price": 1252,
+        "stock": 20,
+        "itemId": 5360,
+        "hue": 0
+      },
+      {
+        "type": "VendorRentalContract",
+        "price": 1252,
+        "stock": 20,
+        "itemId": 5360,
+        "hue": 1650
       }
     ],
     "sell": [
@@ -3918,6 +4252,34 @@
         "price": 27,
         "stock": 20,
         "itemId": 4231,
+        "hue": 0
+      },
+      {
+        "type": "BroadcastCrystal",
+        "price": 68,
+        "stock": 20,
+        "itemId": 7888,
+        "hue": 0
+      },
+      {
+        "type": "BroadcastCrystal",
+        "price": 131,
+        "stock": 20,
+        "itemId": 7888,
+        "hue": 0
+      },
+      {
+        "type": "BroadcastCrystal",
+        "price": 256,
+        "stock": 20,
+        "itemId": 7888,
+        "hue": 0
+      },
+      {
+        "type": "ReceiverCrystal",
+        "price": 6,
+        "stock": 20,
+        "itemId": 7888,
         "hue": 0
       },
       {
@@ -5315,6 +5677,20 @@
   "playerbarkeeper": {
     "buy": [
       {
+        "type": "Chessboard",
+        "price": 2,
+        "stock": 20,
+        "itemId": 4006,
+        "hue": 0
+      },
+      {
+        "type": "CheckerBoard",
+        "price": 2,
+        "stock": 20,
+        "itemId": 4006,
+        "hue": 0
+      },
+      {
         "type": "Backgammon",
         "price": 2,
         "stock": 20,
@@ -5551,6 +5927,27 @@
         "hue": 0
       },
       {
+        "type": "HairDye",
+        "price": 60,
+        "stock": 20,
+        "itemId": 3839,
+        "hue": 0
+      },
+      {
+        "type": "Chessboard",
+        "price": 2,
+        "stock": 20,
+        "itemId": 4006,
+        "hue": 0
+      },
+      {
+        "type": "CheckerBoard",
+        "price": 2,
+        "stock": 20,
+        "itemId": 4006,
+        "hue": 0
+      },
+      {
         "type": "Backgammon",
         "price": 2,
         "stock": 20,
@@ -5577,6 +5974,20 @@
         "stock": 20,
         "itemId": 8791,
         "hue": 0
+      },
+      {
+        "type": "GuildDeed",
+        "price": 12450,
+        "stock": 20,
+        "itemId": 5360,
+        "hue": 0
+      },
+      {
+        "type": "SkinTingeingTincture",
+        "price": 1255,
+        "stock": 20,
+        "itemId": 3839,
+        "hue": 90
       }
     ],
     "sell": [
@@ -7622,6 +8033,69 @@
   "shipwright": {
     "buy": [
       {
+        "type": "SmallBoatDeed",
+        "price": 10177,
+        "stock": 20,
+        "itemId": 5362,
+        "hue": 0
+      },
+      {
+        "type": "SmallDragonBoatDeed",
+        "price": 10177,
+        "stock": 20,
+        "itemId": 5362,
+        "hue": 0
+      },
+      {
+        "type": "MediumBoatDeed",
+        "price": 11552,
+        "stock": 20,
+        "itemId": 5362,
+        "hue": 0
+      },
+      {
+        "type": "MediumDragonBoatDeed",
+        "price": 11552,
+        "stock": 20,
+        "itemId": 5362,
+        "hue": 0
+      },
+      {
+        "type": "LargeBoatDeed",
+        "price": 12927,
+        "stock": 20,
+        "itemId": 5362,
+        "hue": 0
+      },
+      {
+        "type": "LargeDragonBoatDeed",
+        "price": 12927,
+        "stock": 20,
+        "itemId": 5362,
+        "hue": 0
+      },
+      {
+        "type": "TokunoGalleonDeed",
+        "price": 150002,
+        "stock": 20,
+        "itemId": 5362,
+        "hue": 0
+      },
+      {
+        "type": "GargishGalleonDeed",
+        "price": 200002,
+        "stock": 20,
+        "itemId": 5362,
+        "hue": 0
+      },
+      {
+        "type": "RowBoatDeed",
+        "price": 6252,
+        "stock": 20,
+        "itemId": 5362,
+        "hue": 0
+      },
+      {
         "type": "Spyglass",
         "price": 3,
         "stock": 20,
@@ -7844,6 +8318,27 @@
         "price": 11,
         "stock": 20,
         "itemId": 4144,
+        "hue": 0
+      },
+      {
+        "type": "MasonryBook",
+        "price": 10625,
+        "stock": 10,
+        "itemId": 4030,
+        "hue": 0
+      },
+      {
+        "type": "StoneMiningBook",
+        "price": 10625,
+        "stock": 10,
+        "itemId": 4030,
+        "hue": 0
+      },
+      {
+        "type": "MalletAndChisel",
+        "price": 3,
+        "stock": 50,
+        "itemId": 4787,
         "hue": 0
       }
     ],
@@ -8752,6 +9247,13 @@
         "stock": 20,
         "itemId": 3780,
         "hue": 0
+      },
+      {
+        "type": "TaxidermyKit",
+        "price": 100000,
+        "stock": 20,
+        "itemId": 7866,
+        "hue": 0
       }
     ],
     "sell": [
@@ -8978,6 +9480,20 @@
         "hue": 0
       },
       {
+        "type": "Chessboard",
+        "price": 2,
+        "stock": 20,
+        "itemId": 4006,
+        "hue": 0
+      },
+      {
+        "type": "CheckerBoard",
+        "price": 2,
+        "stock": 20,
+        "itemId": 4006,
+        "hue": 0
+      },
+      {
         "type": "Backgammon",
         "price": 2,
         "stock": 20,
@@ -8990,6 +9506,27 @@
         "stock": 20,
         "itemId": 4007,
         "hue": 0
+      },
+      {
+        "type": "ContractOfEmployment",
+        "price": 1252,
+        "stock": 20,
+        "itemId": 5360,
+        "hue": 0
+      },
+      {
+        "type": "BarkeepContract",
+        "price": 1252,
+        "stock": 20,
+        "itemId": 5360,
+        "hue": 0
+      },
+      {
+        "type": "VendorRentalContract",
+        "price": 1252,
+        "stock": 20,
+        "itemId": 5360,
+        "hue": 1650
       }
     ],
     "sell": [
@@ -9274,6 +9811,27 @@
         "hue": 0
       },
       {
+        "type": "Key",
+        "price": 8,
+        "stock": 20,
+        "itemId": 4111,
+        "hue": 0
+      },
+      {
+        "type": "Key",
+        "price": 8,
+        "stock": 20,
+        "itemId": 4112,
+        "hue": 0
+      },
+      {
+        "type": "Key",
+        "price": 8,
+        "stock": 20,
+        "itemId": 4115,
+        "hue": 0
+      },
+      {
         "type": "KeyRing",
         "price": 8,
         "stock": 20,
@@ -9460,6 +10018,13 @@
         "price": 33,
         "stock": 20,
         "itemId": 16443,
+        "hue": 0
+      },
+      {
+        "type": "StatuetteEngravingTool",
+        "price": 1253,
+        "stock": 20,
+        "itemId": 4787,
         "hue": 0
       },
       {
@@ -10037,6 +10602,13 @@
         "price": 18,
         "stock": 10,
         "itemId": 3834,
+        "hue": 0
+      },
+      {
+        "type": "MagicWizardsHat",
+        "price": 11,
+        "stock": 10,
+        "itemId": 5912,
         "hue": 0
       }
     ],
@@ -10978,6 +11550,13 @@
         "stock": 20,
         "itemId": 3999,
         "hue": 0
+      },
+      {
+        "type": "LeatherBraid",
+        "price": 50,
+        "stock": 500,
+        "itemId": 5152,
+        "hue": 2968
       }
     ],
     "sell": [

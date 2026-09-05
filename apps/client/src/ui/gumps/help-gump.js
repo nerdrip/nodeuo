@@ -1,5 +1,5 @@
 // HelpGump — in-game help menu (ServUO `Gumps/HelpGump.cs`).
-// Faza G #4.
+// Phase G #4.
 //
 // Triggered by `[help` or pressing the F1/Help key. Lets the player
 // queue a PageQueue request, browse common topics, or open the

@@ -1,4 +1,4 @@
-// FAZA HG — `[remove` GM target-and-delete.
+// PHASE HG — `[remove` GM target-and-delete.
 //
 // ServUO `Scripts/Commands/Remove.cs` lets staff cleanly remove any
 // entity from the world. We honour the same: pick mob → kill +
@@ -25,7 +25,7 @@ export default function register(api) {
           return;
         }
         const serial = picked.serial >>> 0;
-        // BUGFIX #121 (FAZA HG): the obvious `world.mobiles.delete()`
+        // BUGFIX #121 (PHASE HG): the obvious `world.mobiles.delete()`
         // path would have left phantom mobs on every observer's screen
         // until they walked away (no removeEntity broadcast). Use the
         // same broadcast pattern we wired in #65/#75/#80/#84 for any
@@ -52,7 +52,7 @@ export default function register(api) {
         const item = itemBySerial(api, serial);
         if (item) {
           // destroyItem already runs onDestroy hooks + visibility-gated
-          // removeEntity to nearby clients (FAZA BN lifecycle).
+          // removeEntity to nearby clients (PHASE BN lifecycle).
           destroyItemBySerial(api, serial);
           if (api.protocol?.removeEntity) {
             const rm = api.protocol.removeEntity(serial);

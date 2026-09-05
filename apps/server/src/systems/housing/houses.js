@@ -65,23 +65,11 @@ function capsFor(foundation) {
 // house rect and sell via the regular vendor system. The house ACL
 // prevents non-owners from removing them.
 //
-// MVP scope (FAZA M part 1): a house is a single rectangular zone with
-// an owner serial, a list of friend / co-owner serials, and a flat list
-// of "locked-down" item serials. We don't yet emit per-tile foundation /
-// wall / roof items (FAZA M part 2 — needs the ChunkLoader to allow
-// runtime-spawned static tiles), so a "house" right now is just an
-// invisible rectangle the player can lock items inside.
-//
-// The structure scaffolding here is enough to:
-//   - Place/remove houses
-//   - Check whether a tile is inside any house
-//   - Identify the house at a given coord
-//   - Run owner / co-owner / friend ACL
-//   - Track lockdowns and prevent non-owners from picking them up
-//
-// Persistence: houses are kept in a map keyed by id. persistence.js writes
-// the registry to houses.json(.gz), including ACLs, lockdowns, vendors and
-// custom tiles, and restores nextHouseId before the shard accepts clients.
+// Houses are indexed by exact multi footprint (with rectangular fallback for
+// legacy saves). Canonical multi components remain compact on their anchor;
+// authored custom pieces are materialized as ordinary immovable world items.
+// The registry snapshot is committed in the same SQLite generation as the
+// world, keeping ACL, decay, lockdown and design state crash-consistent.
 
 /**
  * @typedef {Object} House
@@ -110,12 +98,138 @@ export class HouseRegistry {
     // spin up multiple registries don't bleed ids between them.
     this.nextHouseId = 1;
     this.world = null;
+    this._decayHandler = null;
+    this._byOwner = new Map();
+    this._byInstance = new Map();
+    this._bySerial = new Map();
+    this._bySector = new Map();
+    this._customPieces = null;
   }
 
   /** Attach the live world so committed custom-house tiles become visible. */
   attachWorld(world) {
     this.world = world ?? null;
+    if (this.world) this.world._houseRegistry = this;
     return this;
+  }
+
+  setDecayHandler(handler) {
+    this._decayHandler = typeof handler === 'function' ? handler : null;
+    return this._decayHandler;
+  }
+
+  _sectorKey(map, x, y) { return `${map | 0}:${(x | 0) >> 4}:${(y | 0) >> 4}`; }
+
+  _indexHouse(house) {
+    if (!house) return;
+    const owner = house.ownerSerial >>> 0;
+    let owned = this._byOwner.get(owner);
+    if (!owned) { owned = new Set(); this._byOwner.set(owner, owned); }
+    owned.add(house.id);
+    if (house.multiInstance != null) this._byInstance.set(house.multiInstance >>> 0, house.id);
+    if (house.multiSerial != null) this._bySerial.set(house.multiSerial >>> 0, house.id);
+    const keys = new Set();
+    for (let y = (house.y1 | 0) >> 4; y <= (house.y2 | 0) >> 4; y++) {
+      for (let x = (house.x1 | 0) >> 4; x <= (house.x2 | 0) >> 4; x++) {
+        const key = `${house.map | 0}:${x}:${y}`;
+        keys.add(key);
+        let bucket = this._bySector.get(key);
+        if (!bucket) { bucket = new Set(); this._bySector.set(key, bucket); }
+        bucket.add(house.id);
+      }
+    }
+    Object.defineProperty(house, '_sectorKeys', { value: keys, writable: true, configurable: true });
+    if (Array.isArray(house.footprint) && house.footprint.length) {
+      Object.defineProperty(house, '_footprintKeys', {
+        value: new Set(house.footprint.map((cell) => `${cell[0] | 0}:${cell[1] | 0}`)),
+        writable: true, configurable: true,
+      });
+    }
+  }
+
+  _unindexHouse(house) {
+    if (!house) return;
+    const owned = this._byOwner.get(house.ownerSerial >>> 0);
+    owned?.delete(house.id);
+    if (owned?.size === 0) this._byOwner.delete(house.ownerSerial >>> 0);
+    if (house.multiInstance != null) this._byInstance.delete(house.multiInstance >>> 0);
+    if (house.multiSerial != null) this._bySerial.delete(house.multiSerial >>> 0);
+    for (const key of house._sectorKeys ?? []) {
+      const bucket = this._bySector.get(key);
+      bucket?.delete(house.id);
+      if (bucket?.size === 0) this._bySector.delete(key);
+    }
+  }
+
+  rebuildIndexes() {
+    this._byOwner.clear(); this._byInstance.clear(); this._bySerial.clear(); this._bySector.clear();
+    for (const house of this.houses.values()) this._indexHouse(house);
+    return this.houses.size;
+  }
+
+  markChanged() {
+    this.world?.mutationJournal?.markMetaDirty?.();
+  }
+
+  setCustomPieceCatalog(catalog) {
+    if (!catalog || typeof catalog !== 'object') { this._customPieces = null; return 0; }
+    const pieces = new Map();
+    const walk = (value, kind) => {
+      if (Array.isArray(value)) {
+        for (const entry of value) walk(entry, kind);
+        return;
+      }
+      if (!value || typeof value !== 'object') return;
+      for (const [key, entry] of Object.entries(value)) {
+        const nextKind = key === 'teleprts'
+          ? 'teleport'
+          : ['walls', 'doors', 'floors', 'stairs', 'roofs', 'misc', 'teleports'].includes(key)
+            ? key.replace(/s$/, '') : kind;
+        if (key === 'pieces' && Array.isArray(entry)) {
+          for (const graphic of entry) if (Number.isInteger(graphic) && graphic > 0) pieces.set(graphic >>> 0, nextKind ?? 'item');
+        } else if (key === 'tileNumber' && Number.isInteger(entry) && entry > 0) {
+          pieces.set(entry >>> 0, nextKind ?? 'item');
+        } else walk(entry, nextKind);
+      }
+    };
+    walk(catalog, null);
+    this._customPieces = pieces;
+    return pieces.size;
+  }
+
+  /** Resolve a classic 0xD7 graphic to its authored behavior category. */
+  customPieceKind(graphic, fallback = 'item') {
+    return this._customPieces?.get?.(Number(graphic) >>> 0) ?? fallback;
+  }
+
+  _customLimit(house) {
+    const area = Math.max(1, ((house?.x2 | 0) - (house?.x1 | 0) + 1)
+      * ((house?.y2 | 0) - (house?.y1 | 0) + 1));
+    return Math.min(4096, Math.max(256, area * 8));
+  }
+
+  _allowCustomMutation(house, amount = 1) {
+    const editing = house?.editing;
+    if (!editing || editing.tiles.length + amount > this._customLimit(house)) return false;
+    const now = Date.now();
+    if (now - (editing.rateWindowAt ?? 0) >= 1000) {
+      editing.rateWindowAt = now;
+      editing.rateCount = 0;
+    }
+    editing.rateCount = (editing.rateCount ?? 0) + 1;
+    return editing.rateCount <= 120;
+  }
+
+  _validCustomPiece(kind, graphic, x, y, z, house) {
+    if (!Number.isInteger(graphic) || graphic <= 0 || graphic > 0xffff) return false;
+    if (x < house.x1 - 1 || x > house.x2 + 1 || y < house.y1 - 1 || y > house.y2 + 1) return false;
+    if (z < (house.z | 0) - 20 || z > (house.z | 0) + 100) return false;
+    if (!this._customPieces?.size) return true;
+    const catalogKind = this._customPieces.get(graphic >>> 0);
+    if (!catalogKind) return false;
+    const normalized = String(kind ?? 'item').replace(/s$/, '');
+    return normalized === 'item' || normalized === 'misc' || catalogKind === normalized
+      || (normalized === 'stair' && catalogKind === 'stair');
   }
 
   /**
@@ -148,9 +262,13 @@ export class HouseRegistry {
       multiId: opts.multiId == null ? null : (opts.multiId | 0),
       multiSerial: opts.multiSerial == null ? null : (opts.multiSerial >>> 0),
       multiInstance: opts.multiInstance == null ? null : (opts.multiInstance >>> 0),
-      customizable: opts.customizable === true,
+      // Registry-created foundations are customizable unless the caller
+      // explicitly marks a deed-based classic multi as immutable.
+      customizable: opts.customizable !== false,
       source: opts.source ?? 'registry',
       customItemSerials: [],
+      footprint: Array.isArray(opts.footprint)
+        ? opts.footprint.map((cell) => [cell[0] | 0, cell[1] | 0]) : null,
     };
     // Seed item caps from the foundation table. Stored on the house so
     // future code (deed upgrades, GM gump) can mutate without re-deriving.
@@ -158,12 +276,15 @@ export class HouseRegistry {
     house.lockdownCap = caps.lockdowns;
     house.secureCap   = caps.secures;
     this.houses.set(id, house);
+    this._indexHouse(house);
+    this.markChanged();
     return house;
   }
 
   /** Stamp the touch timestamp — extends the decay ladder one tick. */
   touch(house, now = Date.now()) {
     house.lastTouchedAt = now;
+    this.markChanged();
   }
 
   /**
@@ -193,7 +314,12 @@ export class HouseRegistry {
     const removed = [];
     for (const h of [...this.houses.values()]) {
       if (this.decayOf(h, now) === 'Collapsed') {
+        // Physical teardown must succeed before the registry record goes
+        // away. Returning false leaves the house intact for a later retry.
+        if (this._decayHandler && this._decayHandler(h) === false) continue;
+        this._unindexHouse(h);
         this.houses.delete(h.id);
+        this.markChanged();
         removed.push(h);
       }
     }
@@ -244,10 +370,12 @@ export class HouseRegistry {
       placedAt: options.placedAt ?? Date.now(),
       lastRentAt: options.placedAt ?? Date.now(),
     });
+    this.markChanged();
   }
   removeVendor(house, vendorSerial) {
     house.vendors.delete(vendorSerial >>> 0);
     house._vendorMeta?.delete?.(vendorSerial >>> 0);
+    this.markChanged();
   }
   vendorsOf(house) { return [...house.vendors]; }
 
@@ -268,7 +396,7 @@ export class HouseRegistry {
     for (const h of this.houses.values()) {
       if (!h._vendorMeta) continue;
       for (const [serial, meta] of h._vendorMeta) {
-        if (now - (meta.lastRentAt | 0) < DAILY_MS) continue;
+        if (now - (Number(meta.lastRentAt) || 0) < DAILY_MS) continue;
         // Bug-hunt #7 B5: do NOT stamp lastRentAt here. The caller may
         // fail to collect (vendor till empty); without delaying the
         // timestamp, an unpaid vendor goes another 24h before retry and
@@ -282,28 +410,176 @@ export class HouseRegistry {
   }
 
   remove(id) {
-    return this.houses.delete(id);
+    const house = this.houses.get(id | 0);
+    if (!house) return false;
+    this._unindexHouse(house);
+    const removed = this.houses.delete(id | 0);
+    if (removed) this.markChanged();
+    return removed;
+  }
+
+  /**
+   * Drop every dynamic house record during an explicit world wipe.
+   * World entities belonging to each house are removed by the normal item /
+   * mobile destruction pipeline; this method clears the separate registry and
+   * resets its monotonic id source so the following CreateWorld starts from a
+   * genuinely empty housing state.
+   */
+  reset() {
+    const removed = this.houses.size;
+    this.houses.clear();
+    this._byOwner.clear(); this._byInstance.clear(); this._bySerial.clear(); this._bySector.clear();
+    this.nextHouseId = 1;
+    this.markChanged();
+    return removed;
   }
 
   get(id) { return this.houses.get(id | 0) ?? null; }
 
+  /** Compact JSON-safe representation embedded in world.sqlite metadata. */
+  snapshot() {
+    const rows = [];
+    for (const h of this.houses.values()) rows.push({
+      id: h.id | 0,
+      ownerSerial: h.ownerSerial >>> 0,
+      ownerName: h.ownerName ?? 'Unknown',
+      map: h.map | 0, x1: h.x1 | 0, y1: h.y1 | 0, x2: h.x2 | 0, y2: h.y2 | 0, z: h.z | 0,
+      coowners: [...(h.coowners ?? [])], friends: [...(h.friends ?? [])], bans: [...(h.bans ?? [])],
+      lockdowns: [...(h.lockdowns ?? [])], secures: [...(h.secures ?? [])], vendors: [...(h.vendors ?? [])],
+      vendorMeta: h._vendorMeta instanceof Map ? [...h._vendorMeta] : [],
+      createdAt: h.createdAt, lastTouchedAt: h.lastTouchedAt,
+      sign: h.sign ?? null, foundation: h.foundation ?? null,
+      multiId: h.multiId ?? null, multiSerial: h.multiSerial ?? null,
+      multiInstance: h.multiInstance ?? null, customizable: h.customizable === true,
+      source: h.source ?? 'registry', isPublic: h.isPublic === true,
+      tiles: this._cloneCustomTiles(h.tiles), revision: h.revision | 0,
+      customTemplates: h.customTemplates ?? {},
+      lockdownCap: h.lockdownCap ?? null, secureCap: h.secureCap ?? null,
+      spawnedItems: [...(h.spawnedItems ?? [])], customItemSerials: [...(h.customItemSerials ?? [])],
+      footprint: Array.isArray(h.footprint) ? h.footprint.map((cell) => [cell[0] | 0, cell[1] | 0]) : null,
+    });
+    return { version: 1, nextHouseId: this.nextHouseId | 0, houses: rows };
+  }
+
+  /** Restore the registry before clients are admitted and rebuild every
+   * derived index. Invalid/stale ACL overlaps are normalized on the way in. */
+  restoreSnapshot(snapshot) {
+    if (!snapshot || !Array.isArray(snapshot.houses)) return 0;
+    this.houses.clear();
+    let maxId = 0;
+    for (const row of snapshot.houses) {
+      if (!Number.isInteger(row?.id) || row.id <= 0) continue;
+      const bans = new Set((row.bans ?? []).map((v) => Number(v) >>> 0).filter(Boolean));
+      const coowners = new Set((row.coowners ?? []).map((v) => Number(v) >>> 0).filter(Boolean));
+      const friends = new Set((row.friends ?? []).map((v) => Number(v) >>> 0).filter(Boolean));
+      for (const serial of bans) { coowners.delete(serial); friends.delete(serial); }
+      const h = {
+        ...row,
+        id: row.id | 0, ownerSerial: row.ownerSerial >>> 0,
+        map: row.map | 0, x1: row.x1 | 0, y1: row.y1 | 0, x2: row.x2 | 0, y2: row.y2 | 0, z: row.z | 0,
+        coowners, friends, bans,
+        lockdowns: new Set(row.lockdowns ?? []), secures: new Set(row.secures ?? []), vendors: new Set(row.vendors ?? []),
+        _vendorMeta: new Map(row.vendorMeta ?? []),
+        multiId: row.multiId == null ? null : row.multiId | 0,
+        multiSerial: row.multiSerial == null ? null : row.multiSerial >>> 0,
+        multiInstance: row.multiInstance == null ? null : row.multiInstance >>> 0,
+        customizable: row.customizable === true,
+        tiles: this._cloneCustomTiles(row.tiles), customTemplates: row.customTemplates ?? {},
+        spawnedItems: Array.isArray(row.spawnedItems) ? row.spawnedItems.map((v) => v >>> 0) : [],
+        customItemSerials: Array.isArray(row.customItemSerials) ? row.customItemSerials.map((v) => v >>> 0) : [],
+        footprint: Array.isArray(row.footprint) ? row.footprint.map((cell) => [cell[0] | 0, cell[1] | 0]) : null,
+        editing: null,
+      };
+      this.houses.set(h.id, h);
+      maxId = Math.max(maxId, h.id);
+    }
+    this.nextHouseId = Math.max(Number(snapshot.nextHouseId) | 0, maxId + 1, 1);
+    this.rebuildIndexes();
+    this._lastCustomReconcile = this.reconcileCustomItems();
+    return this.houses.size;
+  }
+
+  /**
+   * Treat custom-house world items as derived data and repair them from the
+   * authoritative committed design after a restart. A single world scan keeps
+   * startup O(items + custom pieces), while signature multisets tolerate
+   * duplicate graphics at one coordinate. Orphans are removed as well.
+   */
+  reconcileCustomItems() {
+    const world = this.world;
+    const stats = { checked: 0, rebuilt: 0, relinked: 0, orphansRemoved: 0, failed: 0 };
+    if (!world?.items) return stats;
+
+    const byHouse = new Map();
+    const orphans = [];
+    for (const item of world.items.values()) {
+      if (item._customHouseId == null) continue;
+      const houseId = item._customHouseId | 0;
+      if (!this.houses.has(houseId)) { orphans.push(item.serial >>> 0); continue; }
+      let bucket = byHouse.get(houseId);
+      if (!bucket) { bucket = []; byHouse.set(houseId, bucket); }
+      bucket.push(item);
+    }
+    for (const serial of orphans) {
+      if (!world.items.has(serial)) continue;
+      destroyItem(world, serial);
+      if (!world.items.has(serial)) stats.orphansRemoved++;
+    }
+
+    const signatures = (entries, selector) => {
+      const counts = new Map();
+      for (const entry of entries) {
+        const key = selector(entry);
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+      }
+      return counts;
+    };
+    const sameCounts = (left, right) => left.size === right.size
+      && [...left].every(([key, count]) => right.get(key) === count);
+
+    for (const house of this.houses.values()) {
+      const tiles = this._cloneCustomTiles(house.tiles);
+      const actual = byHouse.get(house.id) ?? [];
+      stats.checked++;
+      const expectedKeys = signatures(tiles,
+        (tile) => `${tile.g >>> 0}|${tile.x | 0}|${tile.y | 0}|${tile.z | 0}|${house.map | 0}`);
+      const actualKeys = signatures(actual,
+        (item) => `${item.itemId >>> 0}|${item.x | 0}|${item.y | 0}|${item.z | 0}|${item.map | 0}`);
+      if (sameCounts(expectedKeys, actualKeys)) {
+        house.customItemSerials = actual.map((item) => item.serial >>> 0);
+        const bySignature = new Map();
+        for (const item of actual) {
+          const key = `${item.itemId >>> 0}|${item.x | 0}|${item.y | 0}|${item.z | 0}|${item.map | 0}`;
+          let bucket = bySignature.get(key);
+          if (!bucket) { bucket = []; bySignature.set(key, bucket); }
+          bucket.push(item);
+        }
+        const ordered = [];
+        for (const tile of tiles) {
+          const key = `${tile.g >>> 0}|${tile.x | 0}|${tile.y | 0}|${tile.z | 0}|${house.map | 0}`;
+          const item = bySignature.get(key)?.pop();
+          if (item) ordered.push(this._configureCustomItem(item, tile, house));
+        }
+        this._pairCustomTeleporters(ordered.filter((item) => item?._customHouseKind === 'teleport'));
+        stats.relinked += actual.length;
+        continue;
+      }
+      house.customItemSerials = actual.map((item) => item.serial >>> 0);
+      if (this._materializeCustomTiles(house, tiles) === false) stats.failed++;
+      else stats.rebuilt++;
+    }
+    return stats;
+  }
+
   /** Resolve a registry record from a canonical multi anchor/proxy. */
   houseByMultiInstance(instanceId) {
     if (instanceId == null) return null;
-    const wanted = instanceId >>> 0;
-    for (const house of this.houses.values()) {
-      if ((house.multiInstance >>> 0) === wanted) return house;
-    }
-    return null;
+    return this.get(this._byInstance.get(instanceId >>> 0)) ?? null;
   }
 
   houseByMultiSerial(serial) {
     if (serial == null) return null;
-    const wanted = serial >>> 0;
-    for (const house of this.houses.values()) {
-      if ((house.multiSerial >>> 0) === wanted) return house;
-    }
-    return null;
+    return this.get(this._bySerial.get(serial >>> 0)) ?? null;
   }
 
   /** Resolve the house selected by its sign/UI, with ownership enforced. */
@@ -317,10 +593,14 @@ export class HouseRegistry {
 
   /** Find the house that contains world coord (x, y) on `map`. */
   houseAt(x, y, map = 1) {
-    for (const h of this.houses.values()) {
-      if (h.map !== map) continue;
+    const ids = this._bySector.get(this._sectorKey(map, x, y));
+    if (!ids) return null;
+    for (const id of ids) {
+      const h = this.houses.get(id);
+      if (!h || h.map !== map) continue;
       if (x < h.x1 || x > h.x2) continue;
       if (y < h.y1 || y > h.y2) continue;
+      if (h._footprintKeys && !h._footprintKeys.has(`${x | 0}:${y | 0}`)) continue;
       return h;
     }
     return null;
@@ -328,11 +608,8 @@ export class HouseRegistry {
 
   /** Houses owned by the given mobile serial. */
   housesOf(serial) {
-    const out = [];
-    for (const h of this.houses.values()) {
-      if (h.ownerSerial === (serial >>> 0)) out.push(h);
-    }
-    return out;
+    return [...(this._byOwner.get(serial >>> 0) ?? [])]
+      .map((id) => this.houses.get(id)).filter(Boolean);
   }
 
   /**
@@ -350,6 +627,14 @@ export class HouseRegistry {
     if (!house || !newOwner) return false;
     const newSerial = (newOwner.serial ?? newOwner) >>> 0;
     if (house.ownerSerial === newSerial) return false;
+    const oldSerial = house.ownerSerial >>> 0;
+    this._unindexHouse(house);
+    // An in-progress design belongs to the previous owner and must not cross
+    // the ownership boundary. The committed design remains authoritative.
+    house.editing = null;
+    house.coowners.delete(oldSerial);
+    house.friends.delete(oldSerial);
+    house.bans.delete(oldSerial);
     // Clear new owner from any subordinate ACL slot.
     house.coowners.delete(newSerial);
     house.friends.delete(newSerial);
@@ -357,6 +642,8 @@ export class HouseRegistry {
     house.ownerSerial = newSerial;
     house.ownerName = newOwner.name ?? house.ownerName;
     house.lastTouchedAt = Date.now();
+    this._indexHouse(house);
+    this.markChanged();
     return true;
   }
 
@@ -367,9 +654,11 @@ export class HouseRegistry {
   roleOf(house, serial) {
     const s = serial >>> 0;
     if (house.ownerSerial === s) return 'owner';
+    // A ban is an explicit deny and must win over stale subordinate roles
+    // imported from older saves.
+    if (house.bans.has(s)) return 'banned';
     if (house.coowners.has(s)) return 'coowner';
     if (house.friends.has(s)) return 'friend';
-    if (house.bans.has(s)) return 'banned';
     return 'visitor';
   }
 
@@ -418,9 +707,11 @@ export class HouseRegistry {
   addSecure(house, containerSerial) {
     house.secures ||= new Set();
     house.secures.add(containerSerial >>> 0);
+    this.markChanged();
   }
   removeSecure(house, containerSerial) {
     house.secures?.delete(containerSerial >>> 0);
+    this.markChanged();
   }
 
   // ---------- Customization (0xD7) ------------------------------------
@@ -431,7 +722,13 @@ export class HouseRegistry {
   // committed, revert drops the editing buffer.
 
   beginEditing(house, mob) {
-    if (this.roleOf(house, mob.serial) !== 'owner') return false;
+    if (!house?.customizable || this.roleOf(house, mob.serial) !== 'owner') return false;
+    const editorSerial = mob.serial >>> 0;
+    if (house.editing && house.editing.editorSerial !== editorSerial) return false;
+    if (house.editing) {
+      this.setFixturesVisibleTo(house, mob.client, false);
+      return true;
+    }
     house.tiles ??= [];
     house.editing = {
       tiles: this._cloneCustomTiles(house.tiles),
@@ -440,9 +737,32 @@ export class HouseRegistry {
       revision: (house.revision ?? 0) + 1,
       history: [this._cloneCustomTiles(house.tiles)],
       historyIndex: 0,
+      _historyTileCount: house.tiles.length,
       clipboard: null,
+      editorSerial,
+      startedAt: Date.now(),
+      updatedAt: Date.now(),
+      rateWindowAt: Date.now(),
+      rateCount: 0,
     };
+    this.setFixturesVisibleTo(house, mob.client, false);
     return true;
+  }
+
+  /** Show or hide serial-backed fixtures for one customizing connection. */
+  setFixturesVisibleTo(house, client, visible) {
+    if (!client || !this.world) return 0;
+    let changed = 0;
+    for (const serial of house?.customItemSerials ?? []) {
+      const item = this.world.items.get(serial >>> 0);
+      if (!item || (item._customHouseKind !== 'door' && item._customHouseKind !== 'teleport')) continue;
+      try {
+        if (visible) client.sendItem?.(item);
+        else client.sendRemove?.(item.serial);
+        changed++;
+      } catch { /* disconnected editor */ }
+    }
+    return changed;
   }
 
   _cloneCustomTiles(tiles) {
@@ -457,11 +777,23 @@ export class HouseRegistry {
     if (!editing || editing._suppressHistory) return;
     editing.history ??= [this._cloneCustomTiles(editing.tiles)];
     editing.historyIndex ??= editing.history.length - 1;
-    editing.history.splice(editing.historyIndex + 1);
-    editing.history.push(this._cloneCustomTiles(editing.tiles));
-    if (editing.history.length > 100) editing.history.shift();
+    editing._historyTileCount ??= editing.history.reduce((sum, snapshot) => sum + snapshot.length, 0);
+    const discarded = editing.history.splice(editing.historyIndex + 1);
+    for (const snapshot of discarded) editing._historyTileCount -= snapshot.length;
+    const current = this._cloneCustomTiles(editing.tiles);
+    editing.history.push(current);
+    editing._historyTileCount += current.length;
+    // Bound both snapshot count and aggregate retained tiles. This avoids the
+    // previous O(100 * design-size) memory spike under rapid editing.
+    while (editing.history.length > 25
+        || editing._historyTileCount > 32_768) {
+      const removed = editing.history.shift();
+      editing._historyTileCount -= removed?.length ?? 0;
+      editing.historyIndex--;
+    }
     editing.historyIndex = editing.history.length - 1;
     editing.revision = (editing.revision ?? 0) + 1;
+    editing.updatedAt = Date.now();
   }
 
   undoCustom(house) {
@@ -495,14 +827,15 @@ export class HouseRegistry {
   }
 
   addCustomItem(house, kind, g, x, y, z = 0) {
-    if (!house.editing) return false;
+    if (!this._allowCustomMutation(house, 1)
+        || !this._validCustomPiece(kind, g, x, y, z, house)) return false;
     house.editing.tiles.push({ kind, g: g >>> 0, x: x | 0, y: y | 0, z: z | 0 });
     this._recordCustom(house);
     return true;
   }
 
   removeCustomItem(house, g, x, y, z = 0) {
-    if (!house.editing) return 0;
+    if (!this._allowCustomMutation(house, 0)) return 0;
     // The web editor uses graphic 0 as "erase the topmost authored piece at
     // this tile" because a terrain pick does not necessarily carry the
     // dynamic item's graphic. Resolve that wildcard server-side.
@@ -529,7 +862,7 @@ export class HouseRegistry {
   }
 
   clearCustomTiles(house) {
-    if (!house.editing) return;
+    if (!this._allowCustomMutation(house, 0)) return;
     if (!house.editing.tiles.length) return;
     house.editing.tiles.length = 0;
     this._recordCustom(house);
@@ -542,7 +875,7 @@ export class HouseRegistry {
   }
 
   restoreCustom(house) {
-    if (!house.editing || !house.editing.backup) return false;
+    if (!house.editing?.backup || !this._allowCustomMutation(house, 0)) return false;
     house.editing.tiles = this._cloneCustomTiles(house.editing.backup);
     this._recordCustom(house);
     return true;
@@ -552,10 +885,12 @@ export class HouseRegistry {
     if (!house.editing) return false;
     const validation = this.validateCustom(house);
     if (!validation.ok) return false;
-    house.tiles = this._cloneCustomTiles(house.editing.tiles);
+    const nextTiles = this._cloneCustomTiles(house.editing.tiles);
+    if (this._materializeCustomTiles(house, nextTiles) === false) return false;
+    house.tiles = nextTiles;
     house.revision = (house.revision ?? 0) + 1;
     house.editing = null;
-    this._materializeCustomTiles(house);
+    this.markChanged();
     return true;
   }
 
@@ -565,40 +900,90 @@ export class HouseRegistry {
    * are regular immovable world items so they stream, persist and collide
    * through the same authoritative world path as every other item.
    */
-  _materializeCustomTiles(house) {
-    const world = this.world;
-    if (!world || !house) return 0;
-    for (const serial of house.customItemSerials ?? []) {
-      const old = world.items.get(serial >>> 0);
-      if (old) {
-        for (const mob of nearbyClients(world, old)) mob.client?.sendRemove?.(old.serial);
-        destroyItem(world, old.serial);
-      }
+  _configureCustomItem(item, tile, house) {
+    const kind = String(tile.kind ?? 'item');
+    item.movable = false;
+    // Structural components are rendered from standard 0xD8 data. Fixtures
+    // remain regular visible items because they need targetable serials.
+    item.visible = kind === 'door' || kind === 'teleport';
+    item._customHouseId = house.id;
+    item._customHouseKind = kind;
+    item._noDecay = true;
+    item.house = house.id;
+    delete item.solid; delete item.surface; delete item.bridge; delete item.height; delete item.door;
+    delete item.script; delete item._houseId; delete item._houseAclMode;
+    delete item.teleportTo; delete item.pairSerial;
+    if (kind === 'wall' || kind === 'roof') {
+      item.solid = true;
+      item.height = 20;
+    } else if (kind === 'door') {
+      item.door = {
+        closedId: tile.g >>> 0, openId: ((tile.g >>> 0) + 1) & 0xffff,
+        isOpen: false, facing: null,
+      };
+    } else if (kind === 'floor' || kind === 'stair') {
+      item.surface = true;
+      item.bridge = kind === 'stair';
+      item.height = kind === 'stair' ? 10 : 0;
+    } else if (kind === 'teleport') {
+      item.script = 'house-teleporter';
+      item._houseId = house.id;
+      item._houseAclMode = 'friend';
     }
-    house.customItemSerials = [];
-    for (const tile of house.tiles ?? []) {
-      const item = createItem(world, {
-        itemId: tile.g >>> 0,
-        x: tile.x | 0, y: tile.y | 0, z: tile.z | 0, map: house.map | 0,
-        name: `custom house ${tile.kind ?? 'piece'}`,
-        movable: false,
-        visible: true,
-        _customHouseId: house.id,
-        _noDecay: true,
-      });
-      item._customHouseId = house.id;
-      item._noDecay = true;
-      item.house = house.id;
-      if (tile.kind === 'wall' || tile.kind === 'roof') {
-        item.solid = true;
-        item.height = 20;
-      } else if (tile.kind === 'door') {
-        item.door = {
-          closedId: tile.g >>> 0, openId: ((tile.g >>> 0) + 1) & 0xffff,
-          isOpen: false, facing: null,
-        };
+    this.world?.syncSpatialItem?.(item);
+    return item;
+  }
+
+  _pairCustomTeleporters(teleporters) {
+    for (let index = 0; index + 1 < teleporters.length; index += 2) {
+      const a = teleporters[index], b = teleporters[index + 1];
+      a.teleportTo = { x: b.x, y: b.y, z: b.z, map: b.map };
+      b.teleportTo = { x: a.x, y: a.y, z: a.z, map: a.map };
+      a.pairSerial = b.serial; b.pairSerial = a.serial;
+      this.world?.syncSpatialItem?.(a); this.world?.syncSpatialItem?.(b);
+    }
+  }
+
+  _materializeCustomTiles(house, tiles = house?.tiles ?? []) {
+    const world = this.world;
+    if (!house) return false;
+    if (!world) return 0;
+    const previousSerials = [...(house.customItemSerials ?? [])];
+    const created = [];
+    const teleporters = [];
+    try {
+      for (const tile of tiles) {
+        const item = createItem(world, {
+          itemId: tile.g >>> 0,
+          x: tile.x | 0, y: tile.y | 0, z: tile.z | 0, map: house.map | 0,
+          name: `custom house ${tile.kind ?? 'piece'}`,
+          movable: false,
+          visible: tile.kind === 'door' || tile.kind === 'teleport',
+          _customHouseId: house.id,
+          _customHouseKind: String(tile.kind ?? 'item'),
+          _noDecay: true,
+        });
+        if (!item) throw new Error('world item factory returned no item');
+        this._configureCustomItem(item, tile, house);
+        if (tile.kind === 'teleport') teleporters.push(item);
+        created.push(item);
       }
-      house.customItemSerials.push(item.serial >>> 0);
+      this._pairCustomTeleporters(teleporters);
+    } catch {
+      for (const item of created) destroyItem(world, item.serial);
+      return false;
+    }
+    // Swap only after every replacement exists. A failed build above leaves
+    // the committed layout and all old serials untouched.
+    for (const serial of previousSerials) {
+      const old = world.items.get(serial >>> 0);
+      if (!old) continue;
+      for (const mob of nearbyClients(world, old)) mob.client?.sendRemove?.(old.serial);
+      destroyItem(world, old.serial);
+    }
+    house.customItemSerials = created.map((item) => item.serial >>> 0);
+    for (const item of created) {
+      if (item.visible === false) continue;
       for (const mob of nearbyClients(world, item)) mob.client?.sendItem?.(item);
     }
     return house.customItemSerials.length;
@@ -612,7 +997,7 @@ export class HouseRegistry {
 
   setEditingFloor(house, floor) {
     if (!house.editing) return false;
-    house.editing.floor = floor | 0;
+    house.editing.floor = Math.max(1, Math.min(4, floor | 0));
     return true;
   }
 
@@ -623,7 +1008,8 @@ export class HouseRegistry {
   // count of replaced tiles (0 if nothing was at (x,y,z), 1+ if one or
   // more pieces were stacked).
   replaceTileAt(house, kind, g, x, y, z = 0) {
-    if (!house.editing) return 0;
+    if (!this._allowCustomMutation(house, 1)
+        || !this._validCustomPiece(kind, g, x, y, z, house)) return 0;
     const before = house.editing.tiles.length;
     house.editing.tiles = house.editing.tiles.filter((t) =>
       !(t.x === (x | 0) && t.y === (y | 0) && t.z === (z | 0)));
@@ -636,8 +1022,13 @@ export class HouseRegistry {
   // not change unless explicitly given. CUO `HouseCustomization` uses
   // this for "drag piece by handle". Returns count of moved tiles.
   moveTileAt(house, fromX, fromY, toX, toY, fromZ = 0, toZ = null) {
-    if (!house.editing) return 0;
+    if (!house?.editing) return 0;
     const tz = toZ === null ? fromZ : toZ;
+    const candidates = house.editing.tiles.filter((tile) =>
+      tile.x === (fromX | 0) && tile.y === (fromY | 0) && tile.z === (fromZ | 0));
+    if (!candidates.length || candidates.some((tile) =>
+      !this._validCustomPiece(tile.kind, tile.g, toX | 0, toY | 0, tz | 0, house))) return 0;
+    if (!this._allowCustomMutation(house, 0)) return 0;
     let moved = 0;
     for (const t of house.editing.tiles) {
       if (t.x === (fromX | 0) && t.y === (fromY | 0) && t.z === (fromZ | 0)) {
@@ -657,8 +1048,8 @@ export class HouseRegistry {
   // `housedataLookup(g) → groupArray` lets a client-side hook map
   // through housedata.walls/doors/floors arrays for accurate rotation.
   rotateTileAt(house, x, y, z = 0, housedataLookup = null) {
-    if (!house.editing) return 0;
-    let rotated = 0;
+    if (!house?.editing) return 0;
+    const replacements = [];
     for (const t of house.editing.tiles) {
       if (t.x !== (x | 0) || t.y !== (y | 0) || t.z !== (z | 0)) continue;
       let next = (t.g + 1) & 0xFFFF;
@@ -669,11 +1060,13 @@ export class HouseRegistry {
           next = idx >= 0 ? group[(idx + 1) % group.length] : group[0];
         }
       }
-      t.g = next >>> 0;
-      rotated++;
+      if (!this._validCustomPiece(t.kind, next, t.x, t.y, t.z, house)) return 0;
+      replacements.push([t, next >>> 0]);
     }
-    if (rotated) this._recordCustom(house);
-    return rotated;
+    if (!replacements.length || !this._allowCustomMutation(house, 0)) return 0;
+    for (const [tile, graphic] of replacements) tile.g = graphic;
+    this._recordCustom(house);
+    return replacements.length;
   }
 
   // Bulk paint a single graphic across a rectangle of foundation tiles.
@@ -685,17 +1078,23 @@ export class HouseRegistry {
     if (!house.editing) return 0;
     const xMin = Math.min(x1, x2) | 0, xMax = Math.max(x1, x2) | 0;
     const yMin = Math.min(y1, y2) | 0, yMax = Math.max(y1, y2) | 0;
-    let painted = 0;
-    house.editing._suppressHistory = true;
+    const cells = (xMax - xMin + 1) * (yMax - yMin + 1);
+    if (!this._validCustomPiece(kind, g, xMin, yMin, z, house)
+        || !this._validCustomPiece(kind, g, xMax, yMax, z, house)) return 0;
+    const replaced = new Set();
     for (let y = yMin; y <= yMax; y++) {
-      for (let x = xMin; x <= xMax; x++) {
-        this.replaceTileAt(house, kind, g, x, y, z);
-        painted++;
-      }
+      for (let x = xMin; x <= xMax; x++) replaced.add(`${x}|${y}|${z | 0}`);
     }
-    house.editing._suppressHistory = false;
-    if (painted) this._recordCustom(house);
-    return painted;
+    const retained = house.editing.tiles.filter((tile) => !replaced.has(`${tile.x}|${tile.y}|${tile.z}`));
+    if (retained.length + cells > this._customLimit(house)
+        || !this._allowCustomMutation(house, 0)) return 0;
+    const additions = [];
+    for (let y = yMin; y <= yMax; y++) {
+      for (let x = xMin; x <= xMax; x++) additions.push({ kind, g: g >>> 0, x, y, z: z | 0 });
+    }
+    house.editing.tiles = [...retained, ...additions];
+    this._recordCustom(house);
+    return additions.length;
   }
 
   validateCustom(house) {
@@ -704,14 +1103,15 @@ export class HouseRegistry {
     const warnings = [];
     const allowedKinds = new Set(['item', 'wall', 'door', 'floor', 'stair', 'roof', 'misc', 'teleport']);
     const seen = new Map();
-    const area = Math.max(1, ((house?.x2 | 0) - (house?.x1 | 0) + 1)
-      * ((house?.y2 | 0) - (house?.y1 | 0) + 1));
-    const maxTiles = Math.max(256, area * 8);
+    const maxTiles = this._customLimit(house);
     if (tiles.length > maxTiles) errors.push(`Tile limit exceeded (${tiles.length}/${maxTiles}).`);
     for (let i = 0; i < tiles.length; i++) {
       const tile = tiles[i];
       if (!allowedKinds.has(String(tile.kind))) errors.push(`Tile ${i}: unsupported kind ${tile.kind}.`);
       if (!Number.isInteger(tile.g) || tile.g <= 0 || tile.g > 0xffff) errors.push(`Tile ${i}: invalid graphic.`);
+      if (!this._validCustomPiece(tile.kind, tile.g, tile.x, tile.y, tile.z, house)) {
+        errors.push(`Tile ${i}: graphic 0x${(tile.g >>> 0).toString(16)} is not legal for ${tile.kind}.`);
+      }
       if (tile.x < house.x1 - 1 || tile.x > house.x2 + 1 || tile.y < house.y1 - 1 || tile.y > house.y2 + 1) {
         errors.push(`Tile ${i}: outside foundation (${tile.x},${tile.y}).`);
       }
@@ -721,6 +1121,23 @@ export class HouseRegistry {
       const count = (seen.get(key) ?? 0) + 1;
       seen.set(key, count);
       if (count === 2) warnings.push(`Overlapping ${tile.kind} tiles at ${tile.x},${tile.y},${tile.z}.`);
+    }
+    if (tiles.length && !tiles.some((tile) => tile.kind === 'door')) {
+      warnings.push('The design has no door or explicit entrance.');
+    }
+    if (tiles.filter((tile) => tile.kind === 'teleport').length % 2 !== 0) {
+      errors.push('Teleporters must be placed in pairs.');
+    }
+    const supported = new Set(tiles
+      .filter((tile) => tile.kind === 'floor' || tile.kind === 'stair')
+      .map((tile) => `${tile.x}|${tile.y}|${tile.z}`));
+    const baseZ = (house?.z | 0) + 7;
+    for (let i = 0; i < tiles.length; i++) {
+      const tile = tiles[i];
+      if (tile.z <= baseZ + 1 || tile.kind === 'roof') continue;
+      if (!supported.has(`${tile.x}|${tile.y}|${tile.z - 20}`)) {
+        warnings.push(`Tile ${i}: no direct floor support below (${tile.x},${tile.y},${tile.z}).`);
+      }
     }
     return { ok: errors.length === 0, errors: errors.slice(0, 50), warnings: warnings.slice(0, 50), tileCount: tiles.length, maxTiles };
   }
@@ -742,17 +1159,21 @@ export class HouseRegistry {
     const editing = house?.editing;
     const clip = editing?.clipboard;
     if (!clip?.tiles?.length) return 0;
-    editing._suppressHistory = true;
+    const additions = clip.tiles.map((tile) => ({
+      ...tile, x: (x | 0) + tile.x, y: (y | 0) + tile.y, z: tile.z + (zOffset | 0),
+    }));
+    if (additions.some((tile) =>
+      !this._validCustomPiece(tile.kind, tile.g, tile.x, tile.y, tile.z, house))) return 0;
+    let retained = editing.tiles;
     if (replace) {
       const maxX = (x | 0) + clip.width - 1, maxY = (y | 0) + clip.height - 1;
-      editing.tiles = editing.tiles.filter((tile) => tile.x < x || tile.x > maxX || tile.y < y || tile.y > maxY);
+      retained = editing.tiles.filter((tile) => tile.x < x || tile.x > maxX || tile.y < y || tile.y > maxY);
     }
-    for (const tile of clip.tiles) editing.tiles.push({
-      ...tile, x: (x | 0) + tile.x, y: (y | 0) + tile.y, z: tile.z + (zOffset | 0),
-    });
-    editing._suppressHistory = false;
+    if (retained.length + additions.length > this._customLimit(house)
+        || !this._allowCustomMutation(house, 0)) return 0;
+    editing.tiles = [...retained, ...additions];
     this._recordCustom(house);
-    return clip.tiles.length;
+    return additions.length;
   }
 
   saveCustomTemplate(house, name, rect = null) {
@@ -776,6 +1197,7 @@ export class HouseRegistry {
       name: key, savedAt: Date.now(),
       tiles: tiles.map((tile) => ({ ...tile, x: tile.x - minX, y: tile.y - minY })),
     };
+    this.markChanged();
     return { ok: true, name: key, tileCount: tiles.length };
   }
 

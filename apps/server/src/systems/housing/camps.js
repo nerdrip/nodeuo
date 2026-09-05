@@ -103,7 +103,10 @@ export function tick(world, spawner, now = Date.now()) {
 export function despawnCamp(world, campId) {
   const camp = _camps.get(campId);
   if (!camp) return false;
-  for (const s of camp.npcs) world?.mobiles?.delete?.(s);
+  for (const s of camp.npcs) {
+    if (world?.destroyMobile) world.destroyMobile(s);
+    else world?.mobiles?.delete?.(s);
+  }
   for (const s of camp.decor) world?.destroyItem?.(s);
   if (camp.chest) world?.destroyItem?.(camp.chest);
   _camps.delete(campId);

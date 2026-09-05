@@ -24,10 +24,8 @@ function findStateByAccount(world, accountName) {
 export default function register(api) {
   const { commands, world, ctx, protocol, targeting } = api;
 
-  // Synchronous save — blocks the heartbeat for the duration of the
-  // serialise + disk write, but guarantees the snapshot is on disk by
-  // the time the message returns. Mirrors ServUO's `[save` (a wrapper
-  // around `World.Save(true /* messages */, false /* permitBackgroundWrite */)`).
+  // Synchronous full SQLite reconciliation. This is an explicit maintenance
+  // path; normal autosaves persist only dirty entities in the worker.
   function doSyncSave(cctx, opts = {}) {
     const save = api.persistence?.saveWorldSync;
     if (!save) {
@@ -55,10 +53,8 @@ export default function register(api) {
     }
   }
 
-  // Async save — snapshot is taken synchronously (consistent state) but
-  // disk write happens off-tick. Resolves with timing info via system
-  // message. Use [bgsave when you need an immediate save without freezing
-  // the world for ~150ms (typical for a populated shard).
+  // Async incremental save — serializes only dirty entities and commits the
+  // transaction in the persistence worker.
   function doAsyncSave(cctx, opts = {}) {
     const save = api.persistence?.saveWorldAsync;
     const dir = api.persistence?.saveDir ?? 'saves';
@@ -86,7 +82,7 @@ export default function register(api) {
   // Kept as a convenience for ops familiar with the upstream commands.
   commands.register({
     name: 'savenow',
-    help: 'Synonym of [save — write the world snapshot to saves/world.json synchronously.',
+    help: 'Force a complete synchronous reconciliation into saves/world.sqlite.',
     access: 'Admin',
     hidden: true,
     run: (cctx) => doSyncSave(cctx, { broadcast: true }),
@@ -94,7 +90,7 @@ export default function register(api) {
 
   commands.register({
     name: 'bgsave',
-    help: 'Background world save (non-blocking disk write). Snapshot is taken synchronously then written off-tick.',
+    help: 'Commit pending world changes to SQLite in the background.',
     access: 'Admin',
     run: (cctx) => doAsyncSave(cctx, { broadcast: true }),
   });
@@ -106,18 +102,14 @@ export default function register(api) {
     run: async (cctx) => {
       try {
         const dir = api.persistence?.saveDir ?? 'saves';
-        const fs = await import('node:fs');
-        const path = await import('node:path');
-        const candidates = ['world.json.gz', 'world.json'];
-        let found = null;
-        for (const name of candidates) {
-          const p = path.join(dir, name);
-          if (fs.existsSync(p)) { found = { p, st: fs.statSync(p) }; break; }
-        }
-        if (!found) { cctx.state.sendSystemMessage('No save file found.'); return; }
-        const kb = (found.st.size / 1024).toFixed(1);
-        const age = Math.round((Date.now() - found.st.mtimeMs) / 1000);
-        cctx.state.sendSystemMessage(`Last save: ${path.basename(found.p)} — ${kb} KB, ${age}s ago.`);
+        const stats = api.persistence?.diagnostics?.(dir);
+        const database = stats?.database ?? stats?.mutationJournal?.database;
+        if (!database) { cctx.state.sendSystemMessage('No SQLite save database found.'); return; }
+        const kb = ((database.databaseBytes + database.walBytes) / 1024).toFixed(1);
+        cctx.state.sendSystemMessage(
+          `SQLite save: ${kb} KB, ${database.mobiles} mobiles, ${database.items} items, ` +
+          `${database.accounts} accounts; pending=${stats?.mutationJournal?.pending ?? 0}.`,
+        );
       } catch (e) {
         cctx.state.sendSystemMessage(`savestats failed: ${e.message}`);
       }

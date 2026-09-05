@@ -4,6 +4,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import registerVendor, { VENDOR_KINDS } from '../../scripts/src/npcs/vendors/vendor.js';
+import { resolveItemType } from '../src/world/item-types.js';
 
 function makeApi(world) {
   let behavior = null;
@@ -32,6 +33,7 @@ function makeApi(world) {
     },
     commands: { register: () => {}, unregister: () => {} },
     vendors: { register: () => {} },
+    itemTypes: { resolve: resolveItemType },
     _behavior: () => behavior,
     _stepped: stepped,
   };
@@ -174,7 +176,10 @@ describe('vendor NPC behavior', () => {
     const bindings = new Map();
     const delivered = [];
     const testWorld = {
-      mobiles: new Map([[restoredVendor.serial, restoredVendor], [buyer.serial, buyer]]),
+      mobiles: new Map([
+        [restoredVendor.serial, restoredVendor],
+        [buyer.serial, buyer],
+      ]),
       items: new Map([[pack.serial, pack], [gold.serial, gold]]),
     };
     const restoredApi = {
@@ -186,6 +191,7 @@ describe('vendor NPC behavior', () => {
         register(binding) { bindings.set(binding.vendorSerial, binding); },
         get(serial) { return bindings.get(serial); },
       },
+      itemTypes: { resolve: resolveItemType },
       items: { createItem: () => ({}), destroyItem: (_world, serial) => testWorld.items.delete(serial) },
       game: {
         inventory: {
@@ -216,6 +222,19 @@ describe('vendor NPC behavior', () => {
     expect(gold.amount).toBe(10);
     expect(delivered[0]).toMatchObject({ itemId: 0x0F0C, name: 'heal potion', amount: 1 });
     expect(messages.at(-1)).toMatch(/paid 50 gp/);
+
+    const manual = binding.listStock().find((entry) => entry.definitionId === 'GlassblowingBook');
+    expect(manual).toMatchObject({
+      script: 'imbue-recipe-scroll', recipeUnlock: 'glassblowing',
+    });
+    binding.onBuy({
+      mobile: buyer, account: { accessLevel: 'Admin' },
+      send() {}, sendSystemMessage() {},
+    }, [{ serial: manual.serial, amount: 1 }]);
+    expect(delivered.at(-1)).toMatchObject({
+      definitionId: 'GlassblowingBook', script: 'imbue-recipe-scroll',
+      recipeUnlock: 'glassblowing',
+    });
   });
 
   it('sells functional spellcraft supplies with stable definitions', () => {

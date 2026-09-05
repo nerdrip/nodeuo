@@ -194,7 +194,7 @@ export default function (api) {
           },
         });
       }
-      // FAZA BE: trainer NPCs get a "Train …" entry that opens a small
+      // PHASE BE: trainer NPCs get a "Train …" entry that opens a small
       // gump listing the skills they teach. Cliloc 3006146 is "Train"
       // in CUO's context menu space. Each gump button sends a generic
       // 0xB1 response back; trainer.js reacts via `_pendingTrainRequest`

@@ -1,4 +1,4 @@
-// BUGFIX #32 (FAZA BP): killMobile must fire `onUnequip` on every worn
+// BUGFIX #32 (PHASE BP): killMobile must fire `onUnequip` on every worn
 // item before re-parenting it to the corpse. Otherwise lifecycle
 // scripts that maintain "while worn" state (lit torches, equip-driven
 // auras, durability tickers) silently leak across the death boundary.
@@ -9,7 +9,7 @@ import { createItem } from '../src/world/items.js';
 import { killMobile } from '../src/corpse.js';
 import { registerItemScript, unregisterItemScript } from '../src/world/item-scripts.js';
 
-describe('killMobile fires onUnequip for worn items (FAZA BP)', () => {
+describe('killMobile fires onUnequip for worn items (PHASE BP)', () => {
   /** @type {{ serial:number, item:any, mob:any }[]} */
   let calls;
 

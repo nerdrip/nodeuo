@@ -9,11 +9,11 @@ import { runtimeGovernor } from './systems/runtime-governor.js';
 // decoupled from any particular monster catalog.
 //
 // Ticks are driven from main.js at a low rate (e.g. once per 10s). A group
-// respawns one mob per tick until it reaches its cap, then sleeps until a
-// tracked mob dies (detected by walking world.mobiles and matching the
-// `group.spawnedSerials` set).
+// respawns one mob per due tick until it reaches its cap, then sleeps. A
+// reverse mobile→group index wakes its deadline immediately on death/taming;
+// the global mobile map is never scanned to discover freed slots.
 //
-// Extensions over the FAZA-1 baseline (mirror ServUO `Spawner.cs`):
+// Extensions over the PHASE-1 baseline (mirror ServUO `Spawner.cs`):
 //   - `proximityRange`  — gate spawning on a player being within N tiles
 //   - `homeRange`       — stamp spawn-home on each mob so wander AI has
 //                          an anchor and won't drift across continents
@@ -61,11 +61,127 @@ export class Spawner {
     // their live serial sets across that narrow lifecycle so a reload cannot
     // orphan the old pack and spawn a duplicate one beside it.
     this._detachedRuntime = new Map();
-    this._tickCursor = 0;
+    // Deadline heap: with several thousand definitions the old round-robin
+    // walked and allocated an array for every group every ten seconds.  A
+    // min-heap lets a tick touch only groups whose deadline has elapsed.
+    // Versions make rescheduling O(log n) without searching/removing an old
+    // heap row; stale rows are discarded lazily and periodically compacted.
+    this._dueHeap = [];
+    this._dueVersions = new Map();
+    this._dueSequence = 0;
+    this._mobileToGroup = new Map();
+    // Rebuild runtime ownership from the canonical world snapshot. The old
+    // standalone spawner-persistence module was never imported, so a restart
+    // forgot every live serial and immediately spawned duplicates. One O(N)
+    // boot scan is cheaper and cannot drift from world persistence.
+    this._restoredByGroup = new Map();
+    for (const mobile of world.mobiles?.values?.() ?? []) {
+      const groupId = String(mobile.spawnerId ?? '').trim();
+      if (!groupId) continue;
+      const serials = this._restoredByGroup.get(groupId) ?? new Set();
+      serials.add(mobile.serial >>> 0);
+      this._restoredByGroup.set(groupId, serials);
+    }
+    this._densityFactor = 1;
     this.maxGroupsPerTick = 256;
+    this.diagnostics = {
+      ticks: 0, groupsChecked: 0, groupsSpawned: 0, staleDeadlines: 0,
+      heapCompactions: 0, releasedMobiles: 0, proximityWakeups: 0,
+    };
+    this._removeDestroyHook = world.onMobileDestroyed?.((serial) => this.releaseMobile(serial));
+    world._spawner = this;
+  }
+
+  _heapBefore(a, b) { return a.due < b.due || (a.due === b.due && a.sequence < b.sequence); }
+  _heapPush(row) {
+    const heap = this._dueHeap;
+    let index = heap.push(row) - 1;
+    while (index > 0) {
+      const parent = (index - 1) >> 1;
+      if (!this._heapBefore(row, heap[parent])) break;
+      heap[index] = heap[parent]; index = parent;
+    }
+    heap[index] = row;
+  }
+  _heapPop() {
+    const heap = this._dueHeap;
+    if (!heap.length) return null;
+    const root = heap[0];
+    const last = heap.pop();
+    if (heap.length) {
+      let index = 0;
+      while (true) {
+        const left = index * 2 + 1;
+        if (left >= heap.length) break;
+        const right = left + 1;
+        const child = right < heap.length && this._heapBefore(heap[right], heap[left]) ? right : left;
+        if (!this._heapBefore(heap[child], last)) break;
+        heap[index] = heap[child]; index = child;
+      }
+      heap[index] = last;
+    }
+    return root;
+  }
+  _enqueue(id, due) {
+    const normalized = Number.isFinite(Number(due)) ? Number(due) : Date.now();
+    const version = (this._dueVersions.get(id) ?? 0) + 1;
+    this._dueVersions.set(id, version);
+    this._heapPush({ id, due: normalized, version, sequence: ++this._dueSequence });
+  }
+  _installDeadline(group, value) {
+    let due = Number.isFinite(Number(value)) ? Number(value) : 0;
+    Object.defineProperty(group, 'nextSpawnAt', {
+      configurable: true,
+      enumerable: true,
+      get: () => due,
+      set: (next) => {
+        due = Number.isFinite(Number(next)) ? Number(next) : Date.now();
+        this._enqueue(group.id, due);
+      },
+    });
+    group.nextSpawnAt = due;
+  }
+  _validDeadline(row) {
+    const group = this.groups.get(row?.id);
+    return group && this._dueVersions.get(row.id) === row.version
+      && group.nextSpawnAt === row.due ? group : null;
+  }
+  _compactDeadlines() {
+    const limit = this.groups.size * 4 + 128;
+    if (this._dueHeap.length <= limit) return;
+    this._dueHeap.length = 0;
+    for (const group of this.groups.values()) {
+      const version = this._dueVersions.get(group.id);
+      this._heapPush({ id: group.id, due: group.nextSpawnAt, version, sequence: ++this._dueSequence });
+    }
+    this.diagnostics.heapCompactions++;
   }
 
   _sectorKey(map, sx, sy) { return `${map | 0}:${sx | 0}:${sy | 0}`; }
+
+  /** Spawn one ungrouped mobile for encounters/camps/admin scripts. */
+  spawn(kind, pos) {
+    if (!kind || !pos) return null;
+    let mob = null;
+    try { mob = this.factory(this.world, String(kind), {
+      x: pos.x | 0, y: pos.y | 0, z: pos.z | 0, map: pos.map ?? 1,
+    }); }
+    catch (error) { console.error('[spawner] direct spawn factory threw:', error); }
+    if (mob) mob.kind ??= String(kind);
+    return mob;
+  }
+
+  list() { return [...this.groups.values()]; }
+
+  setDensity(factor) {
+    this._densityFactor = Math.max(0.1, Math.min(10, Number(factor) || 1));
+    const now = Date.now();
+    for (const group of this.groups.values()) {
+      const cap = Math.max(0, Math.round((group.maxCount | 0) * this._densityFactor));
+      if (group.spawnedSerials.size < cap) group.nextSpawnAt = Math.min(group.nextSpawnAt, now);
+    }
+    return this._densityFactor;
+  }
   _unindexGroup(id) {
     for (const key of this._sectorsByGroup.get(id) ?? []) {
       const set = this._groupsBySector.get(key); set?.delete(id);
@@ -90,8 +206,15 @@ export class Spawner {
   add(g) {
     const previous = this.groups.get(g.id);
     const detached = this._detachedRuntime.get(g.id);
-    g.spawnedSerials = g.spawnedSerials ?? previous?.spawnedSerials ?? detached?.spawnedSerials ?? new Set();
-    g.nextSpawnAt = g.nextSpawnAt ?? previous?.nextSpawnAt ?? detached?.nextSpawnAt;
+    if (previous) {
+      for (const serial of previous.spawnedSerials ?? []) {
+        if (this._mobileToGroup.get(serial >>> 0) === g.id) this._mobileToGroup.delete(serial >>> 0);
+      }
+    }
+    g.spawnedSerials = g.spawnedSerials ?? previous?.spawnedSerials
+      ?? detached?.spawnedSerials ?? this._restoredByGroup.get(g.id) ?? new Set();
+    this._restoredByGroup.delete(g.id);
+    let nextSpawnAt = g.nextSpawnAt ?? previous?.nextSpawnAt ?? detached?.nextSpawnAt;
     this._detachedRuntime.delete(g.id);
     // Validate respawn bounds — bug-hunt #9 #1. A swapped `[hi, lo]` would
     // collapse to `lo` and effectively pin respawn to a single value.
@@ -104,17 +227,20 @@ export class Spawner {
     // tick after boot — that produced a multi-thousand-mob burst when
     // every spawner was "due now". Random delay in [lo, hi] mirrors the
     // normal respawn cadence.
-    if (!g.nextSpawnAt) {
+    if (!nextSpawnAt) {
       const lo = g.respawnMs?.[0] ?? 0;
       const hi = g.respawnMs?.[1] ?? lo;
-      g.nextSpawnAt = Date.now() + lo + Math.floor(Math.random() * Math.max(1, hi - lo + 1));
+      nextSpawnAt = Date.now() + lo + Math.floor(Math.random() * Math.max(1, hi - lo + 1));
     }
     this.groups.set(g.id, g);
+    this._installDeadline(g, nextSpawnAt);
+    for (const serial of g.spawnedSerials) this._mobileToGroup.set(serial >>> 0, g.id);
     this._indexGroup(g);
+    this._compactDeadlines();
     return g;
   }
 
-  remove(id, { preserveRuntime = false } = {}) {
+  remove(id, { preserveRuntime = false, despawn = false } = {}) {
     const group = this.groups.get(id);
     if (preserveRuntime && group) {
       this._detachedRuntime.set(id, {
@@ -124,6 +250,35 @@ export class Spawner {
     } else this._detachedRuntime.delete(id);
     this._unindexGroup(id);
     this.groups.delete(id);
+    this._dueVersions.set(id, (this._dueVersions.get(id) ?? 0) + 1);
+    if (!preserveRuntime && group) {
+      if (despawn) {
+        for (const serial of [...(group.spawnedSerials ?? [])]) {
+          this._mobileToGroup.delete(serial >>> 0);
+          try { this.world.destroyMobile?.(serial); }
+          catch { /* already removed */ }
+        }
+        group.spawnedSerials?.clear?.();
+      }
+      for (const serial of group.spawnedSerials ?? []) {
+        if (this._mobileToGroup.get(serial >>> 0) === id) this._mobileToGroup.delete(serial >>> 0);
+      }
+    }
+  }
+
+  /** Release a destroyed, tamed or otherwise detached mobile immediately.
+   *  This keeps full groups asleep and makes refill event-driven. */
+  releaseMobile(mobOrSerial) {
+    const serial = (typeof mobOrSerial === 'object' ? mobOrSerial?.serial : mobOrSerial) >>> 0;
+    if (!serial) return false;
+    const id = this._mobileToGroup.get(serial);
+    if (!id) return false;
+    this._mobileToGroup.delete(serial);
+    const group = this.groups.get(id);
+    if (!group?.spawnedSerials?.delete(serial)) return false;
+    group.nextSpawnAt = Math.min(group.nextSpawnAt || Date.now(), Date.now());
+    this.diagnostics.releasedMobiles++;
+    return true;
   }
 
   *groupsNear(map, x, y, range = 0) {
@@ -133,6 +288,26 @@ export class Spawner {
       for (const id of this._groupsBySector.get(this._sectorKey(map, sx, sy)) ?? []) seen.add(id);
     }
     for (const id of seen) { const group = this.groups.get(id); if (group) yield group; }
+  }
+
+  /** Event-driven wake-up when a player enters a new sector. Only groups
+   * whose expanded rectangle contains that player are rescheduled; sleeping
+   * definitions elsewhere remain untouched. */
+  activateNear(center, range = 64, now = Date.now()) {
+    if (!center) return 0;
+    let activated = 0;
+    for (const group of this.groupsNear(center.map, center.x, center.y, range)) {
+      if (group.enabled === false || !(group.proximityRange > 0)) continue;
+      const proximity = group.proximityRange | 0;
+      if (center.x < group.rect.x1 - proximity || center.x > group.rect.x2 + proximity
+          || center.y < group.rect.y1 - proximity || center.y > group.rect.y2 + proximity) continue;
+      const cap = Math.max(0, Math.round((group.maxCount | 0) * this._densityFactor));
+      if (group.spawnedSerials.size >= cap || group.nextSpawnAt <= now) continue;
+      group.nextSpawnAt = now;
+      activated++;
+    }
+    this.diagnostics.proximityWakeups += activated;
+    return activated;
   }
 
   validateIndex({ repair = false } = {}) {
@@ -159,17 +334,27 @@ export class Spawner {
    * path `[del` uses so the world stays consistent.
    */
   clearAll() {
+    this.despawnWhere(() => true);
+    this._mobileToGroup.clear();
+  }
+
+  /** Despawn occupants of matching groups while retaining definitions. */
+  despawnWhere(predicate = () => true) {
     const destroyMobile = this.world.destroyMobile?.bind(this.world);
-    for (const g of this.groups.values()) {
-      for (const serial of g.spawnedSerials) {
-        if (destroyMobile) {
-          try { destroyMobile(serial); }
-          catch { /* mob may have died already — ignore */ }
-        }
+    let groupsMatched = 0; let mobilesRemoved = 0;
+    for (const group of this.groups.values()) {
+      if (!predicate(group)) continue;
+      groupsMatched++;
+      for (const serial of [...(group.spawnedSerials ?? [])]) {
+        this._mobileToGroup.delete(serial >>> 0);
+        if (!destroyMobile || !this.world.mobiles?.has?.(serial >>> 0)) continue;
+        try { destroyMobile(serial); mobilesRemoved++; }
+        catch { /* mob may have died already — ignore */ }
       }
-      g.spawnedSerials.clear();
-      g.nextSpawnAt = 0;
+      group.spawnedSerials?.clear?.();
+      group.nextSpawnAt = 0;
     }
+    return { groupsMatched, mobilesRemoved };
   }
 
   /**
@@ -186,6 +371,8 @@ export class Spawner {
    */
   resetRuntime({ now = Date.now() } = {}) {
     let trackedMobilesForgotten = 0;
+    this._mobileToGroup.clear();
+    this._restoredByGroup.clear();
     for (const group of this.groups.values()) {
       trackedMobilesForgotten += group.spawnedSerials?.size ?? 0;
       group.spawnedSerials ??= new Set();
@@ -195,7 +382,6 @@ export class Spawner {
       group.nextSpawnAt = now + lo
         + Math.floor(Math.random() * Math.max(1, hi - lo + 1));
     }
-    this._tickCursor = 0;
     // Older WipeWorld builds cleared `groups` without clearing these maps.
     // Rebuild when necessary so the surviving definitions are authoritative.
     this.validateIndex({ repair: true });
@@ -225,7 +411,10 @@ export class Spawner {
     this._sectorsByGroup.clear();
     this._globalGroups.clear();
     this._detachedRuntime.clear();
-    this._tickCursor = 0;
+    this._restoredByGroup.clear();
+    this._dueHeap.length = 0;
+    this._dueVersions.clear();
+    this._mobileToGroup.clear();
     return { groupsRemoved, trackedMobilesRemoved };
   }
 
@@ -236,25 +425,48 @@ export class Spawner {
     // initial-spawn pass and produces phantom mobs that are tracked
     // by spawner but missing from the just-finalised state.
     if (this.world._createWorldDone === false) return;
-    const groups = [...this.groups.values()];
     const adaptiveBudget = runtimeGovernor.budgets.spawners;
-    const budget = Math.min(groups.length, Math.max(1, Math.min(this.maxGroupsPerTick | 0, adaptiveBudget.current | 0)));
-    for (let offset = 0; offset < budget; offset++) {
-      const g = groups[(this._tickCursor + offset) % groups.length];
-      if (g.enabled === false || !this._scheduleActive(g, now) || !this._regionConditionsMet(g)) continue;
+    const budget = Math.max(1, Math.min(this.maxGroupsPerTick | 0, adaptiveBudget.current | 0));
+    let checked = 0;
+    // A few unit/integration consumers still attach `mobile.client` directly
+    // instead of calling World.markMobileOnline(). Keep their historical
+    // immediate re-check semantics without penalising the real server, whose
+    // authoritative online index wakes nearby groups on sector/login events.
+    const compatibilityDeferred = [];
+    while (checked < budget && this._dueHeap.length) {
+      const deadline = this._heapPop();
+      const g = this._validDeadline(deadline);
+      if (!g) { this.diagnostics.staleDeadlines++; continue; }
+      if (deadline.due > now) { this._heapPush(deadline); break; }
+      checked++;
+      // Conditions are polled only as a safety net. Player sector crossings
+      // call `activateNear`, so proximity-gated groups wake immediately while
+      // disabled/calendar groups do not churn at the top of the due heap.
+      if (g.enabled === false || !this._scheduleActive(g, now) || !this._regionConditionsMet(g)) {
+        if (this.world._onlineMobilesAuthoritative) {
+          g.nextSpawnAt = now + (g.enabled === false || !this._scheduleActive(g, now) ? 60_000 : 10_000);
+        } else {
+          compatibilityDeferred.push(deadline);
+        }
+        continue;
+      }
       // Cull dead/missing/escaped/tamed serials. Bug-hunt #10 #5: a
       // tamed mob keeps eating spawner slots forever (`controlMaster` set
       // → still in world.mobiles but not the spawner's responsibility).
       // Same for a mob that wandered or got `[teled` far outside the
       // group's spawn rect — let the spawner refill the wild.
-      for (const serial of [...g.spawnedSerials]) {
+      for (const serial of g.spawnedSerials) {
         const m = this.world.mobiles.get(serial);
-        if (!m) { g.spawnedSerials.delete(serial); continue; }
-        if (m.controlMaster) { g.spawnedSerials.delete(serial); continue; }
-        if (g.map != null && m.map !== g.map) { g.spawnedSerials.delete(serial); continue; }
+        if (!m || m.controlMaster || (g.map != null && m.map !== g.map)) {
+          g.spawnedSerials.delete(serial);
+          this._mobileToGroup.delete(serial >>> 0);
+        }
       }
-      if (g.spawnedSerials.size >= g.maxCount) continue;
-      if (now < g.nextSpawnAt) continue;
+      const effectiveMax = Math.max(0, Math.round((g.maxCount | 0) * this._densityFactor));
+      if (g.spawnedSerials.size >= effectiveMax) {
+        g.nextSpawnAt = now + 60_000;
+        continue;
+      }
       // Proximity gate: don't waste mobs / wake CPU when no player is
       // around. ServUO-style; defaults to "always on" when unset.
       if (g.proximityRange && g.proximityRange > 0) {
@@ -287,16 +499,37 @@ export class Spawner {
       if (typeof g.team === 'number') mob.team = g.team;
       mob._xmlSpawnerEntry = entry.raw ?? entry.kind;
       g.spawnedSerials.add(mob.serial);
+      this._mobileToGroup.set(mob.serial >>> 0, g.id);
       try { applySpawnDirectives(mob, { world: this.world, group: g, entry }); }
       catch (e) { console.error(`[spawner ${g.id}] xml directives threw:`, e); }
       try { g.onSpawn?.(this.world, mob, g); }
       catch (e) { console.error(`[spawner ${g.id}] onSpawn threw:`, e); }
+      this.diagnostics.groupsSpawned++;
     }
-    if (groups.length) this._tickCursor = (this._tickCursor + budget) % groups.length;
+    for (const deadline of compatibilityDeferred) this._heapPush(deadline);
+    this._compactDeadlines();
     const tickMs = performance.now() - tickStarted;
+    this.diagnostics.ticks++;
+    this.diagnostics.groupsChecked += checked;
     adaptiveBudget.observe(tickMs);
-    if (groups.length > budget) adaptiveBudget.noteSkipped(groups.length - budget);
+    if (checked >= budget && this._dueHeap[0]?.due <= now) adaptiveBudget.noteSkipped(1);
     runtimeGovernor.watchdog.record('spawner', tickMs);
+  }
+
+  runtimeSnapshot() {
+    return {
+      ...this.diagnostics,
+      groups: this.groups.size,
+      densityFactor: this._densityFactor,
+      trackedMobiles: this._mobileToGroup.size,
+      scheduledDeadlines: this._dueHeap.length,
+    };
+  }
+
+  dispose() {
+    this._removeDestroyHook?.();
+    this._removeDestroyHook = null;
+    if (this.world?._spawner === this) this.world._spawner = null;
   }
 
   _pickPos(rect, map) {
@@ -383,6 +616,9 @@ export class Spawner {
     const cy = (g.rect.y1 + g.rect.y2) >> 1;
     const r  = g.proximityRange | 0;
     const sectors = this.world.sectors;
+    if (this.world._onlineMobilesAuthoritative && sectors?.onlineCountNear) {
+      return sectors.onlineCountNear(this.world, g.map, cx, cy, r) > 0;
+    }
     if (sectors?.mobileSerialsNear) {
       for (const serial of sectors.mobileSerialsNear(g.map, cx, cy, r)) {
         const m = this.world.mobiles.get(serial);
@@ -422,6 +658,12 @@ export class Spawner {
     let players = 0;
     const cx = (g.rect.x1 + g.rect.x2) >> 1, cy = (g.rect.y1 + g.rect.y2) >> 1;
     const range = Math.max(g.rect.x2 - cx, g.rect.y2 - cy);
+    if (this.world._onlineMobilesAuthoritative && this.world.sectors?.onlineCountNear) {
+      const players = this.world.sectors.onlineCountNear(this.world, g.map, cx, cy, range, g.rect);
+      const min = Math.max(0, Number(conditions.minPlayers) || 0);
+      const max = Math.max(min, Number.isFinite(Number(conditions.maxPlayers)) ? Number(conditions.maxPlayers) : Number.POSITIVE_INFINITY);
+      return players >= min && players <= max;
+    }
     const serials = this.world.sectors?.mobileSerialsNear
       ? this.world.sectors.mobileSerialsNear(g.map, cx, cy, range)
       : this.world.mobiles.keys();

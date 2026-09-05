@@ -3,20 +3,31 @@ import { start, tick, stop, isFollowing } from '../src/world/path-follower.js';
 
 vi.mock('../src/world/pathfind.js', () => ({
   findPath: ({ sx, sy, gx, gy }) => {
-    // Trivial mock — straight-line tiles between start and goal.
+    // Trivial mock — direction bytes, matching the real A* contract.
     const out = [];
     let x = sx, y = sy;
     while (x !== gx || y !== gy) {
-      if (x < gx) x++; else if (x > gx) x--;
-      if (y < gy) y++; else if (y > gy) y--;
-      out.push({ x, y, z: 0 });
+      let dir;
+      if (x < gx && y < gy) { x++; y++; dir = 3; }
+      else if (x < gx && y > gy) { x++; y--; dir = 1; }
+      else if (x > gx && y < gy) { x--; y++; dir = 5; }
+      else if (x > gx && y > gy) { x--; y--; dir = 7; }
+      else if (x < gx) { x++; dir = 2; }
+      else if (x > gx) { x--; dir = 6; }
+      else if (y < gy) { y++; dir = 4; }
+      else { y--; dir = 0; }
+      out.push(dir);
       if (out.length > 50) break;
     }
     return out;
   },
 }));
 
-const fakeWorld = { facets: { 1: { tiles: [] } } };
+vi.mock('../src/world/movement.js', () => ({
+  resolveStep: (_facet, _x, _y, z) => z,
+}));
+
+const fakeWorld = { sectors: { moveMobile() {} } };
 
 describe('PathFollower', () => {
   it('start binds a path to the mob', () => {
@@ -40,6 +51,15 @@ describe('PathFollower', () => {
     // After stepDelayMs more.
     tick(fakeWorld, mob, target, 350);
     expect(mob.x).toBe(2);
+  });
+
+  it('consumes north direction zero instead of treating it as end-of-path', () => {
+    const mob = { serial: 1, x: 5, y: 5, z: 0, map: 1, direction: 0 };
+    const target = { serial: 2, x: 5, y: 3, map: 1 };
+    expect(start(fakeWorld, mob, target, { stepDelayMs: 1 })).toBe(true);
+    tick(fakeWorld, mob, target, 10);
+    expect(mob.y).toBe(4);
+    expect(isFollowing(mob)).toBe(true);
   });
 
   it('stop clears the follower state', () => {

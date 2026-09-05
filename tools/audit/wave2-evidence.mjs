@@ -121,7 +121,7 @@ export const wave2Evidence = Object.freeze({
     e(S.governor, 'previousSector', 'server governor'), e(S.ops, 'runtimeSnapshot(windowMs = 60_000)', 'server operations'),
     e(S.scripts, 'reloadOne(rel)', 'server scripts'), e(S.scripts, "typeof fn !== 'function'", 'server scripts'),
     e(S.scripts, 'rolledBack', 'server scripts'), e(S.scripts, 'composeDisposer', 'server scripts'),
-    e(S.scripts, 'initTimeoutMs', 'server scripts'), e(S.scripts, "watchdog.measure(`script:", 'server scripts'),
+    e(S.scripts, 'initTimeoutMs', 'server scripts'), e(S.scripts, "watchdog.record(`script:", 'server scripts'),
     e(S.scripts, "}, 'listener')", 'server scripts'), e(S.scripts, 'lifecycle?.dispose?.()', 'server scripts'),
     e(S.scripts, 'reloadHistory', 'server scripts'), e(S.scripts, 'dryRunOne(rel)', 'server scripts'),
     e(S.commands, 'this.commands = new Map()', 'server commands'), e(S.commands, 'aliasGroups', 'server commands'),

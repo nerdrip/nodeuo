@@ -41,10 +41,10 @@ import { extractServUOMonsters } from './servuo-monsters.js';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, '..', '..');
 const SERVUO_ROOT = join(REPO_ROOT, 'templates', 'ServUO');
-// ServUO content extractors write into apps/scripts/src/data/*.json.
-// They take the parent (apps/scripts/src) and append `data/<file>.json`
-// internally — matches the existing layout.
+// ServUO content extractors write into the canonical data/config and
+// data/world trees. They take apps/scripts/src as the common root.
 const SCRIPTS_OUT = join(REPO_ROOT, 'apps', 'scripts', 'src');
+const CLIENT_ASSET_OUT = resolve(REPO_ROOT, 'apps', 'client', 'public', 'assets');
 
 const args = parseArgs(process.argv.slice(2));
 if (!args.src) {
@@ -194,7 +194,7 @@ if (only.has('anim')) {
   } else {
     console.log(`[anim]    decoding complete mobile/equipment animation groups…`);
     const r = await extractAnim(src, out);
-    console.log(`[anim]    ${r.count} bodies → ${r.pages} atlas page(s) + mobiles-atlas.json`);
+    console.log(`[anim]    ${r.count} bodies → ${r.pages} atlas page(s), ${r.shards} metadata shard(s), revision ${r.revision?.slice(0, 12)}`);
     any = true;
   }
 }
@@ -387,12 +387,7 @@ if (only.has('housedata')) {
 const servUOAvailable = existsSync(SERVUO_ROOT);
 if (!servUOAvailable && only.size > 0) {
   // Only warn once if at least one ServUO step was requested.
-  const needsServUO = [
-    'decoration', 'xmlspawner',
-    'servuo-bosses', 'servuo-functional', 'servuo-items', 'servuo-monsters',
-    'servuo-recipes', 'servuo-vendors', 'servuo-quests', 'servuo-artifacts',
-    'servuo-magic-gen', 'servuo-item-types',
-  ].some((s) => only.has(s));
+  const needsServUO = OPTIONAL_SERVUO_REFRESH.some((step) => only.has(step));
   if (needsServUO) {
     console.warn(`[content] skip ServUO content steps — ${SERVUO_ROOT} missing`);
   }
@@ -400,25 +395,25 @@ if (!servUOAvailable && only.size > 0) {
 
 if (servUOAvailable && only.has('servuo-bosses')) {
   const r = await extractServUOBosses(SERVUO_ROOT, SCRIPTS_OUT);
-  console.log(`[servuo-bosses] +${r.added}/${r.scanned} new (total ${r.total}) → apps/scripts/src/data/monsters.json`);
+  console.log(`[servuo-bosses] +${r.added}/${r.scanned} new (total ${r.total}) → apps/scripts/src/data/config/monsters.json`);
   any = true;
 }
 
 if (servUOAvailable && only.has('servuo-functional')) {
   const r = await extractServUOFunctional(SERVUO_ROOT, SCRIPTS_OUT);
-  console.log(`[servuo-functional] +${r.added}/${r.scanned} new (total ${r.total}) → apps/scripts/src/data/items.json`);
+  console.log(`[servuo-functional] +${r.added}/${r.scanned} new (total ${r.total}) → apps/scripts/src/data/config/items.json`);
   any = true;
 }
 
 if (servUOAvailable && only.has('servuo-items')) {
   const r = await extractServUOItems(SERVUO_ROOT, SCRIPTS_OUT);
-  console.log(`[servuo-items] +${r.added}/${r.scanned} new (total ${r.total}) → apps/scripts/src/data/items.json`);
+  console.log(`[servuo-items] +${r.added}/${r.scanned} new (total ${r.total}) → apps/scripts/src/data/config/items.json`);
   any = true;
 }
 
 if (servUOAvailable && only.has('servuo-monsters')) {
   const r = await extractServUOMonsters(SERVUO_ROOT, SCRIPTS_OUT);
-  console.log(`[servuo-monsters] +${r.added}/${r.parsed} (scanned ${r.scanned}, total ${r.total}) → apps/scripts/src/data/monsters.json`);
+  console.log(`[servuo-monsters] +${r.added}/${r.parsed} (scanned ${r.scanned}, total ${r.total}) → apps/scripts/src/data/config/monsters.json`);
   any = true;
 }
 
@@ -426,6 +421,7 @@ if (servUOAvailable && only.has('servuo-monsters')) {
 // exported entry point — invoking them as subprocesses keeps the
 // scripts self-contained while still letting the Control Panel
 // "Extract" button drive a full content rebuild.
+const childFailures = [];
 function runChildScript(step, scriptPath, extraArgs = [], options = {}) {
   const child = spawnSync(process.execPath, [scriptPath, ...extraArgs], {
     cwd: REPO_ROOT,
@@ -436,6 +432,7 @@ function runChildScript(step, scriptPath, extraArgs = [], options = {}) {
     if (options.produced !== false) any = true;
     return true;
   }
+  childFailures.push(step);
   console.warn(`[${step}] failed (exit ${child.status ?? child.signal ?? '?'})`);
   return false;
 }
@@ -468,6 +465,11 @@ if (servUOAvailable && only.has('servuo-mobile-types')) {
   runChildScript('servuo-mobile-types', join(HERE, 'servuo-mobile-types.js'));
 }
 
+if (childFailures.length) {
+  console.error(`[extract] failed child importers: ${childFailures.join(', ')}`);
+  process.exit(1);
+}
+
 if (args.ktx2 || only.has('ktx2')) {
   const extraArgs = ['--out', out];
   if (args['ktx2-force']) extraArgs.push('--force');
@@ -487,18 +489,19 @@ if (args.ktx2 || only.has('ktx2')) {
 // `mobiles-atlas.json` — frame rectangles pointed into pages whose
 // pixels were laid out by the OLD packer, producing the
 // "garbled/multi-frame overlap" sprite the user reported.
-if (any) {
+if (any && out === CLIENT_ASSET_OUT) {
   try {
     const swPath = join(REPO_ROOT, 'apps', 'client', 'public', 'sw.js');
     if (existsSync(swPath)) {
       const sw = readFileSync(swPath, 'utf8');
-      const next = sw.replace(
+      const cacheVersion = `uo-assets-v${Date.now()}`;
+      const published = sw.replace(
         /const CACHE_VERSION = 'uo-assets-v[^']*';/,
-        `const CACHE_VERSION = 'uo-assets-v${Date.now()}';`,
+        `const CACHE_VERSION = '${cacheVersion}';`,
       );
-      if (next !== sw) {
-        writeFileSync(swPath, next);
-        console.log(`[sw]      cache version bumped — uo-assets-v${Date.now()}`);
+      if (published !== sw) {
+        writeFileSync(swPath, published);
+        console.log(`[sw]      cache version bumped — ${cacheVersion}`);
       }
     }
   } catch (e) {

@@ -10,7 +10,7 @@ import { mobileBySerial } from '../../_entities.js';
 //   release  pets become wild (controlMaster cleared, AI swapped to wander)
 //
 // In a real UO client these are issued via speech ("all follow", "all stay")
-// — mapping that is FAZA J part-2 (requires hooking the player speech
+// — mapping that is PHASE J part-2 (requires hooking the player speech
 // handler). The text command shipped here is the GM-/dev-friendly path
 // that exercises the same underlying state machine.
 
@@ -43,7 +43,7 @@ export default function register(api) {
         ctx.state.sendSystemMessage('You have no pets to command.');
         return;
       }
-      // FAZA CG helper: write the command both to the runtime binding
+      // PHASE CG helper: write the command both to the runtime binding
       // (so the AI tick sees it this frame) AND to mob.petCommand
       // (persisted so a server restart preserves the order).
       const setCommand = (p, cmd, target = 0) => {
@@ -89,7 +89,7 @@ export default function register(api) {
           ctx.state.sendSystemMessage(`Released ${pets.length} pet${pets.length === 1 ? '' : 's'}.`);
           break;
         case 'rename': {
-          // FAZA DK: rename a single adjacent pet. ServUO uses speech
+          // PHASE DK: rename a single adjacent pet. ServUO uses speech
           // ("name <text>") with the pet selected; we expose a clean
           // textual path that the speech parser can also dispatch into.
           const newName = ctx.args.slice(1).join(' ').trim();
@@ -371,7 +371,7 @@ export default function register(api) {
         case 'trainui':
         case 'traingump':
         case 'tricks': {
-          // Faza H.2 — open the pet-training overlay for the first owned pet
+          // Phase H.2 — open the pet-training overlay for the first owned pet
           // (or the one whose serial was passed as arg #2).
           const targetSerial = parseInt(String(ctx.args[1] ?? ''), 16) >>> 0;
           const pet = targetSerial

@@ -169,6 +169,7 @@ export function spawnerDiagnostics(spawner, world, now = Date.now()) {
   }
   return {
     count: groups.length, emptyKinds, invalidRects, duplicatePairs, stalled, orphanSerials,
+    runtime: spawner?.runtimeSnapshot?.() ?? null,
     issueCount: emptyKinds.length + invalidRects.length + duplicatePairs.length + stalled.length + orphanSerials.length,
   };
 }

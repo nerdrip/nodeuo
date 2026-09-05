@@ -1,4 +1,4 @@
-// FAZA CJ — bugfix #52: handleTradeCommand must reject commands from
+// PHASE CJ — bugfix #52: handleTradeCommand must reject commands from
 // strangers. Before this fix anyone who knew (or guessed) a trade
 // container serial could send a `close` 0x6F and cancel an active
 // trade between two other players.
@@ -34,7 +34,7 @@ function tradeClosePacket(containerSerial) {
   return w.bytes();
 }
 
-describe('trade ACL (FAZA CJ bugfix #52)', () => {
+describe('trade ACL (PHASE CJ bugfix #52)', () => {
   /** @type {World} */ let world;
   /** @type {ReturnType<typeof buildHandlers>} */ let handlers;
   let alice, bob, eve, session;

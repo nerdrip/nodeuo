@@ -1,4 +1,4 @@
-// FAZA CT — auto-stack helpers + bugfix #62 regression: dropping a
+// PHASE CT — auto-stack helpers + bugfix #62 regression: dropping a
 // stackable item into a container that already contains a matching
 // pile must merge the amount and destroy the incoming serial. Same
 // for vendor purchases — buying 5 × gold should NOT spawn five
@@ -15,7 +15,7 @@ const GOLD = 0x0EED;
 const BANDAGE = 0x0E21;
 const SWORD = 0x0F61;     // longsword — NOT stackable
 
-describe('item stacking helpers (FAZA CT)', () => {
+describe('item stacking helpers (PHASE CT)', () => {
   it('isStackableItemId recognises gold + reagents but not weapons', () => {
     expect(isStackableItemId(GOLD)).toBe(true);
     expect(isStackableItemId(0x0EEE)).toBe(true);

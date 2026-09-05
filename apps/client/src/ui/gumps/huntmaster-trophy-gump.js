@@ -1,5 +1,5 @@
 // HuntmasterTrophyGump — weekly target + leaderboard display.
-// Faza H.4.
+// Phase H.4.
 //
 // Triggered by `[hunt gump`. Server emits sentinel:
 //   @@OPEN_HUNTMASTER_GUMP@@<targetKind>||<targetName>||<tier>||<rows>

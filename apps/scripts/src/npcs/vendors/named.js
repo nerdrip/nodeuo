@@ -621,7 +621,7 @@ export default function register(api) {
         invulnerable: (cfg.notoriety ?? 7) === 7,
         kind: cfg.role,
         outfit: cfg.outfit,
-        keywords: cfg.behavior === 'banker' ? ['bank', 'balance']
+        keywords: cfg.behavior === 'banker' ? ['bank', 'balance', 'withdraw', 'check']
                 : cfg.behavior === 'trainer' ? ['train', 'help', 'learn']
                 : null,
         behavior: cfg.behavior,

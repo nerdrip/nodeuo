@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { huffmanCompress, huffmanDecompress, HUFFMAN_TABLE } from '../src/huffman.js';
+import {
+  huffmanCompress, huffmanDecompress, HUFFMAN_TABLE, UOHuffmanStreamDecoder,
+} from '../src/huffman.js';
 
 describe('UO Huffman', () => {
   it('table has exactly 514 entries (257 pairs)', () => {
@@ -61,5 +63,26 @@ describe('UO Huffman', () => {
     // Just verify round-trip; exact byte-level equality is checked against
     // ServUO captures in a dedicated integration test later.
     expect(huffmanDecompress(out)).toEqual(new Uint8Array([0x61]));
+  });
+
+  it('decodes packets and symbols split at every possible TCP read boundary', () => {
+    const sourceA = new TextEncoder().encode('Britain bank: vendor buy');
+    const sourceB = new Uint8Array([0x77, 0x00, 0x01, 0x02, 0x03, 0xff, 0x1b]);
+    const compressed = new Uint8Array(huffmanCompress(sourceA).length + huffmanCompress(sourceB).length);
+    const first = huffmanCompress(sourceA);
+    const second = huffmanCompress(sourceB);
+    compressed.set(first, 0);
+    compressed.set(second, first.length);
+    const expected = [...sourceA, ...sourceB];
+
+    for (let split = 1; split < compressed.length; split++) {
+      const decoder = new UOHuffmanStreamDecoder();
+      const a = decoder.push(compressed.subarray(0, split));
+      const b = decoder.push(compressed.subarray(split));
+      expect([...a, ...b], `split=${split}`).toEqual(expected);
+      expect(decoder.snapshot()).toMatchObject({
+        bytesIn: compressed.length, bytesOut: expected.length, packets: 2,
+      });
+    }
   });
 });

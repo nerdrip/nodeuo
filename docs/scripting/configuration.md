@@ -1,23 +1,23 @@
-# Konfiguracje i dane świata
+# Configuration and world data
 
-JSON-y w `apps/scripts/src/data` dzielą się na konfigurację typów oraz fakty
-umieszczane w świecie. Ten podział decyduje, czy wystarczy reload, czy trzeba
-ponownie wygenerować zawartość świata.
+JSON files in `apps/scripts/src/data` are divided into type configuration and
+facts placed in the world. This distinction determines whether a reload is
+enough or world content must be regenerated.
 
-## Config kontra world
+## Config versus world
 
-| Rodzaj | Katalog | Znaczenie |
+| Kind | Directory | Meaning |
 | --- | --- | --- |
-| Config | `data/config/` | czym jest item, mobile, czar, skill, loot albo recepta |
-| World | `data/world/` | gdzie coś stoi, co spawnuje i jak przebiega quest/event |
+| Config | `data/config/` | what an item, mobile, spell, skill, loot table, or recipe is |
+| World | `data/world/` | where content is placed, what spawns, and how a quest/event proceeds |
 
-Zmiana configu wpływa na nowe instancje i systemy czytające definicję na żywo.
-Nie musi przepisać już istniejącego przedmiotu. Zmiana danych świata nie usuwa
-automatycznie poprzednio postawionych obiektów.
+A config change affects new instances and systems that read their definition
+live. It does not necessarily rewrite an existing item. A world-data change
+does not automatically remove objects that were placed previously.
 
-## Tożsamość przedmiotu
+## Item identity
 
-Nie mieszaj stabilnej definicji z grafiką:
+Do not mix a stable definition with its graphic:
 
 ```json
 {
@@ -30,16 +30,16 @@ Nie mieszaj stabilnej definicji z grafiką:
 }
 ```
 
-- `definitionId` identyfikuje gameplay i zapis; musi być stabilny i unikalny.
-- `artId`/`itemId` wskazuje grafikę Ultimy. Wiele definicji może używać tej samej.
-- `name` jest nazwą wyświetlaną.
-- `hue` zmienia paletę bez zmiany grafiki.
-- `script` wiąże lifecycle przedmiotu.
+- `definitionId` identifies gameplay and persisted data; it must be stable and unique.
+- `artId`/`itemId` selects an Ultima graphic. Many definitions can share it.
+- `name` is the displayed name.
+- `hue` changes the palette without changing the graphic.
+- `script` binds the item's lifecycle behavior.
 
-Zmiana `definitionId` istniejącej treści jest migracją danych. Zmiana `artId`
-jest tylko zmianą wyglądu, o ile skrypt nie opiera się błędnie na grafice.
+Changing an existing `definitionId` is a data migration. Changing `artId` is
+only a presentation change unless a script incorrectly relies on the graphic.
 
-## Mobile i AI
+## Mobiles and AI
 
 ```json
 {
@@ -58,11 +58,12 @@ jest tylko zmianą wyglądu, o ile skrypt nie opiera się błędnie na grafice.
 }
 ```
 
-`kind` jest stabilną definicją, a `body` tylko identyfikatorem animacji/grafiki.
-AI powinno wskazywać nazwę z katalogu `npcs/ai`. Nie kopiuj implementacji AI
-do JSON-u; JSON przechowuje wybór i parametry, JS zachowanie.
+`kind` is the stable definition; `body` is only an animation/graphic ID. `ai`
+should name a behavior from the `npcs/ai` catalog. Do not copy AI code into
+JSON: JSON stores the selection and parameters, while JavaScript implements
+the behavior.
 
-## Czary
+## Spells
 
 ```json
 {
@@ -80,43 +81,85 @@ do JSON-u; JSON przechowuje wybór i parametry, JS zachowanie.
 }
 ```
 
-Metadane castowania są w `spells.json`, a efekt w module `spells/`. Content
-Studio pozwala otworzyć przypisany skrypt, wybrać inny moduł i uruchomić
-walidację cast lifecycle bez wykonywania czaru w świecie.
+Casting metadata lives in `spells.json`; effects live in modules under
+`spells/`. Content Studio can open the assigned script, select another module,
+and validate the casting lifecycle without executing the spell in the world.
 
-## Najważniejsze pliki config
+## Main config files
 
-| Plik | Odpowiedzialność |
+| File | Responsibility |
 | --- | --- |
-| `items.json` | definicje itemów, grafika, layer, waga, skrypt |
-| `item-types.json` | tagi i rodziny itemów |
-| `monsters.json` | potwory, zwierzęta, bossowie, tameables |
-| `npcs.json` | archetypy NPC, vendorzy i mieszkańcy |
-| `skills.json` | kanoniczne ID i metadane umiejętności |
-| `spells.json` | czary wszystkich szkół i powiązane moduły |
-| `recipes.json` | wymagania, materiały i rezultaty craftingu |
-| `loot-tables.json` | nazwane tabele dropu |
-| `vendor-inventory.json` | stock, ceny i restock sprzedawców |
-| `gumps.json` | gumpy serwera opisane wizualnie |
+| `items.json` | item definitions, graphics, layers, weight, and script |
+| `item-types.json` | item tags and families |
+| `monsters.json` | monsters, animals, bosses, and tameables |
+| `npcs.json` | NPC, vendor, and resident archetypes |
+| `skills.json` | canonical skill IDs and metadata |
+| `spells.json` | every spell school and its linked modules |
+| `recipes.json` | crafting requirements, materials, and results |
+| `loot-tables.json` | named loot tables |
+| `vendor-inventory.json` | vendor stock, prices, and restocking |
+| `gumps.json` | visually described server gumps |
 
-## Najważniejsze dane świata
+## Main world-data files
 
-| Plik | Odpowiedzialność |
+| File | Responsibility |
 | --- | --- |
-| `decorations.json` | dekoracje mapy |
-| `signs.json` | znaki i etykiety miast |
-| `teleporters.json` | przejścia między lokacjami/facetami |
-| `regional-npcs.json` | nazwani NPC w konkretnych miejscach |
-| `xmlspawners.json` | grupy i prostokąty spawnu |
-| `quest-chains.json` | kroki, warunki i nagrody questów |
-| `seasonal-events.json` | okna i ustawienia wydarzeń |
+| `decorations.json` | map decorations |
+| `signs.json` | signs and town labels |
+| `teleporters.json` | transitions between locations/facets |
+| `regional-npcs.json` | named NPCs at specific locations |
+| `xmlspawners.json` | spawn groups and rectangles |
+| `quest-chains.json` | quest steps, conditions, and rewards |
+| `seasonal-events.json` | event windows and settings |
 
-## Publikowanie
+## Publishing
 
-- Content Studio wykonuje walidację, diff, backup i bezpieczny zapis.
-- Raw Data Editor służy do plików, które nie mają jeszcze specjalizowanego UI.
-- Nie edytuj wygenerowanych plików, jeśli nagłówek wskazuje generator.
-- Po zmianie katalogu gumpów uruchom odpowiedni generator zamiast ręcznie
-  dopisywać wykrywane rekordy.
-- Przed zmianą world data zrób snapshot. `wipeworld` jest operacją destrukcyjną.
+- Content Studio validates, shows a diff, creates a backup, and writes safely.
+- Raw Data Editor handles files that do not yet have a specialized UI.
+- Do not edit generated files when their header identifies a generator.
+- After changing the gump catalog, run its generator instead of manually
+  appending discovered records.
+- Create a snapshot before changing world data. `wipeworld` is destructive.
 
+## World lifecycle
+
+Use the Admin **World** page or the equivalent commands for bulk world
+maintenance:
+
+- `createworld` populates every deterministic stage once and stamps the current
+  content version. This includes physical faction sigils and script-owned
+  landmarks/controllers such as champion altars, Doom mechanisms, Stygian
+  Abyss links, Despise pillars and canonical service NPCs. Repeating it is
+  explicitly refused until an operator removes or recreates the content.
+- `deleteworld` removes every generated stage, despawns actors owned by its
+  spawner definitions and cascades their nested inventory. It preserves
+  accounts, player characters and player-owned item trees.
+- `wipeworld` removes every NPC, top-level world item, house and dynamic
+  side-registry entry. Accounts, player mobiles and their nested
+  carried/equipped possessions are preserved. Spawner definitions remain but
+  stay dormant until creation succeeds.
+- `recreateworld` performs removal and population as one operator action.
+
+All commands accept optional facet numbers in-game. Runtime-landmark and
+spawner teardown honors the same facet filter as decorations, doors and
+teleporters. A clean restart does not auto-seed world entities: content remains
+dormant until a successful full `createworld` reopens the population gate.
+
+Before a destructive operation, create a verified backup through the admin
+workflow. Core world entities and accounts live in `world.sqlite`; routine
+autosaves commit only dirty rows through SQLite WAL. A wipe also queues the
+small auxiliary house, bazaar, bulletin-board and world-state snapshots. Use
+graceful shutdown from the panel; it drains pending transactions, performs a
+complete reconciliation and checkpoints the WAL. After restart,
+**Operations → Readiness** must report a valid database, no command collisions
+and zero integrity errors.
+
+Persistence tuning:
+
+- `UO_WAL_FLUSH_MS` — dirty-queue flush cadence; default `250` ms.
+- `UO_SQLITE_BATCH_SIZE` — maximum rows per worker transaction; default `2048`.
+- `UO_SQLITE_WAL_PAGES` — automatic SQLite checkpoint threshold; default `2048` pages.
+- `UO_SQLITE_SYNCHRONOUS=FULL` — maximum power-loss durability at higher write latency.
+- `UO_BOOTSTRAP_ADMIN_PASSWORD` with optional `UO_ADMIN_USER` — securely creates
+  the first durable Admin account when the account table is empty. No default
+  password is generated.

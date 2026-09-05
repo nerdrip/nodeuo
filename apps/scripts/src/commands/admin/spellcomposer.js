@@ -11,9 +11,16 @@ export default function register(api) {
     access: 'Admin',
     run(ctx) {
       if (!api.spellComposer.open(ctx.state)) {
-        ctx.state.sendSystemMessage?.(
-          'Spell Composer requires the NodeUO web client with nodeuo.v1 extensions. Standard UO gameplay remains available.',
-        );
+        if (ctx.state.notifyNodeUORequirement) {
+          ctx.state.notifyNodeUORequirement('spell.composer', {
+            label: 'The visual Spell Composer',
+            fallback: 'Standard spellbooks and spell casting remain available.',
+          });
+        } else {
+          ctx.state.sendSystemMessage?.(
+            'Spell Composer requires the NodeUO client. Standard spellbooks and spell casting remain available.',
+          );
+        }
       }
     },
   });

@@ -18,6 +18,7 @@ import { dragDrop } from './drag-drop.js';
 import { world } from '../world/world.js';
 import { fallbackHueColor } from '../shared/hue-palette.js';
 import { staticEntry } from '../shared/tiledata.js';
+import { NodeUOChannel, NodeUOFeature } from '@uo/nodeuo-protocol';
 
 const DEFAULT_TOOLTIP_DELAY_MS = 400;
 const DEFAULT_TOOLTIP_TEXT_COLOR = '#F0F0E0';
@@ -439,7 +440,12 @@ class TooltipManager {
     }
     if (this._pending.size > 0) this._scheduleFlush();
     if (serials.length === 0) return;
-    net.send(buildBatchQueryProperties(serials));
+    if (net.supportsNodeUO?.(NodeUOFeature.StructuredProperties)) {
+      net.sendNodeUORequest({
+        channel: NodeUOChannel.Interface, namespace: 'nodeuo.properties',
+        capability: NodeUOFeature.StructuredProperties, payload: { serials },
+      }).catch(() => net.send(buildBatchQueryProperties(serials)));
+    } else net.send(buildBatchQueryProperties(serials));
   }
 
   /** Render-or-update the tooltip panel at (sx, sy) for the given serial.

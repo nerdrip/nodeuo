@@ -24,6 +24,7 @@ function potion(id, name, category, minSkill, outputItemId, reagents, opts = {})
     id, name, category, skillId: SKILL,
     minSkill, maxSkill: opts.maxSkill ?? minSkill + 200,
     outputItemId, outputCount: 1,
+    toolKind: 'alchemy',
     // Potions always consume 1 bottle + the named reagents.
     inputs: [{ itemId: EMPTY_BOTTLE, count: 1 }, ...reagents.map((r) => ({ itemId: r[0], count: r[1] }))],
     exceptionalChance: 0, // classic UO has no exceptional potions
@@ -68,7 +69,8 @@ export default function register(api) {
   const sys = api.systems?.crafting;
   if (!sys?.registerRecipe) { api.log?.('crafting/alchemy: engine missing, skipping'); return () => {}; }
   let count = 0;
-  for (const def of __PENDING__) { try { sys.registerRecipe(def); count++; } catch (e) { api.log?.('crafting/alchemy: ' + e.message); } }
+  const owned = [];
+  for (const def of __PENDING__) { try { const registered = sys.registerRecipe(def); if (registered !== false) { owned.push(registered ?? sys.getRecipe?.(def.id) ?? def); count++; } } catch (e) { api.log?.('crafting/alchemy: ' + e.message); } }
   api.log?.('crafting/alchemy: registered ' + count + ' recipes');
-  return () => {};
+  return () => { for (const def of owned) sys.unregisterRecipe?.(def.id, def); };
 }

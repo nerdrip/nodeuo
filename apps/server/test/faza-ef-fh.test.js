@@ -21,7 +21,7 @@ import {
 import { World } from '../src/world/world.js';
 import { createItem } from '../src/world/items.js';
 
-describe('insurance system (FAZA EJ/EU)', () => {
+describe('insurance system (PHASE EJ/EU)', () => {
   it('insureItem flags a worn item', () => {
     const mob = { serial: 0x1234 };
     const item = { layer: 5 };
@@ -60,7 +60,7 @@ describe('insurance system (FAZA EJ/EU)', () => {
   });
 });
 
-describe('slayer matrix (FAZA EW)', () => {
+describe('slayer matrix (PHASE EW)', () => {
   it('triples damage on matching slayer/kind', () => {
     expect(slayerMultiplier({ slayer: 'silver' }, { kind: 'lich' })).toBe(3);
     expect(slayerMultiplier({ slayer: 'dragon' }, { kind: 'dragon' })).toBe(3);
@@ -76,7 +76,7 @@ describe('slayer matrix (FAZA EW)', () => {
   });
 });
 
-describe('peerless arenas (FAZA DD)', () => {
+describe('peerless arenas (PHASE DD)', () => {
   beforeEach(() => _resetArenasForTest());
 
   it('registerArena binds + getArena returns the def', () => {
@@ -86,7 +86,7 @@ describe('peerless arenas (FAZA DD)', () => {
   });
 });
 
-describe('world-bosses respawn timer (FAZA EY)', () => {
+describe('world-bosses respawn timer (PHASE EY)', () => {
   beforeEach(() => _resetBossesForTest());
 
   it('canSpawnBoss is true initially, false after kill, true after cooldown', () => {
@@ -105,7 +105,7 @@ describe('world-bosses respawn timer (FAZA EY)', () => {
   });
 });
 
-describe('faction sigils (FAZA EI)', () => {
+describe('faction sigils (PHASE EI)', () => {
   beforeEach(() => _resetSigilsForTest());
 
   it('pickup blocks if already held by another mob', () => {

@@ -5,6 +5,8 @@
 // connected clients.
 
 import { overallLightLevel } from '@uo/protocol';
+import { NodeUOChannel, NodeUOChannelMessage } from '@uo/nodeuo-protocol';
+import { sendNodeUOChannel } from './net/handlers/nodeuo-modern.js';
 
 /** @typedef {Object} DayNightOptions
  * @property {number} [intervalMs]      time between ticks
@@ -24,6 +26,7 @@ export class DayNightCycle {
     this.cyclePeriodMs = opts.cyclePeriodMs ?? 24 * 60_000;
     this.bright = opts.brightLevel ?? 0;
     this.dark = opts.darkLevel ?? 12;
+    this.scheduler = opts.scheduler ?? null;
     /** Current world season (0 Spring, 1 Summer, 2 Fall, 3 Winter, 4 Desolation).
      *  GM-controlled via `[season <id>` (atmosphere command); new logins read
      *  whatever's set so they enter on the right palette. */
@@ -39,6 +42,7 @@ export class DayNightCycle {
     // authored clock below, so restarts do not reset the phase.
     this._startedAt = Date.now() - this.cyclePeriodMs * 0.5;
     this._lastLevel = -1;
+    this._lastPhase = null;
   }
 
   /** Current light level for the current time. When a manual override
@@ -87,15 +91,33 @@ export class DayNightCycle {
     this.tick();
   }
 
-  tick() {
+  tick(now = Date.now()) {
     // Weather has its own schedule and must continue even while rounded
     // light stays unchanged through the long daytime/night plateaus.
-    this._maybeRotateWeather();
-    const level = this.currentLevel();
+    this._maybeRotateWeather(now);
+    const level = this.currentLevel(now);
+    const phase = this.currentPhase(now);
+    if (phase !== this._lastPhase) {
+      const previous = this._lastPhase;
+      this._lastPhase = phase;
+      this.world.events?.emit?.('time:phase-changed', {
+        at: now, phase, previous, hour: this.hourOfDay(now), lightLevel: level,
+      });
+    }
     if (level === this._lastLevel) return;
     this._lastLevel = level;
     const bytes = overallLightLevel(level);
-    for (const m of this.world.mobiles.values()) {
+    const recipients = this.world.subscribedMobiles?.('weather')
+      ?? this.world.onlineMobiles?.()
+      ?? this.world.mobiles.values();
+    for (const m of recipients) {
+      const enhanced = m.client && sendNodeUOChannel(m.client, {
+        channel: NodeUOChannel.World, namespace: 'nodeuo.timeline',
+        kind: NodeUOChannelMessage.Delta,
+        payload: { serverTime: now, hour: this.hourOfDay(now), phase, lightLevel: level,
+          season: this.season, weather: this.weatherKind },
+      });
+      if (enhanced) continue;
       if (m.client?.sendCosmetic) m.client.sendCosmetic(bytes, 'world-light');
       else if (m.client) m.client.send(bytes);
     }
@@ -106,8 +128,7 @@ export class DayNightCycle {
    *  pattern broadcasts the canonical 0x65 weather packet so clients
    *  see falling rain / snow without us writing a per-tile particle
    *  system. Mirrors ServUO `Weather.cs` periodic mood swings. */
-  _maybeRotateWeather() {
-    const now = Date.now();
+  _maybeRotateWeather(now = Date.now()) {
     if (!this._nextWeatherAt) this._nextWeatherAt = now + 5 * 60_000;
     if (now < this._nextWeatherAt) return;
     this._nextWeatherAt = now + 5 * 60_000;
@@ -123,10 +144,24 @@ export class DayNightCycle {
     this.weatherKind = kind;
     this.weatherIntensity = intensity;
     this.weatherTemperature = temperature;
+    const legacyRecipients = [];
+    const recipients = this.world.subscribedMobiles?.('weather')
+      ?? this.world.onlineMobiles?.() ?? this.world.mobiles.values();
+    for (const mobile of recipients) {
+      const enhanced = mobile.client && sendNodeUOChannel(mobile.client, {
+        channel: NodeUOChannel.World, namespace: 'nodeuo.timeline', kind: NodeUOChannelMessage.Delta,
+        payload: { serverTime: now, hour: this.hourOfDay(now), phase: this.currentPhase(now),
+          lightLevel: this.currentLevel(now), season: this.season, weather: kind, intensity, temperature },
+      });
+      if (!enhanced) legacyRecipients.push(mobile);
+    }
     if (typeof this._broadcastWeather === 'function') {
-      try { this._broadcastWeather(kind, intensity, temperature); }
+      try { this._broadcastWeather(kind, intensity, temperature, legacyRecipients); }
       catch { /* advisory */ }
     }
+    this.world.events?.emit?.('weather:changed', {
+      at: now, kind, intensity, temperature, season: this.season,
+    });
   }
 
   /** Late-bound broadcaster — main.js wires this to a function that
@@ -162,13 +197,16 @@ export class DayNightCycle {
 
   start() {
     if (this._timer) return;
-    this._timer = setInterval(() => this.tick(), this.intervalMs);
+    this._timer = this.scheduler?.every
+      ? this.scheduler.every('day-night', this.intervalMs, () => this.tick())
+      : setInterval(() => this.tick(), this.intervalMs);
     this._timer.unref?.();
   }
 
   stop() {
     if (this._timer) {
-      clearInterval(this._timer);
+      if (typeof this._timer.cancel === 'function') this._timer.cancel();
+      else clearInterval(this._timer);
       this._timer = null;
     }
   }

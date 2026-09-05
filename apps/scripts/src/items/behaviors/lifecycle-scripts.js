@@ -1,4 +1,4 @@
-// FAZA CF — facade over the per-script files under `items/scripts/`.
+// PHASE CF — facade over the per-script files under `items/scripts/`.
 //
 // The original file held all 11 lifecycle scripts in a single 250-line
 // blob. Marcin asked for one-file-per-script so editing a single item

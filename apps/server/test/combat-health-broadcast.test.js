@@ -1,4 +1,4 @@
-// FAZA CM — bugfix #55: combat.damage must broadcast 0xA1 healthUpdate
+// PHASE CM — bugfix #55: combat.damage must broadcast 0xA1 healthUpdate
 // to nearby observers, not just to the victim. Without this, overhead
 // health bars and dragged-out status bars on other players' screens
 // stayed stale until the next mobileMoving packet (which doesn't
@@ -7,6 +7,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { combat, buildScriptCombatApi } from '../src/net/handlers.js';
 import { World } from '../src/world/world.js';
+import { NodeUOFeature } from '@uo/nodeuo-protocol';
 
 describe('combat.damage broadcast (bugfix #55)', () => {
   /** @type {World} */ let world;
@@ -53,6 +54,22 @@ describe('combat.damage broadcast (bugfix #55)', () => {
     const cur = (hpPacket[7] << 8) | hpPacket[8];
     expect(max).toBe(100);
     expect(cur).toBe(50);    // 80 - 30
+  });
+
+  it('uses the private combat timeline only for a negotiated NodeUO viewer', () => {
+    const enhanced = world.createMobile({ name: 'Enhanced', body: 0x190, x: 103, y: 100, z: 0, map: 1 });
+    const packets = [];
+    enhanced.client = {
+      nodeUONegotiated: true, nodeUOJsonTransport: true,
+      nodeUOFeatures: new Map([[NodeUOFeature.CombatTimeline, 1]]),
+      supportsNodeUO(cap) { return this.nodeUOFeatures.has(cap); },
+      sendNodeUOMessage: (message) => { packets.push(message); return true; },
+      send: (packet) => packets.push(packet),
+    };
+    combat.damage(world, victim, 5, attacker);
+    expect(packets.some((message) => message.feature === NodeUOFeature.CombatTimeline)).toBe(true);
+    expect(packets.some((packet) => packet[0] === 0x0B || packet[0] === 0xA1)).toBe(false);
+    expect(viewerSent.some((packet) => packet[0] === 0x0B)).toBe(true);
   });
 
   it('accepts options-object attacker and preserves damage type metadata', () => {

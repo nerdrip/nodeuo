@@ -1,5 +1,5 @@
 // PetTrainingGump — trick / ability selection for trained pets.
-// ServUO `Services/Pet Training/PetTrainingGump.cs`. Faza F.3.11.
+// ServUO `Services/Pet Training/PetTrainingGump.cs`. Phase F.3.11.
 //
 // Renders a list of tricks/abilities the player may invest training
 // points into. Selecting a trick sends `[pet train <name>` to the

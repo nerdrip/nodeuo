@@ -1,12 +1,45 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { BODY_FALLBACK } from '../../apps/client/src/assets/mobile-atlas.js';
 
 const readJson = (path) => JSON.parse(readFileSync(new URL(path, import.meta.url), 'utf8'));
-const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
-const mobiles = readJson('../../apps/client/public/assets/mobiles-atlas.json');
-const statics = readJson('../../apps/client/public/assets/static-atlas.json');
-const gumps = readJson('../../apps/client/public/assets/gump-atlas.json');
-const land = readJson('../../apps/client/public/assets/land-atlas.json');
+const defaultAssetDir = fileURLToPath(new URL('../../apps/client/public/assets/', import.meta.url));
+const assetDir = resolve(process.env.UO_ASSET_DIR || defaultAssetDir);
+const readAssetJson = (name) => JSON.parse(readFileSync(join(assetDir, name), 'utf8'));
+function readMobiles() {
+  const indexPath = join(assetDir, 'mobiles-atlas-index.json');
+  if (!existsSync(indexPath)) return readAssetJson('mobiles-atlas.json');
+  const atlas = JSON.parse(readFileSync(indexPath, 'utf8'));
+  atlas.bodies = {};
+  for (const row of Object.values(atlas.shards ?? {})) {
+    const payload = readFileSync(join(assetDir, row.file));
+    assert.equal(payload.length, row.bytes, `${row.file} byte size mismatch`);
+    assert.equal(createHash('sha256').update(payload).digest('hex'), row.sha256,
+      `${row.file} hash mismatch`);
+    const shard = JSON.parse(payload.toString('utf8'));
+    Object.assign(atlas.bodies, shard.bodies ?? {});
+  }
+  for (const row of Object.values(atlas.pages ?? {})) {
+    const payload = readFileSync(join(assetDir, row.file));
+    assert.equal(payload.length, row.bytes, `${row.file} byte size mismatch`);
+    assert.equal(createHash('sha256').update(payload).digest('hex'), row.sha256,
+      `${row.file} hash mismatch`);
+    if (row.ktx2) {
+      const compressed = readFileSync(join(assetDir, row.ktx2.file));
+      assert.equal(compressed.length, row.ktx2.bytes, `${row.ktx2.file} byte size mismatch`);
+      assert.equal(createHash('sha256').update(compressed).digest('hex'), row.ktx2.sha256,
+        `${row.ktx2.file} hash mismatch`);
+    }
+  }
+  return atlas;
+}
+const mobiles = readMobiles();
+const statics = readAssetJson('static-atlas.json');
+const gumps = readAssetJson('gump-atlas.json');
+const land = readAssetJson('land-atlas.json');
 const monsters = readJson('../../apps/scripts/src/data/config/monsters.json');
 const items = readJson('../../apps/scripts/src/data/config/items.json');
 
@@ -20,12 +53,7 @@ function frameCount(body) {
   return count;
 }
 
-const fallbackSource = read('../../apps/client/src/assets/asset-manager.js');
-const fallbackBlock = fallbackSource.match(/const BODY_FALLBACK = Object\.freeze\(\{([\s\S]*?)\}\);/)?.[1] ?? '';
-const fallbacks = new Map();
-for (const m of fallbackBlock.matchAll(/(?:^|[,\n]\s*)(\d+)\s*:\s*(0x[0-9a-f]+|\d+)/gi)) {
-  fallbacks.set(Number(m[1]), Number.parseInt(m[2], 0));
-}
+const fallbacks = new Map(Object.entries(BODY_FALLBACK).map(([body, target]) => [Number(body), target]));
 
 function resolvedBody(body) {
   const alias = mobiles.aliases?.[body];

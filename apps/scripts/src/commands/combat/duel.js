@@ -1,6 +1,6 @@
 import { allMobiles } from '../../_spatial.js';
 import { mobileBySerial } from '../../_entities.js';
-// FAZA FH — `[duel <name>` consensual PvP.
+// PHASE FH — `[duel <name>` consensual PvP.
 //
 // ServUO's duel system pairs two players, drops their notoriety to
 // 4 (criminal) for the duration, and tracks the winner. We expose

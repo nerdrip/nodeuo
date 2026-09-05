@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { NodeUOCapability, NodeUOSpellComposerMessage } from '@uo/protocol';
+import { NodeUOFeature, NodeUOSpellComposerMessage } from '@uo/nodeuo-protocol';
 import { getSpell } from '../src/systems/spells/registry.js';
 import {
   executeSpellGraph,
@@ -52,8 +52,9 @@ function validDraft(overrides = {}) {
 function adminState(sent = []) {
   return {
     account: { accessLevel: 'Admin' },
-    supportsNodeUO: (cap) => cap === NodeUOCapability.SpellComposer,
-    send: (packet) => sent.push(packet),
+    nodeUOJsonTransport: true, nodeUOFeatures: new Map([[NodeUOFeature.SpellComposer, 1]]),
+    supportsNodeUO: (cap) => cap === NodeUOFeature.SpellComposer,
+    sendNodeUOMessage: (message) => { sent.push(message); return true; },
   };
 }
 
@@ -65,8 +66,9 @@ function playerState(sent = [], username = 'Player One') {
   const codex = { serial: 20, parent: 10, script: 'spell-schema-codex' };
   const state = {
     account: { username, accessLevel: 'Player' }, mobile,
-    supportsNodeUO: (cap) => cap === NodeUOCapability.SpellComposer,
-    send: (packet) => sent.push(packet), sendSystemMessage: vi.fn(),
+    nodeUOJsonTransport: true, nodeUOFeatures: new Map([[NodeUOFeature.SpellComposer, 1]]),
+    supportsNodeUO: (cap) => cap === NodeUOFeature.SpellComposer,
+    sendNodeUOMessage: (message) => { sent.push(message); return true; }, sendSystemMessage: vi.fn(),
     ctx: {
       world: { items: new Map([[codex.serial, codex]]) },
       game: { inventory: { isInPack: (item) => item.parent === 10 } },
@@ -136,7 +138,8 @@ describe('visual spell graph composer', () => {
     const sent = [];
     const state = adminState(sent);
     expect(service.open(state)).toBe(true);
-    expect(sent[0][5]).toBe(NodeUOSpellComposerMessage.Open);
+    expect(sent[0]).toMatchObject({ feature: NodeUOFeature.SpellComposer,
+      payload: { eventKind: NodeUOSpellComposerMessage.Open } });
 
     const saved = service.acceptDraft(state, 7, validDraft());
     expect(saved.ok).toBe(true);

@@ -1,6 +1,6 @@
 import { setItemParent, destroyItem as destroyWorldItem } from '../../world/items.js';
 
-// FAZA BU — Bulk Order Deeds (BODs).
+// PHASE BU — Bulk Order Deeds (BODs).
 //
 // ServUO reference: Scripts/Engines/BulkOrders/SmallBOD.cs +
 // LargeBODGump.cs. We implement Small BODs only for MVP — Large BODs
@@ -115,7 +115,7 @@ function makeRewardLabel(quantity, exceptional, material) {
  * output. Caller is expected to know whether the craft was exceptional;
  * we honour the BOD's own `exceptional` and `material` constraints.
  *
- * BUGFIX #73 (FAZA DE): the previous implementation ignored
+ * BUGFIX #73 (PHASE DE): the previous implementation ignored
  * `bod.material`, so a deed asking for "20 valorite plate chest"
  * advanced on plain iron crafts. That trivialised every coloured-
  * material BoD and let players farm valorite-tier rewards with bulk
@@ -159,7 +159,7 @@ export function recordCraftForBods(world, crafter, recipe, exceptional) {
 }
 
 /**
- * FAZA DE — Large BODs.
+ * PHASE DE — Large BODs.
  *
  * A large BOD bundles 4-6 small BODs of related items (e.g. a "Plate
  * Mail Set" needs Helm + Chest + Legs + Ring Arms small BODs). The

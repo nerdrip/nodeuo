@@ -85,7 +85,7 @@ function gcHaggleCoupons(vendor, now = Date.now()) {
   const m = vendor._haggledBy;
   if (!(m instanceof Map) || m.size === 0) return;
   for (const [key, c] of m) {
-    if ((c?.expiresAt | 0) > 0 && now > c.expiresAt) m.delete(key);
+    if ((Number(c?.expiresAt) || 0) > 0 && now > c.expiresAt) m.delete(key);
   }
 }
 
@@ -137,7 +137,7 @@ function bumpCustomerHistory(vendor, playerSerial, field, delta = 1, deps = null
  * `saves/shoplog-archive-<vendorHex>-<ts>.json` file and reset the
  * counter (keep the live ring intact — only the counter rolls). This
  * gives shard managers a long-term audit trail without bloating the
- * world.json runtime save with a multi-thousand-entry log per vendor.
+ * persistent runtime row with a multi-thousand-entry log per vendor.
  */
 function appendTransaction(vendor, entry, deps = null) {
   vendor._transactionLog ??= [];
@@ -292,7 +292,7 @@ import { resolveStandingZ } from '../../_movement.js';
 import { createMobile } from '../../_mobiles.js';
 const __HERE = path.dirname(url.fileURLToPath(import.meta.url));
 function loadExtractedVendorInventory() {
-  const file = path.join(__HERE, '..', 'data', 'vendor-inventory.json');
+  const file = path.join(__HERE, '..', '..', 'data', 'config', 'vendor-inventory.json');
   if (!fs.existsSync(file)) return null;
   try { return JSON.parse(fs.readFileSync(file, 'utf8')); }
   catch { return null; }
@@ -745,7 +745,7 @@ export const VENDOR_KINDS = {
       { itemId: 0x14F0, name: 'forged signet ring',   price: 80 },
     ],
   },
-  // Faza H.1.12 — Faction-specific Reagent Merchants.
+  // Phase H.1.12 — Faction-specific Reagent Merchants.
   // Each stronghold (Britain Castle / Magincia / Yew / Trinsic for the
   // four factions) hosts a dedicated reagent vendor with a curated
   // Magery + Necromancy reagent bundle. Faction members get a 20%
@@ -860,7 +860,7 @@ export const VENDOR_KINDS = {
 };
 
 /**
- * BUGFIX #134 (FAZA IF) + civic-NPC fix 2026-05-10: vendors spawned
+ * BUGFIX #134 (PHASE IF) + civic-NPC fix 2026-05-10: vendors spawned
  * naked unless the operator typed `[<kind>` from a player mobile.
  * Civic-npcs.js calls api.vendors.spawnAt(...) which originally
  * skipped the outfit step entirely — every banker, healer, and
@@ -1013,6 +1013,56 @@ export default function (api) {
   const { commands, world, vendors, protocol } = api;
   if (!vendors) return;
 
+  function serviceBehavior(kindKey) {
+    if (kindKey === 'banker') return 'banker';
+    if (kindKey === 'healer') return 'healer';
+    // Stable masters use the generic vendor behavior's custom `speech`
+    // mapping; `stablemaster` is a catalogue role, not an AI behavior.
+    return 'vendor';
+  }
+
+  function applySpeechProfile(mob, kindKey, kind) {
+    const behavior = serviceBehavior(kindKey);
+    if (behavior === 'banker') {
+      mob._listensToSpeech = true;
+      mob._speechKeywords = ['bank', 'balance', 'withdraw', 'check'];
+      return;
+    }
+    if (behavior === 'healer') {
+      mob._listensToSpeech = false;
+      mob._speechKeywords = [];
+      return;
+    }
+    mob._listensToSpeech = true;
+    mob._speechKeywords = ['buy', 'sell', 'shop', ...Object.keys(kind?.speech ?? {})];
+  }
+
+  function hydrateVendorStock(row) {
+    const resolved = api.itemTypes?.resolve?.(row.type ?? row.definitionId) ?? null;
+    if (!resolved) return row;
+    return {
+      ...resolved,
+      ...row,
+      definitionId: row.definitionId ?? resolved.definitionId,
+      script: row.script ?? resolved.script ?? undefined,
+      kind: row.kind ?? resolved.kind,
+      category: row.category ?? resolved.category,
+      weight: row.weight ?? resolved.weight,
+      stackable: row.stackable ?? resolved.stackable,
+      recipeUnlock: row.recipeUnlock ?? resolved.recipeUnlock,
+      spellcraftUnlock: row.spellcraftUnlock ?? resolved.spellcraftUnlock,
+      spellcraftXp: row.spellcraftXp ?? resolved.spellcraftXp,
+    };
+  }
+
+  function hydrateSellOverride(row) {
+    if (Number.isInteger(row.itemId) && row.itemId > 0) return row;
+    const resolved = api.itemTypes?.resolve?.(row.type) ?? null;
+    return Number.isInteger(resolved?.itemId) && resolved.itemId > 0
+      ? { ...row, itemId: resolved.itemId }
+      : null;
+  }
+
   // Wave 7 follow-up: merge extracted SBInfo into VENDOR_KINDS as a
   // fallback for any key not authored above. Authored entries win —
   // the extracted ones only add NEW vendor kinds (alchemist, baker,
@@ -1023,8 +1073,8 @@ export default function (api) {
   const extracted = loadExtractedVendorInventory();
   if (extracted && typeof extracted === 'object') {
     let added = 0;
+    let enriched = 0;
     for (const [key, info] of Object.entries(extracted)) {
-      if (VENDOR_KINDS[key]) continue;          // never override authored
       if (!info?.buy?.length) continue;          // can't shop without stock
       const defaults = EXTRACTED_VENDOR_DEFAULTS[key] ?? {
         name: `${key.charAt(0).toUpperCase() + key.slice(1)}`,
@@ -1036,11 +1086,51 @@ export default function (api) {
       // half-of-buy fallback. Entries without a resolvable type drop
       // through to the buy-side reverse index.
       const sellOverrides = [];
-      if (Array.isArray(info.sell) && api.itemTypes?.resolve) {
+      if (Array.isArray(info.sell)) {
         for (const s of info.sell) {
-          const r = api.itemTypes.resolve(s.type);
-          if (r?.itemId) sellOverrides.push({ itemId: r.itemId, price: s.price | 0, type: s.type });
+          const r = api.itemTypes?.resolve?.(s.type) ?? null;
+          sellOverrides.push({ itemId: r?.itemId, price: s.price | 0, type: s.type });
         }
+      }
+      const extractedStock = info.buy.map((e) => {
+        // The SBInfo row owns the wire art/price/stock, while the item-type
+        // catalogue owns gameplay metadata.  Keeping both is important:
+        // manuals, food, tools and other scripted goods must behave exactly
+        // like normally spawned items after a purchase.
+        const resolved = api.itemTypes?.resolve?.(e.type) ?? null;
+        return {
+          itemId: e.itemId | 0,
+          type: e.type,
+          hue: e.hue | 0,
+          name: resolved?.name ?? e.type,
+          price: e.price | 0,
+          stock: e.stock | 0,
+          definitionId: resolved?.definitionId ?? e.type,
+          script: resolved?.script ?? undefined,
+          kind: resolved?.kind,
+          category: resolved?.category,
+          weight: resolved?.weight,
+          stackable: resolved?.stackable,
+          recipeUnlock: resolved?.recipeUnlock,
+          spellcraftUnlock: resolved?.spellcraftUnlock,
+          spellcraftXp: resolved?.spellcraftXp,
+        };
+      });
+      const authored = VENDOR_KINDS[key];
+      if (authored) {
+        // Hand-authored shops keep their presentation and tuned prices, but
+        // gain canonical SBInfo goods that are not already represented by
+        // the same art/hue pair (notably the glassblowing manual).
+        const seen = new Set((authored.stock ?? []).map((row) => `${row.itemId | 0}:${row.hue | 0}`));
+        const additions = extractedStock.filter((row) => !seen.has(`${row.itemId | 0}:${row.hue | 0}`));
+        if (additions.length) authored.stock.push(...additions);
+        const mergedSell = new Map();
+        for (const row of [...(authored.sellOverrides ?? []), ...sellOverrides]) {
+          mergedSell.set(`${row.type ?? ''}:${row.itemId ?? ''}:${row.price | 0}`, row);
+        }
+        authored.sellOverrides = [...mergedSell.values()];
+        enriched++;
+        continue;
       }
       VENDOR_KINDS[key] = {
         name: defaults.name,
@@ -1049,17 +1139,12 @@ export default function (api) {
         // Map extracted buy entries (typed { type, price, stock, itemId, hue })
         // to our stock shape. Strip hue 0 (graphic-default) — most
         // SBInfo entries pass 0 for hue and we want the item baseline.
-        stock: info.buy.map((e) => ({
-          itemId: e.itemId | 0,
-          hue: e.hue | 0,
-          name: e.type,
-          price: e.price | 0,
-        })),
+        stock: extractedStock,
         sellOverrides,
       };
       added++;
     }
-    api.log?.(`vendor: +${added} extracted vendor kinds (total ${Object.keys(VENDOR_KINDS).length})`);
+    api.log?.(`vendor: +${added} extracted vendor kinds, ${enriched} authored kinds enriched (total ${Object.keys(VENDOR_KINDS).length})`);
   }
 
   // Register the AI behavior exactly once per script load (shared by all kinds).
@@ -1078,7 +1163,7 @@ export default function (api) {
       tick(ctx, mob, state) {
         if (state.home === null) state.home = { x: mob.x, y: mob.y };
 
-        // BUGFIX #45 (FAZA CC): vendors didn't listen to player speech
+        // BUGFIX #45 (PHASE CC): vendors didn't listen to player speech
         // commands, so the canonical UO interaction "vendor buy" /
         // "vendor sell" / "<name> buy" had no effect — players had to
         // right-click via context menu. Drain `_heardSpeech` here and
@@ -1195,11 +1280,11 @@ export default function (api) {
       x: state.mobile.x, y: state.mobile.y, z: state.mobile.z,
       map: state.mobile.map, hue: kind.hue,
     });
-    // FAZA BG: persistence — mark the kind so a server restart can
+    // PHASE BG: persistence — mark the kind so a server restart can
     // re-register the vendor binding. The reattach pass at script
     // load reads `mob.vendorKind` and re-runs the registry hook.
     mob.vendorKind = resolvedKey;
-    // Faza H.1.12 — copy faction tag for the discount handler.
+    // Phase H.1.12 — copy faction tag for the discount handler.
     if (kind.faction) mob.faction = kind.faction;
 
     // Outfit per kind — table + helper lifted to module scope so the
@@ -1207,14 +1292,13 @@ export default function (api) {
     // dress code instead of producing naked bankers/healers/trainers.
     applyVendorOutfit(api, world, mob, resolvedKey);
 
-    // FAZA CC: opt into the speech queue so the AI tick can react to
+    // PHASE CC: opt into the speech queue so the AI tick can react to
     // "vendor buy" / "vendor sell" / `<name> buy`. Keywords are
     // case-folded substring matches; we keep the list short so the
     // server-side gate filters cheaply.
-    mob._listensToSpeech = true;
-    mob._speechKeywords = ['buy', 'sell', 'shop'];
+    applySpeechProfile(mob, resolvedKey, kind);
 
-    // BUGFIX #23 (FAZA BG): synthetic vendor-stock serials used to
+    // BUGFIX #23 (PHASE BG): synthetic vendor-stock serials used to
     // overlap with real item allocations. The original encoding
     // `0x40000000 | mob.serial | ((i+1)<<20)` produced serials like
     // 0x40100001 — well inside the regular item-allocation space
@@ -1229,7 +1313,8 @@ export default function (api) {
     // SBInfo entries supply `stock` (e.g. 10 cure potions); hand-authored
     // kinds default to Infinity (back-compat — they never deplete).
     // currentStock is the live amount; maxStock is the cap restocked to.
-    const stockItems = kind.stock.map((s, i) => {
+    const stockItems = kind.stock.map((raw, i) => {
+      const s = hydrateVendorStock(raw);
       const maxStock = Number.isFinite(s.stock) && s.stock > 0 ? s.stock : Infinity;
       return {
         serial: (0x70000000 + ((mob.serial & 0xFFFFFF) << 8) + ((i + 1) & 0xFF)) >>> 0,
@@ -1245,6 +1330,7 @@ export default function (api) {
         category: s.category,
         weight: s.weight,
         stackable: s.stackable,
+        recipeUnlock: s.recipeUnlock,
         spellcraftUnlock: s.spellcraftUnlock,
         spellcraftXp: s.spellcraftXp,
         maxStock,
@@ -1252,6 +1338,7 @@ export default function (api) {
       };
     });
 
+    const stockBySerial = new Map(stockItems.map((row) => [row.serial, row]));
     vendors.register({
       vendorSerial: mob.serial,
       listStock: () => stockItems,
@@ -1262,13 +1349,14 @@ export default function (api) {
           if (price > (byId.get(s.itemId)?.price ?? 0)) byId.set(s.itemId, { itemId: s.itemId, price });
         }
         for (const s of kind.sellOverrides ?? []) {
-          byId.set(s.itemId, { itemId: s.itemId, price: Math.max(1, s.price | 0) });
+          const resolved = hydrateSellOverride(s);
+          if (resolved) byId.set(resolved.itemId, { itemId: resolved.itemId, price: Math.max(1, resolved.price | 0) });
         }
         return [...byId.values()];
       },
       onBuy: (buyerState, picks) => {
         const buyer = buyerState.mobile;
-        // BUGFIX #136 (FAZA JC): the previous code used `buyer.serial`
+        // BUGFIX #136 (PHASE JC): the previous code used `buyer.serial`
         // as the parent for spawned items. That's the MOB serial, not
         // the backpack — same dropped-wire as #119 in `[give`. Items
         // ended up on layer 0 of the paperdoll instead of inside the
@@ -1280,7 +1368,7 @@ export default function (api) {
           return;
         }
         const packSerial = pack.serial;
-        // BUGFIX #133 (FAZA IC): the previous onBuy spawned items for
+        // BUGFIX #133 (PHASE IC): the previous onBuy spawned items for
         // free regardless of player gold — vendors were a free buffet.
         // ServUO `BaseVendor.OnBuyItems` deducts the full bill from
         // the player's pack-gold before granting items. We do the
@@ -1291,18 +1379,18 @@ export default function (api) {
         // Wave 10: clamp requested amount to currentStock per stock line.
         // Out-of-stock items become 0-amount picks (skipped below).
         const adjustedPicks = picks.map((p) => {
-          const def = stockItems.find((s) => s.serial === p.serial);
+          const def = stockBySerial.get(p.serial >>> 0);
           if (!def) return { ...p, amount: 0 };
           const requested = Math.max(1, p.amount);
           const allowed = Math.min(requested, def.currentStock);
           return { ...p, amount: allowed };
         });
         for (const p of adjustedPicks) {
-          const def = stockItems.find((s) => s.serial === p.serial);
+          const def = stockBySerial.get(p.serial >>> 0);
           if (!def) continue;
           totalCost += (def.price ?? 0) * Math.max(1, p.amount);
         }
-        // Faza H.1.12 — Faction Reagent Merchant 20% discount for same-
+        // Phase H.1.12 — Faction Reagent Merchant 20% discount for same-
         // faction buyers. `mob.faction` is set from VENDOR_KINDS;
         // `buyer._faction` is stamped by the faction join command.
         if (mob.faction && buyer._faction && mob.faction === buyer._faction && totalCost > 0) {
@@ -1358,14 +1446,15 @@ export default function (api) {
         const created = [];
         for (const p of adjustedPicks) {
           if (p.amount <= 0) continue;
-          const def = stockItems.find((s) => s.serial === p.serial);
+          const def = stockBySerial.get(p.serial >>> 0);
           if (!def) continue;
           const item = api.game?.mobile?.giveItem?.(buyer, {
             itemId: def.itemId, hue: def.hue, amount: p.amount,
             name: def.description, tagId: def.tagId,
             definitionId: def.definitionId, script: def.script,
             kind: def.kind, category: def.category, weight: def.weight,
-            stackable: def.stackable, spellcraftUnlock: def.spellcraftUnlock,
+            stackable: def.stackable, recipeUnlock: def.recipeUnlock,
+            spellcraftUnlock: def.spellcraftUnlock,
             spellcraftXp: def.spellcraftXp,
           }, { notify: false, randomGrid: true });
           if (!item) {
@@ -1391,7 +1480,7 @@ export default function (api) {
           // Wave 13: track sales for weighted refill — popular items
           // restock faster than dust-collectors.
           def._salesCount = (def._salesCount ?? 0) + amount;
-          // FAZA CT: try to merge with an existing stack already in the
+          // PHASE CT: try to merge with an existing stack already in the
           // pack. ServUO does this automatically; without the merge,
           // buying 5×1 gold piles created 5 separate slots instead of
           // a single +5 increase.
@@ -1425,6 +1514,9 @@ export default function (api) {
         let gold = 0;
         const backpack = api.game?.inventory?.findBackpack?.(sellerState.mobile);
         if (!backpack) return;
+        const ownedSerials = new Set(
+          [...packItems(api, sellerState.mobile)].map((item) => item.serial),
+        );
         // Wave 9: prefer canonical SBInfo sell prices when present.
         // sellOverrides comes from extracted vendor-inventory.sell with
         // explicit {itemId, price}. Fall back to half-of-buy lookup for
@@ -1437,12 +1529,13 @@ export default function (api) {
         const overrides = kind.sellOverrides ?? [];
         for (const o of overrides) {
           // Override always wins — the SBInfo price is canonical.
-          priceByItemId.set(o.itemId, Math.max(1, o.price));
+          const resolved = hydrateSellOverride(o);
+          if (resolved) priceByItemId.set(resolved.itemId, Math.max(1, resolved.price));
         }
         const planned = [];
         for (const p of picks) {
           const item = itemBySerial({ world }, p.serial);
-          if (!item || ![...packItems(api, sellerState.mobile)].some((candidate) => candidate.serial === item.serial)) continue;
+          if (!item || !ownedSerials.has(item.serial)) continue;
           const amount = Math.min(Math.max(1, p.amount), item.amount ?? 1);
           const price = priceByItemId.get(item.itemId);
           if (!price || item.insured || item.blessed || item.movable === false) continue;
@@ -1488,7 +1581,7 @@ export default function (api) {
     });
 
     if (api.ai) {
-      try { api.ai.attach(mob, 'vendor'); }
+      try { api.ai.attach(mob, serviceBehavior(resolvedKey)); }
       catch (e) { console.error('[vendor] attach threw:', e); }
     }
 
@@ -1514,7 +1607,7 @@ export default function (api) {
     ['armorer',     'armorer',     'Spawn an armorer vendor at your feet.'],
     ['innkeeper',   'innkeeper',   'Spawn an innkeeper vendor at your feet.'],
   ];
-  // FAZA BG: re-attach vendors that survived a save/load. We walk
+  // PHASE BG: re-attach vendors that survived a save/load. We walk
   // existing world.mobiles, find any with `vendorKind`, and re-run
   // the in-memory binding (registry + AI). Only attaches once per
   // mob — a duplicate vendors.register would shadow the prior entry.
@@ -1538,35 +1631,48 @@ export default function (api) {
       if (vendors.get?.(mob.serial)) continue; // already bound
       const kind = VENDOR_KINDS[kindKey];
       if (!kind) continue;
-      // FAZA CC: re-flag persisted vendors so they listen to speech
-      // again after restart.
-      mob._listensToSpeech = true;
-      mob._speechKeywords = ['buy', 'sell', 'shop'];
+      // Re-flag persisted vendors so they listen to speech after restart.
+      applySpeechProfile(mob, kindKey, kind);
       // Re-apply outfit to vendors saved BEFORE the outfit-on-spawn fix
       // (legacy saves) OR to any vendor that somehow lost its worn
-      // items. Without this every reloaded shard saw naked vendors —
-      // Marcin: "Jacob the Provisioner nadal naked". The outfit items
+      // items. Without this every reloaded shard saw naked vendors. The outfit items
       // are created with movable:false + layer, so the persistence
       // round-trip will keep them next save.
       if (!knownDressed && !hasWornByMob.has(mob.serial)) {
         try { applyVendorOutfit(api, world, mob, kindKey); }
         catch (e) { api.log?.(`vendor reattach outfit: ${e?.message ?? e}`); }
       }
-      const stockItems = kind.stock.map((s, i) => ({
+      const stockItems = kind.stock.map((raw, i) => {
+        const s = hydrateVendorStock(raw);
+        return {
         serial: (0x70000000 + ((mob.serial & 0xFFFFFF) << 8) + ((i + 1) & 0xFF)) >>> 0,
         itemId: s.itemId, hue: s.hue ?? 0,
         amount: Number.isFinite(s.stock) && s.stock > 0 ? s.stock : Infinity,
         price: s.price, description: s.name, tagId: s.tagId,
+        definitionId: s.definitionId,
+        script: s.script,
+        kind: s.kind,
+        category: s.category,
+        weight: s.weight,
+        stackable: s.stackable,
+        recipeUnlock: s.recipeUnlock,
+        spellcraftUnlock: s.spellcraftUnlock,
+        spellcraftXp: s.spellcraftXp,
         maxStock: Number.isFinite(s.stock) && s.stock > 0 ? s.stock : Infinity,
         currentStock: Number.isFinite(s.stock) && s.stock > 0 ? s.stock : Infinity,
-      }));
+        };
+      });
+      const stockBySerial = new Map(stockItems.map((row) => [row.serial, row]));
       vendors.register({
         vendorSerial: mob.serial,
         listStock: () => stockItems,
         listSellable: () => {
           const rows = new Map();
           for (const s of stockItems) rows.set(s.itemId, { itemId: s.itemId, price: Math.max(1, Math.floor(s.price / 2)) });
-          for (const s of kind.sellOverrides ?? []) rows.set(s.itemId, { itemId: s.itemId, price: Math.max(1, s.price | 0) });
+          for (const s of kind.sellOverrides ?? []) {
+            const resolved = hydrateSellOverride(s);
+            if (resolved) rows.set(resolved.itemId, { itemId: resolved.itemId, price: Math.max(1, resolved.price | 0) });
+          }
           return [...rows.values()];
         },
         onBuy: (buyerState, picks) => {
@@ -1579,7 +1685,7 @@ export default function (api) {
           const accepted = [];
           let totalCost = 0;
           for (const p of picks) {
-            const def = stockItems.find((sd) => sd.serial === p.serial);
+            const def = stockBySerial.get(p.serial >>> 0);
             if (!def) continue;
             const amount = Math.min(Math.max(1, p.amount | 0), def.currentStock);
             if (amount <= 0) continue;
@@ -1591,6 +1697,11 @@ export default function (api) {
             const item = api.game?.mobile?.giveItem?.(buyer, {
               itemId: def.itemId, hue: def.hue, amount,
               name: def.description, tagId: def.tagId,
+              definitionId: def.definitionId, script: def.script,
+              kind: def.kind, category: def.category, weight: def.weight,
+              stackable: def.stackable, recipeUnlock: def.recipeUnlock,
+              spellcraftUnlock: def.spellcraftUnlock,
+              spellcraftXp: def.spellcraftXp,
             }, { notify: false, randomGrid: true });
             if (!item) {
               for (const row of made) destroyItemBySerial(api, row.item.serial);
@@ -1619,12 +1730,19 @@ export default function (api) {
           let gold = 0;
           const pack = api.game?.inventory?.findBackpack?.(sellerState.mobile);
           if (!pack) return;
-          const allowed = new Map((kind.sellOverrides ?? []).map((s) => [s.itemId, Math.max(1, s.price | 0)]));
+          const ownedSerials = new Set(
+            [...packItems(api, sellerState.mobile)].map((item) => item.serial),
+          );
+          const allowed = new Map();
+          for (const row of kind.sellOverrides ?? []) {
+            const resolved = hydrateSellOverride(row);
+            if (resolved) allowed.set(resolved.itemId, Math.max(1, resolved.price | 0));
+          }
           for (const stock of stockItems) if (!allowed.has(stock.itemId)) allowed.set(stock.itemId, Math.max(1, Math.floor(stock.price / 2)));
           const planned = [];
           for (const pick of picks) {
             const item = itemBySerial({ world }, pick.serial);
-            if (!item || ![...packItems(api, sellerState.mobile)].some((row) => row.serial === item.serial)) continue;
+            if (!item || !ownedSerials.has(item.serial)) continue;
             const amount = Math.min(Math.max(1, pick.amount | 0), item.amount ?? 1);
             const price = allowed.get(item.itemId);
             if (!price || item.insured || item.blessed || item.movable === false) continue;
@@ -1652,8 +1770,23 @@ export default function (api) {
         },
       });
       if (api.ai) {
-        try { api.ai.attach(mob, 'vendor'); }
-        catch (e) { console.error('[vendor] reattach AI threw:', e); }
+        const fallbackBehavior = serviceBehavior(kindKey);
+        const preferredBehavior = typeof mob.aiBehavior === 'string' && mob.aiBehavior
+          ? mob.aiBehavior
+          : fallbackBehavior;
+        try {
+          api.ai.attach(mob, preferredBehavior);
+          mob.aiBehavior = preferredBehavior;
+        } catch (preferredError) {
+          try {
+            api.ai.attach(mob, fallbackBehavior);
+            // Preserve an unavailable preferred behavior so its module can
+            // reconcile the binding when it finishes loading.
+            mob.aiBehavior = preferredBehavior;
+          } catch (fallbackError) {
+            console.error('[vendor] reattach AI threw:', fallbackError ?? preferredError);
+          }
+        }
       }
     }
   }
@@ -1757,7 +1890,8 @@ export default function (api) {
     kinds: () => Object.keys(VENDOR_KINDS),
     search: (query) => searchVendorCatalog(query).map(({ search: _search, ...entry }) => entry),
     spawnAt(kindKey, pos) {
-      const resolvedKey = resolveVendorKind(kindKey) ?? kindKey;
+      const requestedKey = String(kindKey ?? 'wanderer').toLowerCase();
+      const resolvedKey = resolveVendorKind(requestedKey) ?? 'wanderer';
       const kind = VENDOR_KINDS[resolvedKey] ?? VENDOR_KINDS.wanderer;
       if (!kind) {
         api.log?.(`vendor.spawnAt: unknown kind '${kindKey}'`);
@@ -1786,12 +1920,26 @@ export default function (api) {
         const tmp = { body: kind.body };
         displayName = api.names?.pickForMob?.(tmp) ?? kind.name;
       }
+      const tmpl = api.npcs?.get?.(requestedKey);
+      const stats = tmpl?.stats ?? {};
+      const rollStat = (value, fallback) => Array.isArray(value)
+        ? ((value[0] | 0) + Math.floor(Math.random() * Math.max(1, (value[1] | 0) - (value[0] | 0) + 1)))
+        : (Number.isFinite(value) ? value : fallback);
+      const hpMax = rollStat(stats.hpMax, rollStat(stats.hp, 100));
       const mob = createMobile(api, world, {
-        name: displayName, body: kind.body, hue: kind.hue ?? 0,
+        name: displayName, body: pos.body ?? tmpl?.body ?? kind.body,
+        hue: pos.hue ?? tmpl?.hue ?? kind.hue ?? 0,
         x: pos.x, y: pos.y, z, map,
-        notoriety: 1,
+        notoriety: tmpl?.notoriety ?? 1,
+        hp: Math.min(hpMax, rollStat(stats.hp, hpMax)), hpMax,
+        str: rollStat(stats.str, undefined),
+        dex: rollStat(stats.dex, undefined),
+        int: rollStat(stats.int, undefined),
+        invulnerable: tmpl?.flags?.includes?.('invulnerable') ?? false,
       });
       mob.vendorKind = resolvedKey;
+      mob.npcKind = requestedKey;
+      if (tmpl?.flags?.includes?.('guard')) mob.isGuard = true;
       if (kind.faction) mob.faction = kind.faction;
       // Title is the role suffix ("the banker"); spawnAt callers can
       // override via pos.title (regional NPCs use "the banker of Britain").
@@ -1813,10 +1961,15 @@ export default function (api) {
       // in. attach() is a Map.set — last write wins. Unknown behavior
       // names fall through silently so editing npcs.json can't crash
       // the spawn path.
-      const tmpl = api.npcs?.get?.(kindKey);
-      const wantBehavior = tmpl?.behavior;
+      const behaviorAliases = { stablemaster: 'vendor', beggar: 'wander' };
+      const wantBehavior = behaviorAliases[tmpl?.behavior] ?? tmpl?.behavior;
       if (wantBehavior && wantBehavior !== 'vendor' && api.ai?.attach) {
-        try { api.ai.attach(mob, wantBehavior); }
+        try {
+          api.ai.attach(mob, wantBehavior);
+          mob.aiBehavior = wantBehavior;
+          mob._listensToSpeech = false;
+          mob._speechKeywords = [];
+        }
         catch { /* unknown behavior — keep the default 'vendor' */ }
       }
       // Broadcast presence to anyone already in range — INCLUDING the
@@ -1844,7 +1997,7 @@ export default function (api) {
     },
   };
 
-  // FAZA BG: stock-rotation timer. Every 10 minutes we re-jitter
+  // PHASE BG: stock-rotation timer. Every 10 minutes we re-jitter
   // prices ±10% from baseline so the economy "breathes".
   // Wave 10: also restock depleted entries — half of the gap closes
   // each cycle, full refill after two cycles from zero. SBInfo-driven
@@ -1986,7 +2139,7 @@ export default function (api) {
   return () => {
     for (const [name] of cmdSpecs) commands.unregister(name);
     api.ai?.unregisterBehavior?.('vendor');
-    // BUGFIX #27 (FAZA BK): the restock timer was left running across
+    // BUGFIX #27 (PHASE BK): the restock timer was left running across
     // script hot-reloads, accumulating one extra setInterval per reload.
     // After 10 saves the price-jitter loop fired 11× per cycle and
     // closed-over a stale `vendors` reference, mistinting prices and

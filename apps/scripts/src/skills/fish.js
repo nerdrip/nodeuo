@@ -17,7 +17,7 @@ const FISH_ITEM = 0x09CC;
 const BIG_FISH_ITEM = 0x09CC;       // same art, hued + sized differently
 const MIB_ITEM = 0x099F;             // jug/bottle graphic — message in a bottle
 const MAX_RANGE = 4;
-// FAZA DN: rare drop chances. 5% big-fish, 1% MIB, but only at ≥80
+// PHASE DN: rare drop chances. 5% big-fish, 1% MIB, but only at ≥80
 // fishing skill (the ServUO `Fishing.cs` "rare" tier gate).
 const BIG_FISH_CHANCE = 0.05;
 const MIB_CHANCE = 0.01;
@@ -54,7 +54,7 @@ export default function register(api) {
       }
       ctx.state.sendSystemMessage('Where do you want to fish?');
       api.targeting.request(ctx.state, (picked) => {
-        // BUGFIX #82 (FAZA DN): defensive nulls — `picked` can be a
+        // BUGFIX #82 (PHASE DN): defensive nulls — `picked` can be a
         // mobile (no .x/.y) when the player misclicks, or land/statics
         // queries can return null when the chunk isn't loaded. The
         // previous code assumed both — landAt(undef, undef) crashed
@@ -86,7 +86,7 @@ export default function register(api) {
           api.skillGain?.tryGain?.(mob, SKILL_FISHING, 50);
           return;
         }
-        // FAZA DN: rare-drop roll for skilled anglers. Random check
+        // PHASE DN: rare-drop roll for skilled anglers. Random check
         // BEFORE the regular fish so the rare doesn't double-drop.
         let dropName = 'a fish';
         let dropItemId = FISH_ITEM;

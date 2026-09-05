@@ -35,9 +35,7 @@ const SCALE  = 1;             // native UO size, no upscaling
 // `hourglass` entry which actually held the yellow reticle. The
 // extractor has been rebuilt since (2026-05-17) and `target-neutral`
 // now points at the real crosshair sprite — keeping the legacy remap
-// would render an HOURGLASS on every skill / spell target prompt
-// (user report 2026-05-17 — "jak jest wybor czegos to ejst zly kursor
-// ejst klepsudra zamiast celownika"). Empty map = pass-through, atlas
+// would render an HOURGLASS on every skill/spell target prompt. Empty map = pass-through; atlas
 // keys agree with logical names. harmful / beneficial / self all reuse
 // the neutral crosshair sprite + a hue shift; we don't model the hue
 // in the atlas, just rely on the body cursor pointing at the right

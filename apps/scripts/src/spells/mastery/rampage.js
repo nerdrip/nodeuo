@@ -6,7 +6,7 @@ export default {
   name: 'rampage',
   cast(api, ctx) {
     const caster = ctx.sender;
-    caster.rampageUntil = Date.now() + 20_000;
-        caster.rampageStacks = 0;
+    caster._rampageUntil = Date.now() + 20_000;
+    caster._rampageStacks = 0;
   },
 };

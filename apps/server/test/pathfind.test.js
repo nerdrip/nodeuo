@@ -17,7 +17,7 @@ vi.mock('../src/world/land-provider.js', () => ({
   },
 }));
 
-const { findPath } = await import('../src/world/pathfind.js');
+const { findPath, findPathHierarchical, PathfindingGovernor } = await import('../src/world/pathfind.js');
 
 function fillRect(x0, y0, x1, y1, z = 0) {
   for (let x = x0; x <= x1; x++) {
@@ -111,5 +111,50 @@ describe('findPath', () => {
     expect(path).toBeTruthy();
     // Should be shorter than the radius-1 case (4 steps).
     expect(path.length).toBeLessThan(4);
+  });
+
+  it('stitches long routes from bounded validated macro segments', () => {
+    fillRect(0, 0, 100, 10);
+    const path = findPathHierarchical({
+      facet: 1, sx: 1, sy: 5, sz: 0, gx: 80, gy: 5,
+      goalRadius: 1, maxNodes: 1200, segmentSize: 12, segmentNodes: 150,
+    });
+    expect(path).toBeTruthy();
+    expect(path.length).toBeGreaterThan(60);
+    expect(path.every((direction) => direction === 2)).toBe(true);
+  });
+
+  it('caches paths by collision revision and enforces a per-pulse budget', () => {
+    fillRect(0, 0, 20, 20);
+    let revision = 1;
+    const governor = new PathfindingGovernor({
+      sectors: { collisionRevisionForRange: () => revision },
+    }, { maxPathsPerPulse: 1, maxNodesPerPulse: 400, cacheTtlMs: 10_000 });
+    governor.beginPulse();
+    const opts = { facet: 1, sx: 1, sy: 1, sz: 0, gx: 8, gy: 8, maxNodes: 400 };
+    expect(governor.find(opts)).toBeTruthy();
+    expect(governor.find(opts)).toBeTruthy();
+    expect(governor.find({ ...opts, sx: 2, sy: 2 })).toBeTruthy();
+    expect(governor.find({ ...opts, gx: 9 })).toBeNull();
+    expect(governor.snapshot()).toMatchObject({ cacheHits: 2, budgetRejected: 1, solved: 1 });
+    expect(governor.snapshot().routeSuffixSeeds).toBeGreaterThan(0);
+    revision++;
+    governor.beginPulse();
+    expect(governor.find(opts)).toBeTruthy();
+    expect(governor.snapshot().cacheMisses).toBe(3);
+  });
+
+  it('shares a validated goal field between agents with different node budgets', () => {
+    fillRect(0, 0, 30, 30);
+    const governor = new PathfindingGovernor({
+      sectors: { collisionRevisionForRange: () => 7 },
+    }, { maxPathsPerPulse: 1, maxNodesPerPulse: 500, cacheTtlMs: 10_000 });
+    governor.beginPulse();
+    expect(governor.find({ facet: 1, sx: 1, sy: 1, sz: 0,
+      gx: 12, gy: 12, maxNodes: 500 })).toBeTruthy();
+    const shared = governor.find({ facet: 1, sx: 2, sy: 2, sz: 0,
+      gx: 12, gy: 12, maxNodes: 127 });
+    expect(shared).toBeTruthy();
+    expect(governor.snapshot()).toMatchObject({ solved: 1, goalFieldHits: 1, goalFields: 1 });
   });
 });

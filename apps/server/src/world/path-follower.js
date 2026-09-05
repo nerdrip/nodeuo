@@ -15,16 +15,18 @@
 //                         lastStepAt, stepDelayMs }
 
 import { findPath } from './pathfind.js';
+import { resolveStep } from './movement.js';
+import { dispatchTileWalkEvents } from './item-scripts.js';
 
 const DEFAULT_STEP_MS = 350;        // walking cadence — matches AI tick
 const REPATH_THRESHOLD = 2;         // tiles target may drift before re-plan
+const DELTAS = [[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1]];
 
 export function start(world, mob, target, opts = {}) {
   if (!mob || !target) return false;
-  const facet = world?.facets?.[mob.map];
-  if (!facet) return false;
+  if ((target.map ?? mob.map) !== mob.map) return false;
   const path = findPath({
-    facet,
+    facet: mob.map,
     sx: mob.x | 0, sy: mob.y | 0, sz: mob.z | 0,
     gx: target.x | 0, gy: target.y | 0,
     maxNodes: opts.maxNodes ?? 800,
@@ -56,15 +58,22 @@ export function tick(world, mob, target, now = Date.now()) {
   }
   if (pf.idx >= pf.path.length) { stop(mob); return true; }
   if (now - pf.lastStepAt < pf.stepDelayMs) return false;
-  const next = pf.path[pf.idx++];
-  if (!next) { stop(mob); return true; }
-  // Step the mob. Movement validation (block, region gate) lives in the
-  // existing AI scheduler — we just mutate x/y and let the next AI tick
-  // broadcast the move. The pathfinder pre-filters unwalkable tiles so
-  // a direct mutate is safe.
-  mob.x = next.x | 0;
-  mob.y = next.y | 0;
-  if (typeof next.z === 'number') mob.z = next.z | 0;
+  const next = pf.path[pf.idx];
+  if (!Number.isInteger(next) || next < 0 || next > 7) { stop(mob); return true; }
+  const before = { x: mob.x | 0, y: mob.y | 0, z: mob.z | 0, map: mob.map ?? 1 };
+  const [dx, dy] = DELTAS[next];
+  const nx = before.x + dx, ny = before.y + dy;
+  // `findPath` returns direction bytes, not tile objects. Route the step
+  // through the canonical movement validator so doors/traps/sector indexes
+  // stay consistent.
+  const nz = resolveStep(mob.map, before.x, before.y, before.z, nx, ny);
+  if (nz === null) {
+    return target ? start(world, mob, target, { stepDelayMs: pf.stepDelayMs, maxNodes: 800 }) : false;
+  }
+  mob.x = nx; mob.y = ny; mob.z = nz; mob.direction = next;
+  world?.sectors?.moveMobile?.(mob);
+  dispatchTileWalkEvents(world, mob, before, { x: nx, y: ny, z: nz, map: mob.map });
+  pf.idx++;
   pf.lastStepAt = now;
   return false;
 }

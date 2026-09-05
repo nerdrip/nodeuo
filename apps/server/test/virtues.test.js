@@ -1,4 +1,4 @@
-// FAZA CX — virtue accrual + bugfix #66 regression: resurrectMobile
+// PHASE CX — virtue accrual + bugfix #66 regression: resurrectMobile
 // must include the player's worn equipment in the broadcast so other
 // observers see them dressed, not naked.
 
@@ -10,7 +10,7 @@ import {
   awardVirtue, valorForKill, rankAt, VIRTUES, pushVirtues,
 } from '../src/systems/rewards/virtues.js';
 
-describe('virtues system (FAZA CX)', () => {
+describe('virtues system (PHASE CX)', () => {
   it('awardVirtue mutates mob.virtues + caps at 20000', () => {
     const mob = {};
     awardVirtue(mob, 'compassion', 1500);
@@ -49,17 +49,17 @@ describe('virtues system (FAZA CX)', () => {
     expect(mob.virtues).toBeUndefined();
   });
 
-  // FAZA DC: client virtue gump renders from server-pushed VirtueState.
-  it('pushVirtues sends a 0xBF 0xCD packet to mob.client', () => {
+  it('pushVirtues sends a typed JSON snapshot to an enhanced client', () => {
     const sent = [];
     const mob = {
-      client: { send: (b) => sent.push(b), supportsNodeUO: () => true },
+      client: { nodeUOJsonTransport: true, nodeUOFeatures: new Map([['character.virtues', 1]]),
+        sendNodeUOMessage: (message) => { sent.push(message); return true; }, supportsNodeUO: () => true },
       virtues: { compassion: 4500, valor: 1000 },
     };
     pushVirtues(mob);
     expect(sent.length).toBe(1);
-    expect(sent[0][0]).toBe(0xBF);
-    expect((sent[0][3] << 8) | sent[0][4]).toBe(0xCD);
+    expect(sent[0]).toMatchObject({ feature: 'character.virtues',
+      payload: { compassion: 4500, valor: 1000 } });
   });
 
   it('pushVirtues is a no-op on NPCs without a client', () => {
@@ -79,16 +79,18 @@ describe('virtues system (FAZA CX)', () => {
     const sent = [];
     const mob = {
       client: {
-        send: (b) => sent.push(b), sendSystemMessage: () => {}, supportsNodeUO: () => true,
+        nodeUOJsonTransport: true, nodeUOFeatures: new Map([['character.virtues', 1]]),
+        sendNodeUOMessage: (message) => { sent.push(message); return true; },
+        sendSystemMessage: () => {}, supportsNodeUO: () => true,
       },
     };
     awardVirtue(mob, 'compassion', 5000);
     expect(sent.length).toBe(1);
-    expect(sent[0][0]).toBe(0xBF);
+    expect(sent[0]).toMatchObject({ feature: 'character.virtues', payload: { compassion: 5000 } });
   });
 });
 
-describe('killMobile awards Valor virtue (FAZA CX)', () => {
+describe('killMobile awards Valor virtue (PHASE CX)', () => {
   /** @type {World} */ let w;
 
   beforeEach(() => {

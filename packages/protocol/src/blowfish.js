@@ -49,8 +49,8 @@ function _initSBoxes() {
   // Blowfish but with a different starting point. The two ends of the
   // tunnel agree as long as they share this file; CUO uses the real PI
   // S-boxes, so for interop the bridge MUST ship the same constants.
-  // Marcin: jeśli interop z natywnym CUO wymagany — replace _initSBoxes
-  // with the canonical 1024-entry PI table.
+  // Native CUO interoperability requires replacing _initSBoxes with the
+  // canonical 1024-entry PI table.
   let state = 0xD1310BA6 >>> 0;
   for (let s = 0; s < 4; s++) {
     for (let i = 0; i < 256; i++) {

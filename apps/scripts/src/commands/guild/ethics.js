@@ -4,7 +4,9 @@
 //   [ethics join evil       — join Evil side (needs <-5000 karma)
 //   [ethics leave           — drop alignment
 //   [ethics powers          — list powers your tier unlocks
-//   [ethics use <powerId>   — invoke a power (some need a target)
+//   [ethics use <powerId> [serial] — invoke a power (cursor for targeted powers)
+
+import { resolveMobileArg } from '../_targeting-helpers.js';
 
 export default function register(api) {
   if (!api.commands || !api.ethics) return () => {};
@@ -58,11 +60,18 @@ export default function register(api) {
       if (sub === 'use') {
         const id = args[1];
         if (!id) { ctx.state.sendSystemMessage('Usage: [ethics use <powerId>'); return; }
-        const res = ethics.invokePower(mob, id, null);
-        if (!res.ok) {
-          ctx.state.sendSystemMessage(`Cannot invoke ${id}: ${res.reason}.`);
+        const invoke = (target = null) => {
+          const res = ethics.invokePower(mob, id, target, api.world);
+          if (!res.ok) ctx.state.sendSystemMessage(`Cannot invoke ${id}: ${res.reason}.`);
+          else ctx.state.sendSystemMessage(`You invoke ${res.power.name}.`);
+        };
+        const power = ethics.findPower(mob, id);
+        if (power?.requiresTarget) {
+          resolveMobileArg(api, ctx, 2, (target) => {
+            if (target) invoke(target);
+          }, { promptText: `Target a mobile for ${power.name}.` });
         } else {
-          ctx.state.sendSystemMessage(`You invoke ${res.power.name}.`);
+          invoke();
         }
         return;
       }

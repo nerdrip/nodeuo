@@ -94,7 +94,7 @@ export class Camera {
     this.worldZ = 0;
     /** ClassicUO render-multiplier (44×22 tile → 132×66 on screen at 3×).
      *  Default 3 (was 2) so the canonical 22×39 idle body renders at
-     *  ~66×117 px — the user reported "nie widać postaci" because at 2×
+     *  ~66×117 px. At 2×
      *  a male body comes out 44×78, easily lost against a brick floor.
      *  Use mouse wheel to zoom in further (max 4×) or out (min 0.5×). */
     // CUO default zoom is 1.0 (Constants.cs `DEFAULT_ZOOM = 1`).

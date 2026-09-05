@@ -1,6 +1,6 @@
 // `[guildbook` — guild roster gump.
 //
-// Faza H.3 UNIFICATION: previously this command sent a server-rendered
+// Phase H.3 UNIFICATION: previously this command sent a server-rendered
 // 0xB0 gump (`api.gumps.send`) while `[guild gump` emitted a sentinel
 // for the client-side overlay. Two gumps for the same data — confusing
 // for players. Now `[guildbook` ALSO emits the sentinel so both verbs

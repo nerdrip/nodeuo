@@ -6,6 +6,6 @@ export default {
   name: 'combat-training',
   cast(api, ctx) {
     const caster = ctx.sender;
-    caster.combatTrainingUntil = Date.now() + 60_000;
+    caster._combatTrainingUntil = Date.now() + 60_000;
   },
 };

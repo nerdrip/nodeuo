@@ -1,5 +1,5 @@
-// FAZA DC — `[virtues` shows current virtue ranks + pushes the live
-// VirtueState packet so the browser gump (Ctrl+V) displays accurate
+// PHASE DC — `[virtues` shows current virtue ranks + pushes the live
+// virtue-state event so the browser gump (Ctrl+V) displays accurate
 // numbers. ServUO has no equivalent text command — `[v]` opens the
 // virtue gump natively in classic — but our browser client renders
 // the gump locally from a server-pushed payload, and the `[virtues`
@@ -18,7 +18,7 @@ export default function register(api) {
       const v = mob.virtues ?? {};
       const sub = String(args?.[0] ?? '').toLowerCase();
       if (sub === 'gump' || sub === 'panel') {
-        // Faza H.2 — open the rich VirtueGump overlay.
+        // Phase H.2 — open the rich VirtueGump overlay.
         const rows = (api.systems.virtues.VIRTUES ?? []).map((key) => {
           const val = v[key] | 0;
           const rank = api.systems.virtues.rankAt?.(val);

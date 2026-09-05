@@ -42,12 +42,24 @@ describe('crafting transactions', () => {
     expect(findRunicTool(f.world, f.crafter, 'smith')).toMatchObject({ tool: runic, tier: 'valorite' });
   });
 
+  it('recognises expansion and specialist crafting tools by canonical art id', () => {
+    const f = inventory();
+    const mortar = createItem(f.world, { itemId: 0x0E9B, parent: f.pack.serial });
+    const mapPen = createItem(f.world, { itemId: 0x0FBF, parent: f.pack.serial });
+    const mallet = createItem(f.world, { itemId: 0x12B3, parent: f.pack.serial });
+    const blowpipe = createItem(f.world, { itemId: 0x0E8A, parent: f.pack.serial });
+    expect(findCraftingTool(f.api, f.crafter, 'alchemy')).toBe(mortar);
+    expect(findCraftingTool(f.api, f.crafter, 'carto')).toBe(mapPen);
+    expect(findCraftingTool(f.api, f.crafter, 'mason')).toBe(mallet);
+    expect(findCraftingTool(f.api, f.crafter, 'glassblowing')).toBe(blowpipe);
+  });
+
   it('does not commit reserved resources when output allocation fails', () => {
     const id = 99120;
     registerRecipe({
       id, name: 'Transactional test', category: 'Tests', skillId: 8,
       minSkill: 0, maxSkill: 100, outputItemId: 0x0F51, outputCount: 1,
-      inputs: [{ itemId: 0x1BF2, count: 1 }], exceptionalChance: 0,
+      inputs: [{ itemId: 0x1BF2, count: 1 }], exceptionalChance: 0, toolKind: 'smith',
     });
     const commit = vi.fn(() => true);
     const result = craft({
@@ -71,7 +83,7 @@ describe('crafting transactions', () => {
     registerRecipe({
       id, name: 'Weight rollback test', category: 'Tests', skillId: 8,
       minSkill: 0, maxSkill: 100, outputItemId: 0x0F51, outputCount: 1,
-      inputs: [{ itemId: 0x1BF2, count: 1 }], exceptionalChance: 0,
+      inputs: [{ itemId: 0x1BF2, count: 1 }], exceptionalChance: 0, toolKind: 'smith',
     });
     const actualStore = buildItemStore(f.api);
     const weightBeforeRollback = mobileTotalWeight(f.world, f.crafter);

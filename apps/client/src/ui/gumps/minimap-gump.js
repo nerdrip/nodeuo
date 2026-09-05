@@ -4,7 +4,7 @@
 // average each tile's pixels into one RGB and store it in a 1-pixel-per-tile
 // minimap texture, then crop the visible window.
 //
-// Implementation strategy (FAZA 7 minimal):
+// Implementation strategy (PHASE 7 minimal):
 //   - We don't have a pre-computed radar texture, so we sample by
 //     rendering 64×64 nearby tiles as 1×1 pixels each and updating a
 //     CPU buffer every few frames.

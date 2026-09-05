@@ -21,7 +21,7 @@ export default function register(api) {
         if (it.map !== ctx.sender.map) continue;
         if (Math.max(Math.abs(it.x - ctx.sender.x), Math.abs(it.y - ctx.sender.y)) > radius) continue;
         const pkt = api.protocol.removeEntity(it.serial);
-        // BUGFIX #65 (FAZA CW): visibility-gate. Previously the loop
+        // BUGFIX #65 (PHASE CW): visibility-gate. Previously the loop
         // fanned removeEntity to EVERY client globally; now mirror
         // the canon UO 18-tile visibility radius via nearbyClients.
         for (const m of nearbyClients(ctx.world, it)) m.client.send(pkt);

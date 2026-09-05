@@ -12,6 +12,7 @@ import {
   itemVariants,
 } from '../content/items/index.js';
 import { runtimeGovernor } from '../systems/runtime-governor.js';
+import { EntityDirty } from './interest-management.js';
 
 // Content definitions are trusted, server-owned data. Keep their serializable
 // gameplay fields on runtime instances instead of maintaining a second,
@@ -286,11 +287,12 @@ export function createItem(world, data) {
     'cannon', '_mountSerial', '_mountDx', '_mountDy',
     '_deedMulti', '_deedOffset', '_contestHouse', '_previewHouse',
     '_multi', '_multiInstance', '_multiAnchor', '_multiHouseId', 'multiId',
+    '_multiCollision', '_multiSurfaces', '_multiFootprint', '_multiBounds', '_multiBlueprintHash', '_multiComponentCount',
     '_multiAcl', '_multiOwner', '_multiName',
-    '_customHouseId',
+    '_customHouseId', '_customHouseKind', '_houseId', '_houseAclMode', '_movableBeforeLockdown', '_secureAddedLockdown', 'teleportTo', 'pairSerial',
     'miniHouseType', 'isRewardItem', 'rewardItem',
     'isDecoration', 'height',
-    'door', 'solid', 'sign', 'teleporter', 'destination', 'spawner', 'xmlSpawner', 'areaEffect', 'fieldSpell',
+    'door', 'solid', 'surface', 'bridge', 'sign', 'teleporter', 'destination', 'spawner', 'xmlSpawner', 'areaEffect', 'fieldSpell',
   ]) {
     if (data[key] != null) item[key] = data[key];
     else if (contentDef?.[key] != null) item[key] = contentDef[key];
@@ -320,6 +322,7 @@ export function createItem(world, data) {
     } catch { /* templates module unavailable in tests */ }
   }
   world.items.set(serial, item);
+  world.interest?.mark?.(serial, EntityDirty.Created | EntityDirty.All, 'item');
   world.sectors?.addItem(item);
   if (!item.parent) world._groundItemCount = Math.max(0, (world._groundItemCount | 0) + 1);
   world.syncSpatialItem?.(item);
@@ -430,10 +433,11 @@ export function setItemHistoryModule(mod) { _historyMod = mod ?? null; }
 
 /** Remove an item from the world. */
 export function destroyItem(world, serial) {
-  // FAZA BN: dispatch onDestroy BEFORE deletion so the script still
+  // PHASE BN: dispatch onDestroy BEFORE deletion so the script still
   // sees the item ref (timers can clear, allies can be notified, etc).
   const it = world.items?.get?.(serial);
   if (it) {
+    if (it._multiAnchor) world.multiSpatial?.unregister?.(it.serial);
     try { dispatchItemEvent(world, it, 'onDestroy'); }
     catch { /* ignore */ }
     // Wave 8: release a unique artifact's name back into the pool when
@@ -450,12 +454,14 @@ export function destroyItem(world, serial) {
     }
   }
   world.items.delete(serial);
+  world.interest?.mark?.(serial, EntityDirty.Removed, 'item');
   world.sectors?.removeItem(serial);
   if (it && !it.parent) world._groundItemCount = Math.max(0, (world._groundItemCount | 0) - 1);
   world.removeSpatialItem?.(serial);
   world._tickingItems?.delete?.(serial);
   world._xmlAttachmentEntities?.delete?.(serial);
   world._corpses?.delete?.(serial);
+  world.clearPropertySubject?.(serial);
   // Reverse parent index — drop this serial from the bucket it lived in
   // AND drop any children bucket where this serial was the parent
   // (would otherwise leak a dangling Set keyed by a stale serial).
@@ -487,6 +493,7 @@ export function setItemParent(world, item, newParent) {
   // disappear from sector/tile/typed indexes immediately, while a drop to
   // ground becomes queryable before the next visibility refresh.
   world.sectors?.moveItem?.(item);
+  world.interest?.mark?.(item.serial, EntityDirty.Parent | EntityDirty.Position, 'item');
   world.syncSpatialItem?.(item);
   const idx = world._childrenByParent;
   if (!idx) return;
@@ -720,7 +727,7 @@ export function wornWeight(world, mobSerial) {
 }
 
 /**
- * FAZA CT — stackable art-id table. ServUO derives this from
+ * PHASE CT — stackable art-id table. ServUO derives this from
  * tiledata.flags bit 0x08 (Stackable); we don't yet wire tiledata
  * into the server runtime, so keep an explicit list of canon
  * stackable graphics. Adding a new stackable: drop the art id here
@@ -772,7 +779,7 @@ for (let id = COIN_BASE_START; id <= COIN_BASE_END; id++) {
   STACKABLE_ITEM_IDS.add(id);
 }
 
-// FAZA DR: ServUO Magery scrolls span 0x1F2D..0x1F6C (64 spells × 1
+// PHASE DR: ServUO Magery scrolls span 0x1F2D..0x1F6C (64 spells × 1
 // itemId each, 8 circles). Each spell scroll is stackable per ServUO
 // `BaseScroll.cs Stackable=true`. We register the entire range up
 // front so spell scrolls auto-merge in containers and after casts.

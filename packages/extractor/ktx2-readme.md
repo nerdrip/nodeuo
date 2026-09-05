@@ -4,13 +4,10 @@ The standard `extract.js` pipeline emits `.png` atlas pages. The Pixi
 client now prefers `.ktx2` (Basis Universal) when the file is present
 next to the corresponding `.png`, falling back to PNG when not.
 
-KTX2 advantages on the runtime:
-- ~50 % smaller download (BC7 vs PNG, both lossless-ish for sprites)
-- Zero CPU-side decode burst on first paint — the GPU samples the
-  compressed blocks directly, so on cold cache the boot transition
-  from "atlas pages 12/59" to "ready" feels instant.
-- Half the VRAM (BC7 4 bpp vs RGBA 32 bpp) on machines that previously
-  pushed against texture-memory limits with all 59 mobile atlases.
+KTX2 reduces transfer size and lets the browser transcode UASTC payloads to a
+GPU-supported block format. Actual transfer, decode and VRAM savings depend on
+the browser, GPU and selected transcode target, so PNG remains the compatibility
+fallback.
 
 ## Generating KTX2 from the existing PNG output
 
@@ -38,15 +35,16 @@ pnpm extract -- --src "D:\Games\Electronic Arts\Ultima Online Classic" --ktx2 --
 #    Keep them while bisecting browser support.
 ```
 
-The wrapper runs `toktx --t2 --uastc --zcmp 19` by default. That is the
-high-quality sprite preset: lossless for flat colour areas and
-near-lossless for hue ramps. It skips up-to-date `.ktx2` files unless
-you pass `--force`.
+The wrapper runs `toktx --t2 --uastc --zcmp 19` by default. It skips up-to-date
+`.ktx2` files unless you pass `--force` and uses up to four bounded workers by
+default. Each result is published through a `.next` file, so interruption never
+replaces a valid texture with a partial one.
 
 Useful flags:
 
 ```bash
 pnpm extract:ktx2 -- --only mobiles,gump
+pnpm extract:ktx2 -- --jobs 2
 pnpm extract:ktx2 -- --force
 pnpm extract:ktx2 -- --toktx "C:\Program Files\KTX-Software\bin\toktx.exe"
 pnpm extract:ktx2 -- --out apps/client/public/assets
@@ -54,12 +52,12 @@ pnpm extract:ktx2 -- --out apps/client/public/assets
 
 ## Control Panel
 
-The Control Panel exposes two paths under ASSETS:
+The Control Panel exposes the following paths:
 
 - `Extract Assets` + `KTX2 after extract` checkbox: runs the normal
-  converter and then converts atlas PNGs to `.ktx2`.
-- `Compress KTX2` button: converts already-extracted atlas PNGs without
-  rebuilding MUL/UOP assets.
+  converter and then converts the selected atlas PNG groups to `.ktx2`.
+- Selecting no source group and only `KTX2 after extract` converts existing
+  atlas PNGs without rebuilding MUL/UOP assets.
 - `TOOLS -> Install KTX2 Tool`: downloads/installs Khronos KTX-Software
   locally when `toktx` is missing.
 - `TOOLS -> Check KTX2 Tool`: prints the resolved `toktx` path/version.
@@ -71,12 +69,10 @@ installer does not require manually editing PATH.
 
 ## Browser support
 
-Pixi v8's KTX2 loader uses the Khronos Basis Universal transcoder which
-ships as a WASM binary. Modern Chromium / Edge / Safari transcode at
-~80 MB/s on a 2020 laptop — for our 6 land + 8 static + 59 mobile + 6
-texmap atlases the upfront cost is ~10 s on cold cache vs 30 s for the
-PNG decode path. Old Firefox builds without WASM SIMD fall back to
-`.png` automatically via the asset-manager candidate chain.
+Pixi's KTX2 loader uses the Basis Universal transcoder distributed with the
+client build. The current full extraction contains 6 land, 135 static, 258
+mobile, 58 gump and 6 texmap atlas pages. Browsers that cannot load the KTX2
+variant fall back to `.png` through the asset-manager candidate chain.
 
 ## File-naming convention
 

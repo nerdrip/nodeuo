@@ -1,4 +1,4 @@
-// FAZA GH — `[time` shows the in-world day/night clock.
+// PHASE GH — `[time` shows the in-world day/night clock.
 //
 // ServUO `Engines/SunCycle.cs`: a continuous 8-minute day-night cycle.
 // We surface the current phase + clock for the player.

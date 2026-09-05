@@ -1,4 +1,4 @@
-// FAZA CK / bugfix #53 — NPC honorific title round-trips through
+// PHASE CK / bugfix #53 — NPC honorific title round-trips through
 // snapshotWorld / restoreWorld. The compact-paperdoll header builds
 // "<name>, <title>" so dropping the title on restart was a visible
 // regression ("Mira, the healer" → just "Mira").

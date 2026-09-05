@@ -1,6 +1,6 @@
 // ServUO weapon / armor / clothing item extractor — bulk-pulls
 // equipment definitions from `templates/ServUO/Scripts/Items/Equipment`
-// and merges them into `apps/scripts/src/data/items.json`.
+// and merges them into `apps/scripts/src/data/config/items.json`.
 //
 // Each ServUO weapon ctor calls `base(0xNNNN)` with the canonical UO
 // item id; we capture that plus min/max damage, speed, strength req, and
@@ -25,7 +25,8 @@ const RX = {
 };
 
 function kebab(s) {
-  return s.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+  return String(s).trim().replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+    .replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase();
 }
 
 const SLOT_BY_BASE = {
@@ -63,9 +64,10 @@ function parseItem(path, dirRole) {
   const kind = kebab(className);
   const slot = SLOT_BY_BASE[baseClass] ?? dirRole ?? 'misc';
   const out = {
-    name: kind,
-    itemId,
-    label: `a ${className.replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase()}`,
+    definitionId: kind,
+    artId: itemId,
+    name: `a ${className.replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase()}`,
+    servuoClass: className,
     clothing: true,
     equipLayer: slot === 'weapon' ? 1 : (slot === 'shield' ? 1 : 13),
     slot,
@@ -117,15 +119,17 @@ export async function extractServUOItems(servuoPath, out) {
     walk(dir, role[1], items);
   }
   // Merge into existing items.json (existing entries win).
-  const outFile = join(out, 'data', 'items.json');
+  const outFile = join(out, 'data', 'config', 'items.json');
   /** @type {any[]} */
   const existing = JSON.parse(readFileSync(outFile, 'utf8'));
-  const knownByName = new Set(existing.map((e) => e.name));
-  const knownById   = new Set(existing.map((e) => e.itemId));
+  const knownDefinitions = new Set(existing.map((entry) => entry.definitionId ?? entry.id ?? entry.name));
+  const knownArt = new Set(existing.map((entry) => entry.artId ?? entry.itemId).filter(Number.isInteger));
   let added = 0;
   for (const it of items) {
-    if (knownByName.has(it.name) || knownById.has(it.itemId)) continue;
+    if (knownDefinitions.has(it.definitionId) || knownArt.has(it.artId)) continue;
     existing.push(it);
+    knownDefinitions.add(it.definitionId);
+    knownArt.add(it.artId);
     added++;
   }
   writeFileSync(outFile, JSON.stringify(existing, null, 2));

@@ -1,4 +1,4 @@
-// FAZA EY — World boss respawn timer.
+// PHASE EY — World boss respawn timer.
 //
 // ServUO `Engines/SpawnerSystem`: world bosses (Doppelganger, Harrower,
 // Spirit of the Land) re-spawn at fixed intervals after death — usually

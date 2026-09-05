@@ -54,15 +54,15 @@ export class ResourceDiagnosticsGump extends WindowGump {
     const meshes = landMeshPool.stats();
     const jitter = Math.abs((movementStats.lastAckLatencyMs || 0) - (movementStats.avgAckLatencyMs || 0));
     const rows = [
-      `tier ${snapshot.profile?.tier ?? '-'}  latency ${movementStats.lastAckLatencyMs.toFixed(1)} ms  jitter ${jitter.toFixed(1)} ms`,
+      `tier ${snapshot.profile?.tier ?? '-'}  quality ${clientPerfStats.qualityLevel}  p95 ${clientPerfStats.frameP95Ms.toFixed(1)} ms  latency ${movementStats.lastAckLatencyMs.toFixed(1)} ms`,
       `atlas ${snapshot.atlas.pages}/${snapshot.atlas.limit}  ${(snapshot.atlas.estimatedBytes / 1048576).toFixed(1)} / ${(snapshot.atlas.byteLimit / 1048576).toFixed(0)} MiB`,
       `cache land ${snapshot.caches.land} static ${snapshot.caches.static} gump ${snapshot.caches.gump} anim ${snapshot.caches.mobile} tex ${snapshot.caches.texmap}`,
       `decode active ${snapshot.decodePool?.active ?? 0}/${snapshot.decodePool?.limit ?? 0} queued ${snapshot.decodePool?.queued ?? 0}`,
       `chunks ${chunks.chunks ?? 0} ready ${chunks.readyChunks ?? 0} queued ${chunks.queuedChunks ?? 0} active ${chunks.activePopulates ?? 0}`,
       `stream budget ${Number(chunks.scheduler?.budgetMs ?? 0).toFixed(2)} ms  last ${Number(chunks.scheduler?.lastMs ?? 0).toFixed(2)} ms`,
       `sprites ${pool.active}/${pool.free} reuse ${pool.reuses}  meshes ${meshes.active}/${meshes.free} reuse ${meshes.reuses}`,
-      `missing ${snapshot.missing.total}  packet recording ${diagnosticsManager.packetRecording ? 'ON' : 'off'} ${(diagnosticsManager.packetBytes / 1024).toFixed(1)} KiB`,
-      `long task ${clientPerfStats.lastLongTaskMs.toFixed(1)} ms (${clientPerfStats.longTaskHistory[(clientPerfStats.longTaskHead - 1 + clientPerfStats.longTaskHistory.length) % clientPerfStats.longTaskHistory.length]?.subsystem ?? '-'})  unhandled ${diagnosticsManager.unhandledRejections}`,
+      `missing ${snapshot.missing.total}  heap ${(clientPerfStats.heapUsedBytes / 1048576).toFixed(0)} MiB  storage ${(clientPerfStats.storageUsageBytes / 1048576).toFixed(0)} MiB  recording ${diagnosticsManager.packetRecording ? 'ON' : 'off'}`,
+      `jitter ${jitter.toFixed(1)} ms  long task ${clientPerfStats.lastLongTaskMs.toFixed(1)} ms (${clientPerfStats.longTaskHistory[(clientPerfStats.longTaskHead - 1 + clientPerfStats.longTaskHistory.length) % clientPerfStats.longTaskHistory.length]?.subsystem ?? '-'})  unhandled ${diagnosticsManager.unhandledRejections}`,
     ];
     rows.forEach((text, index) => this._labels[index]?.setText?.(text));
     const history = diagnosticsManager.frameSnapshot().slice(-600);

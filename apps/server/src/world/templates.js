@@ -53,7 +53,7 @@ const TEMPLATE_RUNTIME_KEYS = [
   'secureLevel',
   'args', 'displayName', 'anniversaryChoice', '_timepiece', '_dailyRare', '_ancientWall',
   '_sphynxFortune',
-  'spellcraftUnlock', 'spellcraftXp',
+  'recipeUnlock', 'spellcraftUnlock', 'spellcraftXp',
 ];
 
 /** Register (or replace) a template. Hot-reload friendly. */
@@ -164,7 +164,7 @@ export function spawn(world, name, overrides) {
   // @ts-expect-error — augment Item with a runtime-only field.
   item.template = t.definitionId.toLowerCase();
   if (t.label) item.name = t.label;
-  // FAZA BN: copy template-declared lifecycle hooks onto the item.
+  // PHASE BN: copy template-declared lifecycle hooks onto the item.
   //   `script`        — name registered in item-scripts registry
   //   `equipLayer`    — paperdoll layer for clothing/weapons
   //   `clothing`      — paperdoll picker eligibility
@@ -181,7 +181,7 @@ export function spawn(world, name, overrides) {
   if (t.addonName)     item.addonName     = t.addonName;
   if (t.addonNames)    item.addonNames    = t.addonNames;
   if (t.training)      item.training      = t.training;
-  // BUGFIX #30 (FAZA BN): only fall back to defaultHue when the caller
+  // BUGFIX #30 (PHASE BN): only fall back to defaultHue when the caller
   // genuinely omitted the hue. Treating `hue: 0` as "no override" meant
   // callers couldn't suppress a template tint (e.g. spawning a colourless
   // copper-ingot variant) — the explicit zero was silently overwritten.
@@ -199,7 +199,7 @@ export function spawn(world, name, overrides) {
 }
 
 /**
- * FAZA LA / BUGFIX #140: pre-template `useItem` hook chain. Scripts
+ * PHASE LA / BUGFIX #140: pre-template `useItem` hook chain. Scripts
  * like boat.js / door.js wanted to intercept double-clicks before
  * the canonical template lookup so they could route plank items into
  * board/leave logic. The previous attempt was `api.templates.useItem
@@ -212,7 +212,18 @@ export function spawn(world, name, overrides) {
  * the dispatcher (template lookup is skipped).
  */
 const _useItemHooks = [];
-export function addUseItemHook(fn) { _useItemHooks.push(fn); }
+export function addUseItemHook(fn) {
+  if (typeof fn !== 'function') return () => {};
+  _useItemHooks.push(fn);
+  let active = true;
+  return () => {
+    if (!active) return false;
+    active = false;
+    const index = _useItemHooks.indexOf(fn);
+    if (index >= 0) _useItemHooks.splice(index, 1);
+    return index >= 0;
+  };
+}
 export function clearUseItemHooks() { _useItemHooks.length = 0; }
 
 /**
@@ -223,7 +234,7 @@ export function clearUseItemHooks() { _useItemHooks.length = 0; }
  * @param {import('./world.js').Mobile} user
  */
 export function useItem(world, item, user) {
-  // Pre-template hook chain (FAZA LA). Scripts opt-in via
+  // Pre-template hook chain (PHASE LA). Scripts opt-in via
   // `api.templates.addUseItemHook(fn)` — see boat.js / door.js.
   for (const hook of _useItemHooks) {
     try {
@@ -254,7 +265,7 @@ export function useItem(world, item, user) {
   // (deeds and Scrolls of Transcendence) continue to their own scripts.
   const scrollEffect = describeScrollEffect(user, item);
   if (scrollEffect) {
-    // FAZA BM: confirmation gump — port of CUO PowerScroll usage
+    // PHASE BM: confirmation gump — port of CUO PowerScroll usage
     // dialog. Real shards always pop a "Yes / No" before consuming
     // because power-scrolls are tradable luxury items. Without the
     // confirm, mis-clicking deletes a 50-million-gold scroll. We
@@ -321,7 +332,7 @@ export function useItem(world, item, user) {
     return true;
   }
 
-  // FAZA BN: lifecycle script onUse (per-item, declared in items.json
+  // PHASE BN: lifecycle script onUse (per-item, declared in items.json
   // via the `script` field). Runs BEFORE template path so a script
   // override always wins; returning truthy means handled.
   if (dispatchItemEvent(world, item, 'onUse', user)) return true;

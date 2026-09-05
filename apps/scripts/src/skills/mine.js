@@ -38,7 +38,7 @@ const GEM_RESOURCE_ITEMS = {
   'star-sapphire': 'gem-star-sapphire',
   tourmaline: 'gem-tourmaline',
 };
-// FAZA DO: vein depletion. Each tile-keyed vein supports a fixed pull
+// PHASE DO: vein depletion. Each tile-keyed vein supports a fixed pull
 // budget (drop ~10 ores total) before it depletes. Depleted veins
 // regenerate after a 5-minute respawn timer. Tracked in-process; lost
 // on restart (fine — it's a soft economy guardrail, not a save target).

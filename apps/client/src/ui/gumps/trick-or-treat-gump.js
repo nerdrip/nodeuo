@@ -1,5 +1,5 @@
 // TrickOrTreatGump — Halloween costume reward menu. ServUO `Misc/
-// TrickOrTreat.cs` + reward catalogue. Faza F.3.11.
+// TrickOrTreat.cs` + reward catalogue. Phase F.3.11.
 //
 // Players who collected candies during the event window may turn them
 // in for one of several costume rewards. The gump lists costumes with

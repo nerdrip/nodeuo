@@ -1,10 +1,10 @@
-// FAZA DH/DI — virtue invocation hooks (Honor damage + Sacrifice push).
+// PHASE DH/DI — virtue invocation hooks (Honor damage + Sacrifice push).
 
 import { describe, it, expect } from 'vitest';
 import { honorDamageMultiplier, honorOnKill, _HONOR_CONST } from '../../scripts/src/commands/combat/honor.js';
 import { spendVirtue, awardVirtue } from '../src/systems/rewards/virtues.js';
 
-describe('honor invocation hooks (FAZA DH)', () => {
+describe('honor invocation hooks (PHASE DH)', () => {
   it('honorDamageMultiplier returns 1.20 for the honoured target only', () => {
     const attacker = { _honoredTargetSerial: 0x1234 };
     const honoured = { serial: 0x1234 };
@@ -32,11 +32,12 @@ describe('honor invocation hooks (FAZA DH)', () => {
     const sent = [];
     const mob = {
       virtues: { honor: 5000 },
-      client: { send: (b) => sent.push(b), supportsNodeUO: () => true },
+      client: { nodeUOJsonTransport: true, nodeUOFeatures: new Map([['character.virtues', 1]]),
+        sendNodeUOMessage: (message) => { sent.push(message); return true; }, supportsNodeUO: () => true },
     };
     spendVirtue(mob, 'honor', 100);
     expect(mob.virtues.honor).toBe(4900);
     expect(sent.length).toBe(1);
-    expect(sent[0][0]).toBe(0xBF);
+    expect(sent[0]).toMatchObject({ feature: 'character.virtues', payload: { honor: 4900 } });
   });
 });

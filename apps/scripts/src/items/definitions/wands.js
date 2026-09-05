@@ -9,12 +9,13 @@
 // (per-item field already on the persistence whitelist as `magicCharges`)
 // and decrements per cast.
 
-import { mobileBySerial } from '../../_entities.js';
+import { itemBySerial, mobileBySerial } from '../../_entities.js';
 import { destroyItemBySerial } from '../../_items.js';
 
 // --- script loader pattern: queue at module-load, flush in default register() ---
 const __PENDING__ = [];
 let _spells = null;
+let _commands = null;
 
 
 // Audit #33 P1 #1 — wands that bind to offensive spells must prompt for
@@ -40,28 +41,51 @@ function wandUse(user, scope) {
   }
   const def = scope?.def;
   const spellId = def?.wandSpell;
+  const world = scope?.world ?? user?.client?.ctx?.world;
+  const state = user.client;
+  const targeting = state?.ctx?.targeting;
+  const consumeCharge = () => {
+    item.magicCharges = Math.max(0, (item.magicCharges | 0) - 1);
+    if (item.magicCharges === 0) {
+      try { user.client?.sendSystemMessage?.(`Your ${item.name ?? 'wand'} crumbles to dust.`); }
+      catch { /* socket transient */ }
+      if (world) {
+        try { destroyItemBySerial({ world }, item.serial); }
+        catch { /* already crumbled */ }
+      }
+    }
+  };
+  if (def?.wandIdentify) {
+    item._noConsume = true;
+    if (!world || !state || !targeting?.request || !_commands?.dispatch) {
+      user.client?.sendSystemMessage?.('The identification magic is unavailable.');
+      return;
+    }
+    user.client?.sendSystemMessage?.('What item do you wish to identify?');
+    targeting.request(state, (picked) => {
+      const targetItem = picked?.serial ? itemBySerial({ world }, picked.serial >>> 0) : null;
+      if (!targetItem) {
+        user.client?.sendSystemMessage?.('That is not an item.');
+        return;
+      }
+      _commands.dispatch(`identify ${targetItem.serial >>> 0}`, {
+        sender: user, state, world,
+      });
+      consumeCharge();
+    });
+    return;
+  }
   if (!spellId) {
     item._noConsume = true;
     return;
   }
   const spell = _spells?.getSpell?.(spellId);
   if (!spell) { item._noConsume = true; return; }
-  const world = scope?.world ?? user?.client?.ctx?.world;
   if (!world) { item._noConsume = true; return; }
-  const state = user.client;
-  const targeting = state?.ctx?.targeting;
   const isSelfCast = SELF_CAST_SPELLS.has(spellId);
   const destroyWand = (w) => {
     try { destroyItemBySerial({ world: w }, item.serial); }
     catch { /* already crumbled */ }
-  };
-  const consumeCharge = () => {
-    item.magicCharges = Math.max(0, (item.magicCharges | 0) - 1);
-    if (item.magicCharges === 0) {
-      try { user.client?.sendSystemMessage?.(`Your ${item.name ?? 'wand'} crumbles to dust.`); }
-      catch { /* socket transient */ }
-      destroyWand(world);
-    }
   };
   if (!isSelfCast && targeting?.request && state) {
     // Don't consume a charge until the player actually picks a target;
@@ -176,14 +200,15 @@ __PENDING__.push({
 // --- script entry point ----------------------------------------------
 export default function register(api) {
   _spells = api.systems?.spells;
+  _commands = api.commands;
   if (!_spells?.castSpell || !_spells?.getSpell) {
     api.log?.('wands: spells system missing, skipping');
-    return () => { _spells = null; };
+    return () => { _spells = null; _commands = null; };
   }
   const reg = api.catalog?.items?.registerItem;
-  if (!reg) { api.log?.('wands: registerItem missing, skipping'); return () => { _spells = null; }; }
+  if (!reg) { api.log?.('wands: registerItem missing, skipping'); return () => { _spells = null; _commands = null; }; }
   let count = 0;
   for (const def of __PENDING__) { try { reg(def); count++; } catch (e) { api.log?.('wands: ' + e.message); } }
   api.log?.('wands: registered ' + count + ' items');
-  return () => { _spells = null; };
+  return () => { _spells = null; _commands = null; };
 }

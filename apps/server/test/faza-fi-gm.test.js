@@ -7,7 +7,7 @@ import { beforeAll } from 'vitest';
 beforeAll(async () => { await loadSpells(); });
 import { World } from '../src/world/world.js';
 
-describe('main.js wires nowych systems do api.systems (FAZA FI)', () => {
+describe('main.js wires nowych systems do api.systems (PHASE FI)', () => {
   it('boots without throwing — wiring smoke test', async () => {
     // Importing main.js with its side-effects (registerBoss, registerSigil,
     // registerCanonicalArenas) is too heavy for a unit test (it expects a
@@ -23,7 +23,7 @@ describe('main.js wires nowych systems do api.systems (FAZA FI)', () => {
   });
 });
 
-describe('peerless arenas content registration (FAZA FT)', () => {
+describe('peerless arenas content registration (PHASE FT)', () => {
   it('peerless-arenas script registers 3 arenas', async () => {
     const peerless = await import('../src/systems/bosses/peerless.js');
     peerless._resetArenasForTest();
@@ -36,7 +36,7 @@ describe('peerless arenas content registration (FAZA FT)', () => {
   });
 });
 
-describe('peerless mob templates (FAZA FU)', () => {
+describe('peerless mob templates (PHASE FU)', () => {
   it('Travesty/Lady Mel/Effusion all have boss + peerless flags', async () => {
     // Peerless templates merged into monsters.json on 2026-05-16 (see
     // tools/merge-templates-to-monsters.mjs). Source of truth is now
@@ -59,7 +59,7 @@ describe('peerless mob templates (FAZA FU)', () => {
   });
 });
 
-describe('weapons set runtime descriptor (FAZA FN)', () => {
+describe('weapons set runtime descriptor (PHASE FN)', () => {
   it('bow templates carry range:8 + ammoId 0x0F3F', async () => {
     const itemReg = await import('../src/content/items/registry.js');
     const mod = await import('../../scripts/src/items/definitions/weapons.js');
@@ -93,7 +93,7 @@ describe('weapons set runtime descriptor (FAZA FN)', () => {
   });
 });
 
-describe('Magic Lock + Magic Trap (FAZA GL)', () => {
+describe('Magic Lock + Magic Trap (PHASE GL)', () => {
   it('Magic Lock sets locked + lockDifficulty on a container', async () => {
     const { getSpell } = await import('../src/systems/spells/index.js');
     const w = new World();

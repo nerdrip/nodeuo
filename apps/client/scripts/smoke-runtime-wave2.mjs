@@ -4,6 +4,8 @@ import {
   createClientRuntimeProfile, FrameTaskScheduler, ResourceTelemetry,
   SessionEpoch, AsyncGenerationOwner, validateTextureRegion,
   clampLayoutRect, migrateLayoutScale, buildClientQualityReport, clientQualityReportMarkdown,
+  AdaptiveQualityController,
+  postPrioritizedTask,
 } from '../src/shared/runtime-governor.js';
 
 const low = createClientRuntimeProfile({ navigator: { deviceMemory: 2, hardwareConcurrency: 2 } });
@@ -12,6 +14,9 @@ assert.equal(low.tier, 'low');
 assert.equal(high.tier, 'high');
 assert.ok(low.atlasBytes < high.atlasBytes && low.chunkPopulates < high.chunkPopulates);
 assert.ok(low.cacheLimits.gump < high.cacheLimits.gump);
+assert.equal(await postPrioritizedTask(() => 42, { priority: 'background' }), 42);
+const abortedTask = new AbortController(); abortedTask.abort();
+await assert.rejects(postPrioritizedTask(() => 0, { signal: abortedTask.signal }), { name: 'AbortError' });
 
 let now = 0;
 const scheduler = new FrameTaskScheduler({ now: () => (now += 0.2), budgetMs: 1 });
@@ -27,6 +32,15 @@ assert.equal(scheduler.stats.cancelled, 2, 'dedupe and owner cancellation are bo
 const initialBudget = scheduler.budgetMs;
 for (let i = 0; i < 20; i++) scheduler.observeFrame(40);
 assert.ok(scheduler.budgetMs < initialBudget, 'streaming budget adapts down after slow frames');
+
+const quality = new AdaptiveQualityController({ sampleSize: 60, evaluateEvery: 10, recoveryWindows: 2 });
+let evaluation = null;
+for (let i = 0; i < 60; i++) evaluation = quality.observeFrame(70, i) ?? evaluation;
+assert.equal(evaluation.level, 'critical');
+assert.equal(quality.qualityScale(), 0.4);
+for (let i = 0; i < 180; i++) evaluation = quality.observeFrame(16, 1_000 + i) ?? evaluation;
+assert.equal(evaluation.level, 'nominal', 'quality should recover gradually after sustained healthy frames');
+assert.ok(quality.snapshot().transitions >= 3, 'critical recovery passes through degraded to prevent oscillation');
 
 const telemetry = new ResourceTelemetry();
 telemetry.note('gump', 'hit'); telemetry.note('gump', 'miss'); telemetry.note('gump', 'evict');
@@ -60,6 +74,7 @@ assert.deepEqual(migrateLayoutScale({ x: 100, y: 100, width: 200, height: 100 },
 const report = buildClientQualityReport({ profile: low, assets: { diagnosticsSnapshot: () => ({ ok: true }) }, scheduler });
 assert.equal(report.runtime.tier, 'low');
 assert.equal(report.assets.ok, true);
+assert.ok(report.performance?.level, 'quality report should expose adaptive performance pressure');
 assert.match(clientQualityReportMarkdown(report), /Runtime tier: low/);
 
 const tileSource = [

@@ -150,20 +150,11 @@ class MessageManager {
     if (msg.textType === TT.Guild    && this.opts.ignoreGuildMessages) return;
     if (msg.textType === TT.Alliance && this.opts.ignoreAllianceMessages) return;
 
-    // CUO `MessageManager.HandleMessage` ghost-speech filter: dead,
-    // non-resurrected senders' regular chat is scrambled into the
-    // canonical "OoOoO" consonant-replaced form. Party + Guild +
-    // System bypass (party-channel ghosts can be understood by other
-    // dead party members, and System messages aren't speech).
-    const sender = world.mobiles.get(msg.serial);
-    const senderDead = sender && (sender.isDead || sender.ghost);
-    const speechType = msg.textType !== TT.System
-                    && msg.textType !== TT.Party
-                    && msg.textType !== TT.Guild
-                    && msg.textType !== TT.Alliance;
-    if (senderDead && speechType && typeof msg.text === 'string') {
-      msg.text = ghostSpeech(msg.text);
-    }
+    // Ghost speech is listener-dependent. The authoritative server already
+    // sends either the original utterance or its "OoOo" mutation based on
+    // whether this player is dead or has Spirit Speak. Mutating again here
+    // made ghosts unable to understand one another and broke external UO
+    // servers which already implement the classic rule.
 
     // Audit rev.9 P3 #2 — speeches.json keyword tag. Flag player-speech
     // (Normal/Whisper/Yell originating from the local mob) whose text
@@ -237,23 +228,5 @@ class MessageManager {
 
 export const messageManager = new MessageManager();
 
-/** CUO `MessageManager.GHOST_SPEECH_TABLE`. Every consonant in a ghost
- *  utterance maps to one of a small set of "Oo" tokens so the listener
- *  can still hear cadence + rough length but not the actual words.
- *  Vowels keep their alpha-case (so non-ghosts seeing "OoOO" still get
- *  the right number of syllables). */
-function ghostSpeech(text) {
-  let out = '';
-  for (const ch of text) {
-    const c = ch.toLowerCase();
-    if (c >= 'a' && c <= 'z') {
-      if ('aeiou'.includes(c)) out += ch;
-      else out += (ch === ch.toUpperCase()) ? 'O' : 'o';
-    } else {
-      out += ch;
-    }
-  }
-  return out;
-}
 export const MessageType = MT;
 export const TextType = TT;

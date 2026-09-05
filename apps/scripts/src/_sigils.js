@@ -34,3 +34,8 @@ export function getSigil(api, town) {
   const fn = sigilsSystem(api)?.getSigil;
   return typeof fn === 'function' ? fn(town) : null;
 }
+
+export function resetSigils(api) {
+  const fn = sigilsSystem(api)?.resetSigils;
+  return typeof fn === 'function' ? fn() : { removed: 0 };
+}

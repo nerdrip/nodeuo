@@ -1,4 +1,4 @@
-// FAZA CO — bugfix #57: trade.open must send 0x24 displayContainer +
+// PHASE CO — bugfix #57: trade.open must send 0x24 displayContainer +
 // 0x3C containerContents for both trade containers to both participants
 // so the existing container-ui can visualise items going through the
 // trade. Without this, items reparented by handleTradeDrop showed only

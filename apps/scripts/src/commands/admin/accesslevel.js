@@ -2,7 +2,7 @@
 // `Set.cs AccessLevel` admin command. Only Admin can promote/demote;
 // the highest-rank account can never be silently demoted by another
 // admin to avoid lock-out (the only way to demote an Admin is via the
-// shard's accounts.json file directly).
+// shard's SQLite account table directly).
 //
 // Usage:
 //   [accesslevel <username> <level>

@@ -1,4 +1,4 @@
-// FAZA DM — Young player flag.
+// PHASE DM — Young player flag.
 //
 // ServUO `Misc/AccountHandler.cs` flags new accounts as `Young` for
 // 40 hours of in-world play. Young players get:

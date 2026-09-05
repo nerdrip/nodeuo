@@ -25,6 +25,7 @@ function recipe(id, name, category, minSkill, output, inputs, opts = {}) {
     id, name, category, skillId: SKILL,
     minSkill, maxSkill: opts.maxSkill ?? minSkill + 200,
     outputItemId: output, outputCount: opts.outputCount ?? 1,
+    toolKind: 'carto',
     inputs: inputs.map(([itemId, count]) => ({ itemId, count })),
     exceptionalChance: 0,
     onCraft: opts.onCraft,
@@ -64,7 +65,8 @@ export default function register(api) {
   const sys = api.systems?.crafting;
   if (!sys?.registerRecipe) { api.log?.('crafting/cartography: engine missing, skipping'); return () => {}; }
   let count = 0;
-  for (const def of __PENDING__) { try { sys.registerRecipe(def); count++; } catch (e) { api.log?.('crafting/cartography: ' + e.message); } }
+  const owned = [];
+  for (const def of __PENDING__) { try { const registered = sys.registerRecipe(def); if (registered !== false) { owned.push(registered ?? sys.getRecipe?.(def.id) ?? def); count++; } } catch (e) { api.log?.('crafting/cartography: ' + e.message); } }
   api.log?.('crafting/cartography: registered ' + count + ' recipes');
-  return () => {};
+  return () => { for (const def of owned) sys.unregisterRecipe?.(def.id, def); };
 }

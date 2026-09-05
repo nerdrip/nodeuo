@@ -38,6 +38,7 @@ function recipe(id, name, category, minSkill, output, inputs, opts = {}) {
     id: id + RECIPE_ID_OFFSET, name, category, skillId: SKILL,
     minSkill, maxSkill: opts.maxSkill ?? minSkill + 200,
     outputItemId: output, outputCount: opts.outputCount ?? 1,
+    toolKind: 'cook',
     inputs: inputs.map(([itemId, count]) => ({ itemId, count })),
     exceptionalChance: 0,
   });
@@ -112,7 +113,8 @@ export default function register(api) {
   const sys = api.systems?.crafting;
   if (!sys?.registerRecipe) { api.log?.('crafting/cooking: engine missing, skipping'); return () => {}; }
   let count = 0;
-  for (const def of __PENDING__) { try { sys.registerRecipe(def); count++; } catch (e) { api.log?.('crafting/cooking: ' + e.message); } }
+  const owned = [];
+  for (const def of __PENDING__) { try { const registered = sys.registerRecipe(def); if (registered !== false) { owned.push(registered ?? sys.getRecipe?.(def.id) ?? def); count++; } } catch (e) { api.log?.('crafting/cooking: ' + e.message); } }
   api.log?.('crafting/cooking: registered ' + count + ' recipes');
-  return () => {};
+  return () => { for (const def of owned) sys.unregisterRecipe?.(def.id, def); };
 }

@@ -50,6 +50,30 @@ describe('admin route safety and editor behavior', () => {
     expect(docs.pages.find((page) => page.id === 'api')?.content).toContain('api.gumps.send');
   });
 
+  it('exposes the visual-novel NPC gump and all stable controls to Content Studio', async () => {
+    const { route } = fixture();
+    const catalogue = await route('GET', '/api/studio/client-gump-definitions').run({});
+    expect(catalogue.error).toBeUndefined();
+    const npcDialog = catalogue.data.find((entry) => entry.definitionId === 'client:npc-dialog-gump');
+    expect(npcDialog).toMatchObject({
+      scope: 'client', className: 'NpcDialogGump', type: 'npc-dialog',
+      frame: { enabled: true, width: 780, height: 390 },
+      behavior: { enabled: true },
+    });
+    const controlIds = npcDialog.controlOverrides.map((entry) => entry.controlId);
+    expect(controlIds).toEqual(expect.arrayContaining([
+      'window-background', 'cinema-panel', 'npc-portrait', 'dialogue-text',
+      'action-list', 'action-1', 'action-24',
+    ]));
+    expect(new Set(controlIds).size).toBe(controlIds.length);
+
+    const source = await route('GET', '/api/studio/client-gump-source').run({
+      query: new URLSearchParams({ path: npcDialog.source }),
+    });
+    expect(source.error).toBeUndefined();
+    expect(source.content).toContain('export class NpcDialogGump');
+  });
+
   it('keeps internal ServUO parity metadata out of the authoring catalogue', async () => {
     const { route } = fixture();
     const catalog = await route('GET', '/api/studio/catalog').run({});
@@ -138,6 +162,23 @@ describe('admin route safety and editor behavior', () => {
     expect((await route('GET', '/api/feature-flags').run({})).flags['composer.visual-v2']).toBeTruthy();
   });
 
+  it('publishes validated NodeUO client settings without affecting classic sessions', async () => {
+    const snapshot = { schema: 1, revision: 3, theme: { variables: { '--uo-gold': '#fc0' } },
+      localization: { pl: { greeting: 'Witaj' } }, webTransportUrl: '' };
+    const nodeUOSettings = { snapshot: vi.fn(() => snapshot), update: vi.fn(() => snapshot) };
+    const enhanced = { supportsNodeUO: () => true, nodeUOJsonTransport: true,
+      nodeUOFeatures: new Map(), sendNodeUOMessage: vi.fn(() => true) };
+    const classic = { supportsNodeUO: () => false, sendNodeUOMessage: vi.fn() };
+    const { route } = fixture({ nodeUOSettings, connections: new Set([enhanced, classic]) });
+
+    expect(await route('GET', '/api/nodeuo/settings').run({})).toEqual(snapshot);
+    const body = { theme: snapshot.theme, localization: snapshot.localization, webTransportUrl: '' };
+    expect(await route('PUT', '/api/nodeuo/settings').run({ body })).toMatchObject({ ok: true, revision: 3 });
+    expect(nodeUOSettings.update).toHaveBeenCalledWith(body);
+    expect(enhanced.sendNodeUOMessage).toHaveBeenCalledTimes(3);
+    expect(classic.sendNodeUOMessage).not.toHaveBeenCalled();
+  });
+
   it('treats an empty migration directory as a valid up-to-date state', async () => {
     const { route } = fixture();
     const plan = await route('GET', '/api/migrations/plan').run({ query: new URLSearchParams() });
@@ -220,7 +261,9 @@ describe('admin route safety and editor behavior', () => {
   });
 
   it('reports map, table and API performance budgets together', async () => {
-    const { route } = fixture();
+    const ai = { maxTicksPerPulse: 0, pathfinding: { maxPathsPerPulse: 0, maxNodesPerPulse: 0 } };
+    const scheduler = { maxCallbacksPerTurn: 0, maxTurnMs: 0 };
+    const { root, route, spawner } = fixture({ ai, scheduler });
     const session = { account: 'admin' };
     await route('POST', '/api/operations/client-metrics').run({ session, body: { view: '/editor', mapChunkMs: 240, tableRows: 720 } });
     const report = await route('GET', '/api/operations/budgets').run({});
@@ -229,6 +272,44 @@ describe('admin route safety and editor behavior', () => {
       expect.objectContaining({ metric: 'map:admin', budget: 180 }),
       expect.objectContaining({ metric: 'table:admin', budget: 500 }),
     ]));
+    expect(report.serviceLevels.metrics).toMatchObject({
+      eventLoopLag: { target: 50 }, tickDuration: { target: 25 },
+    });
+
+    const updated = await route('PUT', '/api/operations/budgets').run({ body: {
+      metrics: { eventLoopLag: { target: 35, critical: 120, objective: 0.995, windowMs: 90_000 } },
+      client: { mapChunkMs: 140, tableRows: 350 },
+      engine: { aiTicksPerPulse: 321, pathRequestsPerPulse: 17, pathNodesPerPulse: 9000,
+        spawnerGroupsPerTick: 123, schedulerCallbacksPerTurn: 77, schedulerTurnMs: 6 },
+    } });
+    expect(updated).toMatchObject({
+      ok: true, revision: 2,
+      metrics: { eventLoopLag: { target: 35, critical: 120, objective: 0.995, windowMs: 90_000 } },
+      client: { mapChunkMs: 140, tableRows: 350 },
+      engine: { aiTicksPerPulse: 321, pathRequestsPerPulse: 17, pathNodesPerPulse: 9000,
+        spawnerGroupsPerTick: 123, schedulerCallbacksPerTurn: 77, schedulerTurnMs: 6 },
+    });
+    expect(JSON.parse(fs.readFileSync(path.join(root, 'admin-performance-budgets.json'), 'utf8')))
+      .toMatchObject({ revision: 2, client: { mapChunkMs: 140, tableRows: 350 } });
+    expect(ai).toMatchObject({ maxTicksPerPulse: 321, pathfinding: { maxPathsPerPulse: 17, maxNodesPerPulse: 9000 } });
+    expect(spawner.maxGroupsPerTick).toBe(123);
+    expect(scheduler).toMatchObject({ maxCallbacksPerTurn: 77, maxTurnMs: 6 });
+    expect((await route('GET', '/api/operations/service-levels').run({})).metrics.eventLoopLag.target).toBe(35);
+  });
+
+  it('exposes bounded profiler, admission and privacy-safe replay controls', async () => {
+    const { route } = fixture();
+    expect(await route('GET', '/api/operations/profiler').run({})).toMatchObject({
+      eventLoop: expect.any(Object), gcPauseMs: expect.any(Object), systems: expect.any(Array),
+    });
+    expect(await route('GET', '/api/operations/admission').run({})).toMatchObject({
+      active: expect.any(Number), pressure: expect.any(Number),
+    });
+    const configured = await route('PUT', '/api/operations/replay').run({ body: { enabled: true, capturePayloads: true } });
+    expect(configured).toMatchObject({ enabled: true, capturePayloads: true });
+    const cleared = await route('POST', '/api/operations/replay/clear').run({});
+    expect(cleared.entriesCount).toBe(0);
+    await route('PUT', '/api/operations/replay').run({ body: { enabled: false, capturePayloads: false } });
   });
 
   it('inspects, follows and safely mutates live entities', async () => {

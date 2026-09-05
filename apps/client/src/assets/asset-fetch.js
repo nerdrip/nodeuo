@@ -19,6 +19,11 @@ export const HEAVY_MANIFESTS = new Set([
   'mobiles-atlas.json', // ~53 MB; parsing this on the main thread freezes world entry
 ]);
 
+export function isHeavyManifest(name) {
+  return HEAVY_MANIFESTS.has(name)
+    || /^mobiles-atlas-bodies-[a-f0-9-]+\.json$/i.test(name);
+}
+
 export async function fetchBinary(url) {
   const r = await fetch(url);
   if (!r.ok) throw new Error(`${url} → HTTP ${r.status}`);
@@ -49,7 +54,7 @@ export async function fetchJson(url) {
   // for off-thread parsing. Subsequent loads still warm from IDB via
   // the regular path (the worker is only worth its setup cost for
   // genuinely large payloads).
-  if (HEAVY_MANIFESTS.has(name)) {
+  if (isHeavyManifest(name)) {
     try {
       const { fetchJsonInWorker } = await import('./worker-json.js');
       const data = await fetchJsonInWorker(url);
@@ -69,8 +74,15 @@ export async function fetchJson(url) {
   if (!r.ok) throw new Error(`${url} → HTTP ${r.status}`);
   return r.json();
 }
+
+/** Fetch, hash and parse a content-addressed JSON shard off the main thread. */
+export async function fetchJsonVerified(url, { sha256, bytes } = {}) {
+  const { fetchJsonInWorker } = await import('./worker-json.js');
+  const data = await fetchJsonInWorker(url, { sha256, bytes });
+  if (data == null) throw new Error(`${url} → empty`);
+  return data;
+}
 export async function fetchJsonOptional(url) {
   try { return await fetchJson(url); }
   catch { return null; }
 }
-

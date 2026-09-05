@@ -35,7 +35,7 @@ export default function register(api) {
 
       switch (sub) {
         case 'largegump': {
-          // Faza H.2 — open the LargeBodGump overlay for a specific
+          // Phase H.2 — open the LargeBodGump overlay for a specific
           // large BOD by serial hex.
           const hex = args?.[1] ?? '';
           const ser = parseInt(hex, 16) >>> 0;
@@ -51,7 +51,7 @@ export default function register(api) {
           return;
         }
         case 'rewardsgump': {
-          // Faza H.2 — open the BOD rewards browser overlay.
+          // Phase H.2 — open the BOD rewards browser overlay.
           // Pulls all completed BODs and emits one row per available reward.
           if (!bods) { ctx.state.sendSystemMessage('BOD engine missing.'); return; }
           const rows = [];

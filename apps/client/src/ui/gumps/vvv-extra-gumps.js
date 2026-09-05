@@ -7,7 +7,7 @@
 //   • VvVMissionBoardGump    — active missions (capture city, hold sigil)
 //   • VvVBattleStandardGump  — sigil-stone interaction (capture / contest)
 //
-// Faza G #10.
+// Phase G #10.
 
 import { WindowGump } from './window-gump.js';
 import { Label } from '../controls/label.js';

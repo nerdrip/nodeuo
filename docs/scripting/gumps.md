@@ -1,21 +1,29 @@
-# Gumpy: serwer, klient i edytor
+# Gumps: server, client, and editor
 
-NodeUO obsługuje trzy rodzaje definicji gumpów. Wszystkie kończą jako standardowe
-kontrolki albo pakiety Ultima Online; własny format JSON nie zmienia protokołu UO.
+NodeUO supports three kinds of gump definitions. They all ultimately produce
+standard Ultima Online controls or packets; the private JSON format does not
+change the UO protocol.
 
-## Model i kompatybilność
+## Model and compatibility
 
-| Źródło | Do czego służy | Zachowanie awaryjne |
+| Source | Purpose | Fallback behavior |
 | --- | --- | --- |
-| `data/config/gumps.json` | w pełni data-driven gumpy serwera | rekord JSON jest źródłem layoutu |
-| `data/config/server-gump-catalog.json` | katalog gumpów tworzonych w JS | kod JS działa, dopóki override nie ma `enabled: true` |
-| `apps/client/public/client-gumps.json` | lokalne layouty i override'y webowego klienta | wbudowana klasa JS działa bez JSON-u lub przy błędzie |
+| `data/config/gumps.json` | fully data-driven server gumps | the JSON record is the layout source |
+| `data/config/server-gump-catalog.json` | catalog of gumps constructed in JS | JS remains active until an override has `enabled: true` |
+| `apps/client/public/client-gumps.json` | local web-client layouts and overrides | the built-in JS class works without JSON or after an error |
 
-Klient łączący się z ServUO lub innym emulatorem nadal renderuje otrzymany
-standardowy layout UO. `client-gumps.json` dotyczy wyłącznie lokalnych okien
-klienta, np. paperdolla, opcji i action bara.
+A client connected to ServUO or another emulator still renders the standard UO
+layout it receives. `client-gumps.json` applies only to local client windows,
+such as the paperdoll, options, and action bar.
 
-## Najprostszy gump serwerowy
+After `nodeuo.json.v2` negotiation, historical `@@OPEN_*@@` script markers are
+centrally converted to typed JSON messages (`ui.rich-gumps` or
+`crafting.workbench`). They are an internal script API, never a wire protocol.
+Binary frames contain only original UO packets. Classic clients never receive
+the marker: the server emits a rate-limited explanatory system message and the
+script's standard UO/text fallback remains authoritative.
+
+## Smallest server gump
 
 ```js
 export default function register(api) {
@@ -35,35 +43,35 @@ export default function register(api) {
           '{ button 25 105 4023 4024 1 0 1 }',
           '{ button 170 105 4017 4018 1 0 0 }',
         ].join(''),
-        texts: ['Jak masz na imię?', ''],
+        texts: ['What is your name?', ''],
       }, (response) => {
         if (response.buttonId !== 1) return;
         const name = response.textEntries
           .find((entry) => entry.entryId === 1)?.text ?? '';
-        ctx.state.sendSystemMessage(`Cześć ${name}!`);
+        ctx.state.sendSystemMessage(`Hello ${name}!`);
       });
     },
   });
 }
 ```
 
-Odpowiedź zawiera:
+The response contains:
 
 ```js
 {
-  serial,        // właściciel / kontekst gumpa
-  gumpId,        // identyfikator instancji
-  buttonId,      // kliknięty przycisk; 0 zwykle oznacza zamknięcie
-  switches,      // zaznaczone radio/checkbox IDs
+  serial,        // gump owner/context
+  gumpId,        // instance identifier
+  buttonId,      // clicked button; 0 usually means close
+  switches,      // selected radio/checkbox IDs
   textEntries,   // [{ entryId, text }]
 }
 ```
 
-Serwer waliduje odpowiedź względem kontrolek wysłanego gumpa, limituje liczbę
-aktywnych okien i usuwa callback po pierwszej poprawnej odpowiedzi. Nie ufaj
-mimo to treści z `textEntries`: sprawdzaj długość, zakres i uprawnienia gracza.
+The server validates a response against the controls it sent, limits the number
+of active windows, and removes the callback after the first valid response.
+Still treat `textEntries` as untrusted: validate length, range, and player access.
 
-## Gump w pełni opisany JSON-em
+## Fully JSON-defined gump
 
 ```json
 {
@@ -75,16 +83,16 @@ mimo to treści z `textEntries`: sprawdzaj długość, zakres i uprawnienia grac
   "height": 220,
   "controls": [
     { "type": "panel", "x": 0, "y": 0, "width": 360, "height": 220, "artId": 5054 },
-    { "type": "label", "x": 24, "y": 18, "width": 300, "height": 20, "hue": 1153, "text": "Nagroda dla {{playerName}}" },
+    { "type": "label", "x": 24, "y": 18, "width": 300, "height": 20, "hue": 1153, "text": "Reward for {{playerName}}" },
     { "type": "image", "x": 24, "y": 55, "width": 64, "height": 64, "artId": 10400 },
     { "type": "button", "x": 24, "y": 165, "width": 30, "height": 24, "normalId": 4023, "pressedId": 4024, "buttonId": 1 },
-    { "type": "label", "x": 62, "y": 167, "width": 120, "height": 20, "hue": 1149, "text": "Odbierz" }
+    { "type": "label", "x": 62, "y": 167, "width": 120, "height": 20, "hue": 1149, "text": "Claim" }
   ]
 }
 ```
 
-Teksty `{{name}}` korzystają z `gump.values`. Dla source-linked override'u
-dostępne są też `texts` i `original`:
+`{{name}}` text placeholders read from `gump.values`. Source-linked overrides
+can also access `texts` and `original`:
 
 ```js
 api.gumps.send(ctx.state, {
@@ -95,29 +103,29 @@ api.gumps.send(ctx.state, {
 }, onResponse);
 ```
 
-## Kontrolki JSON
+## JSON controls
 
-| Typ | Najważniejsze pola |
+| Type | Main fields |
 | --- | --- |
 | `panel` | `x`, `y`, `width`, `height`, `artId` |
-| `label` | geometria, `text`, `hue` |
-| `button` | geometria, `normalId`, `pressedId`, `buttonId`, `quit`, `page` |
-| `textentry` | geometria, `entryId`, `text`, `hue` |
+| `label` | geometry, `text`, `hue` |
+| `button` | geometry, `normalId`, `pressedId`, `buttonId`, `quit`, `page` |
+| `textentry` | geometry, `entryId`, `text`, `hue` |
 | `checkbox` / `radio` | `uncheckedId`, `checkedId`, `switchId`, `checked` |
-| `image` | `artId`, opcjonalnie geometria |
+| `image` | `artId`, optional geometry |
 | `tilepic` | `artId`, `hue` |
-| `html` | geometria, `text`, `background`, `scrollbar` |
-| `alpha` | geometria |
+| `html` | geometry, `text`, `background`, `scrollbar` |
+| `alpha` | geometry |
 | `page` | `page` |
 
-Każdy gump i każda interaktywna kontrolka powinny mieć stabilny identyfikator.
-Nie wyliczaj `buttonId` z pozycji rekordu, jeśli kolejność może się zmienić.
+Every gump and interactive control should have a stable identifier. Do not
+derive `buttonId` from record position when ordering can change.
 
-## Source-linked gumpy serwera
+## Source-linked server gumps
 
-Skrypt `pnpm catalog:gumps:server` skanuje wywołania `api.gumps.send` i aktualizuje
-`server-gump-catalog.json`. Rekord zawiera ścieżkę źródła i linię, dlatego można
-przejść z projektanta bezpośrednio do funkcjonalnego JavaScriptu.
+`pnpm catalog:gumps:server` scans `api.gumps.send` calls and updates
+`server-gump-catalog.json`. Each record retains a source path and line, allowing
+the designer to open its functional JavaScript directly.
 
 ```json
 {
@@ -132,14 +140,14 @@ przejść z projektanta bezpośrednio do funkcjonalnego JavaScriptu.
 }
 ```
 
-`enabled: false` jest bezpiecznym ustawieniem: produkcyjny layout pozostaje w
-kodzie. Po odtworzeniu kontrolek w edytorze ustaw `enabled: true`; resolver
-zastąpi layout, ale callback i cała logika skryptu pozostaną bez zmian.
+`enabled: false` is the safe default: production layout remains in code. After
+recreating controls in the editor, set `enabled: true`; the resolver replaces
+the layout while preserving the callback and all script logic.
 
-## Lokalne gumpy klienta
+## Local client gumps
 
-Każda znaleziona klasa gumpa ma rekord w `client-gumps.json`. Rekord jest
-nakładką na działający kod klienta:
+Every discovered gump class has a record in `client-gumps.json`. The record is
+an overlay on working client code:
 
 ```json
 {
@@ -156,31 +164,43 @@ nakładką na działający kod klienta:
 }
 ```
 
-Najstabilniejszym selektorem jest `controlId` nadany kontrolce w konstruktorze
-przez `setLayoutId()`. Przetrwa on dodawanie i zmianę kolejności innych elementów.
-Starsze gumpy można nadal wskazać przez `className` + `classIndex` albo ścieżką
-indeksów dzieci, np. `0.2`.
+The most stable selector is a `controlId` assigned by `setLayoutId()` in the
+constructor. It survives insertion and reordering of other elements. Older
+gumps can still be addressed by `className` + `classIndex` or a child-index
+path such as `0.2`.
 
-Plik jest częścią statycznych zasobów klienta. Jeśli fetch zakończy się błędem,
-rekord jest błędny albo klient łączy się z obcym serwerem, konstruktor JS nadal
-tworzy pełne okno. Dzięki temu edycja wizualna nie jest warunkiem kompatybilności.
+The file is a static client asset. If fetching fails, a record is invalid, or
+the client connects to a third-party shard, the JS constructor still builds the
+complete window. Visual editing is therefore never a compatibility requirement.
 
-## Edycja w Content Studio
+### Visual-novel NPC dialog
 
-1. Wybierz **Gumps & layouts**.
-2. `config/gumps.json` edytuje gumpy data-driven.
-3. `config/server-gump-catalog.json` pokazuje wszystkie wykryte miejsca wysyłki.
-4. `@client/client-gumps.json` edytuje lokalne okna klienta.
-5. Przeciągaj kontrolki na scenie, zmieniaj ich rozmiar i używaj pickerów grafiki.
-6. Sprawdź ostrzeżenia o overflow, zduplikowanych ID i brakujących polach.
-7. Publikacja tworzy backup. Dla klienta potrzebny jest ponowny build/reload strony;
-   dla serwera wystarcza hot reload, jeśli zmieniany plik należy do scripts data.
+The dialog has a `client:npc-dialog-gump` record and a ready set of stable
+controls: frame, panels, portrait, name, title, dialog text, list, and 24 action
+slots named `action-1` through `action-24`. The same editor can move, resize,
+hide, and change the opacity, text, hue, or graphic of each control. Dynamically
+rebuilt NPC buttons receive their Studio overrides again after every response.
 
-## Reguły bezpieczeństwa i wydajności
+Conversation content and logic remain server-side and are edited through quest
+data, vendor data, and NPC scripts. Disabling the override restores the built-in
+client template; without `NpcDialog` negotiation, standard UO behavior remains.
 
-- Nie generuj nieograniczonej liczby kontrolek z danych gracza.
-- Trzymaj teksty i odpowiedzi w rozsądnych limitach.
-- Nie wykonuj akcji tylko dlatego, że przyszedł `buttonId`; ponownie sprawdź ACL.
-- Duże gumpy są automatycznie pakowane, ale nadal mają limit rozmiaru pakietu UO.
-- Callback jest połączeniowy i krótkotrwały; trwały workflow zapisuj jako dane gracza.
-- Dynamiczne listy stronicuj zamiast wysyłać tysiące wierszy.
+## Editing in Content Studio
+
+1. Select **Gumps & layouts**.
+2. Edit data-driven gumps in `config/gumps.json`.
+3. Inspect all discovered send sites in `config/server-gump-catalog.json`.
+4. Edit local client windows in `@client/client-gumps.json`.
+5. Drag and resize controls on the canvas and use the graphic pickers.
+6. Resolve overflow, duplicate-ID, and missing-field warnings.
+7. Publishing creates a backup. Client changes need a rebuild/page reload;
+   server script-data changes need only a hot reload.
+
+## Safety and performance rules
+
+- Never generate an unbounded number of controls from player data.
+- Keep text and response counts within reasonable limits.
+- Never execute an action solely because a `buttonId` arrived; recheck ACL.
+- Large gumps are packed automatically but still have a UO packet-size limit.
+- A callback is connection-scoped and short-lived; store durable workflows as player data.
+- Paginate dynamic lists instead of sending thousands of rows.

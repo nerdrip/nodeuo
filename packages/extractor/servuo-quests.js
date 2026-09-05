@@ -1,6 +1,6 @@
 // ServUO quest extractor — walks `templates/ServUO/Scripts/Quests/`
 // recursively and pulls out each quest's metadata. Output:
-// `apps/scripts/src/data/quests-extracted.json` (kept distinct from
+// `apps/scripts/src/data/world/quests-extracted.json` (kept distinct from
 // the hand-authored `quests.json` so the runtime can prefer authored
 // over extracted when both define the same key).
 //
@@ -31,7 +31,7 @@ import { fileURLToPath } from 'node:url';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..', '..');
 const QUESTS_DIR = join(ROOT, 'templates', 'ServUO', 'Scripts', 'Quests');
-const OUT = join(ROOT, 'apps', 'scripts', 'src', 'data', 'quests-extracted.json');
+const OUT = join(ROOT, 'apps', 'scripts', 'src', 'data', 'world', 'quests-extracted.json');
 
 const RX_CLASS = /public\s+class\s+([A-Za-z0-9_]+)\s*:\s*([A-Za-z0-9_]+)/;
 const RX_OVERRIDE_INT = (name) => new RegExp(`override\\s+int\\s+${name}\\s*\\{\\s*get\\s*\\{\\s*return\\s+(\\d+)`);

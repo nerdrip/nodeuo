@@ -21,7 +21,7 @@ const SKILL_NAMES = {
   41: 'Swordsmanship', 42: 'Mace Fighting', 43: 'Fencing', 44: 'Wrestling', 45: 'Lumberjacking',
   46: 'Mining', 47: 'Meditation', 48: 'Stealth', 49: 'Remove Trap', 50: 'Necromancy',
   51: 'Focus', 52: 'Chivalry',
-  // BUGFIX #111 (FAZA GA): SA/ML schools were missing from the skill
+  // BUGFIX #111 (PHASE GA): SA/ML schools were missing from the skill
   // name dictionary — `[skills` printed "Skill 53: 80" instead of
   // "Bushido: 80". Players had to memorise the numeric ids.
   53: 'Bushido', 54: 'Ninjitsu', 55: 'Spellweaving', 56: 'Mysticism',

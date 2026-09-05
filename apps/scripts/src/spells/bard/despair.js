@@ -16,6 +16,9 @@ export default {
           if (m === caster || m.notoriety === 1) return;
           m.statDebuffUntil = Date.now() + 20_000;
           m.statDebuffPct = 0.10;
+          m._despairUntil = Date.now() + 20_000;
+          m._despairDmg = 10;
+          m._despairNextTickAt = Date.now() + 2_000;
         });
   },
 };

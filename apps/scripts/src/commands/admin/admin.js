@@ -33,7 +33,7 @@ export default function register(api) {
       switch (tab) {
         case 'gump':
         case 'panel': {
-          // Faza H.3 — open the AdminGump overlay (self-installing,
+          // Phase H.3 — open the AdminGump overlay (self-installing,
           // listens to chat:system bus + dispatches `[admin <tab>` chat).
           ctx.state.sendSystemMessage?.('@@OPEN_ADMIN_GUMP@@');
           return;

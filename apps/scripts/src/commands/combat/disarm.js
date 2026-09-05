@@ -1,4 +1,4 @@
-// FAZA EM — `[disarm` Remove Trap activity for chests.
+// PHASE EM — `[disarm` Remove Trap activity for chests.
 //
 // ServUO `Skills/RemoveTrap.cs`: targeted on a trapped container,
 // runs a Remove Trap skill check; on success clears `item.trapped`,

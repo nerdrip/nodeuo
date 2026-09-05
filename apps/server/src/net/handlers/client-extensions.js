@@ -7,6 +7,67 @@ import {
 import { setItemParent } from '../../world/items.js';
 import { nearbyClients } from '../../world/visibility.js';
 import { Stage } from '../net-state.js';
+import { sendNodeUOFeature } from './nodeuo-modern.js';
+import { customHouseDesign } from '../custom-house-packets.js';
+
+function customHouseOrigin(state, house) {
+  return state.ctx.world?.items?.get?.(house?.multiSerial >>> 0)
+    ?? { x: house?.x1 | 0, y: house?.y1 | 0, z: house?.z | 0 };
+}
+
+function customWorldXY(state, house, x, y) {
+  const origin = customHouseOrigin(state, house);
+  return { x: (origin.x | 0) + (x | 0), y: (origin.y | 0) + (y | 0) };
+}
+
+function customWorldZ(state, house, z) {
+  return (customHouseOrigin(state, house).z | 0) + (z | 0);
+}
+
+const HOUSING_SUBOPS = new Set([
+  0x02, 0x03, 0x04, 0x05, 0x06, 0x0C, 0x0D, 0x0E,
+  0x10, 0x12, 0x13, 0x14, 0x1A,
+]);
+
+const HOUSING_BODY_MINIMUM = new Map([
+  [0x02, 1], [0x03, 1], [0x04, 1], [0x05, 21], [0x06, 16],
+  [0x0C, 1], [0x0D, 16], [0x0E, 1], [0x10, 1], [0x12, 6],
+  [0x13, 21], [0x14, 21], [0x1A, 1],
+]);
+
+export function sendHouseDesignDetails(state, house, { response = true } = {}) {
+  if (!state || !house) return false;
+  const ownDraft = house.editing?.editorSerial === (state.mobile?.serial >>> 0);
+  const tiles = ownDraft
+    ? house.editing.tiles
+    : (house.tiles ?? []).filter((tile) => tile.kind !== 'door' && tile.kind !== 'teleport');
+  const revision = ownDraft ? house.editing.revision : house.revision;
+  try {
+    state.send(customHouseDesign({
+      serial: house.multiSerial ?? house.id,
+      revision: revision | 0,
+      response,
+      origin: customHouseOrigin(state, house),
+      tiles,
+    }));
+    return true;
+  } catch (error) {
+    console.warn(`[housing] could not encode design #${house.id}: ${error.message}`);
+    return false;
+  }
+}
+
+export function handleHouseDesignRequest(state, serial) {
+  if (state.stage !== Stage.InWorld || !state.mobile) return false;
+  const houses = state.ctx.houses ?? state.ctx.systems?.houses;
+  const house = houses?.houseByMultiSerial?.(serial) ?? null;
+  if (!house || house.map !== state.mobile.map) return false;
+  const origin = customHouseOrigin(state, house);
+  const range = Math.max(18, state.viewRange | 0);
+  if (Math.max(Math.abs((state.mobile.x | 0) - (origin.x | 0)),
+    Math.abs((state.mobile.y | 0) - (origin.y | 0))) > range) return false;
+  return sendHouseDesignDetails(state, house, { response: true });
+}
 
 // ---------------------------------------------------------------------------
 // 0x95 HuePickerResponse — fixed 9B (op + dialogId u32 + itemId u16 + hue u16)
@@ -234,8 +295,8 @@ export function handleUnequipMacro(state, pkt) {
 //   0x14 DeleteRoof   — remove (g, x, y, z) tagged roof
 //   0x1A Revert       — drop the editing buffer
 //
-// We resolve the player's house via `state.ctx.systems.houses.housesOf(serial)[0]`
-// — multi-house players need a target picker, MVP picks the first.
+// We resolve the active house selected by the sign/gump, then fall back to the
+// standard hinted foundation serial and finally the player's first house.
 // ---------------------------------------------------------------------------
 
 export function handleHouseCustomization(state, pkt) {
@@ -243,21 +304,59 @@ export function handleHouseCustomization(state, pkt) {
   if (pkt.length < 9) return;
   const r = new PacketReader(pkt);
   r.readU8();
-  r.readU16();         // length
+  const declaredLength = r.readU16();
+  if (declaredLength !== pkt.length) return;
   const hintedSerial = r.readU32(); // player serial on CUO; house serial on a few legacy clients
   const sub = r.readU16();
 
+  // 0xD7 is also ServUO's generic encoded-command envelope. Resolve a house
+  // only for the customization subcommands; weapon abilities, guild and quest
+  // requests must keep working for characters that do not own a house.
   const houseRegistry = state.ctx.houses ?? state.ctx.systems?.houses;
-  if (!houseRegistry) return;
-  const house = houseRegistry.activeHouseFor?.(
-    state.mobile, state._activeHouseId, hintedSerial,
-  ) ?? (houseRegistry.housesOf?.(state.mobile.serial) ?? [])[0] ?? null;
-  if (!house) {
-    state.sendSystemMessage?.('You do not own a house to customize.');
-    return;
+  let house = null;
+  if (HOUSING_SUBOPS.has(sub)) {
+    if (r.remaining < (HOUSING_BODY_MINIMUM.get(sub) ?? 1)) return;
+    const separatedFields = (sub === 0x05 || sub === 0x13 || sub === 0x14)
+      ? 4 : (sub === 0x06 || sub === 0x0D) ? 3 : 0;
+    for (let index = 0; index < separatedFields; index++) {
+      if (pkt[9 + index * 5] !== 0) return;
+    }
+    if (!houseRegistry) return;
+    house = houseRegistry.activeHouseFor?.(
+      state.mobile, state._activeHouseId, hintedSerial,
+    ) ?? (houseRegistry.housesOf?.(state.mobile.serial) ?? [])[0] ?? null;
+    if (!house) {
+      state.sendSystemMessage?.('You do not own a house to customize.');
+      return;
+    }
+    if (!house.customizable) {
+      state.sendSystemMessage?.('This classic house cannot be customized.');
+      return;
+    }
+    const mx = state.mobile.x | 0, my = state.mobile.y | 0;
+    const dx = mx < (house.x1 | 0) ? (house.x1 | 0) - mx
+      : mx > (house.x2 | 0) ? mx - (house.x2 | 0) : 0;
+    const dy = my < (house.y1 | 0) ? (house.y1 | 0) - my
+      : my > (house.y2 | 0) ? my - (house.y2 | 0) : 0;
+    if (state.mobile.map !== house.map || Math.max(dx, dy) > 3) {
+      state.sendSystemMessage?.('You must remain at the house to customize it.');
+      return;
+    }
+    if (house.editing && house.editing.editorSerial !== (state.mobile.serial >>> 0)) {
+      state.sendSystemMessage?.('That house is already being edited.');
+      return;
+    }
   }
 
   const ack = (msg) => state.sendSystemMessage?.(msg);
+  const richResult = (operation, ok, message, extra = {}) => {
+    sendNodeUOFeature(state, {
+      feature: 'housing.tools', delivery: 'reliable',
+      payload: { eventKind: 0, requestId: 0, data: {
+        operation, ok: !!ok, message, ...extra,
+      } },
+    });
+  };
 
   // Subop body parsers — ServUO/CUO writes u8 0x00 separators before
   // each u32 to avoid reading into framing slop.
@@ -266,23 +365,52 @@ export function handleHouseCustomization(state, pkt) {
 
   switch (sub) {
     case 0x02:
-      houseRegistry.beginEditing?.(house, state.mobile);
-      houseRegistry.backupCustom?.(house);
-      ack('House layout backed up.');
+      if (!house.editing && !houseRegistry.beginEditing?.(house, state.mobile)) {
+        ack('Could not enter house design mode.');
+      } else if (houseRegistry.backupCustom?.(house)) {
+        ack('House layout backed up.');
+      } else {
+        ack('Could not back up the house layout.');
+      }
       break;
     case 0x03:
-      if (houseRegistry.restoreCustom?.(house)) ack('House layout restored from backup.');
+      if (houseRegistry.restoreCustom?.(house)) {
+        ack('House layout restored from backup.');
+        sendHouseDesignDetails(state, house);
+      }
       else ack('No backup to restore.');
       break;
     case 0x04:
-      if (houseRegistry.commitCustom?.(house)) ack(`House layout committed (${house.tiles?.length ?? 0} tiles).`);
-      else ack('Not in edit mode.');
+      if (houseRegistry.commitCustom?.(house)) {
+        const message = `House layout committed (${house.tiles?.length ?? 0} tiles).`;
+        ack(message);
+        richResult('commit', true, message, { revision: house.revision | 0, tileCount: house.tiles?.length ?? 0 });
+        const revisionPacket = state.ctx.protocol?.extHouseRevision?.({
+          serial: house.multiSerial ?? house.id, revision: house.revision | 0,
+        });
+        const foundation = customHouseOrigin(state, house);
+        if (revisionPacket) {
+          for (const viewer of nearbyClients(state.ctx.world, foundation)) viewer.client?.send?.(revisionPacket);
+        }
+        const packet = state.ctx.protocol?.extHouseCustomization?.({
+          serial: house.multiSerial ?? house.id, type: 5,
+          x: -1, y: -1, z: -1,
+        });
+        if (packet) state.send(packet);
+      } else {
+        const validation = houseRegistry.validateCustom?.(house);
+        const message = validation?.errors?.[0] ?? 'Not in edit mode.';
+        ack(message);
+        richResult('commit', false, message, { validation });
+      }
       break;
     case 0x05: {
       const g = readSepU32();
-      const x = readSepU32();
-      const y = readSepU32();
-      const z = readSepI32();
+      const rawX = readSepU32();
+      const rawY = readSepU32();
+      const rawZ = readSepI32();
+      const { x, y } = customWorldXY(state, house, rawX, rawY);
+      const z = customWorldZ(state, house, rawZ);
       if (!house.editing) houseRegistry.beginEditing?.(house, state.mobile);
       const removed = houseRegistry.removeCustomItem?.(house, g, x, y, z) ?? 0;
       if (!removed) ack('No matching tile to remove.');
@@ -290,34 +418,58 @@ export function handleHouseCustomization(state, pkt) {
     }
     case 0x06: {
       const g = readSepU32();
-      const x = readSepU32();
-      const y = readSepU32();
-      const kindCode = r.remaining >= 2 ? r.readU8() : 0;
-      const kind = ['item', 'wall', 'door', 'floor', 'misc', 'teleport'][kindCode] ?? 'item';
+      const rawX = readSepU32();
+      const rawY = readSepU32();
+      const { x, y } = customWorldXY(state, house, rawX, rawY);
+      // Standard 0xD7 ends here. Accept the one-byte role hint emitted by
+      // short-lived pre-standard NodeUO builds, otherwise derive behavior
+      // from the authoritative housedata catalogue.
+      const kindCode = r.remaining >= 2 ? r.readU8() : -1;
+      const kind = kindCode >= 0
+        ? (['item', 'wall', 'door', 'floor', 'misc', 'teleport'][kindCode] ?? 'item')
+        : houseRegistry.customPieceKind?.(g, 'item') ?? 'item';
       if (!house.editing) houseRegistry.beginEditing?.(house, state.mobile);
       const floor = Math.max(1, Math.min(4, house.editing?.floor | 0 || 1));
-      houseRegistry.addCustomItem?.(house, kind, g, x, y, (house.z | 0) + 7 + (floor - 1) * 20);
+      if (!houseRegistry.addCustomItem?.(house, kind, g, x, y, (house.z | 0) + 7 + (floor - 1) * 20)) {
+        ack('That house piece is invalid, outside the foundation, or exceeds the design limit.');
+      }
       break;
     }
     case 0x0C:
-      if (houseRegistry.revertCustom?.(house)) ack('Exited customization without saving.');
+      if (houseRegistry.revertCustom?.(house)) {
+        ack('Exited customization without saving.');
+        sendHouseDesignDetails(state, house);
+        houseRegistry.setFixturesVisibleTo?.(house, state, true);
+      }
+      {
+        const packet = state.ctx.protocol?.extHouseCustomization?.({
+          serial: house.multiSerial ?? house.id, type: 5,
+          x: -1, y: -1, z: -1,
+        });
+        if (packet) state.send(packet);
+      }
       break;
     case 0x0D: {
       const g = readSepU32();
-      const x = readSepU32();
-      const y = readSepU32();
+      const rawX = readSepU32();
+      const rawY = readSepU32();
+      const { x, y } = customWorldXY(state, house, rawX, rawY);
       if (!house.editing) houseRegistry.beginEditing?.(house, state.mobile);
       const floor = Math.max(1, Math.min(4, house.editing?.floor | 0 || 1));
-      houseRegistry.addCustomItem?.(house, 'stair', g, x, y, (house.z | 0) + 7 + (floor - 1) * 20);
+      if (!houseRegistry.addCustomItem?.(house, 'stair', g, x, y, (house.z | 0) + 7 + (floor - 1) * 20)) {
+        ack('That stair cannot be placed there.');
+      }
       break;
     }
     case 0x0E:
       ack(`Sync — revision ${house.revision ?? 0}, tiles ${house.tiles?.length ?? 0}.`);
+      sendHouseDesignDetails(state, house);
       break;
     case 0x10:
       if (!house.editing) houseRegistry.beginEditing?.(house, state.mobile);
       houseRegistry.clearCustomTiles?.(house);
       ack('Cleared editing buffer.');
+      sendHouseDesignDetails(state, house);
       break;
     case 0x12: {
       const _pad = r.readU32(); void _pad;
@@ -328,24 +480,31 @@ export function handleHouseCustomization(state, pkt) {
     }
     case 0x13: {
       const g = readSepU32();
-      const x = readSepU32();
-      const y = readSepU32();
-      const z = readSepI32();
+      const rawX = readSepU32();
+      const rawY = readSepU32();
+      const rawZ = readSepI32();
+      const { x, y } = customWorldXY(state, house, rawX, rawY);
+      const z = customWorldZ(state, house, rawZ);
       if (!house.editing) houseRegistry.beginEditing?.(house, state.mobile);
-      houseRegistry.addCustomItem?.(house, 'roof', g, x, y, z);
+      if (!houseRegistry.addCustomItem?.(house, 'roof', g, x, y, z)) ack('That roof piece cannot be placed there.');
       break;
     }
     case 0x14: {
       const g = readSepU32();
-      const x = readSepU32();
-      const y = readSepU32();
-      const z = readSepI32();
+      const rawX = readSepU32();
+      const rawY = readSepU32();
+      const rawZ = readSepI32();
+      const { x, y } = customWorldXY(state, house, rawX, rawY);
+      const z = customWorldZ(state, house, rawZ);
       if (!house.editing) houseRegistry.beginEditing?.(house, state.mobile);
       houseRegistry.removeCustomItem?.(house, g, x, y, z);
       break;
     }
     case 0x1A:
-      if (houseRegistry.revertCustom?.(house)) ack('Reverted edits.');
+      if (houseRegistry.revertCustom?.(house)) {
+        ack('Reverted edits.');
+        sendHouseDesignDetails(state, house);
+      }
       break;
     // -----------------------------------------------------------------
     // Encoded (ServUO `RegisterEncoded`) — these subops aren't house
@@ -398,7 +557,7 @@ export function handleHouseCustomization(state, pkt) {
       // ML quest registry; fallback to a system-message summary so the
       // player at least knows which quests they hold.
       const ml = state.ctx?.mlQuests ?? state.ctx?.systems?.mlQuests;
-      const active = ml?.listActive?.(state.mobile?.serial) ?? [];
+      const active = ml?.listActive?.(state.mobile) ?? [];
       if (!active.length) {
         state.sendSystemMessage?.('You have no active quests.');
         break;

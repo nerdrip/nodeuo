@@ -133,10 +133,10 @@ export function tickPlants(world, now = Date.now()) {
     for (const it of world.items.values()) if (it.plant) idx.add(it.serial);
     world._plants = idx;
   }
-  for (const serial of [...idx]) {
+  for (const serial of idx) {
     const it = world.items.get(serial);
     if (!it?.plant) { idx.delete(serial); continue; }
-    if (now - (it.plant.lastTickAt | 0) < TICK_INTERVAL_MS) continue;
+    if (now - (Number(it.plant.lastTickAt) || 0) < TICK_INTERVAL_MS) continue;
     _advance(it, now);
   }
 }

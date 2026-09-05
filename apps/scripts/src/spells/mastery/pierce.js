@@ -6,6 +6,6 @@ export default {
   name: 'pierce',
   cast(api, ctx) {
     const caster = ctx.sender;
-    caster.pierceCharge = 1;
+    caster._pierceCharge = 1;
   },
 };

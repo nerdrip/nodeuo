@@ -9,8 +9,10 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { allMobiles } from '../_spatial.js';
-import { canCreateItem, createItem } from '../_items.js';
+import { allItems, allMobiles } from '../_spatial.js';
+import { canCreateItem, createItem, destroyItemBySerial } from '../_items.js';
+import { registerWorldContentSeed } from '../_world-content.js';
+import { itemBySerial } from '../_entities.js';
 
 const __dirname_ = dirname(fileURLToPath(import.meta.url));
 // Lazy-load the artifact catalogue once. Same file the imbue / unravel
@@ -55,31 +57,32 @@ export default function register(api) {
 
   /** @type {Map<string, any>} */
   const altars = new Map();
+  /** @type {Map<string, any>} */
+  const visuals = new Map();
   const spawnFactory = (world, kind, pos) => {
     const ctx = api.ctx;
     if (!ctx?.spawnFactory) return null;
     return ctx.spawnFactory(world, kind, pos);
   };
 
-  // FAZA BT: send a 0xBF 0xCC status payload to every player within the
+  // Send a typed status payload to every enhanced player within the
   // altar's `radius * 4` (so the bar appears before they aggro mobs but
   // not for someone on the other side of the map). Boss spawn / kill
   // / tier advance / kill counter all flow through this.
   function broadcastStatus(world, cfg, status) {
-    const pkt = api.protocol?.extChampionStatus?.(status);
-    if (!pkt) return;
+    const feature = 'world.champion';
     const range = cfg.radius * 4;
     for (const m of allMobiles({ world })) {
       if (!m.client) continue;
-      if (!m.client.supportsNodeUO?.(api.protocol?.NodeUOCapability?.RichGumps ?? 1)) continue;
+      if (!m.client.supportsNodeUO?.(feature)) continue;
       if (m.map !== cfg.map) continue;
       if (Math.abs(m.x - cfg.cx) > range) continue;
       if (Math.abs(m.y - cfg.cy) > range) continue;
-      m.client.send(pkt);
+      api.nodeUO?.send?.(m.client, { feature, namespace: 'nodeuo.champion', payload: status });
     }
   }
 
-  // FAZA BT bugfix #36: tell observers the despawned mob is gone.
+  // PHASE BT bugfix #36: tell observers the despawned mob is gone.
   function despawn(world, serial) {
     const removeFn = api.protocol?.removeEntity;
     if (!removeFn) return;
@@ -127,7 +130,15 @@ export default function register(api) {
   // tile players can navigate to. Without this the champ system runs
   // with no on-map landmark.
   function placeAltarVisual(cfg) {
-    if (!canCreateItem(api, api.world)) return;
+    const existing = [...allItems(api)].find((item) =>
+      (item.champion === cfg.name || item.name === `Champion Altar: ${cfg.name}`) &&
+      item.map === cfg.map && item.x === cfg.cx && item.y === cfg.cy && item.z === cfg.cz);
+    if (existing) {
+      existing.champion = cfg.name;
+      visuals.set(cfg.name, existing);
+      return { item: existing, added: 0 };
+    }
+    if (!canCreateItem(api, api.world)) return { item: null, added: 0, failed: 1 };
     try {
       const altarItem = createItem(api, api.world, {
         itemId: 0x32F0,                 // ServUO peerless/champion altar art
@@ -138,13 +149,15 @@ export default function register(api) {
         hue: 0x47E,
       });
       altarItem.champion = cfg.name;
+      visuals.set(cfg.name, altarItem);
+      return { item: altarItem, added: 1 };
     } catch (e) {
       api.log?.(`[champ] altar visual for ${cfg.name} failed: ${e.message}`);
+      return { item: null, added: 0, failed: 1 };
     }
   }
 
   for (const cfg of ALTARS) {
-    placeAltarVisual(cfg);
     const a = new ChampionAltar(api.world, cfg, { spawnFactory, broadcastStatus, despawn });
     a.onBossDeath = () => {
       const text = `The champion of ${cfg.name} has fallen!`;
@@ -172,7 +185,7 @@ export default function register(api) {
         const offsetX = ((Math.random() - 0.5) * 4) | 0;
         const offsetY = ((Math.random() - 0.5) * 4) | 0;
         // Mark the scroll with its payload via custom fields. The use-handler
-        // (FAZA O part 3) reads `powerScroll` to apply the cap upgrade and
+        // (PHASE O part 3) reads `powerScroll` to apply the cap upgrade and
         // delete the scroll. For now the scroll is just a labelled item on
         // the floor that visibly proves the boss kill paid off.
         const item = createItem(api, api.world, {
@@ -183,7 +196,7 @@ export default function register(api) {
           movable: true,
         });
         item.powerScroll = { skillId, amount };
-        // BUGFIX #68 (FAZA CZ): visibility-gate. Each cluster spawn
+        // BUGFIX #68 (PHASE CZ): visibility-gate. Each cluster spawn
         // is 5–7 power-scrolls; without filtering, a champ kill flooded
         // every connected client with 5–7 worldItemSA packets each.
         // Filter to the canon UO 18-tile radius around the drop tile.
@@ -270,6 +283,48 @@ export default function register(api) {
     altars.set(cfg.name, a);
   }
 
+  const applyChampionLandmarks = (opts = {}) => {
+    const facets = opts.facets ? new Set(opts.facets) : null;
+    const result = { added: 0, failed: 0 };
+    for (const cfg of ALTARS) {
+      if (facets && !facets.has(cfg.map)) continue;
+      const row = placeAltarVisual(cfg);
+      result.added += row?.added ?? 0;
+      result.failed += row?.failed ?? 0;
+    }
+    return result;
+  };
+  const removeChampionLandmarks = (opts = {}) => {
+    const facets = opts.facets ? new Set(opts.facets) : null;
+    const eligible = ALTARS.filter((cfg) => !facets || facets.has(cfg.map));
+    for (const cfg of eligible) altars.get(cfg.name)?.stop?.();
+    const names = new Set(eligible.map((cfg) => cfg.name));
+    const serials = new Set();
+    for (const item of allItems(api)) {
+      const champion = item.champion ?? String(item.name ?? '').replace(/^Champion Altar: /, '');
+      if (names.has(champion) && String(item.name ?? '').startsWith('Champion Altar:') &&
+          (!facets || facets.has(item.map))) {
+        serials.add(item.serial >>> 0);
+      }
+    }
+    for (const name of names) {
+      const item = visuals.get(name);
+      if (item) serials.add(item.serial >>> 0);
+    }
+    let removed = 0;
+    for (const serial of serials) {
+      try { if (itemBySerial(api, serial)) { destroyItemBySerial(api, serial); removed++; } }
+      catch (e) { api.log?.(`[champ] altar removal failed: ${e.message}`); }
+    }
+    for (const name of names) visuals.delete(name);
+    return { removed };
+  };
+  const unregisterSeed = registerWorldContentSeed(api, 'champion-altars', {
+    apply: applyChampionLandmarks,
+    remove: removeChampionLandmarks,
+  });
+  if (api.world._createWorldDone !== false) applyChampionLandmarks();
+
   // 5-second tick — slow enough that the wave isn't constantly thrashing
   // the spawner, fast enough that players see refresh within 5 seconds
   // of clearing a wave.
@@ -312,6 +367,7 @@ export default function register(api) {
   });
 
   return () => {
+    unregisterSeed();
     if (!api.lifecycle) clearInterval(timer);
     for (const a of altars.values()) a.stop();
     altars.clear();

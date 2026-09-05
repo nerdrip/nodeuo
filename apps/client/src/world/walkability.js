@@ -80,8 +80,7 @@ function forEachNearbyDynamicItem(tx, ty, map, visit) {
  * by `_sendMove` to refuse client-side prediction when we already
  * know the server would reject. Stops the visual "walk through wall"
  * flicker that happens when the client predicts a rejected step and
- * snaps back ~50-200 ms later. User report 2026-05-19 "postać
- * ignoruje kolizje i przechodzi przez ściany" was this prediction
+ * snaps back ~50-200 ms later. The apparent collision bypass was this prediction
  * window, not a real collision bug — server was correctly rejecting.
  *
  * Returns `false` (don't block) when the local data is missing or

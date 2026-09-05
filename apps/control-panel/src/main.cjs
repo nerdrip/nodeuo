@@ -6,7 +6,7 @@
 // events. Stopping a service kills the whole process tree on Windows
 // so a parent `cmd /c pnpm ...` doesn't orphan its node child.
 
-const { app, BrowserWindow, dialog, ipcMain } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
 const path = require('node:path');
 const { spawn, spawnSync } = require('node:child_process');
 const fs = require('node:fs');
@@ -15,6 +15,7 @@ const https = require('node:https');
 
 // Repo root = three dirs above this file (apps/control-panel/src/main.cjs).
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
+const CONTROL_PANEL_SMOKE = process.env.UO_CONTROL_PANEL_SMOKE === '1';
 
 // Canonical defaults — match the values hard-coded in tools/bats/*.bat so the
 // GUI launcher and the shell launchers behave identically out of the box.
@@ -209,6 +210,8 @@ let mainWin = null;
 function createWindow() {
   mainWin = new BrowserWindow({
     width: 1180, height: 760,
+    minWidth: 900, minHeight: 620,
+    show: !CONTROL_PANEL_SMOKE,
     title: 'UO-Node Control Panel',
     autoHideMenuBar: true,
     backgroundColor: '#1a1410',
@@ -219,6 +222,40 @@ function createWindow() {
     },
   });
   mainWin.loadFile(path.join(__dirname, 'renderer.html'));
+  if (CONTROL_PANEL_SMOKE) {
+    mainWin.webContents.once('did-finish-load', async () => {
+      try {
+        const result = await mainWin.webContents.executeJavaScript(`(async () => {
+          await window.__uoControlPanelReady;
+          return {
+            title: document.title,
+            serviceButtons: document.querySelectorAll('.svc-btn').length,
+            extractSteps: document.querySelectorAll('[data-extract-step]').length,
+            hasLogs: Boolean(document.getElementById('pane')),
+            hasSettings: Boolean(document.getElementById('settings-bar')),
+            initFailed: document.getElementById('pane')?.textContent?.startsWith('init failed:') ?? true,
+          };
+        })()`);
+        const ok = result.title === 'UO-Node Control Panel'
+          && result.serviceButtons >= 6
+          && result.extractSteps === 23
+          && result.hasLogs
+          && result.hasSettings
+          && !result.initFailed;
+        const screenshotPath = String(process.env.UO_CONTROL_PANEL_SMOKE_SCREENSHOT || '').trim();
+        if (screenshotPath) {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          const image = await mainWin.webContents.capturePage();
+          fs.writeFileSync(path.resolve(REPO_ROOT, screenshotPath), image.toPNG());
+        }
+        console.log(`[control-panel-smoke] ${JSON.stringify({ ok, ...result })}`);
+        app.exit(ok ? 0 : 1);
+      } catch (error) {
+        console.error(`[control-panel-smoke] ${error.stack || error.message}`);
+        app.exit(1);
+      }
+    });
+  }
   // Stop every running service when the window closes — avoids orphaned
   // node processes hanging around after the launcher quits.
   mainWin.on('closed', () => {
@@ -280,10 +317,19 @@ ipcMain.handle('kill-port', (_e, { port }) => {
   return { ok: true };
 });
 
-ipcMain.handle('open-url', (_e, { url }) => {
-  const { shell } = require('electron');
-  shell.openExternal(url);
+ipcMain.handle('open-url', async (_e, { url }) => {
+  let target;
+  try { target = new URL(String(url ?? '')); }
+  catch { return { ok: false, error: 'Invalid URL.' }; }
+  if (!['http:', 'https:'].includes(target.protocol)) {
+    return { ok: false, error: 'Only HTTP(S) links can be opened.' };
+  }
+  await shell.openExternal(target.href);
   return { ok: true };
+});
+
+ipcMain.handle('preflight-status', (_e, { sourcePath, toktxPath } = {}) => {
+  return getPreflightStatus(sourcePath, toktxPath);
 });
 
 // Renderer-side fetches are deliberately sandboxed and cannot reliably probe
@@ -341,10 +387,33 @@ function probeLoopbackHttp(rawUrl, timeoutMs = 1_500) {
   });
 }
 
+function getPreflightStatus(sourcePath, toktxPath) {
+  const source = String(sourcePath || DEFAULTS.UO_SRC).trim();
+  const required = SERVICES.extract.requiresUoSource;
+  let sourceNames = null;
+  if (source && fs.existsSync(source)) {
+    try { sourceNames = new Set(fs.readdirSync(source).map((name) => name.toLowerCase())); }
+    catch { sourceNames = null; }
+  }
+  const missingSourceFiles = sourceNames
+    ? required.filter((name) => !sourceNames.has(name.toLowerCase()))
+    : [...required];
+  const toktx = findToktxFast(toktxPath, process.env);
+  return {
+    uoSourceReady: Boolean(sourceNames && missingSourceFiles.length === 0),
+    missingSourceFiles,
+    servuoReady: fs.existsSync(path.join(REPO_ROOT, 'templates', 'ServUO')),
+    ktx2Ready: Boolean(toktx),
+    ktx2Path: toktx,
+  };
+}
+
 function startService(id, envOverride, options = {}) {
   const s = SERVICES[id];
   if (!s) return { ok: false, error: `Unknown service: ${id}` };
   if (running.has(id)) return { ok: false, error: `${s.label} is already running.` };
+  const env = { ...process.env, ...(s.env || {}), ...envOverride };
+  const servicePorts = resolveServicePorts(id, s, env);
 
   if (s.exclusiveGroup) {
     for (const otherId of running.keys()) {
@@ -402,16 +471,17 @@ function startService(id, envOverride, options = {}) {
   //
   // Co-started services are excluded from this swap — they were just
   // brought up by us above, killing them would defeat the coStart.
-  const wantPorts = new Set(s.ports || []);
+  const wantPorts = new Set(servicePorts);
   const coStarted = new Set(Array.isArray(s.coStart) ? s.coStart : []);
-  for (const [otherId, _entry] of running) {
+  for (const [otherId, entry] of running) {
     if (otherId === id) continue;
     if (coStarted.has(otherId)) continue;
     const other = SERVICES[otherId];
-    if (!other?.ports?.length) continue;
-    const overlap = other.ports.some((p) => wantPorts.has(p));
+    const otherPorts = entry.ports ?? other?.ports ?? [];
+    if (!otherPorts.length) continue;
+    const overlap = otherPorts.some((p) => wantPorts.has(p));
     if (overlap) {
-      emitLog(id, `[launcher] auto-stopping "${otherId}" (port conflict on ${other.ports.filter((p) => wantPorts.has(p)).join(', ')})`);
+      emitLog(id, `[launcher] auto-stopping "${otherId}" (port conflict on ${otherPorts.filter((p) => wantPorts.has(p)).join(', ')})`);
       stopService(otherId);
     }
   }
@@ -421,11 +491,10 @@ function startService(id, envOverride, options = {}) {
   // close) BEFORE the spawn so the new process gets a clean bind.
   // Without this, restarting Browser Client after the previous run
   // crashed would always fail with "Port 5173 already in use".
-  for (const port of (s.ports || [])) {
+  for (const port of servicePorts) {
     killByPort(port);
   }
 
-  const env = { ...process.env, ...(s.env || {}), ...envOverride };
   if (Array.isArray(s.requiresUoSource)) {
     const onlyArgIndex = Array.isArray(options.extraArgs)
       ? options.extraArgs.indexOf('--only')
@@ -528,7 +597,7 @@ function startService(id, envOverride, options = {}) {
     shell: true,
     windowsHide: true,
   });
-  running.set(id, { proc });
+  running.set(id, { proc, env, ports: servicePorts });
   emitLog(id, `[launcher] starting ${s.cmd} ${quotedArgs.join(' ')} (cwd=${REPO_ROOT})`);
   emitLog(id, `[launcher] env override: ${Object.keys(envOverride).join(', ') || '(none)'}`);
 
@@ -554,6 +623,24 @@ function startService(id, envOverride, options = {}) {
     mainWin.webContents.send('service:state', { id, running: true });
   }
   return { ok: true, pid: proc.pid };
+}
+
+function resolveServicePorts(id, service, env) {
+  const ports = new Set(service.ports || []);
+  const replaceDefault = (defaultValue, configuredValue) => {
+    const configured = Number(configuredValue);
+    if (!Number.isInteger(configured) || configured < 1 || configured > 65_535) return;
+    const fallback = Number(defaultValue);
+    if (Number.isInteger(fallback) && configured !== fallback) ports.delete(fallback);
+    ports.add(configured);
+  };
+  if (id === 'server' || id === 'admin') {
+    replaceDefault(DEFAULTS.UO_PORT, env.UO_PORT);
+    if (env.UO_TCP_PORT) replaceDefault(DEFAULTS.UO_TCP_PORT, env.UO_TCP_PORT);
+  }
+  if (id === 'admin') replaceDefault(DEFAULTS.UO_ADMIN_PORT, env.UO_ADMIN_PORT);
+  if (id === 'bridge-out') replaceDefault(DEFAULTS.UO_BRIDGE_PORT, env.UO_BRIDGE_PORT);
+  return [...ports];
 }
 
 /**
@@ -622,18 +709,20 @@ function stopService(id) {
   // fallback) is equivalent to SIGKILL and SKIPS the SIGINT
   // handler — user report 2026-05-18 "przedmioty z plecaka nie
   // zachowują się po wyłączeniu servera" was the symptom of that.
-  const adminPort = (SERVICES[id]?.env?.UO_ADMIN_PORT)
+  const adminPort = (e.env?.UO_ADMIN_PORT)
+                 ?? (SERVICES[id]?.env?.UO_ADMIN_PORT)
                  ?? (SERVICES[id]?.coStartEnv?.UO_ADMIN_PORT)
                  ?? DEFAULTS.UO_ADMIN_PORT;
-  const adminUser = SERVICES[id]?.env?.UO_ADMIN_USER ?? DEFAULTS.UO_ADMIN_USER;
-  const adminPass = SERVICES[id]?.env?.UO_ADMIN_PASS ?? DEFAULTS.UO_ADMIN_PASS;
+  const adminUser = e.env?.UO_ADMIN_USER ?? SERVICES[id]?.env?.UO_ADMIN_USER ?? DEFAULTS.UO_ADMIN_USER;
+  const adminPass = e.env?.UO_ADMIN_PASS ?? SERVICES[id]?.env?.UO_ADMIN_PASS ?? DEFAULTS.UO_ADMIN_PASS;
   const isServer = SERVICES[id]?.group === 'server' || SERVICES[id]?.group === 'admin';
   const finishKill = () => {
+    if (running.get(id)?.proc !== e.proc || e.proc.exitCode != null || e.proc.signalCode != null) return;
     if (process.platform === 'win32') {
       try {
         spawn('taskkill', ['/pid', String(e.proc.pid), '/f', '/t'], { windowsHide: true });
         // Best-effort port kill — vite et al. occasionally detach.
-        for (const port of (SERVICES[id]?.ports ?? [])) {
+        for (const port of (e.ports ?? SERVICES[id]?.ports ?? [])) {
           killByPort(port);
         }
       } catch (err) {

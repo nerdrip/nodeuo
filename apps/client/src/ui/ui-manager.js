@@ -230,8 +230,7 @@ export class UIManager {
     // skills, options, …) never did. Running it once here, AFTER the
     // gump's own constructor has settled its default coords, means
     // every gump that exposes a `positionKey` gets sticky positioning
-    // for free. Marcin: "żeby gump przy zmianie strony pamiętał swoje
-    // położenie na ekranie". `restorePosition` already clamps to the
+    // for free, including across page changes. `restorePosition` already clamps to the
     // current viewport so a save from a wider monitor still lands the
     // gump on-screen.
     // Constructors have finished adding their synchronous controls at this
@@ -575,8 +574,7 @@ export class UIManager {
         const ctrl = this._pressed.ctrl;
         // Walk the parent chain looking for an `isDragHandle` ancestor
         // (gump bg, title strip, etc) so a click that landed on a
-        // decorative child label still drags the gump. Marcin: "drag
-        // gumpa z dowolnego miejsca, bo teraz różnie bywa". Skip when
+        // decorative child label still drags the gump. Skip when
         // the clicked control or any ancestor below the drag handle
         // declares an `onDragStart` of its own — that path is for
         // item-lift drags from slot grids and shouldn't move the gump.
@@ -656,8 +654,7 @@ export class UIManager {
     // Universal RMB-close (CUO behaviour). Right-click on any gump
     // closes it unless the gump explicitly opted out via
     // `canCloseWithRMB = false` (top-bar toolbar, hotbar — anything
-    // pinned-by-default). Marcin: "kliknięcie prawym na gumpie
-    // zamyka go" — replaces the per-gump close-X chrome we used to
+    // pinned-by-default). Right-click-to-close replaces the per-gump close-X chrome we used to
     // mount in the title bar.
     if (e.button === 2 && hit.gump && hit.gump.canCloseWithRMB !== false
         && hit.control?.contextMenuOnRightClick !== true) {

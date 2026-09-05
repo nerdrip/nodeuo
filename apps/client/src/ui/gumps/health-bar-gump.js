@@ -88,8 +88,7 @@ export class HealthBarGump extends Gump {
     this.add(this._title);
 
     // Close-X removed — RMB on the bar closes it (universal UIManager
-    // dispatch). The 0x0837 sprite read as a shimmer placeholder
-    // (Marcin: "niebieski diamencik") on installs missing that atlas
+    // dispatch). The 0x0837 sprite read as a shimmer placeholder on installs missing that atlas
     // slice; RMB-close is consistent across every gump now.
 
     // Bar fills — three GumpPics for HP/Mana/Stam. We mount them ABOVE
@@ -316,7 +315,7 @@ export class HealthBarGump extends Gump {
     // initialises every mob with `manaMax = 50` baseline, so even non-
     // caster NPCs like Margaret the Innkeeper tripped the gate and
     // rendered the 3-bar bg with empty M:/S: slots beneath a filled HP
-    // bar. Marcin: "popraw ułożenie tekstu w pasku życia npc". Foreign
+    // bar. Foreign
     // mobs now consistently get 0x0804 (creature-face + single bar, no
     // labels) which matches classic UO behaviour.
     const isPet   = m.controlMaster != null
@@ -329,8 +328,7 @@ export class HealthBarGump extends Gump {
     // tell at a glance it's theirs from the triple-bar layout, and the
     // name strip just consumes vertical pixels. Foreign / party / pet
     // bars KEEP the name (notoriety-coloured) so the user knows who
-    // they're tracking. Marcin: "nie musisz tam dawac imienia bo
-    // wiadomo ze to nasz pasek jak jest potrojny".
+    // they are tracking.
     let displayName = '';
     if (isSelf) {
       this._title.setText('');
@@ -388,8 +386,7 @@ export class HealthBarGump extends Gump {
     // wide title strip at the top; on 0x0804 (foreign mob) the face
     // icon takes the left edge so the title slides right + down a few
     // pixels. Without this the name overlapped the face on every
-    // hostile-mob bar (user report 2026-05-17 — "tekst jest zle
-    // wypozyucjonowany"). Numbers eyeball-matched to the CUO 2D
+    // hostile-mob bar. Numbers are matched visually to the CUO 2D
     // healthbar layout.
     if (showFull) this._title.setPosition(16, 0);
     else          this._title.setPosition(16, 14);
@@ -398,8 +395,7 @@ export class HealthBarGump extends Gump {
     // friends green, criminals purple, etc. Without this the bar
     // stayed cream-on-grey regardless of noto and the player couldn't
     // tell a friendly target apart from a kill-on-sight mob at a
-    // glance (user report 2026-05-17 — "pasek zycia powinien miec
-    // tinta czerwonego bo mob jest czerwony"). NOTO_HUE maps the
+    // glance. NOTO_HUE maps the
     // canonical 1..7 notoriety value to an RGB tint applied to the
     // GumpPic sprite.
     // Notoriety belongs on the title. Multiplying the already-dark native

@@ -6,7 +6,7 @@
 //
 // We keep the creature picker server-side: each call cycles to the next
 // body in `POLYMORPH_BODIES`, mirroring CUO's PolymorphGump entry order.
-// The full picker UI is FAZA-CC scope (multi-button gump); for now the
+// The full picker UI is PHASE-CC scope (multi-button gump); for now the
 // command-line `[polymorph <body>` and the spellbook entry both land here.
 
 import { aura, broadcastEffect, broadcastSound, broadcastBodyChange } from '../../_helpers.js';

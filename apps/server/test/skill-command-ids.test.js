@@ -147,9 +147,13 @@ describe('skill command canonical ids', () => {
     };
     registerSpiritSpeak(api);
 
+    const before = Date.now();
     commands.map.get('spiritspeak').run({ sender, state: state(), world: api.world });
 
     expect(api.statusEffects.apply).toHaveBeenCalledWith(sender, expect.objectContaining({ name: 'spiritspeak' }));
+    expect(api.statusEffects.apply).toHaveBeenCalledWith(sender,
+      expect.objectContaining({ durationMs: 180_000 }));
+    expect(sender._spiritSpeakUntil).toBeGreaterThanOrEqual(before + 180_000);
     expect(api.skillGain.tryGain).toHaveBeenCalledWith(sender, 33, 60);
   });
 

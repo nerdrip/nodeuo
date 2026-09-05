@@ -71,13 +71,13 @@ export default function register(api) {
           return;
         }
 
-        // FAZA CR: multi-attempt taming with overhead progress text.
+        // PHASE CR: multi-attempt taming with overhead progress text.
         // Mirror ServUO's AnimalTaming — 3 attempts at 3.5 s each, with
         // a "you start to tame" / "you continue to tame" cadence. The
         // skill check rolls on the LAST attempt; earlier attempts are
         // narrative only (server still has to validate range each tick
         // — the player wandering away cancels the tame).
-        // FAZA DA: visual feedback — a 0x376A magic-ring graphical
+        // PHASE DA: visual feedback — a 0x376A magic-ring graphical
         // effect anchored on the creature, broadcast to nearby clients
         // so the player can see WHICH mob is being tamed when several
         // are clustered.
@@ -160,6 +160,10 @@ export default function register(api) {
           liveCreature._listensToSpeech = true;
           liveCreature._speechKeywords = ['all'];
           liveCreature.petCommand = 'follow';
+          // A tamed creature is no longer owned by its wilderness spawner.
+          // Release the slot immediately instead of waiting for a later
+          // periodic sweep of the group.
+          api.spawner?.releaseMobile?.(liveCreature);
           api.ai.attach?.(liveCreature, 'pet', { command: 'follow', targetSerial: 0 });
           // Add to the world's pet index so the hunger ticker + bond
           // sweep find this creature without a full mob walk.
@@ -182,7 +186,7 @@ export default function register(api) {
             }
           } catch (e) { console.error('[tame] achievements:', e); }
           ctx.state.sendSystemMessage(`${liveCreature.name ?? 'The creature'} is now your pet.`);
-          // BUGFIX #60 (FAZA CR): the original re-broadcast of mobileMoving
+          // BUGFIX #60 (PHASE CR): the original re-broadcast of mobileMoving
           // fanned to EVERY connected client globally. A taming in Britain
           // pinged players in Trinsic and on Felucca via redundant 0x77
           // packets. Filter by map + 18-tile visibility window.
@@ -222,7 +226,7 @@ export default function register(api) {
   }
 
   /**
-   * FAZA DA: graphical effect on a creature mid-taming. Item id 0x376A
+   * PHASE DA: graphical effect on a creature mid-taming. Item id 0x376A
    * is ServUO's "magic ring" sprite — same one Bless / Heal use for
    * the warm-glow telegraph. We anchor it on the creature with
    * EffectKind.FromSource so it tracks them around if they wander.

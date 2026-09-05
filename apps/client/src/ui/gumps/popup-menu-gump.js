@@ -11,6 +11,7 @@ import { Gump } from '../gump.js';
 import { Control } from '../control.js';
 import { Label } from '../controls/label.js';
 import { net } from '../../net/net-client.js';
+import { bus } from '../../core/event-bus.js';
 import { buildPopupMenuChoice } from '../../net/outgoing.js';
 import { assets } from '../../assets/asset-manager.js';
 import { uiManagerInstance } from '../ui-manager-singleton.js';
@@ -74,7 +75,7 @@ export class PopupMenuGump extends Gump {
     this.serial = serial >>> 0;
     this.entries = entries ?? [];
     // Resolve cliloc text once.
-    this._labels = this.entries.map((e) => assets.cl(e.cliloc, '') || `#${e.cliloc}`);
+    this._labels = this.entries.map((e) => e.label || assets.cl(e.cliloc, '') || `#${e.cliloc}`);
     const petCommands = new Set([3006107, 3006108, 3006111, 3006114, 3006118]);
     if (this.entries.filter((entry) => petCommands.has(entry.cliloc)).length >= 3) {
       this._buildPetRadial(sx, sy);
@@ -109,7 +110,7 @@ export class PopupMenuGump extends Gump {
         colour: e.colour,
         hasSubmenu,
         onHover: hasSubmenu ? () => this._openSubmenu(e, sx + w - 4, sy + y - 2) : null,
-        onClick: () => this._send(e.responseId),
+        onClick: () => this._send(e),
       });
       row.setPosition(PAD, y);
       this.add(row);
@@ -139,7 +140,7 @@ export class PopupMenuGump extends Gump {
       const width = 106;
       const row = new MenuRow(width, this._labels[i] || '?', {
         disabled: (entry.flags & 0x01) !== 0, colour: entry.colour,
-        onClick: () => this._send(entry.responseId),
+        onClick: () => this._send(entry),
       });
       row.setPosition(cx + Math.cos(angle) * 94 - width / 2, cy + Math.sin(angle) * 94 - ROW_H / 2);
       this.add(row);
@@ -147,9 +148,14 @@ export class PopupMenuGump extends Gump {
     this._autoCloseAt = performance.now() + 8000;
   }
   get type() { return 'popup-menu'; }
-  _send(responseId) {
-    try { net.send(buildPopupMenuChoice(this.serial, responseId)); }
-    catch { /* socket transient */ }
+  _send(entry) {
+    try {
+      if (typeof entry?.onClick === 'function') {
+        Promise.resolve(entry.onClick()).catch((error) => {
+          bus.emit('chat:system', { text: `Interaction failed: ${error?.message ?? error}` });
+        });
+      } else net.send(buildPopupMenuChoice(this.serial, entry?.responseId));
+    } catch { /* socket transient */ }
     this._closeSubmenu();
     this.close();
   }

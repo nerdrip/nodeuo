@@ -74,7 +74,10 @@ export function apply(mob, eff) {
   const normalized = {
     name: eff.name,
     expiresAt: eff.expiresAt ?? (Date.now() + (eff.durationMs ?? 10_000)),
-    lastTickAt: 0,
+    // Start the cadence at application time. With zero here, production's
+    // epoch-based `now` made every periodic HoT/DoT fire on the very next
+    // sweeper pass instead of waiting for its declared interval.
+    lastTickAt: eff.lastTickAt ?? Date.now(),
     tickIntervalMs: eff.tickIntervalMs ?? 0,
     data: eff.data ?? {},
     // Audit #41 P1 #1 — accept both `tick` (canonical) and `onTick`
@@ -95,6 +98,7 @@ export function apply(mob, eff) {
     mob.effects.push(normalized);
   }
   if (_listener) { try { _listener(mob, 'add', normalized); } catch {} }
+  mob?._world?._mobsWithEffects?.add?.(mob.serial >>> 0);
   return normalized;
 }
 
@@ -110,6 +114,7 @@ export function remove(mob, name, world = null) {
   mob.effects.splice(i, 1);
   if (eff.onRemove) { try { eff.onRemove(mob, world); } catch {} }
   if (_listener) { try { _listener(mob, 'remove', eff); } catch {} }
+  if (mob.effects.length === 0) mob?._world?._mobsWithEffects?.delete?.(mob.serial >>> 0);
   return true;
 }
 
@@ -133,7 +138,7 @@ export function tickAll(world, now) {
   // world directly working without the listener wired.
   const idx = world._mobsWithEffects;
   if (idx && idx.size >= 0) {
-    for (const serial of [...idx]) {
+    for (const serial of idx) {
       const mob = world.mobiles.get(serial);
       if (!mob) { idx.delete(serial); continue; }
       tickMob(mob, world, now);

@@ -4,7 +4,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { tileDataTable } from '../world/movement.js';
 import { invalidateLosCache } from '../world/los.js';
-import { extMapTileEdit, NodeUOCapability } from '@uo/protocol';
+import { NodeUOFeature, NodeUOJsonKind } from '@uo/nodeuo-protocol';
+import { sendNodeUOFeature } from '../net/handlers/nodeuo-modern.js';
 import { parseSerial } from './route-helpers.js';
 
 export function registerWorldEditRoutes(routes, {
@@ -187,21 +188,25 @@ export function registerWorldEditRoutes(routes, {
       // last 100 ms are no longer trustworthy. Cheap clear (drops 4096
       // entries max).
       try { invalidateLosCache(); } catch { /* advisory */ }
-      // Live tile-push — every connected player on the same facet
-      // within ~32 tiles of the edit bounding box gets a 0xBF 0x6E
-      // MapTileEdit packet so their local landAt overlay updates and
-      // chunk visuals re-mount. No relog / [resync needed any more.
+      // Live tile-push — negotiated NodeUO clients near the edit receive a
+      // typed delta and remount the affected chunks. Classic clients keep
+      // their standard UO view and see the change after reconnect/resync.
       let broadcast = 0;
       if (applied > 0) {
-        const pkt = extMapTileEdit(facet, validEdits);
+        const jsonEdits = validEdits.map((edit) => ({ facet, ...edit }));
         const cx = (minX + maxX) >> 1;
         const cy = (minY + maxY) >> 1;
         for (const m of (world?.mobiles?.values?.() ?? [])) {
           if (!m.client) continue;
-          if (!m.client.supportsNodeUO?.(NodeUOCapability.WorldEditing)) continue;
+          if (!m.client.supportsNodeUO?.(NodeUOFeature.WorldEditing)) continue;
           if (m.map !== facet) continue;
           if (Math.abs(m.x - cx) > 32 || Math.abs(m.y - cy) > 32) continue;
-          try { m.client.send(pkt); broadcast++; }
+          try {
+            broadcast += !!sendNodeUOFeature(m.client, {
+              feature: NodeUOFeature.WorldEditing, kind: NodeUOJsonKind.Delta,
+              payload: { operation: 'map-edits', facet, edits: jsonEdits },
+            });
+          }
           catch { /* socket transient */ }
         }
       }
@@ -235,12 +240,17 @@ export function registerWorldEditRoutes(routes, {
           const maxX = Math.max(...chunk.map((e) => e.x));
           const minY = Math.min(...chunk.map((e) => e.y));
           const maxY = Math.max(...chunk.map((e) => e.y));
-          const pkt = extMapTileEdit(facet, chunk);
+          const jsonEdits = chunk.map((edit) => ({ facet, ...edit }));
           for (const mob of (world?.mobiles?.values?.() ?? [])) {
             if (!mob.client || mob.map !== facet) continue;
-            if (!mob.client.supportsNodeUO?.(NodeUOCapability.WorldEditing)) continue;
+            if (!mob.client.supportsNodeUO?.(NodeUOFeature.WorldEditing)) continue;
             if (mob.x < minX - 32 || mob.x > maxX + 32 || mob.y < minY - 32 || mob.y > maxY + 32) continue;
-            try { mob.client.send(pkt); broadcast++; } catch { /* socket race */ }
+            try {
+              broadcast += !!sendNodeUOFeature(mob.client, {
+                feature: NodeUOFeature.WorldEditing, kind: NodeUOJsonKind.Delta,
+                payload: { operation: 'map-edits', facet, edits: jsonEdits },
+              });
+            } catch { /* socket race */ }
           }
         }
       }

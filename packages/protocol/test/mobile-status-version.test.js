@@ -1,4 +1,4 @@
-// FAZA CL — bugfix #54: mobileStatus packet honours `version` to gate
+// PHASE CL — bugfix #54: mobileStatus packet honours `version` to gate
 // how much data is serialised. Version 0x00 (used for non-self status
 // requests) ships only name + HP. Without this gate the server leaked
 // every stat to anyone who dragged out a stranger's status bar.

@@ -15,11 +15,10 @@
 // with the boat.
 
 import { spawnNPC } from '../../npcs/vendors/_spawn.js';
-import { moveItem, moveMobile } from '../../_movement.js';
+import { moveMobile } from '../../_movement.js';
 import { allItems, sendToClientsNear } from '../../_spatial.js';
-import { itemBySerial, mobileBySerial } from '../../_entities.js';
-import { createItem, destroyItemBySerial } from '../../_items.js';
-const BOAT_ITEM = 0x3E94; // classic small-ship sprite
+import { itemBySerial } from '../../_entities.js';
+import { destroyItemBySerial } from '../../_items.js';
 const MAX_RIDER_RANGE = 1;
 
 function isWaterTile(tileId) {
@@ -35,9 +34,26 @@ function isWaterAt(api, facet, x, y) {
   return statics.some((s) => isWaterStatic(s.tileId));
 }
 
-const FACING_DELTAS = {
-  N: [0, -1], E: [1, 0], S: [0, 1], W: [-1, 0],
-};
+function isStaff(mob) {
+  const rank = { Player: 0, Counselor: 1, Seer: 2, GM: 3, Admin: 4 };
+  return (rank[mob?.client?.account?.accessLevel] ?? 0) >= rank.GM;
+}
+
+function itemCarriedBy(api, item, mob) {
+  if (!item || !mob) return false;
+  const owner = mob.serial >>> 0;
+  const seen = new Set();
+  let current = item;
+  while (current?.parent != null) {
+    const parent = current.parent >>> 0;
+    if (parent === owner) return true;
+    if (!parent || seen.has(parent)) return false;
+    seen.add(parent);
+    current = itemBySerial(api, parent);
+  }
+  return false;
+}
+
 const FACING_ROTATE_LEFT  = { N: 'W', W: 'S', S: 'E', E: 'N' };
 const FACING_ROTATE_RIGHT = { N: 'E', E: 'S', S: 'W', W: 'N' };
 
@@ -46,6 +62,7 @@ function broadcastWorldItem(api, item) {
   const wi = api.protocol.worldItemSA({
     serial: item.serial, itemId: item.itemId, hue: item.hue,
     amount: 1, x: item.x, y: item.y, z: item.z,
+    dataType: item.boat || item.multiId != null ? 2 : 0,
   });
   sendToClientsNear(api, item, wi);
 }
@@ -60,25 +77,6 @@ function broadcastBoatAttachments(api, boat) {
     const item = itemBySerial(api, serial);
     if (item) broadcastWorldItem(api, item);
   }
-}
-
-function moveBoatAttachments(api, boat, dx, dy) {
-  const moved = api.boats?.moveAttachedObjects?.(boat, dx, dy);
-  if (moved != null) return moved;
-  let count = 0;
-  for (const serial of [...(boat?.boat?.planks ?? []), ...(boat?.boat?.cannons ?? [])]) {
-    const item = itemBySerial(api, serial);
-    if (!item) continue;
-    moveItem(api, item, { x: item.x + dx, y: item.y + dy, z: item.z, map: item.map });
-    count++;
-  }
-  const tiller = boat?.boat?.tillermanSerial ? mobileBySerial(api, boat.boat.tillermanSerial) : null;
-  if (tiller) {
-    moveMobile(api, tiller, { x: tiller.x + dx, y: tiller.y + dy, z: tiller.z, map: tiller.map });
-    broadcastMobilePos(api, tiller);
-    count++;
-  }
-  return count;
 }
 
 function broadcastMobilePos(api, mob) {
@@ -150,12 +148,12 @@ function showBoatStatus(api, ctx, boat) {
 function toggleNavalRange(api, ctx, boat, off = false) {
   const P = api.protocol;
   const state = ctx.state;
-  const capability = P?.NodeUOCapability?.NavalPreview;
+  const capability = api.nodeUO?.features?.NavalPreview;
   if (!boat?.boat) {
     state.sendSystemMessage('No boat is nearby.');
     return;
   }
-  if (!state.supportsNodeUO?.(capability) || !P?.extNodeUONaval) {
+  if (!state.supportsNodeUO?.(capability)) {
     const ranges = (boat.boat.cannons ?? [])
       .map((serial) => P && api.systems?.cannons?.cannonProfile?.(itemBySerial(api, serial)))
       .filter(Boolean)
@@ -165,8 +163,14 @@ function toggleNavalRange(api, ctx, boat, off = false) {
       : 'This boat has no mounted cannons.');
     return;
   }
+  const sendPreview = (kind, payload) => {
+    return api.nodeUO?.send?.(state, {
+      feature: capability, namespace: 'nodeuo.naval',
+      payload: { eventKind: kind, data: payload },
+    }) ?? false;
+  };
   if (off || state._navalPreviewSerial === (boat.serial >>> 0)) {
-    state.send(P.extNodeUONaval({ kind: P.NodeUONavalMessage.HideRange, payload: {} }));
+    sendPreview(api.nodeUO.messages.Naval.HideRange, {});
     state._navalPreviewSerial = 0;
     return;
   }
@@ -188,16 +192,13 @@ function toggleNavalRange(api, ctx, boat, off = false) {
     state.sendSystemMessage('This boat has no mounted cannons.');
     return;
   }
-  state.send(P.extNodeUONaval({
-    kind: P.NodeUONavalMessage.ShowRange,
-    payload: {
+  sendPreview(api.nodeUO.messages.Naval.ShowRange, {
       boatSerial: boat.serial >>> 0,
       x: boat.x | 0, y: boat.y | 0, z: boat.z | 0,
       cannons,
       revision: Date.now(),
       expiresAt: Date.now() + 30_000,
-    },
-  }));
+  });
   state._navalPreviewSerial = boat.serial >>> 0;
   state.sendSystemMessage('Naval range preview enabled for 30 seconds. Use [boat range off to hide it.');
 }
@@ -207,7 +208,7 @@ export default function register(api) {
 
   api.commands.register({
     name: 'boat',
-    help: '[boat <status|spawn|board|leave|sail|turn|anchor|autopilot|repair|range>',
+    help: '[boat <status|spawn|board|leave|sail|turn|anchor|drydock|autopilot|repair|range>',
     access: 'Player',
     run(ctx) {
       const sub = String(ctx.args[0] ?? '').toLowerCase();
@@ -249,6 +250,10 @@ export default function register(api) {
       }
 
       if (sub === 'spawn') {
+        if (!isStaff(mob)) {
+          ctx.state.sendSystemMessage('Boat spawning is a staff command. Players must use a boat deed.');
+          return;
+        }
         if (!isWaterAt(api, mob.map ?? 1, mob.x, mob.y)) {
           ctx.state.sendSystemMessage('You must be on water to spawn a boat.');
           return;
@@ -257,9 +262,9 @@ export default function register(api) {
         // BOAT_HULLS (small/medium/large/galleon/britannian/tokuno/
         // orc/gargish). Galleon-class hulls use `placeGalleon` which
         // mounts cannons; rowboat + base hulls drop the simple item.
-        const hullArg = String(ctx.args[1] ?? '').toLowerCase();
-        const GALLEON_HULLS = new Set(['britannian', 'tokuno', 'orc', 'gargish', 'galleon']);
-        if (hullArg && GALLEON_HULLS.has(hullArg) && api.boats?.placeGalleon) {
+        const hullArg = String(ctx.args[1] ?? 'small').toLowerCase() || 'small';
+        const hullDefinition = api.boats?._HULLS?.[hullArg];
+        if (hullDefinition && api.boats?.placeGalleon) {
           try {
             const galleon = api.boats.placeGalleon(api, {
               kind: hullArg, x: mob.x, y: mob.y, z: mob.z, map: mob.map,
@@ -279,78 +284,17 @@ export default function register(api) {
             } catch (e) {
               api.log?.('boat: tillerman spawn failed: ' + e.message);
             }
-            ctx.state.sendSystemMessage(
-              `A ${hullArg} galleon takes form upon the waves, cannons primed.`,
-            );
+            ctx.state.sendSystemMessage(`A ${hullArg} ship takes form upon the waves.`);
           } catch (e) {
             ctx.state.sendSystemMessage(`Cannot spawn that hull: ${e.message}`);
           }
           return;
         }
-        // Base hulls (small/medium/large) — share the simple rowboat
-        // codepath but read graphic + HP from BOAT_HULLS so the boat
-        // sprite reflects the size class.
-        const BASE_HULLS = new Set(['small', 'medium', 'large']);
-        const hullCfg = BASE_HULLS.has(hullArg)
-          ? api.boats?._HULLS?.[hullArg]
-          : null;
-        const boatItemId = hullCfg?.graphic ?? BOAT_ITEM;
-        const boatLabel = hullCfg?.label ?? 'a rowboat';
-        const boat = createItem(api, api.world, {
-          itemId: boatItemId, x: mob.x, y: mob.y, z: mob.z, map: mob.map,
-          name: boatLabel, movable: false,
-        });
-        boat.boat = {
-          facing: 'N', riders: new Set(), planks: [],
-          sailState: 'stop', anchored: true,
-          ownerSerial: mob.serial >>> 0,
-          boatHp: hullCfg?.hpMax ?? 1000, boatHpMax: hullCfg?.hpMax ?? 1000,
-          armor: hullCfg?.armor ?? 0.05,
-          speedMultiplier: hullCfg?.speedMultiplier ?? 1.15,
-          hullKind: hullArg || 'rowboat',
-        };
-        // FAZA BL: spawn 4 plank items, one per side. Players double-
-        // click a plank to board / leave (closer to ServUO BaseBoat
-        // semantics — `[boat board` text command stays as fallback).
-        // Each plank's `boatPlank` field points back at the boat serial
-        // so the use-handler can resolve which boat to mount.
-        const PLANK_ITEM = 0x3EAA; // open plank (north-facing)
-        for (const [dx, dy, side] of [[0, -1, 'N'], [1, 0, 'E'], [0, 1, 'S'], [-1, 0, 'W']]) {
-          const plank = createItem(api, api.world, {
-            itemId: PLANK_ITEM, x: mob.x + dx, y: mob.y + dy, z: mob.z,
-            map: mob.map, name: 'a plank', movable: false,
-          });
-          plank.boatPlank = { boatSerial: boat.serial, side };
-          boat.boat.planks.push(plank.serial);
-          // Spawn-broadcast already filtered.
-          if (api.protocol?.worldItemSA) {
-            const wi = api.protocol.worldItemSA({
-              serial: plank.serial, itemId: plank.itemId, hue: 0,
-              amount: 1, x: plank.x, y: plank.y, z: plank.z,
-            });
-            sendToClientsNear(api, plank, wi);
-          }
+        if (!hullDefinition) {
+          ctx.state.sendSystemMessage(`Unknown hull '${hullArg}'.`);
+          return;
         }
-        broadcastBoatPos(api, boat);
-        // ServUO `BaseBoat.cs` spawns a tillerman NPC at the helm. We
-        // mint a no-shop invulnerable human anchored to the boat tile
-        // and bind it via the existing `api.boats.setTillerman` API.
-        // Speech keywords ('forward', 'stop', 'left', 'right') route
-        // through the standard boat-cmd path so players can helm by
-        // voice instead of typing the chat command.
-        try {
-          const tiller = spawnNPC(api, mob, {
-            name: 'a tillerman',
-            body: 0x190, hue: 0x0481,
-            notoriety: 7, invulnerable: true,
-            keywords: ['forward', 'stop', 'left', 'right', 'unfurl', 'furl'],
-            fields: { _tillerman: true },
-          });
-          api.boats?.setTillerman?.(boat, tiller);
-        } catch (e) {
-          api.log?.('boat: tillerman spawn failed: ' + e.message);
-        }
-        ctx.state.sendSystemMessage('A rowboat appears with 4 planks and a tillerman.');
+        ctx.state.sendSystemMessage('The boat system is temporarily unavailable.');
         return;
       }
 
@@ -368,7 +312,7 @@ export default function register(api) {
       if (sub === 'leave') {
         const boatSer = mob._boardedBoat;
         const boat = boatSer ? itemBySerial(api, boatSer) : null;
-        // BUGFIX #6 (FAZA AK): the previous code stripped the rider tag
+        // BUGFIX #6 (PHASE AK): the previous code stripped the rider tag
         // and tried to step toward the nearest non-water tile — but if
         // the boat was anchored mid-ocean, no neighbour was dry, the
         // for-loop fell through with no break, mob.x/y stayed on water,
@@ -408,24 +352,11 @@ export default function register(api) {
           ctx.state.sendSystemMessage('The boat cannot move while anchored, wrecked, or its sails are disabled.'); return;
         }
         const n = Math.max(1, Math.min(20, Number(ctx.args[1] ?? 1) | 0));
-        const [dx, dy] = FACING_DELTAS[boat.boat.facing];
         let moved = 0;
         for (let i = 0; i < n; i++) {
-          const nx = boat.x + dx, ny = boat.y + dy;
-          if (!isWaterAt(api, boat.map ?? 1, nx, ny)) break;
-          moveItem(api, boat, { x: nx, y: ny, z: boat.z, map: boat.map });
-          moveBoatAttachments(api, boat, dx, dy);
-          for (const rs of boat.boat.riders) {
-            const r = mobileBySerial(api, rs);
-            if (r) {
-              moveMobile(api, r, { x: nx, y: ny, z: r.z, map: boat.map });
-              broadcastMobilePos(api, r);
-            }
-          }
+          if (!api.boats?.sailOnce?.(boat)) break;
           moved++;
         }
-        broadcastBoatPos(api, boat);
-        broadcastBoatAttachments(api, boat);
         ctx.state.sendSystemMessage(`The rowboat sails ${moved} tile${moved === 1 ? '' : 's'} ${boat.boat.facing}.`);
         return;
       }
@@ -496,6 +427,36 @@ export default function register(api) {
         return;
       }
 
+      if (sub === 'drydock' || sub === 'dock') {
+        const boat = currentBoat(api, mob, 8);
+        if (!boat?.boat) {
+          ctx.state.sendSystemMessage('No boat is close enough to dry-dock.');
+          return;
+        }
+        if (!api.boats?.hasPilotRights?.(boat, mob)) {
+          ctx.state.sendSystemMessage('You lack the right to dry-dock this boat.');
+          return;
+        }
+        const result = api.boats.dryDockGalleon?.(api, boat, mob)
+          ?? { ok: false, reason: 'system-unavailable' };
+        if (result.ok) {
+          delete mob._boardedBoat;
+          ctx.state.sendSystemMessage('The boat is safely folded into a deed in your backpack.');
+          return;
+        }
+        const explanations = {
+          'must-be-anchored': 'Drop the anchor before dry-docking.',
+          'riders-aboard': 'Everyone must leave the boat before dry-docking.',
+          'passengers-aboard': 'Everyone must leave the boat before dry-docking.',
+          'cargo-aboard': 'Remove all loose deck cargo before dry-docking.',
+          'no-backpack': 'You need a backpack to receive the boat deed.',
+          'not-owner': 'Only the owner or a carried key holder may dry-dock this boat.',
+        };
+        ctx.state.sendSystemMessage(explanations[result.reason]
+          ?? `The boat cannot be dry-docked (${result.reason ?? 'unknown reason'}).`);
+        return;
+      }
+
       // Owner / key management.
       if (sub === 'claim') {
         const boatSer = mob._boardedBoat;
@@ -535,7 +496,7 @@ export default function register(api) {
       }
 
       ctx.state.sendSystemMessage(
-        'Usage: [boat <status|spawn|board|leave|forward|left|right|stop|sail|anchor|autopilot|repair|range|claim|key>',
+        'Usage: [boat <status|spawn|board|leave|forward|left|right|stop|sail|anchor|drydock|autopilot|repair|range|claim|key>',
       );
     },
   });
@@ -547,76 +508,66 @@ export default function register(api) {
   const deedHook = (world, item, user) => {
     const deed = item.boatDeed;
     if (!deed && item.script !== 'servuo-boat-deed' && item.script !== 'boat-deed') return false;
+    if (!itemCarriedBy(api, item, user)) {
+      user.client?.sendSystemMessage?.('The boat deed must be in your backpack.');
+      return true;
+    }
     if (!isWaterAt(api, user.map ?? 1, user.x, user.y)) {
       user.client?.sendSystemMessage?.('You must be on water to launch a boat.');
       return true;
     }
     const hullKind = String(deed?.hullKind ?? 'small').toLowerCase();
-    const hull = api.boats?._HULLS?.[hullKind] ?? api.boats?._HULLS?.small;
-    let boat = null;
-    if (api.boats?.placeGalleon && hull) {
-      try {
-        boat = api.boats.placeGalleon(api, {
-          kind: hullKind in api.boats._HULLS ? hullKind : 'small',
-          x: user.x, y: user.y, z: user.z, map: user.map,
-          facing: deed?.facing ?? 'N',
-          ownerSerial: user.serial >>> 0,
-          name: deed?.name,
-        });
-      } catch (e) {
-        api.log?.(`[boat-deed] placeGalleon failed: ${e.message}`);
-      }
+    if (!api.boats?.placeGalleon || !api.boats?._HULLS?.[hullKind]) {
+      user.client?.sendSystemMessage?.('That deed names an unsupported boat hull.');
+      return true;
     }
-    if (!boat) {
-      boat = createItem(api, world, {
-        itemId: hull?.graphic ?? BOAT_ITEM,
+    let boat;
+    try {
+      boat = api.boats.placeGalleon(api, {
+        kind: hullKind,
         x: user.x, y: user.y, z: user.z, map: user.map,
-        name: deed?.name ?? hull?.label ?? 'a small ship',
-        movable: false,
-      });
-      boat.boat = {
-        facing: deed?.facing ?? 'N', riders: new Set(), planks: [],
-        sailState: 'stop', anchored: false,
+        facing: deed?.facing ?? 'N',
         ownerSerial: user.serial >>> 0,
-        keys: [], boatHp: hull?.hpMax ?? 1000, boatHpMax: hull?.hpMax ?? 1000,
-        hullKind,
-      };
-      api.world._boats ||= new Set();
-      api.world._boats.add(boat.serial >>> 0);
+        name: deed?.name,
+      });
+    } catch (e) {
+      api.log?.(`[boat-deed] placement refused: ${e.message}`);
+      user.client?.sendSystemMessage?.(`The boat cannot be launched here: ${e.message}`);
+      return true;
     }
     boat.boat.anchored = false;
     boat.boat.keys ??= [];
-    boat.boat.planks ??= [];
-    if (boat.boat.planks.length === 0) {
-      const plankSlots = hullKind === 'small'
-        ? [[0, -1, 'N'], [0, 1, 'S']]
-        : [[0, -1, 'N'], [1, 0, 'E'], [0, 1, 'S'], [-1, 0, 'W']];
-      for (const [dx, dy, side] of plankSlots) {
-        const plank = createItem(api, world, {
-          itemId: 0x3EAA,
-          x: boat.x + dx, y: boat.y + dy, z: boat.z,
-          map: boat.map, name: 'a plank', movable: false,
-        });
-        plank.boatPlank = { boatSerial: boat.serial, side };
-        plank.servuoClasses = ['PlanksContext'];
-        boat.boat.planks.push(plank.serial);
-        broadcastBoatPos(api, plank);
+    const rollbackBoat = () => {
+      for (const serial of [...(boat.boat.cannons ?? []), ...(boat.boat.planks ?? [])]) {
+        destroyItemBySerial(api, serial);
       }
+      destroyItemBySerial(api, boat.serial);
+      api.world._boats?.delete?.(boat.serial >>> 0);
+    };
+    const key = api.game?.mobile?.giveItem?.(user, {
+      itemId: 0x1010, name: 'a boat key', hue: 0x44E,
+    }, { requireBackpack: true, randomGrid: true });
+    if (!key) {
+      rollbackBoat();
+      user.client?.sendSystemMessage?.('You need a backpack before launching this boat.');
+      return true;
     }
-    broadcastBoatPos(api, boat);
-    destroyItemBySerial(api, item.serial);
-    user.client?.sendSystemMessage?.('A boat is launched, and a key falls into your pack.');
-    const key = createItem(api, world, {
-      itemId: 0x1010, x: user.x, y: user.y, z: user.z, map: user.map,
-      name: 'a boat key', container: user.backpack, hue: 0x44E,
-    });
     key.boatKey = boat.serial >>> 0;
     boat.boat.keys.push(key.serial >>> 0);
+    if (!destroyItemBySerial(api, item.serial)) {
+      destroyItemBySerial(api, key.serial);
+      rollbackBoat();
+      user.client?.sendSystemMessage?.('The deed changed while the boat was being launched. Nothing was consumed.');
+      return true;
+    }
+    broadcastBoatPos(api, boat);
+    broadcastBoatAttachments(api, boat);
+    user.client?.sendSystemMessage?.('A boat is launched, and a key falls into your pack.');
     return true;
   };
-  api.templates?.addUseItemHook?.(deedHook);
+  const removeDeedHook = api.templates?.addUseItemHook?.(deedHook) ?? (() => {});
 
-  // FAZA LA / BUGFIX #140: register a pre-template useItem hook
+  // PHASE LA / BUGFIX #140: register a pre-template useItem hook
   // instead of the old `api.templates.useItem = wrapper` monkey-patch
   // (which threw "Cannot assign to read only property 'useItem'" at
   // script init because ES module exports are read-only). The hook
@@ -653,11 +604,11 @@ export default function register(api) {
     }
     return true;
   };
-  api.templates?.addUseItemHook?.(plankHook);
+  const removePlankHook = api.templates?.addUseItemHook?.(plankHook) ?? (() => {});
 
   return () => {
     api.commands.unregister('boat');
-    // Hook stays registered — no per-script unregister API; reload-
-    // cycle is rare enough to accept the leak.
+    removeDeedHook();
+    removePlankHook();
   };
 }

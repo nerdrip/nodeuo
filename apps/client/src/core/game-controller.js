@@ -9,7 +9,8 @@
 import { Application, Container } from 'pixi.js';
 import { Time, tickClock } from './time.js';
 import { bus } from './event-bus.js';
-import { clientRuntimeProfile } from '../shared/runtime-governor.js';
+import { AdaptiveRenderScale, clientPerformanceGovernor, clientRuntimeProfile } from '../shared/runtime-governor.js';
+import { profile as profileManager } from '../managers/profile-manager.js';
 
 const LONG_TASK_THRESHOLD_MS = 50;
 const LONG_TASK_HISTORY_SIZE = 32;
@@ -20,18 +21,31 @@ export const clientPerfStats = {
   updateMs: 0,
   drawMs: 0,
   tickMs: 0,
+  renderScale: 1,
   maxEventLoopLagMs: 0,
   longTaskThresholdMs: LONG_TASK_THRESHOLD_MS,
   longTaskCount: 0,
   lastLongTaskMs: 0,
   maxLongTaskMs: 0,
+  qualityLevel: clientPerformanceGovernor.level,
+  frameP50Ms: 0,
+  frameP95Ms: 0,
+  frameP99Ms: 0,
+  heapUsedBytes: 0,
+  heapLimitBytes: 0,
+  measuredMemoryBytes: 0,
+  storageUsageBytes: 0,
+  storageQuotaBytes: 0,
+  renderer: 'unknown',
+  rendererPreference: 'webgl',
+  deviceLost: false,
   longTaskHead: 0,
   longTaskHistory: Array.from({ length: LONG_TASK_HISTORY_SIZE }, () => ({
-    at: 0, ms: 0, frameMs: 0, lagMs: 0, subsystem: 'unknown',
+    at: 0, ms: 0, frameMs: 0, lagMs: 0, subsystem: 'unknown', scripts: [],
   })),
 };
 
-export function recordClientLongTask(ms, now = performance.now(), frameMs = ms, lagMs = 0, subsystem = 'frame') {
+export function recordClientLongTask(ms, now = performance.now(), frameMs = ms, lagMs = 0, subsystem = 'frame', details = {}) {
   const value = Math.max(0, Number(ms) || 0);
   const idx = clientPerfStats.longTaskHead % LONG_TASK_HISTORY_SIZE;
   const entry = clientPerfStats.longTaskHistory[idx];
@@ -40,6 +54,7 @@ export function recordClientLongTask(ms, now = performance.now(), frameMs = ms, 
   entry.frameMs = Math.max(0, Number(frameMs) || 0);
   entry.lagMs = Math.max(0, Number(lagMs) || 0);
   entry.subsystem = String(subsystem || 'frame');
+  entry.scripts = Array.isArray(details.scripts) ? details.scripts.slice(0, 16) : [];
   clientPerfStats.longTaskHead = (clientPerfStats.longTaskHead + 1) >>> 0;
   clientPerfStats.longTaskCount++;
   clientPerfStats.lastLongTaskMs = value;
@@ -69,10 +84,19 @@ export class GameController {
     this._statusEl = document.getElementById('status');
     this._domUi = document.getElementById('dom-ui');
     this._lastTickAt = 0;
+    this._renderScale = new AdaptiveRenderScale({ minScale: clientRuntimeProfile.tier === 'low' ? .7 : .8 });
+    this._memorySampleBusy = false;
   }
 
   async init() {
-    await this.app.init({
+    let rendererPreference = profileManager.get('graphics.renderer') === 'webgpu' && globalThis.navigator?.gpu
+      ? 'webgpu' : 'webgl';
+    try {
+      if (sessionStorage.getItem('uo.renderer.recovery') === 'webgl') {
+        rendererPreference = 'webgl'; sessionStorage.removeItem('uo.renderer.recovery');
+      }
+    } catch { /* hardened storage */ }
+    const rendererOptions = {
       resizeTo: this.mountPoint,
       antialias: false,
       autoDensity: true,
@@ -97,9 +121,16 @@ export class GameController {
       // back to WebGPU is safe once the per-mob filter pattern is
       // refactored to a shared singleton (see ColorMatrixFilter usage
       // in `mobile-renderer.js`).
-      preference: 'webgl',
+      preference: rendererPreference,
       roundPixels: true,
-    });
+    };
+    try { await this.app.init(rendererOptions); }
+    catch (error) {
+      if (rendererPreference !== 'webgpu') throw error;
+      console.warn('[pixi] WebGPU initialization failed; using WebGL2', error);
+      rendererPreference = 'webgl'; this.app = new Application();
+      await this.app.init({ ...rendererOptions, preference: 'webgl' });
+    }
     this.mountPoint.appendChild(this.app.canvas);
     // Renderer diagnostic — surfaces whether Pixi fell back from
     // WebGPU to WebGL2. `preference: 'webgpu'` is a hint; some
@@ -109,7 +140,17 @@ export class GameController {
     try {
       const r = this.app.renderer;
       const type = r?.type === 1 ? 'WebGL' : (r?.type === 2 ? 'WebGPU' : 'unknown');
-      console.log(`[pixi] renderer=${type} resolution=${r?.resolution} roundPixels=${r?.roundPixels} (preference: WebGL)`);
+      clientPerfStats.renderer = type.toLowerCase();
+      clientPerfStats.rendererPreference = rendererPreference;
+      console.log(`[pixi] renderer=${type} resolution=${r?.resolution} roundPixels=${r?.roundPixels} (preference: ${rendererPreference})`);
+      const device = r?.gpu?.device ?? r?.device;
+      if (device?.lost?.then) device.lost.then((info) => {
+        clientPerfStats.deviceLost = true;
+        bus.emit('renderer:device-lost', { reason: info?.reason, message: info?.message });
+        try { sessionStorage.setItem('uo.renderer.recovery', 'webgl'); } catch { /* storage unavailable */ }
+        this.setStatus('GPU device lost — restarting with WebGL2…');
+        setTimeout(() => globalThis.location?.reload?.(), 250);
+      });
     } catch { /* ignore */ }
 
     // Layer order: world → world-overlay → ui. Day/night dim, weather
@@ -136,6 +177,7 @@ export class GameController {
     this._onContextLost = (event) => {
       event.preventDefault?.();
       this._contextLost = true;
+      clientPerfStats.deviceLost = true;
       this.app.ticker.stop();
       this.setStatus('graphics context lost — restoring…');
       bus.emit('renderer:context-lost');
@@ -149,6 +191,58 @@ export class GameController {
     };
     this.app.canvas.addEventListener('webglcontextlost', this._onContextLost, false);
     this.app.canvas.addEventListener('webglcontextrestored', this._onContextRestored, false);
+
+    // Browser-observed long tasks cover image decoding, promise storms and
+    // third-party work that the scene update/draw stopwatch cannot attribute.
+    try {
+      this._longTaskObserver = new globalThis.PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          const source = entry.attribution?.[0]?.name || 'browser';
+          recordClientLongTask(entry.duration, entry.startTime, entry.duration, 0, `longtask:${source}`);
+        }
+      });
+      this._longTaskObserver.observe({ entryTypes: ['longtask'] });
+    } catch { this._longTaskObserver = null; }
+
+    // LoAF entries include script attribution for the whole delayed render
+    // update, which makes a client report actionable instead of just saying
+    // that an anonymous 50 ms task happened.
+    try {
+      this._loafObserver = new globalThis.PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          const scripts = (entry.scripts ?? []).slice(0, 16).map((script) => ({
+            source: String(script.sourceURL || script.sourceFunctionName || script.invoker || 'browser').slice(0, 160),
+            duration: Math.max(0, Number(script.duration) || 0),
+          }));
+          recordClientLongTask(entry.duration, entry.startTime, entry.duration, 0, 'long-animation-frame', { scripts });
+        }
+      });
+      this._loafObserver.observe({ type: 'long-animation-frame', buffered: true });
+    } catch { this._loafObserver = null; }
+
+    this._sampleClientMemory = async () => {
+      if (this._memorySampleBusy || document.hidden) return;
+      this._memorySampleBusy = true;
+      try {
+        const memory = performance.memory;
+        if (memory) {
+          clientPerfStats.heapUsedBytes = Number(memory.usedJSHeapSize) || 0;
+          clientPerfStats.heapLimitBytes = Number(memory.jsHeapSizeLimit) || 0;
+        }
+        if (typeof performance.measureUserAgentSpecificMemory === 'function' && globalThis.crossOriginIsolated) {
+          const measured = await performance.measureUserAgentSpecificMemory();
+          clientPerfStats.measuredMemoryBytes = Number(measured?.bytes) || 0;
+        }
+        if (navigator.storage?.estimate) {
+          const storage = await navigator.storage.estimate();
+          clientPerfStats.storageUsageBytes = Number(storage.usage) || 0;
+          clientPerfStats.storageQuotaBytes = Number(storage.quota) || 0;
+        }
+      } catch { /* optional privacy-restricted diagnostics */ }
+      finally { this._memorySampleBusy = false; }
+    };
+    this._sampleClientMemory();
+    this._memorySampleTimer = setInterval(this._sampleClientMemory, 30_000);
 
     // Throttle the Pixi ticker hard when the tab is hidden. Browsers
     // already throttle requestAnimationFrame to ~1 Hz on background
@@ -196,6 +290,12 @@ export class GameController {
   }
 
   destroy() {
+    clearInterval(this._memorySampleTimer);
+    this._memorySampleTimer = null;
+    this._longTaskObserver?.disconnect?.();
+    this._longTaskObserver = null;
+    this._loafObserver?.disconnect?.();
+    this._loafObserver = null;
     this._resizeObserver?.disconnect?.();
     this._resizeObserver = null;
     if (this.app?.canvas) {
@@ -266,6 +366,27 @@ export class GameController {
       if (lag > clientPerfStats.maxEventLoopLagMs) clientPerfStats.maxEventLoopLagMs = lag;
       if (frameMs >= LONG_TASK_THRESHOLD_MS) {
         recordClientLongTask(frameMs, now, frameMs, lag);
+      }
+      const quality = clientPerformanceGovernor.observeFrame(frameMs, now);
+      if (quality) {
+        clientPerfStats.qualityLevel = quality.level;
+        clientPerfStats.frameP50Ms = quality.p50Ms;
+        clientPerfStats.frameP95Ms = quality.p95Ms;
+        clientPerfStats.frameP99Ms = quality.p99Ms;
+        if (quality.changed) bus.emit('performance:quality-changed', quality);
+        this._renderScale.minScale = Math.max(.5, Math.min(1,
+          Number(profileManager.get('graphics.dynamicResolutionMin')) || (clientRuntimeProfile.tier === 'low' ? .7 : .8)));
+        const renderScale = profileManager.get('graphics.dynamicResolution') === false
+          ? this._renderScale.observe('nominal', now)
+          : this._renderScale.observe(quality.level, now);
+        if (renderScale && this.app?.renderer) {
+          try {
+            this.app.renderer.resolution = renderScale.scale;
+            this.app.renderer.resize(this.mountPoint.clientWidth || innerWidth, this.mountPoint.clientHeight || innerHeight);
+            clientPerfStats.renderScale = renderScale.scale;
+            bus.emit('performance:render-scale-changed', renderScale);
+          } catch { /* backend may not allow live resolution changes */ }
+        }
       }
     }
     clearTimeout(this._inactiveTrimTimer);

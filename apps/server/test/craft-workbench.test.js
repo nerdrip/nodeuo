@@ -20,14 +20,14 @@ function fixture() {
   const world = { mobiles: new Map([[sender.serial, sender]]), items: new Map() };
   const messages = [];
   const state = {
-    supportsNodeUO: (capability) => capability === (1 << 11),
+    supportsNodeUO: (capability) => capability === 'crafting.workbench',
     sendSystemMessage: (message) => messages.push(message),
     account: {},
   };
   const api = {
     world,
     systems: { crafting },
-    protocol: { NodeUOCapability: { CraftingWorkbench: 1 << 11 } },
+    nodeUO: { features: { CraftingWorkbench: 'crafting.workbench' } },
     commands: {
       register: (definition) => commands.set(definition.name, definition),
       unregister: (name) => commands.delete(name),
@@ -81,5 +81,20 @@ describe('negotiated crafting workbench', () => {
     expect(f.state.account.craftFavorites.has(7001)).toBe(true);
     command.run({ sender: f.sender, state: f.state, world: f.world, args: ['favorite', '7001'] });
     expect(f.state.account.craftFavorites.has(7001)).toBe(false);
+  });
+
+  it('filters learned specialist branches instead of mixing their base skill catalog', () => {
+    const f = fixture();
+    const carpenter = { ...f.recipe, id: 7002, name: 'Chair', skillId: 12, toolKind: 'carpenter' };
+    const masonry = { ...f.recipe, id: 31_001, name: 'Stone Block', skillId: 12, toolKind: 'mason' };
+    f.crafting.allRecipes = () => [carpenter, masonry];
+    f.crafting.recipesForSkill = () => [carpenter, masonry];
+
+    f.commands.get('craft').run({
+      sender: f.sender, state: f.state, world: f.world, args: ['gump', 'masonry'],
+    });
+    const payload = f.messages.find((message) => message.startsWith('@@OPEN_CRAFT_GUMP@@'));
+    expect(payload).toContain('Stone Block');
+    expect(payload).not.toContain('Chair');
   });
 });

@@ -14,7 +14,7 @@
 // We store karma + kills + criminalUntil on the mobile and recompute the
 // stored `notoriety` field whenever those change. Per-viewer relative
 // notoriety (e.g. an enemy faction member shows orange to your view but
-// blue to their own faction) is a FAZA L follow-up — for now everyone
+// blue to their own faction) is a PHASE L follow-up — for now everyone
 // sees the same colour.
 
 export const NOTO = Object.freeze({
@@ -191,7 +191,7 @@ export function viewerNotoriety(target, viewer, world = null) {
   if (!viewer || target === viewer) return target.notoriety ?? NOTO.Innocent;
 
   // Pet inheritance — recurse through master so colour follows ownership.
-  // BUGFIX #1 (FAZA AF): the previous code read `viewer.world ?? target.world`
+  // BUGFIX #1 (PHASE AF): the previous code read `viewer.world ?? target.world`
   // but mobiles don't carry a `.world` field — it was always undefined,
   // so this whole branch silently no-op'd. Now the world is passed in by
   // callers that have it (AI scheduler, broadcast helpers); a missing
@@ -208,7 +208,7 @@ export function viewerNotoriety(target, viewer, world = null) {
     }
   }
 
-  // BUGFIX #7 (FAZA AL): the party / guild modules stash their back-
+  // BUGFIX #7 (PHASE AL): the party / guild modules stash their back-
   // pointer on `mob._party` / `mob._guild` (with the underscore — a
   // convention to mark "runtime-only, don't serialise"). The previous
   // notoriety code read `mob.party` / `mob.guild`, so the party-mate
@@ -222,7 +222,7 @@ export function viewerNotoriety(target, viewer, world = null) {
     return NOTO.Ally;
   }
 
-  // BUGFIX #41 (FAZA BY): faction relations were only one-sided — the
+  // BUGFIX #41 (PHASE BY): faction relations were only one-sided — the
   // previous branch returned Enemy for opposing factions but did NOT
   // return Ally for same-faction members. Two players sharing the
   // Council of Mages flag with no guild in common saw each other as

@@ -1,9 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  EffectKind, NodeUOCapability, NodeUOSpellComposerMessage,
-  extNodeUOSpellComposer, healthUpdate, huedEffect, playSound,
+  EffectKind, healthUpdate, huedEffect, playSound,
 } from '@uo/protocol';
+import { NodeUOFeature, NodeUOSpellComposerMessage } from '@uo/nodeuo-protocol';
+import { sendNodeUOEvent } from '../../net/handlers/nodeuo-modern.js';
 import { getSpell, registerSpell, unregisterSpell } from './registry.js';
 
 const MAX_DRAFTS = 2048;
@@ -784,7 +785,10 @@ export class SpellComposerService {
   }
 
   _sendResult(state, requestId, payload) {
-    state?.send?.(extNodeUOSpellComposer({ kind: NodeUOSpellComposerMessage.Result, requestId, payload }));
+    return sendNodeUOEvent(state, {
+      feature: NodeUOFeature.SpellComposer,
+      eventKind: NodeUOSpellComposerMessage.Result, requestId, payload,
+    });
   }
 
   profile(value) { return getSpellcraftProfile(value); }
@@ -853,7 +857,7 @@ export class SpellComposerService {
   }
 
   open(state, options = {}) {
-    if (!state?.supportsNodeUO?.(NodeUOCapability.SpellComposer)) return false;
+    if (!state?.supportsNodeUO?.(NodeUOFeature.SpellComposer)) return false;
     const admin = isSpellcraftAdmin(state);
     const sourceSerial = options.sourceSerial >>> 0;
     if (!admin) {
@@ -886,14 +890,15 @@ export class SpellComposerService {
       if (bytes > 30 * 1024) { truncated = true; break; }
       drafts.push(draft);
     }
-    state.send(extNodeUOSpellComposer({
-      kind: NodeUOSpellComposerMessage.Open, requestId,
-      payload: {
-        catalog: composerCatalog(profile), drafts, truncated, progression: profile,
-        permissions: { edit: true, publish: true, scribe: admin || !!sourceSerial },
-        sourceSerial,
-      },
-    }));
+    const payload = {
+      catalog: composerCatalog(profile), drafts, truncated, progression: profile,
+      permissions: { edit: true, publish: true, scribe: admin || !!sourceSerial },
+      sourceSerial,
+    };
+    sendNodeUOEvent(state, {
+      feature: NodeUOFeature.SpellComposer,
+      eventKind: NodeUOSpellComposerMessage.Open, requestId, payload,
+    });
     return true;
   }
 

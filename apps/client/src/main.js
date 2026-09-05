@@ -5,7 +5,7 @@
 //
 // Net handlers are registered once here so they survive scene swaps.
 
-import { GameController } from './core/game-controller.js';
+import { GameController, clientPerfStats } from './core/game-controller.js';
 import { net } from './net/net-client.js';
 import { registerHandlers } from './net/handlers.js';
 import { bus } from './core/event-bus.js';
@@ -14,6 +14,8 @@ import { startKeepAlive, stopKeepAlive } from './net/keep-alive.js';
 import { systemCursor } from './managers/system-cursor.js';
 import { world } from './world/world.js';
 import { clientGumpDefinitions } from './managers/client-gump-definitions.js';
+import { installNodeUOServices } from './net/nodeuo-services.js';
+import { installNodeUOJsonProtocol } from './net/nodeuo-modern.js';
 
 const mount = document.getElementById('app');
 if (!mount) throw new Error('#app mount point missing');
@@ -114,6 +116,8 @@ setSplash('CONNECTING TO SHARD', 95);
 // entries on net._handlers (a Map) — calling it again is harmless but the
 // single-call here keeps things obvious.
 registerHandlers(net);
+installNodeUOServices(net, { performanceStats: clientPerfStats, assets });
+installNodeUOJsonProtocol(net);
 
 // Replace the OS pointer with the UO sprite. Marcin asked for the
 // classic art.mul cursors instead of the platform arrow. Auto-polls
@@ -122,7 +126,7 @@ registerHandlers(net);
 systemCursor.install();
 
 // Surface unhandled opcodes during development so we know which
-// FAZA-1+ opcodes are landing before we wire decoders.
+// PHASE-1+ opcodes are landing before we wire decoders.
 bus.on('net:unhandled', ({ opcode }) => {
   if (import.meta.env.DEV) {
     console.debug(`[net] unhandled opcode 0x${opcode.toString(16).padStart(2, '0')}`);

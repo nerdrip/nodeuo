@@ -1,11 +1,11 @@
-// FAZA DF — pet training milestones (xp + level + stat scaling).
+// PHASE DF — pet training milestones (xp + level + stat scaling).
 
 import { describe, it, expect } from 'vitest';
 import {
   awardPetXp, petXpForKill, resetPetTraining, _PET_TRAINING_CONST,
 } from '../src/systems/pets/pet-training.js';
 
-describe('pet training (FAZA DF)', () => {
+describe('pet training (PHASE DF)', () => {
   it('awardPetXp does nothing for non-pet (no controlMaster)', () => {
     const wild = { hpMax: 100, str: 30 };
     expect(awardPetXp(wild, 500)).toBe(0);

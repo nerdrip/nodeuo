@@ -636,7 +636,7 @@ functional({ id: 0x09A0, name: 'VvV Battle Standard',          tagId: 'vvv-battl
 functional({ id: 0x4CBD, name: 'VvV Brazier of Battle',        tagId: 'vvv-brazier',              weight: 50, movable: false, vvvCost: 7000 });
 functional({ id: 0x40A0, name: 'VvV Silver Net',               tagId: 'vvv-silver-net',           weight: 4,  movable: true, vvvCost: 3500 });
 
-// Faza F.3.13 — VvV reward catalog expansion (ServUO `Engines/VvV/Items/`).
+// Phase F.3.13 — VvV reward catalog expansion (ServUO `Engines/VvV/Items/`).
 // 20 additional reward items covering trophies, cosmetics, war kits,
 // and rare consumables.
 functional({ id: 0x14EF, name: 'VvV Hooded Robe (Virtue)',     tagId: 'vvv-robe-virtue',           weight: 4,  movable: true, vvvCost: 5500, hue: 0x0481 });

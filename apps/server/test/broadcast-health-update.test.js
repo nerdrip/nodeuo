@@ -1,4 +1,4 @@
-// FAZA DA — bugfix #69 regression: broadcastHealthUpdate ships 0xA1 to
+// PHASE DA — bugfix #69 regression: broadcastHealthUpdate ships 0xA1 to
 // BOTH the mob's own client AND nearby observers. Mass-heal spells
 // were previously single-recipient, so observer health bars stayed
 // stale on every Arch Cure / Noble Sacrifice.

@@ -1,4 +1,4 @@
-// FAZA CV — weapon special-abilities table sanity. Each ability ships
+// PHASE CV — weapon special-abilities table sanity. Each ability ships
 // with a label, mana cost, and onHit handler that returns a numeric
 // damage bonus. Exercises the bonus path so a regression to a label-
 // only entry would be caught.
@@ -6,7 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import { _ABILITIES_FOR_TEST as ABILITIES } from '../../scripts/src/skills/wpn.js';
 
-describe('weapon abilities (FAZA CV)', () => {
+describe('weapon abilities (PHASE CV)', () => {
   it('every entry has label, mana cost, onHit handler', () => {
     for (const [slug, def] of Object.entries(ABILITIES)) {
       expect(typeof def.label).toBe('string');

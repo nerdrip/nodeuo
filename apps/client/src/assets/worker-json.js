@@ -50,12 +50,27 @@ export async function fetchJsonInWorker(url, opts = {}) {
     // Fallback path — main thread.
     const r = await fetch(url, { headers: opts.headers ?? {} });
     if (!r.ok) return null;
+    if (opts.sha256 || Number.isFinite(opts.bytes)) {
+      const buffer = await r.arrayBuffer();
+      if (Number.isFinite(opts.bytes) && buffer.byteLength !== opts.bytes) {
+        throw new Error(`size mismatch: expected ${opts.bytes}, received ${buffer.byteLength}`);
+      }
+      if (opts.sha256) {
+        if (!globalThis.crypto?.subtle) throw new Error('WebCrypto unavailable for asset integrity check');
+        const digest = await globalThis.crypto.subtle.digest('SHA-256', buffer);
+        const actual = [...new Uint8Array(digest)]
+          .map((value) => value.toString(16).padStart(2, '0')).join('');
+        if (actual !== String(opts.sha256).toLowerCase()) throw new Error('SHA-256 mismatch');
+      }
+      return JSON.parse(new TextDecoder().decode(buffer));
+    }
     return r.json();
   }
   const id = _nextId++;
   return new Promise((resolve, reject) => {
     _pending.set(id, { resolve, reject });
-    w.postMessage({ id, url, etag: opts.etag, lastModified: opts.lastModified });
+    w.postMessage({ id, url, etag: opts.etag, lastModified: opts.lastModified,
+      sha256: opts.sha256, bytes: opts.bytes });
   });
 }
 

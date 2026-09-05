@@ -1,4 +1,4 @@
-// FAZA HE — `[give <itemIdOrTemplate> [amount] [hue]` GM quick-spawn.
+// PHASE HE — `[give <itemIdOrTemplate> [amount] [hue]` GM quick-spawn.
 //
 // ServUO `Scripts/Commands/Add.cs` lets staff drop any item directly
 // into the target's pack. We expose the same as a fast text command:

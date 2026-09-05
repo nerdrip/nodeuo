@@ -11,7 +11,7 @@
 // Caller (login handler) calls `tryDeliver(world, mob, now)` once on
 // world entry; it returns the gift item descriptor (or null).
 //
-// Faza H.4 — historical Yule + Anniversary catalogs (2004-2025).
+// Phase H.4 — historical Yule + Anniversary catalogs (2004-2025).
 // Each year's gift is canonically different per ServUO `GiftGiving/`
 // year stamps. Lookup by UTC year of `now`. Falls back to the generic
 // item when year is out of range.

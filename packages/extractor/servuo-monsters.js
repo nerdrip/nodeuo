@@ -24,8 +24,7 @@
 // Aggro range / attack interval default to engine values; we fold tamable
 // + ControlSlots so the existing pet system can use them.
 //
-// Output appended into `apps/scripts/src/data/monsters.json` keyed by a
-// numeric index continuing from the highest existing key.
+// Output is merged into `apps/scripts/src/data/config/monsters.json`.
 
 import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
 import { join, basename } from 'node:path';
@@ -53,7 +52,8 @@ const RX = {
 };
 
 function kebab(s) {
-  return s.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+  return String(s).trim().replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+    .replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase();
 }
 
 function parseFile(path) {
@@ -138,9 +138,26 @@ export async function extractServUOMonsters(servuoPath, out) {
   // Merge into existing monsters.json so the hand-curated 0..43 entries
   // keep their flavour adjustments. Existing entries WIN — extractor just
   // back-fills the long tail.
-  const outFile = join(out, 'data', 'monsters.json');
+  const outFile = join(out, 'data', 'config', 'monsters.json');
   /** @type {Record<string, any>} */
   const existing = JSON.parse(readFileSync(outFile, 'utf8'));
+  const normalizedKinds = new Set();
+  for (const [key, entry] of Object.entries(existing)) {
+    if (!entry?.kind) continue;
+    const previousKind = entry.kind;
+    entry.kind = kebab(previousKind);
+    if (entry.loot === `${previousKind}-common`) entry.loot = `${entry.kind}-common`;
+    if (!normalizedKinds.has(entry.kind)) {
+      normalizedKinds.add(entry.kind);
+      continue;
+    }
+    if (Array.isArray(existing)) existing[Number(key)] = null;
+    else delete existing[key];
+  }
+  if (Array.isArray(existing)) {
+    const unique = existing.filter(Boolean);
+    existing.splice(0, existing.length, ...unique);
+  }
   const knownKinds = new Set(Object.values(existing).map((e) => e.kind));
   let nextKey = Math.max(...Object.keys(existing).map((k) => +k)) + 1;
   let added = 0;

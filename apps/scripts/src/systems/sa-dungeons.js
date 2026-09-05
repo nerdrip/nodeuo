@@ -4,6 +4,9 @@
 
 import { moveMobile } from '../_movement.js';
 import { canCreateItem, createItem, destroyItemBySerial } from '../_items.js';
+import { allItems } from '../_spatial.js';
+import { registerWorldContentSeed } from '../_world-content.js';
+import { itemBySerial } from '../_entities.js';
 //
 // Each ServUO service is a tiny collection of items that exist only to
 // gate entry, transition between levels, or block players who haven't
@@ -28,80 +31,93 @@ const UW_LEVEL2 = { map: 4, x: 1010, y: 3790, z: -22 };
 const UW_LEVEL3 = { map: 4, x: 1020, y: 3820, z: -44 };
 const ROYAL_CITY = { map: 4, x: 990,  y: 3400, z: -45 };
 
-export default function register(api) {
-  if (!api.world || !canCreateItem(api, api.world)) return () => {};
-
-  // -------------------------------------------------------------------
-  // Tomb of Kings — Sacred Quest blocker.
-  //
-  // ServUO `SacredQuestBlocker.cs`: an invisible item that bounces any
-  // mobile stepping on it back unless their party has the Sacred Quest
-  // active. We use the existing `script: 'teleporter'` chassis with a
-  // gate that resolves to the same tile (no movement) when the quest is
-  // missing, and to the inside tile when it's present.
-  const blocker = createItem(api, api.world, {
-    itemId: 0x1BCB, hue: 0,           // invisible tile (ServUO 0x1BCB)
-    x: 1010, y: 3415, z: -42, map: 4,
-    name: 'Sacred Quest Blocker',
-    movable: false, visible: false,
-    script: 'sa-quest-blocker',
-    questId: 'sacred-quest',
-    teleportTo: TOMB_DEST_INSIDE,
-  });
-
-  // Bridge teleporter — at the bridge entry, drops players into the
-  // first chamber.
-  const bridge = createItem(api, api.world, {
-    itemId: 0x1BCB, hue: 0,
-    x: 1010, y: 3420, z: -42, map: 4,
-    name: 'Bridge to the Tomb',
-    movable: false, visible: false,
-    script: 'teleporter',
-    teleportTo: { map: 4, x: 1015, y: 3460, z: -50 },
-    cooldownMs: 2000,
-  });
-
-  // Secret door — requires the tomb key in the mobile's pack. Reuses
-  // the standard 'teleporter' script which already honours `requireItemId`
-  // and bounces the mobile with a system message when missing.
-  const secret = createItem(api, api.world, {
-    itemId: 0x0E76, hue: 0x47E,        // closed door, dimly hued
-    x: 1015, y: 3470, z: -50, map: 4,
-    name: 'Secret Door',
-    movable: false,
-    script: 'teleporter',
+const LANDMARK_DEFS = [
+  {
+    itemId: 0x1BCB, hue: 0, x: 1010, y: 3415, z: -42, map: 4,
+    name: 'Sacred Quest Blocker', movable: false, visible: false,
+    script: 'sa-quest-blocker', questId: 'sacred-quest', teleportTo: TOMB_DEST_INSIDE,
+  },
+  {
+    itemId: 0x1BCB, hue: 0, x: 1010, y: 3420, z: -42, map: 4,
+    name: 'Bridge to the Tomb', movable: false, visible: false,
+    script: 'teleporter', teleportTo: { map: 4, x: 1015, y: 3460, z: -50 }, cooldownMs: 2000,
+  },
+  {
+    itemId: 0x0E76, hue: 0x47E, x: 1015, y: 3470, z: -50, map: 4,
+    name: 'Secret Door', movable: false, script: 'teleporter',
     requireItemId: TOMB_KEY_ITEMID,
-    teleportTo: { map: 4, x: 1015, y: 3475, z: -50 },
-    cooldownMs: 2000,
-  });
-
-  // -------------------------------------------------------------------
-  // Underworld — three pit teleporters cascading down and an exit.
-  const pit1 = createItem(api, api.world, {
-    itemId: 0x1BCB, hue: 0,
-    x: UW_LEVEL1.x, y: UW_LEVEL1.y - 6, z: UW_LEVEL1.z, map: 4,
+    teleportTo: { map: 4, x: 1015, y: 3475, z: -50 }, cooldownMs: 2000,
+  },
+  {
+    itemId: 0x1BCB, hue: 0, x: UW_LEVEL1.x, y: UW_LEVEL1.y - 6, z: UW_LEVEL1.z, map: 4,
     name: 'Pit (level 1)', movable: false, visible: false,
     script: 'teleporter', teleportTo: UW_LEVEL2, cooldownMs: 2500,
-  });
-  const pit2 = createItem(api, api.world, {
-    itemId: 0x1BCB, hue: 0,
-    x: UW_LEVEL2.x, y: UW_LEVEL2.y - 6, z: UW_LEVEL2.z, map: 4,
+  },
+  {
+    itemId: 0x1BCB, hue: 0, x: UW_LEVEL2.x, y: UW_LEVEL2.y - 6, z: UW_LEVEL2.z, map: 4,
     name: 'Pit (level 2)', movable: false, visible: false,
     script: 'teleporter', teleportTo: UW_LEVEL3, cooldownMs: 2500,
-  });
-  const exit = createItem(api, api.world, {
-    itemId: 0x1BCB, hue: 0,
-    x: UW_LEVEL3.x, y: UW_LEVEL3.y + 4, z: UW_LEVEL3.z, map: 4,
+  },
+  {
+    itemId: 0x1BCB, hue: 0, x: UW_LEVEL3.x, y: UW_LEVEL3.y + 4, z: UW_LEVEL3.z, map: 4,
     name: 'Underworld Exit', movable: false, visible: false,
     script: 'teleporter', teleportTo: ROYAL_CITY, cooldownMs: 2500,
-  });
-  // Same exit accessible from inside the Tomb of Kings.
-  const tombExit = createItem(api, api.world, {
-    itemId: 0x1BCB, hue: 0,
-    x: 1010, y: 3550, z: -50, map: 4,
+  },
+  {
+    itemId: 0x1BCB, hue: 0, x: 1010, y: 3550, z: -50, map: 4,
     name: 'Leave the Tomb', movable: false, visible: false,
     script: 'teleporter', teleportTo: TOMB_DEST_OUTSIDE, cooldownMs: 2500,
+  },
+];
+
+export default function register(api) {
+  if (!api.world) return () => {};
+
+  let landmarks = [];
+  const applyLandmarks = (opts = {}) => {
+    const facets = opts.facets ? new Set(opts.facets) : null;
+    if (!canCreateItem(api, api.world)) return { added: 0, failed: 1 };
+    if (!facets) landmarks = [];
+    let added = 0;
+    for (const def of LANDMARK_DEFS) {
+      if (facets && !facets.has(def.map)) continue;
+      let item = [...allItems(api)].find((candidate) =>
+        candidate.name === def.name && candidate.map === def.map &&
+        candidate.x === def.x && candidate.y === def.y && candidate.z === def.z);
+      if (!item) {
+        item = createItem(api, api.world, { ...def });
+        added++;
+      }
+      item._worldContentSeed = 'sa-dungeons';
+      if (!landmarks.some((candidate) => candidate.serial === item.serial)) landmarks.push(item);
+    }
+    return { added };
+  };
+  const removeLandmarks = (opts = {}) => {
+    const facets = opts.facets ? new Set(opts.facets) : null;
+    const serials = new Set();
+    for (const item of allItems(api)) {
+      const canonical = LANDMARK_DEFS.some((def) => item.name === def.name &&
+        item.map === def.map && item.x === def.x && item.y === def.y && item.z === def.z);
+      if ((item._worldContentSeed === 'sa-dungeons' && (!facets || facets.has(item.map))) ||
+          (canonical && (!facets || facets.has(item.map)))) {
+        serials.add(item.serial >>> 0);
+      }
+    }
+    for (const item of landmarks) if (!facets || facets.has(item.map)) serials.add(item.serial >>> 0);
+    let removed = 0;
+    for (const serial of serials) {
+      try { if (itemBySerial(api, serial)) { destroyItemBySerial(api, serial); removed++; } }
+      catch (error) { api.log?.(`sa-dungeons: landmark removal failed: ${error.message}`); }
+    }
+    landmarks = facets ? landmarks.filter((item) => !facets.has(item.map)) : [];
+    return { removed };
+  };
+  const unregisterSeed = registerWorldContentSeed(api, 'sa-dungeons', {
+    apply: applyLandmarks,
+    remove: removeLandmarks,
   });
+  if (api.world._createWorldDone !== false) applyLandmarks();
 
   // -------------------------------------------------------------------
   // Exploring the Deep — 4-stage quest. Register in the mlquests engine
@@ -165,11 +181,7 @@ export default function register(api) {
   api.log?.('sa-dungeons: Tomb of Kings + Underworld + Exploring the Deep wired');
 
   return () => {
-    const serials = [blocker, bridge, secret, pit1, pit2, exit, tombExit]
-      .map((it) => it?.serial).filter(Boolean);
-    for (const s of serials) {
-      try { destroyItemBySerial(api, s); }
-      catch { /* already removed */ }
-    }
+    unregisterSeed();
+    removeLandmarks();
   };
 }

@@ -19,10 +19,33 @@ export default async function register(api) {
   try { list = JSON.parse(fs.readFileSync(DATA, 'utf8')); }
   catch (e) { api.log?.(`peerless-arenas: ${e.message}`); return () => {}; }
   let count = 0;
+  const owned = [];
   for (const arena of list) {
-    try { peerless.registerArena(arena); count++; }
+    try { owned.push(peerless.registerArena(arena)); count++; }
     catch (e) { api.log?.(`peerless-arenas: ${arena.name} — ${e.message}`); }
   }
+  const unhook = api.corpse?.addKillHook?.((_world, victim, killer) => {
+    const arenaName = victim?._peerlessArenaName;
+    if (!arenaName) return;
+    const arena = peerless.getArena?.(arenaName);
+    peerless.markFinished?.(arenaName);
+    if (arena?.bossKind) api.systems?.instancedPeerless?.release?.(arena.bossKind);
+    api.systems?.peerlessBosses?.invokeBossDeath?.(victim, killer, {
+      dropOnGround: (boss, payload) => {
+        try {
+          _world.createItem?.({
+            itemId: 0x14F0,
+            name: payload.artifact ?? 'artifact',
+            x: boss.x, y: boss.y, z: boss.z, map: boss.map,
+            artifactDrop: payload,
+          });
+        } catch { /* optional reward path */ }
+      },
+    });
+  });
   api.log?.(`peerless-arenas: registered ${count} arenas`);
-  return () => { /* peerless system doesn't expose unregister */ };
+  return () => {
+    unhook?.();
+    for (const arena of owned) peerless.unregisterArena?.(arena.name, arena);
+  };
 }

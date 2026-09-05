@@ -6,7 +6,7 @@ export default {
   name: 'toughness',
   cast(api, ctx) {
     const caster = ctx.sender;
-    caster.toughnessUntil = Date.now() + 60_000;
-        caster.toughnessRegen = 2;
+    caster._toughnessUntil = Date.now() + 60_000;
+    caster._toughnessRegen = 2;
   },
 };

@@ -21,7 +21,16 @@ export function buildSpellSchemaCodexScript(api) {
         return true;
       }
       if (!api.spellComposer?.open?.(user.client, { sourceSerial: item.serial })) {
-        user.client.sendSystemMessage?.('The schema editor requires the NodeUO web client.');
+        if (user.client.notifyNodeUORequirement) {
+          user.client.notifyNodeUORequirement('spell.composer', {
+            label: 'The visual spell-schema editor',
+            fallback: 'Standard spellbooks and spell casting remain available.',
+          });
+        } else {
+          user.client.sendSystemMessage?.(
+            'The spell-schema editor requires the NodeUO client. Standard spellbooks remain available.',
+          );
+        }
       }
       return true;
     },

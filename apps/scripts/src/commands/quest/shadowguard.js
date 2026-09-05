@@ -22,6 +22,7 @@ import { moveMobile } from '../../_movement.js';
 import { sendToOnline } from '../../_spatial.js';
 import { createItem } from '../../_items.js';
 import { createMobile } from '../../_mobiles.js';
+import { mobileBySerial } from '../../_entities.js';
 
 // Canonical Shadowguard room spawn coords on the Tokuno facet
 // (map=3 / Ilshenar Stygian Abyss). Each entry: teleport pad + boss
@@ -59,7 +60,19 @@ const ROOM_TIMEOUT_MS = 30 * 60 * 1000;
 const _preEntryPos = new Map();          // mobSerial → {x,y,z,map, party}
 
 function partyOf(api, mob) {
-  return api.party?.getParty?.(mob) ?? { id: `solo-${mob.serial}`, members: [mob] };
+  return api.party?.partyOf?.(mob.serial)
+    ?? { id: `solo-${mob.serial}`, members: [mob.serial] };
+}
+
+function partyMobiles(api, party) {
+  const out = [];
+  for (const member of party?.members ?? []) {
+    const mob = typeof member === 'object'
+      ? member
+      : mobileBySerial(api, member >>> 0);
+    if (mob) out.push(mob);
+  }
+  return out;
 }
 
 function teleport(api, mob, x, y, z, map) {
@@ -119,7 +132,7 @@ export default function register(api) {
   }
 
   // Kill hook — once per Shadowguard boss, advance the party state.
-  api.corpse?.addKillHook?.((_world, victim, killer) => {
+  const unhook = api.corpse?.addKillHook?.((_world, victim, killer) => {
     const room = victim?._shadowguardRoom;
     if (!room) return;
     const party = killer ? partyOf(api, killer) : null;
@@ -192,7 +205,7 @@ export default function register(api) {
         const started = shadowguard.startRoom(party, room);
         const coords = ROOM_COORDS[room];
         // Teleport every party member who's nearby (≤8 tiles).
-        const members = party.members ?? [mob];
+        const members = partyMobiles(api, party);
         for (const m of members) {
           if (!m) continue;
           const dist = Math.max(Math.abs(m.x - mob.x), Math.abs(m.y - mob.y));
@@ -210,7 +223,7 @@ export default function register(api) {
         const partyId = party.id;
         setTimeout(() => {
           if (shadowguard.progress(party).rooms.find((r) => r.room === room)?.cleared) return;
-          for (const m of party.members ?? []) {
+          for (const m of partyMobiles(api, party)) {
             if (_preEntryPos.get(m.serial)?.partyId === partyId) {
               restoreEntry(api, m);
               m.client?.sendSystemMessage?.(`Shadowguard timeout — you are pulled out of ${room}.`);
@@ -239,7 +252,7 @@ export default function register(api) {
 
       if (sub === 'leave') {
         let n = 0;
-        for (const m of party.members ?? [mob]) {
+        for (const m of partyMobiles(api, party)) {
           if (restoreEntry(api, m)) n++;
         }
         ctx.state.sendSystemMessage(`Pulled ${n} party member(s) out of Shadowguard.`);
@@ -250,5 +263,8 @@ export default function register(api) {
     },
   });
 
-  return () => api.commands.unregister('shadow');
+  return () => {
+    unhook?.();
+    api.commands.unregister('shadow');
+  };
 }

@@ -7,7 +7,7 @@
 //   6. a chat input that sends 0xAD UnicodeSpeech
 //   7. a journal panel that captures incoming 0x1C / 0xAE
 //
-// FAZA 1 keeps DOM panels for HUD/chat/journal. FAZA 4 ports those to
+// PHASE 1 keeps DOM panels for HUD/chat/journal. PHASE 4 ports those to
 // native UO gumps once the Gump asset pipeline is online.
 
 import { Container } from 'pixi.js';
@@ -27,7 +27,9 @@ import { spritePool } from '../renderer/sprite-pool.js';
 import { MobileRenderer } from '../renderer/mobile-renderer.js';
 import { TILE_HALF_W } from '../renderer/iso.js';
 import { GameWorldPicker } from './game-world-picker.js';
+import { openInteractionCatalog } from './interaction-catalog-ui.js';
 import { ensureGameDomUiStyles, sideRailOccupancy } from './game-dom-ui.js';
+import { reconcileNegotiatedMovement } from './movement-reconciliation.js';
 import { resolveMouseRunState } from '../shared/mouse-walk.js';
 import {
   buildAttackReq,
@@ -38,7 +40,6 @@ import {
   buildMovementReq,
   buildOpenSpellBook,
   buildPartyMessage,
-  buildPopupMenuChoice,
   buildPopupMenuRequest,
   buildToggleGargoyleFlying,
   buildUnicodeSpeech,
@@ -70,7 +71,6 @@ import { BuffGump }            from '../ui/gumps/buff-gump.js';
 import { TradingGump }         from '../ui/gumps/trading-gump.js';
 import { TopBarGump }          from '../ui/gumps/top-bar-gump.js';
 import { ActionBarGump }       from '../ui/gumps/action-bar-gump.js';
-import { PopupMenuGump }       from '../ui/gumps/popup-menu-gump.js';
 import { restoreSavedHotbar }  from '../ui/gumps/use-spell-button-gump.js';
 import { questArrow }          from '../ui/gumps/quest-arrow-gump.js';
 // Lazy: rare-open gumps. Vite splits each `import('...')` into its own
@@ -100,7 +100,7 @@ const lazyCommunityGump    = () => import('../ui/gumps/community-collection-gump
 const lazyUltimaStoreGump  = () => import('../ui/gumps/ultima-store-gump.js');
 const lazyCraftGump        = () => import('../ui/gumps/craft-gump.js');
 const lazyHouseACLGump     = () => import('../ui/gumps/house-acl-gump.js');
-// Faza H.2 — orphan gumps wired via sentinel.
+// Phase H.2 — orphan gumps wired via sentinel.
 const lazyHelpGump         = () => import('../ui/gumps/help-gump.js').then((m) => m.HelpGump);
 const lazyGuildOverlay     = () => import('../ui/gumps/guild-gump.js').then((m) => m.GuildGump);
 const lazyVendorSearchGump = () => import('../ui/gumps/vendor-search-gump.js').then((m) => m.VendorSearchGump);
@@ -122,6 +122,7 @@ const lazyPlayerVendorGump = () => import('../ui/gumps/player-vendor-gump.js').t
 const lazyVendorRentalGump = () => import('../ui/gumps/vendor-rental-gump.js');
 const lazyHuntmasterGump   = () => import('../ui/gumps/huntmaster-trophy-gump.js');
 const lazyMapPinsGump      = () => import('../ui/gumps/map-pin-editor-gump.js');
+const lazyPopupMenuGump    = () => import('../ui/gumps/popup-menu-gump.js').then((m) => m.PopupMenuGump);
 import { profile }             from '../managers/profile-manager.js';
 import { containerManager }    from '../managers/container-manager.js';
 import { walker, movementStats, recordMovementTrace } from '../managers/walker.js';
@@ -146,8 +147,10 @@ import { Weather } from '../renderer/weather.js';
 import { DeathScreen } from '../renderer/death-screen.js';
 import { HouseCustomState, houseCustomization } from '../managers/house-customization-manager.js';
 import { spellbookTypeFromKind } from '../shared/spellbook-types.js';
-import { NodeUONavalMessage } from '@uo/protocol';
+import { NodeUONavalMessage } from '@uo/nodeuo-protocol';
 import { registerNodeUOAuthoringUi } from './nodeuo-authoring-ui.js';
+import { installNpcDialogUi } from './npc-dialog-ui.js';
+import { installStructuredUi } from './structured-ui.js';
 
 export class GameScene extends Scene {
   constructor(gc) {
@@ -290,6 +293,9 @@ export class GameScene extends Scene {
     this._mobilesLayer = this._worldLayer;
 
     this._tiles = new TileRenderer(this._worldLayer);
+    this._unsubs.push(bus.on('map:prefetch', ({ chunks, facet } = {}) => {
+      this._tiles?.prefetchChunks?.(chunks, facet);
+    }));
     // Audit #46 P3 — expose tile-renderer + profile globally so
     // `light-points.js` occlusion sampler can read `_dynamicTalls` /
     // `visuals._tallStatics` without a circular import.
@@ -599,6 +605,7 @@ export class GameScene extends Scene {
     this._sub('chat:conference', (m) => this._appendJournal(`[chat] ${m.text}`));
     this._sub('movement:rej',    (rej) => this._onMovementRej(rej));
     this._sub('movement:ack',    (ack) => this._onMovementAck(ack));
+    this._sub('movement:reconciliation', (result) => this._onMovementReconciliation(result));
     this._sub('atmosphere:music', (info) => this._appendJournal(`[music] ${info.musicId}`));
     this._sub('gump:open',        (info) => this._onGumpOpen(info));
     this._sub('paperdoll:open',   (info) => {
@@ -645,6 +652,8 @@ export class GameScene extends Scene {
     });
     this._sub('shop:buy',         (info) => this._toggleGump(`buy:${info.vendor >>> 0}`, () => new BuyShopGump(info)));
     this._sub('shop:sell',        (info) => this._toggleGump(`sell:${info.vendor >>> 0}`, () => new SellShopGump(info)));
+    installNpcDialogUi(this);
+    installStructuredUi(this);
     // Auto-open the trade window on 0x6F action 0x00 (server starts trade).
     this._sub('trade:event',      (e) => {
       if (e.action !== 0x00) return;
@@ -763,8 +772,7 @@ export class GameScene extends Scene {
           this._toggleGump('party-health-sidebar', () => new PartyHealthSidebarGump()); break;
         case 'logout':    this._onDisconnected(null, /* userInitiated */ true);   break;
         // 'profile' is the paperdoll's chat-icon button (CUO
-        // BUTTON_CHAT, gump 0x07E2/0x07E3). Marcin: "przycisk czat
-        // jak klikniesz to robisz aktywny text edit do wpisywania" —
+        // BUTTON_CHAT, gump 0x07E2/0x07E3). It
         // focus the chat input bar at the bottom of the scene so the
         // user can start typing immediately.
         case 'profile':
@@ -888,7 +896,7 @@ export class GameScene extends Scene {
         const serial = Number(t.slice('@@OPEN_HOUSE_CUSTOM@@'.length)) >>> 0;
         if (serial) bus.emit('house:custom', { serial });
       }
-      // Faza H.2 — uniform sentinel sweep. Each `@@OPEN_<NAME>_GUMP@@<rest>`
+      // Phase H.2 — uniform sentinel sweep. Each `@@OPEN_<NAME>_GUMP@@<rest>`
       // emits `ui:<key>:open` with the trailing payload (or empty string).
       if (typeof t === 'string' && t.startsWith('@@OPEN_') && t.includes('_GUMP@@')) {
         const m = /^@@OPEN_([A-Z]+)_GUMP@@([\s\S]*)$/.exec(t);
@@ -928,17 +936,17 @@ export class GameScene extends Scene {
       this._toggleGump('resurrect-offer',
         async () => new (await lazyResurrectGump())({ net: this._net, caster }));
     });
-    // Banker overlay — balance + check writer (Faza H.1.4).
+    // Banker overlay — balance + check writer (Phase H.1.4).
     this._sub('ui:banker:open', ({ balance }) => {
       this._toggleGump('banker',
         async () => new (await lazyBankerGump())({ net: this._net, balance }));
     });
-    // Community Collections ledger (Faza H.1.5).
+    // Community Collections ledger (Phase H.1.5).
     this._sub('ui:community:open', ({ rows }) => {
       this._toggleGump('community-collection',
         async () => new (await lazyCommunityGump())({ net: this._net, rows }));
     });
-    // Ultima Store browser (Faza H.1.6).
+    // Ultima Store browser (Phase H.1.6).
     this._sub('ui:store:open', ({ payload }) => {
       this._toggleGump('ultima-store', async () => {
         const mod = await lazyUltimaStoreGump();
@@ -946,7 +954,7 @@ export class GameScene extends Scene {
         return new mod.UltimaStoreGump({ net: this._net, balance, items });
       });
     });
-    // Craft gump (Faza H.1.1).
+    // Craft gump (Phase H.1.1).
     this._sub('ui:craft:open', ({ payload }) => {
       this._toggleGump('craft', async () => {
         const mod = await lazyCraftGump();
@@ -954,14 +962,14 @@ export class GameScene extends Scene {
         return new mod.CraftGump({ net: this._net, skill, skillVal, recipes });
       });
     });
-    // House ACL/Lockdown gump (Faza H.1.2).
+    // House ACL/Lockdown gump (Phase H.1.2).
     this._sub('ui:house-acl:open', ({ payload }) => {
       this._toggleGump('house-acl', async () => {
         const mod = await lazyHouseACLGump();
         return new mod.HouseACLGump({ net: this._net, payload });
       });
     });
-    // Faza H.2 — wired-but-was-orphan gumps.
+    // Phase H.2 — wired-but-was-orphan gumps.
     this._sub('ui:help:open', () => {
       this._toggleGump('help', async () => new (await lazyHelpGump())({ net: this._net }));
     });
@@ -1096,7 +1104,7 @@ export class GameScene extends Scene {
         return new mod.VendorInventoryGump();
       });
     });
-    // Huntmaster trophy display (Faza H.4).
+    // Huntmaster trophy display (Phase H.4).
     this._sub('ui:huntmaster:open', ({ payload }) => {
       this._toggleGump('huntmaster-trophy', async () => {
         const mod = await lazyHuntmasterGump();
@@ -1104,7 +1112,7 @@ export class GameScene extends Scene {
         return new mod.HuntmasterTrophyGump({ net: this._net, ...parsed });
       });
     });
-    // Map pin editor (Faza H.5).
+    // Map pin editor (Phase H.5).
     this._sub('ui:map-pins:open', ({ payload }) => {
       this._toggleGump('map-pins', async () => {
         const mod = await lazyMapPinsGump();
@@ -1170,9 +1178,9 @@ export class GameScene extends Scene {
       // ground when the cursor is inside the game viewport AND within
       // pickup range of the player. Anything else — dropped onto the
       // chrome border, the paperdoll background, an empty gump body —
-      // returns the held item to its source via 0x27 bounce. User
-      // report 2026-05-19 "jak nie trafię w paperdoll item znika z
-      // plecaka". The fix: gate the drop on (a) cursor inside the
+      // returns the held item to its source via 0x27 bounce. Missing the
+      // paperdoll previously made an item appear to vanish from the backpack.
+      // The fix gates the drop on (a) cursor inside the
       // camera-managed viewport rect, AND (b) target tile within the
       // 2-tile pickup reach. Otherwise reject (which restores to
       // origin container or paperdoll slot, never spawning on the
@@ -1211,9 +1219,9 @@ export class GameScene extends Scene {
       if (this._ui.gumps.find((g) => g.type === key)) return;
       this._toggleGump(key, async () => new (await lazyMahjong())(info.gameSerial));
     });
-    // House customization: server may emit a 'house:custom' (0xD8)
-    // payload announcing edit-mode entry; surface the editor gump.
-    this._sub('house:custom', (info) => {
+    // Only BF/20 type 4 enters customization. 0xD8 is also sent for ordinary
+    // nearby custom houses and must never open the editor by itself.
+    this._sub('house:custom-start', (info) => {
       if (!info?.serial) return;
       this._toggleGump(`house-cust:${info.serial}`, async () => new (await lazyHouseCustom())(info.serial));
     });
@@ -1402,15 +1410,16 @@ export class GameScene extends Scene {
       } catch { /* socket transient */ }
     });
     // Right-click context menus (0xBF 0x14). Server replies to our
-    // 0xBF 0x15 with a list of cliloc'd entries; show them in a small
-    // DOM menu at the click coords. CUO renders this as a Pixi gump
-    // (PopupMenuGump.cs) — DOM is much cheaper for the same UX.
-    this._sub('popup:show', (info) => {
-      // Native Pixi context menu — replaces the older DOM popup. Spawn at
-      // the cursor position we stashed on the right-click. The DOM
-      // fallback (`_showPopupMenu`) is still around for emergencies but
-      // no longer wired by default.
+    // 0xBF 0x15 with a list of cliloc'd entries; lazily load the native
+    // Pixi gump only when the first context menu is requested.
+    this._sub('popup:show', async (info) => {
+      // Spawn the native Pixi menu at the cursor position captured on right-click.
       if (!info?.entries?.length || !this._ui) return;
+      const generation = (this._popupImportGeneration = (this._popupImportGeneration ?? 0) + 1);
+      let PopupMenuGump;
+      try { PopupMenuGump = await lazyPopupMenuGump(); }
+      catch { bus.emit('chat:system', { text: 'The context menu could not be loaded.' }); return; }
+      if (generation !== this._popupImportGeneration || !this._ui) return;
       const rawX = this._lastRClickX ?? 200;
       const rawY = this._lastRClickY ?? 200;
       // PointerEvent coordinates are physical CSS pixels; Pixi gumps use the
@@ -1769,8 +1778,10 @@ export class GameScene extends Scene {
     }
     for (const u of this._unsubs) u();
     this._unsubs.length = 0;
+    this._popupImportGeneration = (this._popupImportGeneration ?? 0) + 1;
     uiManagerInstance.set(null);
     this._ui?.destroy();
+    this._ui = null;
     this._tiles?.destroy();
     this._mobiles?.destroy();
     this._effects?.destroy();
@@ -2082,10 +2093,10 @@ export class GameScene extends Scene {
     el.id = 'uo-journal';
     el.innerHTML = `
       <div class="uo-journal-head">
-        <span>Dziennik</span>
-        <button class="uo-journal-open" type="button" title="Otwórz pełny dziennik (J)">J</button>
+        <span>Journal</span>
+        <button class="uo-journal-open" type="button" title="Open the full journal (J)">J</button>
       </div>
-      <div class="uo-journal-lines is-empty" aria-live="polite">Brak wiadomości</div>`;
+      <div class="uo-journal-lines is-empty" aria-live="polite">No messages</div>`;
     const body = el.querySelector('.uo-journal-lines');
     el.querySelector('.uo-journal-open')?.addEventListener('click', (event) => {
       event.preventDefault();
@@ -2377,67 +2388,6 @@ export class GameScene extends Scene {
       ${row('decoded', ns.bytesDecoded ?? 0)}
       ${row('path', path, true)}
     `;
-  }
-
-  /** Render a context-menu next to the cursor using cliloc text. The
-   *  menu auto-closes on outside click; choosing an entry sends 0xBF
-   *  0x16 with the entry's responseId. Disabled entries (flag 0x01)
-   *  are dimmed and ignore clicks. */
-  _showPopupMenu({ serial, entries }) {
-    entries = Array.isArray(entries) ? entries : [];
-    this._closePopupMenu();
-    const el = document.createElement('div');
-    el.className = 'uo-panel uo-game-panel uo-popup-menu';
-    el.style.cssText = `
-      position:fixed; left:${this._lastRClickX}px; top:${this._lastRClickY}px;
-      min-width:160px; padding:4px; z-index:9999;
-      font:500 13px/1.35 "Segoe UI Variable Text", "Segoe UI", Inter, system-ui, sans-serif; cursor:pointer;
-    `;
-    const pinned = tooltips.pinnedSerials().includes(serial >>> 0);
-    const pinItem = document.createElement('div');
-    pinItem.textContent = pinned ? 'Unpin properties' : 'Pin properties';
-    pinItem.style.cssText = 'padding:5px 8px;color:#9fdcff;border-bottom:1px solid rgba(216,175,98,.18)';
-    pinItem.addEventListener('mouseenter', () => { pinItem.style.background = '#3a2a10'; });
-    pinItem.addEventListener('mouseleave', () => { pinItem.style.background = ''; });
-    pinItem.addEventListener('click', () => {
-      if (pinned) tooltips.unpin(serial);
-      else tooltips.pin(serial, this._lastRClickX, this._lastRClickY);
-      this._closePopupMenu();
-    });
-    el.appendChild(pinItem);
-    for (const e of entries) {
-      const item = document.createElement('div');
-      const disabled = (e.flags & 0x01) !== 0;
-      item.textContent = assets.cl(e.cliloc) || `#${e.cliloc}`;
-      item.style.cssText = `
-        padding:3px 8px; color:${disabled ? '#666' : '#fff0c0'};
-        ${disabled ? 'pointer-events:none' : ''}
-      `;
-      item.addEventListener('mouseenter', () => { item.style.background = '#3a2a10'; });
-      item.addEventListener('mouseleave', () => { item.style.background = ''; });
-      item.addEventListener('click', () => {
-        net.send(buildPopupMenuChoice(serial, e.responseId));
-        this._closePopupMenu();
-      });
-      el.appendChild(item);
-    }
-    this.gc.domMount(el);
-    this._popupMenu = el;
-    // Close on any outside click. Captured globally; we register the
-    // listener on the next tick so the click that opened us doesn't
-    // immediately close it.
-    setTimeout(() => {
-      this._popupClose = (ev) => { if (!el.contains(ev.target)) this._closePopupMenu(); };
-      window.addEventListener('mousedown', this._popupClose, true);
-    }, 0);
-  }
-  _closePopupMenu() {
-    this._popupMenu?.remove();
-    this._popupMenu = null;
-    if (this._popupClose) {
-      window.removeEventListener('mousedown', this._popupClose, true);
-      this._popupClose = null;
-    }
   }
 
   _appendJournal(line) {
@@ -3041,9 +2991,8 @@ export class GameScene extends Scene {
 
   _onRightDown(e) {
     // RMB on a gump = close-it gesture (UIManager handles the actual
-    // close). DON'T fall through to popup-menu / pathfind / walk —
-    // Marcin: "kliknięcie prawym na gumpie zamyka go ALE postać się
-    // rusza". This early-return matches `_onLeftDown`'s gump guard.
+    // close). DON'T fall through to popup-menu / pathfind / walk. This
+    // early return prevents character movement and matches `_onLeftDown`'s gump guard.
     if (this._ui?.pickAtScreen(e.clientX, e.clientY)) return;
     if (!this._isInsideGameViewport(e.clientX, e.clientY)) return;
     const hit = this._pickWorldEntity(e.clientX, e.clientY);
@@ -3051,6 +3000,8 @@ export class GameScene extends Scene {
       e.preventDefault();
       this._lastRClickX = e.clientX;
       this._lastRClickY = e.clientY;
+      if (openInteractionCatalog(this, hit.serial, e.clientX, e.clientY,
+        () => net.send(buildPopupMenuRequest(hit.serial)))) return;
       net.send(buildPopupMenuRequest(hit.serial));
       return;
     }
@@ -3184,9 +3135,7 @@ export class GameScene extends Scene {
    *  The earlier `max(|sx-screenX|,|sy-screenY|) < TOL` only matched
    *  clicks within ~14-18 px of the FOOT — clicking the head or torso
    *  reported "no entity" → caller (target prompt, attack click) treated
-   *  it as a miss and SENT CANCEL to the server. Marcin: clicked an orc
-   *  while casting magic-arrow, got "Targeting cancelled" then game
-   *  froze waiting for a spell that never resolved.
+   *  it as a miss and sent CANCEL to the server, leaving the cast unresolved.
    *
    *  Box matches CUO `Animations.cs:GetSpriteHitArea` — wide enough to
    *  cover the body silhouette while still letting adjacent mobs win
@@ -3232,8 +3181,7 @@ export class GameScene extends Scene {
     const DEAD_ZONE_PX = TILE_HALF_W * 0.6;
     if (r2 < DEAD_ZONE_PX * DEAD_ZONE_PX) return;
 
-    // Run modifiers — user report 2026-05-18: "postać nie biega gdy
-    // odsuwam mysz dalej od postaci". Auto-run kicks in past ~2.5 tile
+    // Run modifiers. Auto-run kicks in past ~2.5 tile
     // half-widths (~55 px), matching CUO retail's "anywhere past your
     // own feet circle = run". Was 5 tiles (110 px) which forced a wide
     // drag before run engaged. Shift still forces immediate run.
@@ -3585,6 +3533,7 @@ export class GameScene extends Scene {
     this._pendingMoves.delete(sequence);
     if (world.player) world.player.notoriety = notoriety;
   }
+  _onMovementReconciliation(result = {}) { reconcileNegotiatedMovement(this, result); }
 
   _onMovementRej({ sequence, x, y, z, direction }) {
     // Server says the predicted step was illegal (e.g. partial-loaded
@@ -3710,9 +3659,8 @@ export class GameScene extends Scene {
     if (!this._ui) return;
     // If a gump with the same gumpSerial is already open, replace it
     // BUT preserve its current screen position so re-opens (e.g. page-
-    // flip on [items / [mobs which both use stable gumpIds) don't snap
-    // the gump back to the server-supplied origin. User-report: "jak
-    // zmieniamy strone to zachowuj pozycje gumpa zeby nie skakal".
+    // flip on [items / [mobs which both use stable gumpIds) do not snap
+    // the gump back to the server-supplied origin.
     const existing = this._ui.findGump((g) => g.gumpSerial === info.gumpSerial);
     let preserved = null;
     if (existing) {

@@ -160,7 +160,7 @@ function broadcastEntityRefresh(api, ent, fields, state = null) {
   // The NetState IS the "client" handle — it owns `.send(pkt)` and is
   // what `mob.client` references back to. There is no `state.client`
   // field (an earlier draft of this helper assumed there was, which made
-  // the gm-echo branch a no-op — Marcin: "still nic"). Use the state
+  // the GM echo branch a no-op). Use the state
   // directly so the GM running [itemgump always sees their own change.
   const gmClient = state && typeof state.send === 'function' ? state : null;
   for (const f of fields) {

@@ -14,8 +14,8 @@ export default {
     const caster = ctx.sender;
     radius(api, caster, 8, (m) => {
           if (m === caster || m.notoriety === 1) return;
-          m.tribulationUntil = Date.now() + 20_000;
-          m.tribulationPct = 0.20;
+          m._tribulationUntil = Date.now() + 20_000;
+          m._tribulationPct = 0.20;
         });
   },
 };

@@ -151,8 +151,8 @@ function dirTowards(dx, dy) {
  * `stepMobile` returns true on a pure FACING change (when the mob's
  * direction differs from `d`) — the previous tryStep took that as a
  * successful step and short-circuited, leaving the mob to twitch
- * between facings without ever translating. User report 2026-05-19
- * "bandyci stoją i nic nie robią". Now we snapshot the position
+ * between facings without ever translating, leaving aggressive NPCs idle.
+ * Now we snapshot the position
  * before calling stepMobile and only treat a coord change as a
  * real walk; a turn returns true but is RETRIED in the same tick
  * to actually take the step (one extra stepMobile call with the
@@ -192,13 +192,20 @@ function findNearestPlayer(api, world, mob, range) {
   // Friend gate: a summoned aggressive mob (Blade Spirits, Energy
   // Vortex) carries `team` set to its caster's serial AND `summonedBy`.
   // Without these checks the vortex picked its own caster as the
-  // nearest hostile and turned around to attack them — Marcin's
-  // "vortex pojawił się i zaczął mnie atakować" report. Mirror ServUO
+  // nearest hostile and turned around to attack them. Mirror ServUO
   // BaseCreature.IsEnemy: same team / summonedBy / controlMaster ⇒
   // friendly, skip.
   const myTeam       = mob.team | 0;
   const summonedBy   = mob.summonedBy >>> 0;
   const controlMaster = mob.controlMaster >>> 0;
+  if (api.ai?.nearestOnline) {
+    return api.ai.nearestOnline(mob, range, (other) => {
+      if (myTeam && (other.team | 0) === myTeam) return false;
+      if (summonedBy && (other.serial >>> 0) === summonedBy) return false;
+      if (controlMaster && (other.serial >>> 0) === controlMaster) return false;
+      return true;
+    });
+  }
   // Sector-indexed scan — only walk mobiles within `range` tiles of
   // the mob. 200 NPCs × 500 world.mobiles × 2 ticks/sec = 200 k iter/s
   // on the old linear path; the indexed scan is O(N_in_radius) instead.
@@ -306,9 +313,11 @@ export default function register(api) {
       let target = state.targetSerial ? mobileBySerial({ world: ctx.world }, state.targetSerial) : null;
       if (target && ((target.hp ?? 0) <= 0 || target.ghost || target.map !== mob.map)) target = null;
       if (!target && state.fleeUntil <= now) {
-        const found = findNearestPlayer(api, ctx.world, mob, cfg.aggroRange ?? 6);
-        target = found?.target ?? null;
+        target = api.ai.groupTarget?.(mob, now) ?? null;
+        const found = target ? null : findNearestPlayer(api, ctx.world, mob, cfg.aggroRange ?? 6);
+        target ??= found?.target ?? null;
         state.targetSerial = target?.serial ?? 0;
+        if (target) api.ai.publishGroupTarget?.(mob, target);
       }
 
       // Flee mode: run away from the last threat (if any) or from the
@@ -371,6 +380,7 @@ export default function register(api) {
         if (tryStep(api, mob, naiveDir)) {
           ctx.broadcastMove(mob);
           state.path = null; // line of sight again — drop the cache
+          state.pathIndex = 0;
           return;
         }
         const targetDrift = Math.max(
@@ -386,22 +396,26 @@ export default function register(api) {
         // replan normally.
         const targetMapDrift = state.pathTargetMap != null
           && target.map !== state.pathTargetMap;
-        if (!state.path || state.path.length === 0 || targetDrift > 2 || targetMapDrift ||
+        if (!state.path || (state.pathIndex ?? 0) >= state.path.length || targetDrift > 2 || targetMapDrift ||
             (now - state.pathPlannedAt) > 5000) {
           if (api.ai.findPath) {
             state.path = api.ai.findPath(mob, target.x, target.y, { maxNodes: 250 }) ?? [];
           } else {
             state.path = [];
           }
+          state.pathIndex = 0;
           state.pathTargetX = target.x;
           state.pathTargetY = target.y;
           state.pathTargetMap = target.map;
           state.pathPlannedAt = now;
         }
-        if (state.path && state.path.length > 0) {
-          const plannedDir = state.path.shift();
+        if (state.path && (state.pathIndex ?? 0) < state.path.length) {
+          // Indexing avoids Array.shift() copying the remaining A* route on
+          // every step, which mattered when many monsters chased at once.
+          const plannedDir = state.path[state.pathIndex ?? 0];
+          state.pathIndex = (state.pathIndex ?? 0) + 1;
           if (tryStep(api, mob, plannedDir)) ctx.broadcastMove(mob);
-          else state.path = null; // map changed under us — replan next tick
+          else { state.path = null; state.pathIndex = 0; } // map changed under us — replan next tick
         }
         return;
       }
@@ -487,7 +501,7 @@ export default function register(api) {
   // monster `kind` that isn't a player, and re-attach. Mirrors the
   // identical pass in npcs/vendor.js (line 1127).
   //
-  // Backfill: legacy saves predating the `mob.kind` stamp (FAZA HQ)
+  // Backfill: legacy saves predating the `mob.kind` stamp (PHASE HQ)
   // landed on disk WITHOUT the field. A simple name → kind reverse
   // index lets us recover the binding so old orcs/wolves/lichs aren't
   // permanently inert. Build the index once, look up by exact name —
@@ -646,7 +660,7 @@ function spawnAggressive(api, world, kind, pos) {
   // mage/caster paths the `nextCastAt` they need (a missing field
   // makes `now >= state.nextCastAt` evaluate NaN → false → no casts).
   api.ai.attach(mob, aiBehavior, freshAiState(mob, kind));
-  // FAZA CY: per-spawn paragon roll. ServUO's BaseCreature flags ~5%
+  // PHASE CY: per-spawn paragon roll. ServUO's BaseCreature flags ~5%
   // of natural spawns as paragon; they get ×4 HP, ×2 damage, an
   // orange hue, and "a paragon ..." prefix on their name. Plus a
   // beefier loot drop (handled by the corpse.dropLoot multiplier when
@@ -690,15 +704,14 @@ function spawnAggressive(api, world, kind, pos) {
   });
   // 0xA1 healthUpdate seeds m.hp / m.hpMax on the client. Without it
   // health-lines-manager.draw() short-circuits per-mob (`if (typeof
-  // m.hp !== 'number')`) and the overhead HP bar never appears —
-  // matched Marcin's "orc bez paska życia". 0x78 mobileIncoming
+  // m.hp !== 'number')`) and the overhead HP bar never appears. 0x78 mobileIncoming
   // doesn't carry HP fields, so we have to send a separate 0xA1.
   const healthPkt = api.protocol.healthUpdate?.({
     serial: mob.serial,
     current: mob.hp ?? mob.hpMax ?? 1,
     max: mob.hpMax ?? mob.hp ?? 1,
   });
-  // BUGFIX #67 (FAZA CY): visibility-gate. spawnAggressive runs on
+  // BUGFIX #67 (PHASE CY): visibility-gate. spawnAggressive runs on
   // EVERY natural spawner tick — ~10 per minute on a populated shard.
   // The previous global loop was probably the worst single source of
   // wasted bandwidth; a 50-player shard with one spawn meant 50

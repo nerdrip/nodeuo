@@ -1,4 +1,4 @@
-// FAZA CW — bugfix #65 regression: corpse decay broadcasts must honour
+// PHASE CW — bugfix #65 regression: corpse decay broadcasts must honour
 // the canon UO 18-tile visibility gate. Previously the loop fanned
 // removeEntity to EVERY connected client per decay sweep, which scaled
 // poorly on busy shards (every 30 s sweeper × every corpse × every

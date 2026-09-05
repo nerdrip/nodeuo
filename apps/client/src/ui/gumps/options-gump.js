@@ -18,8 +18,8 @@ import { profile } from '../../managers/profile-manager.js';
 // Canonical UO horizontal slider gump ids — used by ClassicUO's
 // Slider — custom-drawn (recessed gutter + filled portion + round
 // knob). We used to mount the UO 0x0845/0x0846/0x0847 3-piece track
-// here, but the middle "rope" segment doesn't tile cleanly when
-// stretched to ~180 px (Marcin: "slidery maja kiepsa grafike") — the
+// here, but the middle "rope" segment does not tile cleanly when
+// stretched to ~180 px; the
 // shimmering gold-chain look fought the rest of the panel chrome.
 // The Graphics-drawn version reads as clean recessed metal with a
 // warm cream fill that matches the gump's parchment label hue.
@@ -30,8 +30,7 @@ const SLIDER_KNOB_R = 7;
 
 // Padding around the tab-content area. Earlier sliders and labels were
 // flush against the WindowGump chrome on the left + top — adding a
-// breath of margin matches the paperdoll / spellbook chrome and the
-// user asked for "padding zeby ladniej wyglądalo".
+// breath of margin matches the paperdoll / spellbook chrome.
 const PAD_X = 22;
 const CONTENT_START_Y = 42;
 const CONTENT_PAD_BOTTOM = 10;
@@ -466,6 +465,12 @@ export class OptionsGump extends WindowGump {
     this._addPicker('Effects quality',              'graphics.effectsQuality',
       [{ label: 'Automatic', value: 'auto' }, { label: 'Low GPU', value: 'low' }, { label: 'High', value: 'high' }],
       y + 320, PAD_X + 330);
+    this._addCheckbox('Dynamic render resolution',  'graphics.dynamicResolution', y + 350, PAD_X + 330);
+    this._addSlider('Minimum render scale',          'graphics.dynamicResolutionMin', y + 376, PAD_X + 330,
+      { min: 0.5, max: 1, step: 0.05 });
+    this._addPicker('Renderer (restart required)',   'graphics.renderer',
+      [{ label: 'WebGL2 (compatible)', value: 'webgl' }, { label: 'WebGPU (experimental)', value: 'webgpu' }],
+      y + 402, PAD_X + 330);
   }
 
   _buildInput(y) {

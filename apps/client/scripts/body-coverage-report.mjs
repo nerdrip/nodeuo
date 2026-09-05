@@ -1,23 +1,10 @@
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
+import { BODY_FALLBACK } from '../src/assets/mobile-atlas.js';
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const manifestUrl = new URL('../public/assets/mobiles-atlas.json', import.meta.url);
-
-function parseBodyFallbackMap(source) {
-  const match = source.match(/const BODY_FALLBACK = Object\.freeze\(\{([\s\S]*?)\}\);/);
-  assert.ok(match, 'asset-manager should expose BODY_FALLBACK source table');
-  const fallback = new Map();
-  for (const row of match[1].split('\n')) {
-    const clean = row.replace(/\/\/.*$/, '');
-    const re = /(\d+)\s*:\s*(0x[0-9a-fA-F]+|\d+)/g;
-    let m;
-    while ((m = re.exec(clean))) {
-      fallback.set(Number(m[1]), Number.parseInt(m[2], 0));
-    }
-  }
-  return fallback;
-}
+const indexUrl = new URL('../public/assets/mobiles-atlas-index.json', import.meta.url);
 
 function bodyEntry(atlas, bodyId) {
   return atlas?.bodies?.[bodyId] ?? atlas?.bodies?.[String(bodyId)] ?? null;
@@ -78,13 +65,22 @@ function framesForBody(body) {
   return frames;
 }
 
-if (!existsSync(manifestUrl)) {
-  console.log('[body-coverage] skipped: mobiles-atlas.json is not present');
+if (!existsSync(manifestUrl) && !existsSync(indexUrl)) {
+  console.log('[body-coverage] skipped: no mobile atlas manifest is present');
   process.exit(0);
 }
 
-const atlas = JSON.parse(read('../public/assets/mobiles-atlas.json'));
-const fallback = parseBodyFallbackMap(read('../src/assets/asset-manager.js'));
+const atlas = existsSync(indexUrl)
+  ? JSON.parse(read('../public/assets/mobiles-atlas-index.json'))
+  : JSON.parse(read('../public/assets/mobiles-atlas.json'));
+if (atlas.shards) {
+  atlas.bodies = {};
+  for (const row of Object.values(atlas.shards)) {
+    const shard = JSON.parse(read(`../public/assets/${row.file}`));
+    Object.assign(atlas.bodies, shard.bodies ?? {});
+  }
+}
+const fallback = new Map(Object.entries(BODY_FALLBACK).map(([body, target]) => [Number(body), target]));
 const bodyIds = Object.keys(atlas.bodies ?? {}).map((id) => Number(id)).filter(Number.isFinite);
 const aliasCount = Object.keys(atlas.aliases ?? {}).length;
 const equipConvCount = Object.keys(atlas.equipConv ?? {}).length;

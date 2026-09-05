@@ -130,7 +130,7 @@ function _buildScriptApi(rootApi) {
     // `api.protocol.mobileIncoming(...)` unconditionally. In unit
     // tests (where the protocol module isn't injected) this used to
     // throw mid-cast, which the outer try/catch swallowed silently —
-    // the FAZA HJ Reveal test never saw `hidden` flip to false because
+    // the PHASE HJ Reveal test never saw `hidden` flip to false because
     // `broadcastSound` threw before the spell's own loop ran.
     // Tolerate the absence: provide no-op builders that return empty
     // `Uint8Array` payloads. ScriptRuntime always injects the real

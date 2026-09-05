@@ -1,4 +1,4 @@
-// BUGFIX #36 (FAZA BT): ChampionAltar.stop() / boss-cleanup must call
+// BUGFIX #36 (PHASE BT): ChampionAltar.stop() / boss-cleanup must call
 // the `despawn` dep so observers receive a removeEntity for every mob
 // the altar nukes. Otherwise nearby clients keep stale sprites until
 // they walk 18 tiles away. The status broadcaster also fires on every
@@ -13,7 +13,7 @@ function makeWorld() {
   return world;
 }
 
-describe('ChampionAltar despawn + status hooks (FAZA BT)', () => {
+describe('ChampionAltar despawn + status hooks (PHASE BT)', () => {
   /** @type {ReturnType<typeof makeWorld>} */ let w;
   /** @type {number[]} */ let despawned;
   /** @type {any[]} */ let broadcasts;

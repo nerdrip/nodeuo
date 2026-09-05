@@ -98,7 +98,7 @@ export default function register(api) {
       if (sub === 'factions') { showFactions(ctx, mob, factions); return; }
       if (sub === 'vvv')      { showVvV(ctx, mob, vvv); return; }
       if (sub === 'ethics')   { showEthics(ctx, mob, ethics); return; }
-      // Faza H.2 — `[pvp gump <view>` opens the rich VvV overlay.
+      // Phase H.2 — `[pvp gump <view>` opens the rich VvV overlay.
       // Views: battle (default) / members / stats / rewards / missions / standard.
       if (sub === 'gump') {
         const view = String(ctx.args[1] ?? 'battle').toLowerCase();

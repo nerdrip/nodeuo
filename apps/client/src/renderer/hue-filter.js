@@ -66,8 +66,7 @@ void main(void) {
 // GLSL both failed silently: Pixi never bound the values, so the
 // shader read defaults (0) and `if (uMode < 0.5) finalColor = src;`
 // short-circuited every fragment to raw atlas RGB. Result: every dyed
-// item rendered in its base palette (cream-gray for clothing). Marcin:
-// "wreszcie żeby działało kolorowanie przedmiotów … nadal szary".
+// item rendered in its base palette (cream-gray for clothing).
 //
 // Canonical pattern verified against Pixi v8's own ColorMatrixFilter:
 //   - GLSL: `uniform float uColorMatrix[20]; uniform float uAlpha;`

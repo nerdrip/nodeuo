@@ -1,4 +1,4 @@
-// FAZA GF — `[stuck` self-unstuck command.
+// PHASE GF — `[stuck` self-unstuck command.
 //
 // ServUO `Engines/Help/StuckMenuTimer.cs`: a player who's wedged in
 // terrain or stuck inside a wall can teleport to the nearest town.

@@ -19,8 +19,7 @@ import { playSound, manaUpdate } from '@uo/protocol';
  *  `Mobile.Mana { set; }` auto-broadcasts via `Delta(MobileDelta.Mana)`;
  *  ours has bare assignment, so any mana mutation that skips this call
  *  leaves the client's mana bar visually frozen until the next regen
- *  tick (~1 Hz) updates it. User report 2026-05-19 "podczas rzucania
- *  zaklęć nie pokazuje się zmniejszenie many". */
+ *  tick (~1 Hz) updates it, hiding the immediate mana cost of a spell. */
 function pushMana(mob) {
   if (!mob?.client) return;
   try {
@@ -199,7 +198,7 @@ function castSpellCore(ctx) {
       }
     }
   }
-  // FAZA HA: GM+ bypass mana/tithing here too. ctx.accessLevel is the
+  // PHASE HA: GM+ bypass mana/tithing here too. ctx.accessLevel is the
   // caller-supplied staff flag — passed by handlers.dispatchCast when
   // the player's account access level is GM or Admin.
   // ctx.scroll: scroll cast bypasses BOTH mana cost AND reagent
@@ -255,9 +254,9 @@ function castSpellCore(ctx) {
     ? 1
     : Math.min(1, Math.max(0.5, (skill - floor) / 50));
   if (Math.random() > successChance) {
-    // BUGFIX #90 (FAZA DV): fizzle previously kept the full mana cost.
+    // BUGFIX #90 (PHASE DV): fizzle previously kept the full mana cost.
     // ServUO `Spell.cs::DoFizzle` refunds half the mana.
-    // BUGFIX #115 (FAZA HA): refund only when costs were actually
+    // BUGFIX #115 (PHASE HA): refund only when costs were actually
     // charged. GM+ bypass-cost path skipped the c.mana -= def.mana
     // line, so applying the +half refund put their mana ABOVE manaMax.
     if (!isStaff && !(def.school === 'chivalry' && def.tithing)) {

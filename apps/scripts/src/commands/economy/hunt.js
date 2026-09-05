@@ -18,7 +18,7 @@ export default function register(api) {
     run(ctx, args) {
       const sub = String(args?.[0] ?? '').toLowerCase();
       if (sub === 'gump' || sub === 'trophy') {
-        // Faza H.4 — open the trophy display client overlay.
+        // Phase H.4 — open the trophy display client overlay.
         const tgt = huntmaster.currentTarget();
         const board = huntmaster.top(api.world, 10);
         const rows = board.map((e, i) =>

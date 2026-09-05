@@ -1,223 +1,95 @@
-# Architecture: server = engine, scripts = game
+# Engine and game-content boundary
 
-## Principle
+NodeUO keeps reusable runtime mechanics in `apps/server` and shard-specific
+gameplay in `apps/scripts`.
 
-> If you delete `apps/scripts/` entirely, a player should still be able
-> to log in, walk around, and chat. Nothing else should work — no
-> spells, no combat damage, no NPC AI, no crafting, no loot, no quests.
+The practical boundary is simple: removing `apps/scripts` must still leave a
+server that can accept a connection, enter the world, move and speak. Spells,
+combat rules, NPC behavior, quests, loot, recipes and other shard content are
+registered by scripts at startup.
 
-`apps/server/src/` = **engine only**: network, world state, persistence,
-registries + dispatchers, event bus, system tick scheduler.
+## Ownership
 
-`apps/scripts/src/` = **game**: every spell effect, item template, mob,
-recipe, loot table, quest, AI, NPC dialogue, season event, skill
-implementation, gump layout. Loaded at boot by `server/src/scripts.js`.
+`apps/server/src` owns:
 
-## Layout — `apps/server/src/` (engine)
+- TCP and WebSocket transport, the original UO packet stream and optional
+  negotiated NodeUO JSON services;
+- accounts, world state, sectors, visibility, persistence and recovery;
+- schedulers, budgets, backpressure, replication and diagnostics;
+- registries and dispatch pipelines for spells, crafting, AI, quests, items,
+  gumps and other gameplay domains;
+- the authenticated administration API and control surfaces.
 
-```
-server/src/
-├── main.js              # entry point + wiring
-├── scripts.js           # script-runtime loader (hot-reload, error isolation)
-├── config.js            # config loader
-│
-├── net/                 # TCP, packet parsing, opcode dispatch, account auth
-├── world/               # world state (mobiles, items, sectors, persistence,
-│                        # land/templates/loot registries, pathfinding, AI scheduler)
-├── content/             # registry façades only (no content)
-│   ├── ARCHITECTURE.md  # this file
-│   ├── items/           # registerItem + getItem API
-│   └── mobiles/         # registerMobile + getMobile API
-│
-├── admin/               # admin web UI server (separate HTTP listener)
-│
-├── chat-channels.js     # chat engine (channels, moderation, broadcast helper)
-├── cliloc-broadcast.js  # broadcast cliloc helper
-├── cliloc-constants.js  # cliloc id constants
-├── combat-formulas.js   # combat formulas (engine defaults; scripts can override via setter)
-├── corpse.js            # corpse spawn + loot drop engine + kill-hook chain
-├── day-night.js         # day/night cycle engine
-├── guild.js             # guild engine (CRUD + ranks)
-├── help-queue.js        # GM help queue engine
-├── notoriety.js         # karma/criminal rules (engine defaults; scripts can override)
-├── party.js             # party engine
-├── poison.js            # poison apply/cure engine (level table from scripts)
-├── regen.js             # HP/mana/stam regen engine (formulas from scripts)
-├── regions.js           # region engine (allow-cast, on-enter)
-├── skill-gain.js        # skill gain engine (curves)
-├── spawner.js           # spawner engine
-└── status-effects.js    # status effect lifecycle engine
-│
-└── systems/             # dispatcher + registry engines, grouped:
-    ├── spells/          # cast pipeline + registry + reagent engine
-    │                    # (spell SCHOOLS live in scripts/spells/schools/)
-    ├── crafting/        # craft pipeline + recipe registry + runic + extracted shim
-    │                    # (RECIPES live in scripts/crafting/)
-    ├── bards/           # bard skill dispatcher
-    ├── bosses/          # peerless, champion, doom, shadowguard,
-    │                    # myrmidex, khaldun, world bosses, revamped dungeons
-    ├── content/         # currently empty (placeholder for future)
-    ├── dispatchers/     # currently empty (placeholder)
-    ├── economy/         # bods, auction, vendors, harvest, loyalty,
-    │                    # cleanup britannia, points-systems, casino, insurance, store
-    ├── events/          # seasonal-events scheduler, anniversary, christmas,
-    │                    # easter, halloween, krampus, gift-giving
-    ├── housing/         # houses, plants, addons, camps, damageable items, lotto
-    ├── pets/            # pet stable, hunger, customization, training, ethereal mounts
-    ├── pvp/             # factions, ethics, sigils, vvv, pvp-arena, faction-capture/strongholds
-    ├── quests/          # quest registry, conversation dispatcher, ml quests
-    └── rewards/         # achievements, daily-login, veteran rewards, virtues
-    + ~34 misc.          # smaller engine helpers (astronomy, town-cryer,
-                         # mastery-abilities, runic-reforging, etc.) — still at root
-```
+`apps/scripts/src` owns:
 
-## Layout — `apps/scripts/src/` (game content)
+- commands and skill actions;
+- spell effects, recipes, loot tables and item behavior;
+- mobile templates, NPC AI, vendors and scripted dialog;
+- quests, regions, spawns, gump layouts and shard data;
+- adapters that register data-driven content with server engines.
 
-```
-scripts/src/
-├── commands/            # player + admin commands
-│   ├── admin/           # staff-only (gm, kick, ban, set, save, shutdown, ...)
-│   ├── debug/           # diagnostic (info-skills, srvstats, mobs, items, who)
-│   ├── system/          # world-state (daynight, season, sky, weather, atmosphere, news)
-│   ├── crafting/        # craft, imbue, reforge, repair, smelt, unravel, weave, ...
-│   ├── housing/         # house, design, addon, camp-place, garden, plant, ...
-│   ├── magic/           # cast, rune, runebook, tithe
-│   ├── combat/          # combat, disarm, duel, arena, pvp, polymorph, honor, sacrifice
-│   ├── economy/         # auction, bank, bod, casino, loot, trade, vendor, ...
-│   ├── guild/           # guild, party, joinguild, ethics, faction, sigil, virtues
-│   ├── quest/           # quest, myrmidex, shadowguard, skulls, treasuremap, ...
-│   └── (root)           # universal player cmds (help, stuck, where, time, afk, go, tele)
-│
-├── skills/              # skill implementations + README
-│                        # (anatomy, bandage, beg, camp, chop, cook, detect-hidden,
-│                        # fish, forensic, herd, hide, identify, lockpick, lore, mine,
-│                        # snoop, spiritspeak, steal, stealth, tame, tasteid, track, vet,
-│                        # wpn, cartography, poison)
-│
-├── gumps/               # server-emitted gump LAYOUTS (engine only owns dispatcher)
-│                        # GuildGump, RaceChangeGump, BulkOrderGump, HelpCategoriesGump, etc.
-│
-├── spells/              # spell implementations
-│   ├── index.js         # SINGLE registration entrypoint — top-level-awaits
-│   │                    # dynamic imports for every `script` field in
-│   │                    # data/config/spells.json and calls registerSpell()
-│   │                    # for each. ~137 spells across 7 schools.
-│   ├── schools/         # only mastery-style registries remain here:
-│   │                    # masteries, bard-mastery, gargoyle. The legacy
-│   │                    # per-school stubs (magery, necromancy, chivalry,
-│   │                    # bushido, ninjitsu, mysticism, spellweaving)
-│   │                    # were deleted 2026-05-17 — their metadata moved
-│   │                    # to data/config/spells.json.
-│   ├── reagents.js      # reagent table loader — projects the `reagents`
-│   │                    # field out of spells.json into the server engine.
-│   ├── magery/          # 64 magery spells in 8 circles
-│   │   ├── circle1/     # per-spell circle 1-8 magery implementations
-│   │   ├── ...
-│   │   └── circle8/
-│   ├── bushido/         # full bushido spell implementations
-│   ├── chiv/, necro/, mysticism/, ninjitsu/, spellweaving/
-│   └── _helpers.js etc.
-│
-├── crafting/            # craft recipe definitions per school
-│                        # (alchemy, blacksmithing, carpentry, cartography, cooking,
-│                        # fletching, glassblowing, inscription, masonry, tailoring, tinkering)
-│
-├── items/               # item content
-│   ├── definitions/     # registerItem table files (weapons, armor, jewelry,
-│   │                    # instruments, scrolls, wands, talismans, runic-tools, etc.)
-│   ├── behaviors/       # per-item lifecycle scripts (book, doors, shrines,
-│   │                    # spellbook, house-acl, pot-plants, templates, ...)
-│   ├── loaders/         # JSON-driven catalogs (loot-packs, eodon-artifacts,
-│   │                    # books-extended, decoratives, damageable)
-│   └── scripts/         # named-script registry (item.script = 'name' lookup)
-│       └── _shared/, consumables/, equipment/, functional/, lights/,
-│           tools/, traps/, world/
-│
-├── npcs/                # NPC content
-│   ├── templates/       # registerMobile table files (humanoids, animals, dragons,
-│   │                    # undead, elementals, peerless, eodon-void, regional-npcs, etc.)
-│   ├── ai/              # AI behaviors (mage-ai, healer, necro-ai, bard-ai, boss-ai,
-│   │                    # paladin-ai, predator-ai, samurai-ai, ninja-ai, thief-ai)
-│   └── vendors/         # vendor + role NPCs (banker, healer, hair-stylist, trainer,
-│                        # vendor, town-crier, named, donation-vendor, eodon-quest-givers)
-│
-├── quests/              # quest chains (Eodon, Heartwood, Heritage Pack,
-│                        # Mondain's Legacy, Solen Queen, Haven Heritage)
-│                        # PLUS chain-loader.js (multi-stage chains from
-│                        # data/world/quest-chains.json: Uzeraan's Turmoil,
-│                        # Dark Tides, Emino's Undertaking, Haochi's Trials,
-│                        # Mad Scientist, Witch's Apprentice, Collector,
-│                        # Discovering Animal Training, Bard Mastery x3,
-│                        # Study of the Solen Hive, The Ritual, Summoning,
-│                        # Exodus Encounter, Cloak of Humility, Sacred Quest,
-│                        # Exploring the Deep, Terrible Hatchlings,
-│                        # Tiered Mining + Lumberjacking)
-│
-├── systems/             # script-runtime loaders bridging JSON data into engine systems
-│                        # (anniversary, camps, addons, magincia-distillation, peerless-arenas,
-│                        # poison, regen, revamped-dungeons, seasonal-events, store-inventory,
-│                        # termur-content)
-│
-├── regions/             # region definitions
-├── spawns/              # spawn definitions (xml-spawner + boss arenas)
-├── data/                # pure-data JSON tables (skills, items, loot-tables,
-│                        # spells, anniversary-tiers, store-catalogue,
-│                        # camps, addons, regional-npcs, summons, etc.)
-└── properties/          # OPL tooltip providers
-```
+Script code may call an engine API, but engine code must not import a concrete
+shard script. Registry facades in `server/src/content` and dispatchers in
+`server/src/systems` maintain that dependency direction.
 
-## Script registration pattern
+## Runtime lifecycle
+
+Every script module exports a registration function. Registration returns a
+disposer for commands, event handlers, timers and registry entries created by
+that generation.
 
 ```js
-// Top-level: data + helpers populate a local PENDING bucket
-const __PENDING__ = [];
-function weapon(def) { __PENDING__.push({ kind: 'weapon', ...def }); }
-weapon({ id: 0x13B2, name: 'Bow', ... });
-
-// Default export: script-runtime entry point
 export default function register(api) {
-  const reg = api.catalog?.items?.registerItem;
-  if (!reg) return () => {};
-  for (const def of __PENDING__) reg(def);
-  return () => { /* disposer for hot-reload */ };
+  const unregister = api.commands.register('example', ({ mobile }) => {
+    api.log(`Example command used by ${mobile.serial}`);
+  });
+  return () => unregister();
 }
 ```
 
-API exposed to scripts (`server/src/scripts.js`):
-- `api.world`, `api.items` (createItem/destroyItem), `api.commands`, `api.targeting`
-- `api.protocol` (`@uo/protocol` packet builders)
-- `api.catalog.{items,mobiles}` — registry façades
-- `api.systems.{spells,crafting,...}` — engine dispatchers grouped by category
-- `api.gumps` — gump send/close helpers
-- `api.combat`, `api.poison`, `api.statusEffects`, `api.regions`
-- `api.spawner`, `api.persistence`, `api.helpQueue`, `api.chatChannels`
-- `api.log(msg)`
+Reloads are transactional: the candidate generation is imported and activated
+before the previous generation is disposed. A failed import or activation
+keeps the active generation intact. File-scoped reload follows the static
+import graph so changed helpers also reload their active dependants.
 
-## What broke / changed in this reorg
+The script API exposes bounded facades for world state, items, targeting,
+packets, gumps, combat, status effects, regions, persistence, chat, commands,
+content registries and gameplay systems. Private client features go through
+the negotiated `api.nodeUO` gateway and never replace standard UO behavior.
 
-- `scripts/src/commands/{admin,debug,system,crafting,housing,magic,combat,economy,guild,quest}/` — 125 root commands grouped into 10 subfolders, ~16 universal commands remain at root.
-- `scripts/src/skills/` — new folder with 27 skill commands extracted from `commands/`. See `skills/README.md` for the skill table mapping.
-- `scripts/src/gumps/` — new folder for server-emitted gump layouts. Engine `state.activeGumps` dispatcher is in `server/src/net/handlers.js`.
-- `scripts/src/items/{definitions,behaviors,loaders}/` — 43 root files split by role.
-- `scripts/src/npcs/{templates,ai,vendors}/` — 54 root files split by role.
-- `server/src/systems/{pvp,bards,events,economy,pets,bosses,housing,quests,rewards}/` — 67 of 101 systems grouped.
+## Layout
 
-## Migration totals (across all sessions)
+```text
+apps/server/src/
+  net/        transports, parsers, sessions and protocol handlers
+  world/      authoritative entities, sectors, AI and persistence
+  systems/    reusable gameplay engines and registries
+  content/    dependency-neutral content registry facades
+  admin/      authenticated API and administration UI
 
-- **142 content files** moved out of `server/src/` into `apps/scripts/src/`
-- Engine `server/src/content/` shrunk from ~55 files to **2 façades + 2 registries** (38 lines total)
-- Server `systems/` shrunk to 34 root files + 9 subgroups
-- Scripts grew to ~660 files in 33 leaf folders
+apps/scripts/src/
+  commands/   player, staff and diagnostic commands
+  skills/     skill actions
+  spells/     spell implementations and metadata adapters
+  crafting/   recipe definitions
+  items/      definitions, loaders and behaviors
+  npcs/       templates, AI and vendors
+  quests/     quest definitions and chains
+  gumps/      server-authored UI layouts
+  regions/    region rules
+  spawns/     spawn definitions
+  systems/    data-to-engine registration adapters
+  data/       version-controlled shard configuration
+```
 
-## Tests
+## Rules for new code
 
-`server/test/_setup-content.js` exposes `loadSpells()`, `loadCrafting()`,
-`loadLootPacks()` for tests that need registries populated.
+1. Put reusable state transitions, validation and scheduling in the server.
+2. Put names, balance values, spawn lists and shard behavior in scripts/data.
+3. Import registry modules instead of importing a system entry point from a
+   domain definition; this avoids registration cycles.
+4. Return a disposer for every registered resource.
+5. Keep all input bounded and keep authoritative decisions on the server.
+6. Preserve the classic UO packet path when adding optional NodeUO behavior.
 
-Full suite: **561/561 ✓** with `--testTimeout=30000`.
-
-## Remaining roadmap
-
-Roadmap previously listed in this file (Phases 5–8) still applies for
-combat-formulas, notoriety, skill-gain, and the ~34 untouched systems/ files.
-The reorg made navigation easier but those split tasks remain.
+Run `pnpm --filter @uo/server test` and `pnpm lint` after changing the boundary.

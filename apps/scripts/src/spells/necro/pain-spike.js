@@ -4,7 +4,7 @@
 // random damage with a Necromancy skill bonus so the spell stays useful
 // across the full 0..120 skill curve without a separate Eval-Int analog.
 
-import { broadcastEffect, broadcastSound, projectile, skillValue } from '../_helpers.js';
+import { broadcastEffect, broadcastSound, echoConduitDamage, projectile, skillValue } from '../_helpers.js';
 import { mobileBySerial } from '../../_entities.js';
 
 export default {
@@ -43,6 +43,7 @@ export default {
     broadcastSound(api, api.world, target, 0x0211);
     const targetSerial = target.serial >>> 0;
     api.combat.damage(api.world, target, dmg, caster);
+    echoConduitDamage(api, caster, target, dmg);
     api.combat.animate(api.world, target, 0x14, { frameCount: 3 });
     // Refund — ServUO restores `damage` HP after the timer expires
     // (if target still alive). Schedule once for the original cast.

@@ -1,4 +1,4 @@
-// FAZA EJ — Item Insurance.
+// PHASE EJ — Item Insurance.
 //
 // ServUO `Misc/Insurance.cs`: items can be flagged Insured. On death,
 // insured items are NOT moved to the corpse — they stay on the

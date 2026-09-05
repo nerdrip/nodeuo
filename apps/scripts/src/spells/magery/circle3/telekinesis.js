@@ -2,8 +2,8 @@ import { broadcastEffect, broadcastSound } from '../../_helpers.js';
 import { childrenOf } from '../../../_inventory.js';
 import { itemBySerial } from '../../../_entities.js';
 
-// Stub: original UO triggers distant item actions (pull chains, press plates).
-// Wiring that up needs an itemId→useHandler table we don't yet have.
+// Remote item activation. It uses the same template/script dispatcher as a
+// double-click, while retaining the locked/trapped-container safety gates.
 export default {
   name: 'telekinesis',
   cast(api, ctx, target) {
@@ -22,13 +22,30 @@ export default {
     });
     broadcastEffect(api, api.world, caster, fx);
     broadcastSound(api, api.world, caster, 0x1F5);
-    // Audit #36 P3 #15 — ServUO `Telekinesis.cs:44-76`: open the target
-    // container at distance (ITelekinesisable hook in ServUO; we MVP
-    // it as container double-click bypass). Was: no-op flavor message.
+    // Audit #36 P3 #15 — ServUO `Telekinesis.cs:44-76`: invoke the target's
+    // telekinesis/use behavior, with a generic distant-container fallback.
     // Refuse on mobiles (the spell only acts on items).
     const itemSerial = target.serial >>> 0;
     const item = itemBySerial(api, itemSerial);
-    if (item?.gumpId && itemSerial !== caster.serial) {
+    if (!item || itemSerial === caster.serial) {
+      ctx.state.sendSystemMessage('That cannot be manipulated.');
+      return;
+    }
+    if (item.locked) {
+      ctx.state.sendSystemMessage('It is locked.');
+      return;
+    }
+    // Do not make the spell a trap bypass. Raw container traps require the
+    // normal double-click path so damage and ownership are attributed.
+    if (item.trapped || (item._magicTrapDmg | 0) > 0 || (item.trapPower | 0) > 0) {
+      ctx.state.sendSystemMessage('A trap prevents you from opening it safely at a distance.');
+      return;
+    }
+    if (api.templates?.useItem?.(api.world, item, caster)) {
+      ctx.state.sendSystemMessage('You manipulate the distant object.');
+      return;
+    }
+    if (item.gumpId) {
       // Use the canonical item-open path: send displayContainer +
       // contents to the caster's client. Mirrors `handleUseReq` for
       // containers (server/net/handlers.js `handleUseReq` ~L2855).

@@ -76,8 +76,8 @@ export function deserializeStalls(arr) {
       id: raw.id, x: raw.x | 0, y: raw.y | 0, map: raw.map | 0,
       owner: raw.owner ?? null, ownerName: raw.ownerName ?? null,
       deposit: raw.deposit | 0, bids: Array.isArray(raw.bids) ? raw.bids : [],
-      rentExpiresAt: raw.rentExpiresAt | 0,
-      auctionEndsAt: raw.auctionEndsAt | 0,
+      rentExpiresAt: Number(raw.rentExpiresAt) || 0,
+      auctionEndsAt: Number(raw.auctionEndsAt) || 0,
     });
   }
   return _stalls.size;

@@ -24,7 +24,7 @@ export default function register(api) {
       const rewardKey = (args?.[0] ?? '').toLowerCase();
 
       if (!rewardKey) {
-        ctx.state.sendSystemMessage(`You have ${credits} reward credit(s). Tier ${VR.tierFromAge(Date.now() - (account.createdAt ?? Date.now()))}.`);
+        ctx.state.sendSystemMessage(`You have ${credits} reward credit(s). Tier ${VR.tierForAccount(account)}.`);
         ctx.state.sendSystemMessage('Eligible rewards:');
         for (let i = 0; i < eligible.length; i += 4) {
           ctx.state.sendSystemMessage('  ' + eligible.slice(i, i + 4).join('   '));
@@ -41,11 +41,12 @@ export default function register(api) {
       // Spawn the concrete item into the player's pack.
       const cfg = VR.spawnConfig?.(r.reward) ?? null;
       if (!cfg) {
-        ctx.state.sendSystemMessage(`Reward redeemed: ${r.reward}. (Item not yet spawnable — saved on account.)`);
+        VR.rollbackRedemption?.(account, r.reward);
+        ctx.state.sendSystemMessage(`Reward ${r.reward} is not configured; the credit was not spent.`);
         return;
       }
       if (!api.game?.inventory?.findBackpack?.(sender)) {
-        account.veteran?.redeemed?.pop?.();
+        VR.rollbackRedemption?.(account, r.reward);
         ctx.state.sendSystemMessage('You have no backpack for the reward.');
         return;
       }
@@ -60,6 +61,7 @@ export default function register(api) {
         if (cfg.charges != null) item.charges = cfg.charges;
         if (cfg.deed != null) item.deed = cfg.deed;
       } catch (e) {
+        VR.rollbackRedemption?.(account, r.reward);
         ctx.state.sendSystemMessage(`Spawn failed: ${e?.message ?? e}`);
         return;
       }

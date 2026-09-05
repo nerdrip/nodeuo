@@ -13,6 +13,19 @@ describe('house customization (per-tile)', () => {
     expect(h.editing).toBeTruthy();
   });
 
+  it('drops the previous owner edit lease when ownership changes', () => {
+    const reg = new HouseRegistry();
+    const owner = makeOwner(1);
+    const house = reg.place(owner, { x1: 0, y1: 0, x2: 5, y2: 5 });
+    reg.beginEditing(house, owner);
+    reg.addCustomItem(house, 'item', 0x06A5, 1, 1, 7);
+
+    expect(reg.transferOwnership(house, { serial: 2, name: 'Buyer' })).toBe(true);
+    expect(house.editing).toBeNull();
+    expect(house.ownerSerial).toBe(2);
+    expect(house.tiles ?? []).toHaveLength(0);
+  });
+
   it('add/remove tiles in editing buffer', () => {
     const reg = new HouseRegistry();
     const h = reg.place(makeOwner(1), { x1: 0, y1: 0, x2: 5, y2: 5 });
@@ -86,8 +99,80 @@ describe('house customization (per-tile)', () => {
     const item = world.items.get(h.customItemSerials[0]);
     expect(item).toMatchObject({
       itemId: 0x06A5, x: 2, y: 2, z: 17, movable: false,
-      _customHouseId: h.id,
+      visible: false, _customHouseId: h.id, _customHouseKind: 'wall',
     });
-    expect(delivered).toContain(item.serial);
+    expect(delivered).not.toContain(item.serial);
+  });
+
+  it('repairs missing derived pieces and removes custom-house orphans on restore', () => {
+    const world = new World();
+    const original = new HouseRegistry().attachWorld(world);
+    const owner = makeOwner(1);
+    const house = original.place(owner, {
+      x1: 0, y1: 0, x2: 5, y2: 5, z: 0, map: 1, customizable: true,
+    });
+    original.beginEditing(house, owner);
+    original.addCustomItem(house, 'floor', 0x31F4, 1, 1, 0);
+    original.addCustomItem(house, 'wall', 0x06A5, 2, 1, 0);
+    expect(original.commitCustom(house)).toBe(true);
+    const snapshot = original.snapshot();
+
+    world.destroyItem(house.customItemSerials[0]);
+    const orphan = world.createItem({
+      itemId: 0x1000, x: 4, y: 4, z: 0, map: 1,
+      movable: false, _customHouseId: 9999,
+    });
+
+    const restored = new HouseRegistry().attachWorld(world);
+    expect(restored.restoreSnapshot(snapshot)).toBe(1);
+    expect(restored._lastCustomReconcile).toMatchObject({ rebuilt: 1, orphansRemoved: 1, failed: 0 });
+    expect(world.items.has(orphan.serial)).toBe(false);
+    const repaired = restored.get(house.id);
+    expect(repaired.customItemSerials).toHaveLength(2);
+    expect(repaired.customItemSerials.every((serial) => world.items.has(serial))).toBe(true);
+    expect(repaired.customItemSerials.map((serial) => world.items.get(serial).itemId).sort())
+      .toEqual([0x06A5, 0x31F4].sort());
+  });
+
+  it('keeps the old committed design when replacement materialization fails', () => {
+    const world = new World();
+    const reg = new HouseRegistry().attachWorld(world);
+    const owner = makeOwner(1);
+    const house = reg.place(owner, { x1: 0, y1: 0, x2: 5, y2: 5, map: 1 });
+    reg.beginEditing(house, owner);
+    reg.addCustomItem(house, 'wall', 0x06A5, 1, 1, 0);
+    expect(reg.commitCustom(house)).toBe(true);
+    const oldSerial = house.customItemSerials[0];
+
+    reg.beginEditing(house, owner);
+    reg.clearCustomTiles(house);
+    reg.addCustomItem(house, 'wall', 0x06A6, 2, 1, 0);
+    reg.addCustomItem(house, 'floor', 0x31F4, 2, 2, 0);
+    const allocate = world.serial.allocItem.bind(world.serial);
+    let calls = 0;
+    world.serial.allocItem = () => {
+      if (++calls === 2) throw new Error('simulated allocation failure');
+      return allocate();
+    };
+    try {
+      expect(reg.commitCustom(house)).toBe(false);
+    } finally {
+      world.serial.allocItem = allocate;
+    }
+    expect(house.tiles).toEqual([{ kind: 'wall', g: 0x06A5, x: 1, y: 1, z: 0 }]);
+    expect(house.editing).toBeTruthy();
+    expect(house.customItemSerials).toEqual([oldSerial]);
+    expect(world.items.has(oldSerial)).toBe(true);
+    expect([...world.items.values()].filter((item) => item._customHouseId === house.id)).toHaveLength(1);
+  });
+
+  it('indexes the canonical teleprts catalogue spelling as teleport pieces', () => {
+    const reg = new HouseRegistry();
+    expect(reg.setCustomPieceCatalog({ teleprts: [{ styles: [{ pieces: [0x1822] }] }] })).toBe(1);
+    const owner = makeOwner(1);
+    const house = reg.place(owner, { x1: 0, y1: 0, x2: 5, y2: 5, map: 1 });
+    reg.beginEditing(house, owner);
+    expect(reg.addCustomItem(house, 'teleport', 0x1822, 1, 1, 0)).toBe(true);
+    expect(reg.addCustomItem(house, 'wall', 0x1822, 2, 1, 0)).toBe(false);
   });
 });

@@ -454,6 +454,32 @@ const banker = api.game.findMobileNear(speaker, (m) => {
 }, { range: 4, self: speaker });
 ```
 
+### Rich NPC conversations
+
+The browser client and NodeUO server negotiate the optional `NpcDialog`
+capability. On that connection, double-clicking a scripted NPC opens a
+visual-novel panel. Classic clients and clients connected through a bridge to
+another emulator continue to use normal UO double-click, speech, context-menu,
+vendor, bank, and paperdoll packets.
+
+Quest choices come directly from `api.systems.questConversation` trees. Vendor
+buy/sell, banking, paperdoll, speech keywords, and context-menu callbacks are
+merged into the same panel, while their effects remain server-authoritative.
+For a custom context-menu action, provide a plain label and optional category:
+
+```js
+{
+  responseId: 40,
+  cliloc: 3006132,
+  nodeUOLabel: 'Ask about the lost shipment',
+  nodeUOKind: 'talk', // talk | trade | service | character
+  onPick: () => openShipmentConversation(state, npc),
+}
+```
+
+The metadata only describes presentation. `onPick` remains the source of
+truth and must repeat all range, ownership, payment, and quest-state checks.
+
 ## Skills
 
 A skill should have:

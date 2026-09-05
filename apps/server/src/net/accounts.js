@@ -1,6 +1,6 @@
 // Account registry with hashed passwords.
 //
-// Persists to saves/accounts.json. Passwords are stored as a scrypt-based
+// Persists to the accounts table in saves/world.sqlite. Passwords are stored as a scrypt-based
 // key derivation ("scrypt:<N>:<r>:<p>:<base64Salt>:<base64Hash>") so a
 // compromised save file cannot trivially reveal plaintext. node:crypto is
 // built in — no extra deps.
@@ -17,12 +17,18 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import {
+  getSchemaValueSync,
+  loadAccountsSync,
+  replaceAccountsSync,
+  setSchemaValueSync,
+  worldDatabasePath,
+} from '../world/sqlite-store.js';
 
 const SCRYPT_N = 16384;
 const SCRYPT_R = 8;
 const SCRYPT_P = 1;
 const KEY_LEN = 32;
-let saveNonce = 0;
 
 /** @returns {string}  scrypt password hash encoding */
 export function hashPassword(plaintext) {
@@ -66,16 +72,20 @@ export class AccountDB {
   /** @param {string} saveDir */
   constructor(saveDir) {
     this.saveDir = saveDir;
-    this.file = path.join(saveDir, 'accounts.json');
+    this.file = worldDatabasePath(saveDir);
+    this.legacyFile = path.join(saveDir, 'accounts.json');
     /** @type {Map<string, Account>} */
     this.accounts = new Map();
   }
 
   load() {
-    if (!fs.existsSync(this.file)) return;
-    const raw = fs.readFileSync(this.file, 'utf8');
-    /** @type {Account[]} */
-    const list = JSON.parse(raw);
+    let list = loadAccountsSync(this.saveDir);
+    const importPending = getSchemaValueSync(this.saveDir, 'legacy_accounts_imported') !== '1';
+    if (list.length === 0 && importPending && fs.existsSync(this.legacyFile)) {
+      const raw = fs.readFileSync(this.legacyFile, 'utf8');
+      list = JSON.parse(raw);
+      if (!Array.isArray(list)) throw new Error('legacy accounts.json must contain an array');
+    }
     for (const a of list) {
       // Rehydrate Sets that we serialized as arrays in saveSync().
       // Existing fields (achievements/titles/recipes/cleanupRedeemed)
@@ -96,35 +106,25 @@ export class AccountDB {
       if (Array.isArray(a.craftHistory)) a.craftHistory = a.craftHistory.slice(0, 50);
       this.accounts.set(a.username.toLowerCase(), a);
     }
+    if (importPending) {
+      if (list.length > 0) replaceAccountsSync(this.saveDir, this.accounts.values());
+      setSchemaValueSync(this.saveDir, 'legacy_accounts_imported', '1');
+    }
   }
 
   saveSync() {
-    fs.mkdirSync(this.saveDir, { recursive: true });
-    const tmp = `${this.file}.tmp-${process.pid}-${++saveNonce}`;
-    const backup = this.file + '.bak';
-    // Serializer: convert Sets → arrays so JSON.stringify doesn't drop
-    // them silently. Mirrors the rehydrate step in load().
-    const replacer = (_key, value) => {
-      if (value instanceof Set) return [...value];
-      if (value instanceof Map) return [...value.entries()];
-      return value;
-    };
-    fs.writeFileSync(tmp, JSON.stringify([...this.accounts.values()], replacer, 2), 'utf8');
-    // POSIX rename replaces the destination atomically, while Windows may
-    // return EPERM when accounts.json already exists or is briefly scanned by
-    // antivirus/indexing. Rotate the previous snapshot first and keep it as a
-    // crash fallback. Unique temp names also make nested save triggers safe.
-    try {
-      if (fs.existsSync(backup)) fs.rmSync(backup, { force: true });
-      if (fs.existsSync(this.file)) fs.renameSync(this.file, backup);
-      fs.renameSync(tmp, this.file);
-    } catch (error) {
-      try {
-        if (!fs.existsSync(this.file) && fs.existsSync(backup)) fs.renameSync(backup, this.file);
-      } catch { /* preserve the original error */ }
-      try { fs.rmSync(tmp, { force: true }); } catch { /* best effort */ }
-      throw error;
-    }
+    replaceAccountsSync(this.saveDir, this.accounts.values());
+  }
+
+  /** Create the first durable shard administrator from deployment secrets.
+   * No built-in password is ever generated or logged. Without an explicit
+   * secret the existing first-game-login rule remains the development path. */
+  ensureBootstrapAdmin({
+    username = process.env.UO_ADMIN_USER ?? 'admin',
+    password = process.env.UO_BOOTSTRAP_ADMIN_PASSWORD ?? process.env.UO_ADMIN_PASS ?? '',
+  } = {}) {
+    if (this.accounts.size > 0 || !password) return null;
+    return this.createAccount(String(username).trim() || 'admin', String(password), 'Admin');
   }
 
   /**
@@ -167,7 +167,7 @@ export class AccountDB {
       // would stay on accessLevel='Player' forever otherwise. User
       // report 2026-05-17: logged in as "admin", saw the Player badge
       // in the Commands panel + an empty command catalogue because the
-      // 0xBF 0x00A0 push filters by ACCESS_ORDER. Re-evaluating the
+      // The negotiated command-catalogue push filters by ACCESS_ORDER. Re-evaluating the
       // env list at every login keeps the listed names in lock-step
       // with their intended privilege.
       const envAdminsRecheck = String(process.env.UO_ADMINS ?? 'admin')

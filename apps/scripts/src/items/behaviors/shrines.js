@@ -1,4 +1,4 @@
-// FAZA BV — Shrine lifecycle script + `[shrine` admin command.
+// PHASE BV — Shrine lifecycle script + `[shrine` admin command.
 //
 // onWalkOn: ghost steps on the shrine → instant resurrect.
 // onUse:    ghost double-clicks the shrine → resurrect (accessibility).
@@ -7,7 +7,7 @@
 // and applies the shrine's HP / mana / stam policy.
 
 import { allItems, sendToClientsNear } from '../../_spatial.js';
-import { canCreateItem } from '../../_items.js';
+import { canCreateItem, destroyItemBySerial } from '../../_items.js';
 
 /**
  * Canonical UO shrines. Coordinates copied from ServUO `Scripts/Items/
@@ -24,6 +24,31 @@ const SHRINES = [
   { name: 'Sacrifice',    x: 1606, y: 2490 },
   { name: 'Humility',     x: 4274, y: 3697 },
 ];
+
+export function placeCanonicalShrines(api) {
+  const shrines = api.systems?.shrines;
+  if (!shrines || !canCreateItem(api, api.world)) return { added: 0, skipped: SHRINES.length };
+  let added = 0;
+  let skipped = 0;
+  for (const cfg of SHRINES) {
+    const exists = [...allItems(api)].some((it) =>
+      it.script === 'shrine' && it.shrine?.name === cfg.name
+      && it.x === cfg.x && it.y === cfg.y);
+    if (exists) { skipped++; continue; }
+    shrines.placeShrine(api, api.world, cfg);
+    added++;
+  }
+  return { added, skipped };
+}
+
+export function deleteCanonicalShrines(api) {
+  const names = new Set(SHRINES.map((entry) => entry.name));
+  const victims = [...allItems(api)]
+    .filter((item) => item.script === 'shrine' && names.has(item.shrine?.name))
+    .map((item) => item.serial);
+  for (const serial of victims) destroyItemBySerial(api, serial);
+  return { removed: victims.length };
+}
 
 export default function register(api) {
   if (!canCreateItem(api, api.world)) return () => {};
@@ -57,18 +82,12 @@ export default function register(api) {
     },
   });
 
-  // Drop the canonical shrines on world load. Idempotent: skip if a
-  // shrine of the same name already exists in the same tile to survive
-  // hot reload + persisted saves.
-  const placed = [];
-  for (const cfg of SHRINES) {
-    const exists = [...allItems(api)].some((it) =>
-      it.script === 'shrine' && it.shrine?.name === cfg.name
-      && it.x === cfg.x && it.y === cfg.y);
-    if (exists) continue;
-    placed.push(shrines.placeShrine(api, api.world, cfg));
+  // Reconcile only an already-populated world. CreateWorld calls the same
+  // helper explicitly; a wiped shard therefore stays truly empty on reboot.
+  if (api.world?._createWorldDone !== false) {
+    const placed = placeCanonicalShrines(api);
+    if (placed.added) api.log?.(`shrines: placed ${placed.added} new shrines`);
   }
-  if (placed.length) api.log?.(`shrines: placed ${placed.length} new shrines`);
 
   // Admin: `[shrine <Name>` drops a custom shrine at sender's feet.
   if (api.commands) {

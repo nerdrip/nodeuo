@@ -23,11 +23,11 @@ import { worldToScreenX, worldToScreenY, depthKey, LAYER_EFFECT } from './iso.js
 import { assets } from '../assets/asset-manager.js';
 import { applyHueTo } from './hue-filter.js';
 import { bus } from '../core/event-bus.js';
+import { clientPerformanceGovernor, clientRuntimeProfile } from '../shared/runtime-governor.js';
 import { world } from '../world/world.js';
 import { acquireSprite, releaseSprite } from './sprite-pool.js';
 import { effectLifetimeMs } from './effect-timing.js';
 import { profile } from '../managers/profile-manager.js';
-import { clientRuntimeProfile } from '../shared/runtime-governor.js';
 
 class ActiveEffect {
   constructor(info) {
@@ -210,7 +210,7 @@ export class EffectRenderer {
   _quality() {
     const selected = profile.get('graphics.effectsQuality');
     return selected === 'low' || selected === 'high' ? selected
-      : clientRuntimeProfile.tier === 'low' ? 'low' : 'high';
+      : clientRuntimeProfile.tier === 'low' || clientPerformanceGovernor.level !== 'nominal' ? 'low' : 'high';
   }
 
   _effectLimit() { return this._quality() === 'low' ? 80 : EffectRenderer.MAX_EFFECTS; }

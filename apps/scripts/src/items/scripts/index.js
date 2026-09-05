@@ -209,7 +209,7 @@ const SCRIPT_BUILDERS = [
   buildSpyglassScript, buildBedrollScript, buildBagOfSendingScript,
   buildNameChangeDeed, buildHairRestylingDeed, buildBeardRestylingDeed,
   buildIncenseScript, buildPerfumeScript, buildNecroReagentPouch,
-  // Faza F.1.2 — Bless deed family (ServUO ItemBlessDeed/ClothingBlessDeed/BlessScroll).
+  // Phase F.1.2 — Bless deed family (ServUO ItemBlessDeed/ClothingBlessDeed/BlessScroll).
   buildItemBlessDeed, buildClothingBlessDeed, buildBlessScroll,
   buildTreasureChest,
   // Skill tools (double-click → matching `[skill` command).

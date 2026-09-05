@@ -14,7 +14,7 @@ export default {
     // (full item object). Resolve the serial form through the script API
     // so a stale `target.locked` doesn't shadow live state; treat the
     // bare-object form (no serial, has gumpId / itemId) as the item
-    // itself — that's what FAZA GL tests feed in. Both paths converge
+    // itself — that's what PHASE GL tests feed in. Both paths converge
     // on the same `item` reference for the mutations below.
     let item = null;
     if (target.serial) {

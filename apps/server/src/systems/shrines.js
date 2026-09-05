@@ -1,4 +1,4 @@
-// FAZA BV — Shrine of Resurrection.
+// PHASE BV — Shrine of Resurrection.
 //
 // ServUO reference: Scripts/Items/Misc/AnkhPendantNorth.cs +
 // Scripts/Mobiles/AI/AIs/AnkhAI.cs. We model the shrine as a static

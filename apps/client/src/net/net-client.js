@@ -12,6 +12,26 @@
 // Unhandled opcodes are surfaced as 'net:unhandled' bus events for debug.
 
 import { huffmanDecompress } from '@uo/protocol';
+import {
+  advertisedFeatureList,
+  buildNodeUOManifest,
+  createNodeUORpcCancel,
+  createNodeUORpcRequest,
+  createNodeUOMessage,
+  featureIdForNamespace,
+  isNodeUOMessageExpired,
+  negotiateFeatures,
+  NODEUO_JSON_SUBPROTOCOL,
+  NodeUOChannelMessage,
+  NodeUODelivery,
+  NodeUOJsonKind,
+  parseNodeUOFrame,
+  profileFeatureIds,
+  schemaFingerprintForFeature,
+  serializeNodeUOMessage,
+  serializeNodeUOFrame,
+  parseNodeUOMessage,
+} from '@uo/nodeuo-protocol';
 import { frameServerStream, SERVER_OPCODES } from './incoming-table.js';
 import { bus } from '../core/event-bus.js';
 import { buildUnicodeSpeech } from './outgoing.js';
@@ -25,6 +45,26 @@ import { SessionEpoch } from '../shared/runtime-governor.js';
  *  a frame. Anything else is garbage from a wrong-mode decompression. */
 function _isKnownServerOpcode(byte) {
   return !!SERVER_OPCODES[byte];
+}
+
+export class NodeUORequestError extends Error {
+  constructor(message, { code = 'internal', details, retryAfterMs, recovery,
+    traceId, correlationId, transactionId } = {}) {
+    super(message);
+    this.name = 'NodeUORequestError';
+    this.code = code;
+    this.details = details;
+    this.retryAfterMs = retryAfterMs;
+    this.recovery = recovery;
+    this.traceId = traceId;
+    this.correlationId = correlationId;
+    this.transactionId = transactionId;
+  }
+}
+
+function nodeUOClientId(prefix = 'trace') {
+  return `${prefix}.${globalThis.crypto?.randomUUID?.()
+    ?? `${Date.now().toString(36)}.${Math.random().toString(36).slice(2)}`}`;
 }
 
 export class NetClient {
@@ -73,9 +113,25 @@ export class NetClient {
     this.trackOpcodes = false;
     /** NodeUO private features are off until both the WebSocket subprotocol
      * and the in-band capability offer have completed. */
-    this.nodeUOTransport = false;
+    this.nodeUOJsonTransport = false;
+    this.nodeUOTransportVersion = '';
     this.nodeUONegotiated = false;
-    this.nodeUOCapabilities = 0;
+    this.nodeUOFeatures = new Map();
+    try {
+      const storedProfile = globalThis.localStorage?.getItem?.('uo.nodeuo.profile');
+      this._nodeUOProfileExplicit = !!storedProfile;
+      this.nodeUOProfile = storedProfile || 'full';
+    }
+    catch { this._nodeUOProfileExplicit = false; this.nodeUOProfile = 'full'; }
+    this.nodeUOManifest = null;
+    this._nodeUOJsonHandler = null;
+    this._nodeUODisabledFeatures = new Set();
+    this._nodeUORequests = new Map();
+    this._nodeUORequestId = 0;
+    this._nodeUOJsonDeferred = new Map();
+    this._nodeUOJsonFlushTimer = null;
+    this.nodeUOJsonStats = { sent: 0, received: 0, deferred: 0, coalesced: 0, dropped: 0, expired: 0,
+      framesSent: 0, framesReceived: 0, batchedMessages: 0 };
     this.sessionEpoch = new SessionEpoch();
     this.frameDiagnostics = {
       warnings: 0, consecutive: 0, resyncRequests: 0, recent: [], unknownFrames: [], resyncReports: [],
@@ -135,9 +191,15 @@ export class NetClient {
       this._decoderWatchdogTimer = null;
       this._huffmanProbed = false;
       this.serverHuffman = true;
-      this.nodeUOTransport = false;
+      this.nodeUOJsonTransport = false;
+      this.nodeUOTransportVersion = '';
       this.nodeUONegotiated = false;
-      this.nodeUOCapabilities = 0;
+      this.nodeUOFeatures.clear();
+      this.nodeUOManifest = null;
+      clearTimeout(this._nodeUOJsonFlushTimer);
+      this._nodeUOJsonFlushTimer = null;
+      this._nodeUOJsonDeferred.clear();
+      this._rejectNodeUORequests('session reset');
       this.state = 'connecting';
 
       // Ask for our optional transport first. If a generic UO WebSocket
@@ -147,7 +209,9 @@ export class NetClient {
       const open = (offerNodeUO) => {
         let ws;
         try {
-          ws = offerNodeUO ? new WebSocket(url, ['nodeuo.v1']) : new WebSocket(url);
+          ws = offerNodeUO
+            ? new WebSocket(url, NODEUO_JSON_SUBPROTOCOL)
+            : new WebSocket(url);
           this.ws = ws;
         } catch (e) {
           if (offerNodeUO) { open(false); return; }
@@ -171,7 +235,8 @@ export class NetClient {
         ws.onopen = () => {
           if (retired || !this.sessionEpoch.valid(epoch) || this.ws !== ws) return;
           opened = true;
-          this.nodeUOTransport = ws.protocol === 'nodeuo.v1';
+          this.nodeUOTransportVersion = ws.protocol;
+          this.nodeUOJsonTransport = ws.protocol === NODEUO_JSON_SUBPROTOCOL;
           this.state = 'open';
           bus.emit('net:open');
           resolve();
@@ -187,7 +252,7 @@ export class NetClient {
           if (retired || !this.sessionEpoch.valid(epoch) || this.ws !== ws || fallback()) return;
           this.state = 'closed';
           this.nodeUONegotiated = false;
-          this.nodeUOCapabilities = 0;
+          this.nodeUOFeatures.clear();
           bus.emit('net:close', { code: ev.code, reason: ev.reason });
           if (!opened) reject(new Error(`websocket closed before open (code ${ev.code})`));
         };
@@ -209,15 +274,370 @@ export class NetClient {
     // Reset the Huffman probe so a fresh connection (e.g. switching
     // from our shard to a ServUO bridge) re-detects the mode.
     this._huffmanProbed = false;
-    this.nodeUOTransport = false;
+    this.nodeUOJsonTransport = false;
+    this.nodeUOTransportVersion = '';
     this.nodeUONegotiated = false;
-    this.nodeUOCapabilities = 0;
+    this.nodeUOFeatures.clear();
+    this.nodeUOManifest = null;
+    clearTimeout(this._nodeUOJsonFlushTimer);
+    this._nodeUOJsonFlushTimer = null;
+    this._nodeUOJsonDeferred.clear();
+    this._rejectNodeUORequests('connection closed');
     bus.emit('net:session-reset', { epoch });
   }
 
   supportsNodeUO(capability) {
-    return this.nodeUONegotiated
-      && (((this.nodeUOCapabilities >>> 0) & (capability >>> 0)) === (capability >>> 0));
+    if (!this.nodeUOJsonTransport || !this.nodeUONegotiated
+        || typeof capability !== 'string') return false;
+    const feature = capability.trim().toLowerCase();
+    return !!feature && !this._nodeUODisabledFeatures.has(feature)
+      && this.nodeUOFeatures.has(feature);
+  }
+
+  receiveNodeUODatagram(bytes) {
+    if (!this.nodeUOJsonTransport) return false;
+    try {
+      const text = typeof bytes === 'string' ? bytes : new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+      const message = parseNodeUOMessage(text);
+      if (message.delivery !== NodeUODelivery.LossTolerant
+          && message.delivery !== NodeUODelivery.Latest) return false;
+      return this._onNodeUOJsonMessage(message);
+    } catch { return false; }
+  }
+
+  sendNodeUORequest({ channel: _channel, namespace, payload = {}, capability = null, timeoutMs = 5000,
+    expectedRevision, idempotencyKey, priority, delivery, ttlMs, traceId, correlationId,
+    causationId, transactionId, deadlineAt, preconditions, signal } = {}) {
+    if (!this.nodeUONegotiated || (capability && !this.supportsNodeUO(capability))) {
+      return Promise.reject(new Error('NodeUO capability is unavailable'));
+    }
+    if (signal?.aborted) return Promise.reject(new globalThis.DOMException('The request was aborted', 'AbortError'));
+    const requestId = (++this._nodeUORequestId) >>> 0 || ++this._nodeUORequestId;
+    const feature = typeof capability === 'string' ? capability : featureIdForNamespace(namespace);
+    const id = `c.${requestId}`;
+    const wirePayload = feature === 'mods.channels' ? { namespace, data: payload } : payload;
+    return new Promise((resolve, reject) => {
+        const boundedTimeout = Math.max(250, Math.min(30_000, timeoutMs | 0));
+        const requestTraceId = traceId || nodeUOClientId();
+        const requestCorrelationId = correlationId || requestTraceId;
+        const abort = () => {
+          const pending = this._nodeUORequests.get(id);
+          if (!pending) return;
+          clearTimeout(pending.timer);
+          this._nodeUORequests.delete(id);
+          reject(new globalThis.DOMException('The request was aborted', 'AbortError'));
+        };
+        const timer = setTimeout(() => {
+          this._nodeUORequests.delete(id);
+          signal?.removeEventListener?.('abort', abort);
+          reject(new NodeUORequestError(`NodeUO request timed out: ${feature}`, {
+            code: 'timeout', traceId: requestTraceId, correlationId: requestCorrelationId,
+            transactionId,
+          }));
+        }, boundedTimeout);
+        this._nodeUORequests.set(id, { resolve, reject, timer, namespace: feature,
+          signal, abort, traceId: requestTraceId, correlationId: requestCorrelationId,
+          transactionId });
+        signal?.addEventListener?.('abort', abort, { once: true });
+        if (!this.sendNodeUOMessage({ kind: NodeUOJsonKind.Request, feature, id, payload: wirePayload,
+          expectedRevision, idempotencyKey, priority, delivery, ttlMs,
+          traceId: requestTraceId, correlationId: requestCorrelationId, causationId,
+          transactionId, deadlineAt: deadlineAt ?? Date.now() + boundedTimeout,
+          preconditions })) {
+          clearTimeout(timer); signal?.removeEventListener?.('abort', abort); this._nodeUORequests.delete(id);
+          reject(new Error('connection is not writable'));
+        }
+    });
+  }
+
+  /** Unified v2 RPC with a stable error model and best-effort cancellation.
+   * Existing feature-specific requests remain available for older peers. */
+  sendNodeUORpc(targetFeature, method, params = {}, {
+    timeoutMs = 5000, idempotencyKey, expectedRevision, priority,
+  } = {}) {
+    if (!this.supportsNodeUO('protocol.rpc') || !this.supportsNodeUO(targetFeature)) {
+      return Promise.reject(new Error('NodeUO RPC or target feature is unavailable'));
+    }
+    const requestId = (++this._nodeUORequestId) >>> 0 || ++this._nodeUORequestId;
+    const id = `rpc.${requestId}`;
+    let message;
+    try {
+      message = createNodeUORpcRequest({ id, targetFeature, method, params, timeoutMs,
+        idempotencyKey, expectedRevision, priority,
+        featureVersion: this.nodeUOFeatures.get('protocol.rpc') ?? 1 });
+    } catch (error) { return Promise.reject(error); }
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this._nodeUORequests.delete(id);
+        try { this.sendNodeUOMessage(createNodeUORpcCancel(id, 'client timeout',
+          this.nodeUOFeatures.get('protocol.rpc') ?? 1)); } catch { /* closed */ }
+        const error = new Error(`NodeUO RPC timed out: ${targetFeature}.${method}`);
+        error.code = 'timeout';
+        reject(error);
+      }, Math.max(250, Math.min(30_000, Number(timeoutMs) | 0 || 5000)));
+      this._nodeUORequests.set(id, { resolve, reject, timer, namespace: 'protocol.rpc', rpc: true });
+      if (!this.sendNodeUOMessage(message)) {
+        clearTimeout(timer); this._nodeUORequests.delete(id);
+        reject(new Error('connection is not writable'));
+      }
+    });
+  }
+
+  cancelNodeUORpc(requestId, reason = 'cancelled by client') {
+    try { return this.sendNodeUOMessage(createNodeUORpcCancel(requestId, reason,
+      this.nodeUOFeatures.get('protocol.rpc') ?? 1)); }
+    catch { return false; }
+  }
+
+  sendNodeUOEvent({ channel: _channel, namespace, payload = {}, capability = null,
+    kind = NodeUOChannelMessage.Event } = {}) {
+    if (!this.nodeUONegotiated || (capability && !this.supportsNodeUO(capability))) return false;
+    const feature = typeof capability === 'string' ? capability : featureIdForNamespace(namespace);
+    const jsonKind = kind === NodeUOChannelMessage.Resume ? NodeUOJsonKind.Resume : NodeUOJsonKind.Event;
+    return this.sendNodeUOMessage({ kind: jsonKind, feature,
+      payload: feature === 'mods.channels' ? { namespace, data: payload } : payload });
+  }
+
+  _resolveNodeUOResponse(message) {
+    if (message?.kind === NodeUOJsonKind.Progress && message.feature === 'protocol.rpc') {
+      const pending = this._nodeUORequests.get(String(message.replyTo ?? ''));
+      if (!pending?.rpc) return false;
+      bus.emit('nodeuo:rpc-progress', { requestId: message.replyTo, ...message.payload });
+      return true;
+    }
+    if (message?.kind === NodeUOJsonKind.Result || message?.kind === NodeUOJsonKind.Error) {
+      const pending = this._nodeUORequests.get(String(message.replyTo ?? ''));
+      if (!pending || pending.namespace !== message.feature) return false;
+      clearTimeout(pending.timer);
+      pending.signal?.removeEventListener?.('abort', pending.abort);
+      this._nodeUORequests.delete(String(message.replyTo));
+      if (message.kind === NodeUOJsonKind.Error) {
+        const error = new NodeUORequestError(
+          message.payload?.error ?? message.payload?.message ?? 'NodeUO request failed', {
+            code: message.payload?.code, details: message.payload?.details,
+            retryAfterMs: message.payload?.retryAfterMs, recovery: message.payload?.recovery,
+            traceId: message.traceId ?? pending.traceId,
+            correlationId: message.correlationId ?? pending.correlationId,
+            transactionId: message.transactionId ?? pending.transactionId,
+          });
+        pending.reject(error);
+      } else pending.resolve(pending.rpc && message.payload?.ok === true
+        ? message.payload.result : message.payload);
+      return true;
+    }
+    if (message?.kind !== NodeUOChannelMessage.Result || !message.requestId) return false;
+    const pending = this._nodeUORequests.get(message.requestId >>> 0);
+    if (!pending || pending.namespace !== message.namespace) return false;
+    clearTimeout(pending.timer);
+    this._nodeUORequests.delete(message.requestId >>> 0);
+    pending.resolve(message.payload);
+    return true;
+  }
+
+  _rejectNodeUORequests(reason) {
+    for (const pending of this._nodeUORequests.values()) {
+      clearTimeout(pending.timer);
+      pending.signal?.removeEventListener?.('abort', pending.abort);
+      pending.reject(new Error(reason));
+    }
+    this._nodeUORequests.clear();
+  }
+
+  setNodeUOJsonHandler(handler) {
+    this._nodeUOJsonHandler = typeof handler === 'function' ? handler : null;
+  }
+
+  sendNodeUOMessage(message, { beforeNegotiation = false } = {}) {
+    if (!this.nodeUOJsonTransport || !this.ws || this.ws.readyState !== WebSocket.OPEN) return false;
+    if (!beforeNegotiation && !this.nodeUONegotiated) return false;
+    if (!beforeNegotiation && message.feature !== 'protocol.session' && !this.supportsNodeUO(message.feature)) return false;
+    let normalized, text;
+    try {
+      normalized = createNodeUOMessage({
+        ...message,
+        featureVersion: message.featureVersion ?? this.nodeUOFeatures.get(message.feature) ?? 1,
+      });
+      text = serializeNodeUOMessage(normalized);
+    }
+    catch (error) { console.warn('[nodeuo-json] outgoing message rejected:', error.message); return false; }
+    const byteLength = new TextEncoder().encode(text).byteLength;
+    const SOFT_WATER = 1 << 19;
+    const HARD_WATER = 4 << 20;
+    if (this.ws.bufferedAmount + byteLength > HARD_WATER) {
+      this.nodeUOJsonStats.dropped++;
+      this.ws.close(1009, 'NodeUO send queue overflow');
+      return false;
+    }
+    if (this.ws.bufferedAmount > SOFT_WATER && normalized.delivery === NodeUODelivery.LossTolerant) {
+      this.nodeUOJsonStats.dropped++;
+      return false;
+    }
+    if (this.ws.bufferedAmount > SOFT_WATER && normalized.delivery === NodeUODelivery.Latest) {
+      const key = String(normalized.replace ?? `${normalized.feature}:${normalized.payload?.serial ?? ''}`);
+      if (this._nodeUOJsonDeferred.has(key)) this.nodeUOJsonStats.coalesced++;
+      else this.nodeUOJsonStats.deferred++;
+      this._nodeUOJsonDeferred.set(key, normalized);
+      this._scheduleNodeUOJsonFlush();
+      return true;
+    }
+    this.ws.send(text);
+    this.nodeUOJsonStats.sent++;
+    this.nodeUOJsonStats.framesSent++;
+    this.stats.bytesSent += byteLength;
+    this.stats.packetsSent++;
+    this.stats.lastSendAt = performance.now();
+    return true;
+  }
+
+  sendNodeUOBatch(messages) {
+    if (!this.nodeUOJsonTransport || !this.nodeUONegotiated || !this.ws
+        || this.ws.readyState !== WebSocket.OPEN || !this.supportsNodeUO('protocol.batch')) return false;
+    const active = (messages ?? []).filter((message) => !isNodeUOMessageExpired(message)
+      && this.supportsNodeUO(message.feature)).map((message) => ({
+      ...message,
+      featureVersion: message.featureVersion ?? this.nodeUOFeatures.get(message.feature) ?? 1,
+    }));
+    if (!active.length) return false;
+    if (active.length === 1) return this.sendNodeUOMessage(active[0]);
+    let text;
+    try { text = serializeNodeUOFrame(active); }
+    catch { return false; }
+    const byteLength = new TextEncoder().encode(text).byteLength;
+    if (this.ws.bufferedAmount + byteLength > (4 << 20)) {
+      this.nodeUOJsonStats.dropped += active.length;
+      this.ws.close(1009, 'NodeUO send queue overflow');
+      return false;
+    }
+    this.ws.send(text);
+    this.nodeUOJsonStats.sent += active.length;
+    this.nodeUOJsonStats.framesSent++;
+    this.nodeUOJsonStats.batchedMessages += active.length;
+    this.stats.bytesSent += byteLength;
+    this.stats.packetsSent += active.length;
+    this.stats.lastSendAt = performance.now();
+    return true;
+  }
+
+  _scheduleNodeUOJsonFlush() {
+    if (this._nodeUOJsonFlushTimer || !this.ws) return;
+    this._nodeUOJsonFlushTimer = setTimeout(() => {
+      this._nodeUOJsonFlushTimer = null;
+      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+      if (this.ws.bufferedAmount > (1 << 19)) { this._scheduleNodeUOJsonFlush(); return; }
+      const queued = [...this._nodeUOJsonDeferred.values()];
+      this._nodeUOJsonDeferred.clear();
+      const active = [];
+      for (const message of queued) {
+        if (isNodeUOMessageExpired(message)) { this.nodeUOJsonStats.expired++; continue; }
+        active.push(message);
+      }
+      for (let offset = 0; offset < active.length; offset += 32) {
+        const group = active.slice(offset, offset + 32);
+        if (group.length < 2 || !this.sendNodeUOBatch(group)) {
+          for (const message of group) this.sendNodeUOMessage(message);
+        }
+      }
+    }, 25);
+  }
+
+  _onNodeUOJsonText(text) {
+    let messages;
+    try { messages = parseNodeUOFrame(text); }
+    catch (error) { console.warn('[nodeuo-json] incoming message rejected:', error.message); return false; }
+    this.nodeUOJsonStats.received += messages.length;
+    this.nodeUOJsonStats.framesReceived++;
+    if (messages.length > 1) this.nodeUOJsonStats.batchedMessages += messages.length;
+    let handled = false;
+    for (const message of messages) handled = this._onNodeUOJsonMessage(message) || handled;
+    return handled;
+  }
+
+  _onNodeUOJsonMessage(message) {
+    if (isNodeUOMessageExpired(message)) return false;
+    if (message.kind === NodeUOJsonKind.Hello && message.feature === 'protocol.session') {
+      const implemented = advertisedFeatureList();
+      const selectedProfile = this._nodeUOProfileExplicit
+        ? this.nodeUOProfile : String(message.payload?.defaultProfile ?? 'full');
+      const profile = profileFeatureIds(selectedProfile, implemented);
+      const schemaRows = Array.isArray(message.payload?.manifest?.features)
+        ? message.payload.manifest.features : [];
+      const offeredSchemas = new Map(schemaRows
+        .map((entry) => [String(entry?.id), String(entry?.schema ?? '')]));
+      const supported = implemented.filter((entry) => profile.includes(entry.id)
+        && (!offeredSchemas.get(entry.id)
+          || offeredSchemas.get(entry.id) === schemaFingerprintForFeature(entry.id)));
+      const selected = negotiateFeatures(message.payload?.features, supported);
+      const manifest = buildNodeUOManifest(selected);
+      this._nodeUODisabledFeatures.clear();
+      this.nodeUOFeatures = new Map(selected.map((entry) => [entry.id, entry.version]));
+      this.nodeUOManifest = manifest;
+      const accepted = createNodeUOMessage({
+        kind: NodeUOJsonKind.Accept, feature: 'protocol.session', id: `accept.${Date.now()}`,
+        payload: {
+          protocol: 2, profile: selectedProfile, features: selected,
+          manifest: { fingerprint: manifest.fingerprint,
+            schemas: Object.fromEntries(manifest.features.map((entry) => [entry.id, entry.schema])) },
+          client: { name: 'NodeUO Web', json: true },
+        },
+      });
+      if (!this.sendNodeUOMessage(accepted, { beforeNegotiation: true })) {
+        this.nodeUOFeatures.clear();
+        this.nodeUOManifest = null;
+        return false;
+      }
+      this.nodeUONegotiated = true;
+      bus.emit('nodeuo:capabilities', {
+        major: 2, minor: 0,
+        features: Object.fromEntries(this.nodeUOFeatures), transport: NODEUO_JSON_SUBPROTOCOL,
+      });
+      return true;
+    }
+    if (this.nodeUONegotiated && message.kind === NodeUOJsonKind.Event
+        && message.feature === 'protocol.renegotiate'
+        && message.payload?.operation === 'prepare') {
+      const epoch = Number(message.payload.epoch) || 0;
+      const implemented = advertisedFeatureList();
+      const profile = profileFeatureIds(this.nodeUOProfile, implemented);
+      const offeredSchemas = new Map((message.payload?.manifest?.features ?? [])
+        .map((entry) => [String(entry?.id), String(entry?.schema ?? '')]));
+      const supported = implemented.filter((entry) => profile.includes(entry.id)
+        && (!offeredSchemas.get(entry.id)
+          || offeredSchemas.get(entry.id) === schemaFingerprintForFeature(entry.id)));
+      const selected = negotiateFeatures(message.payload.features, supported);
+      const manifest = buildNodeUOManifest(selected);
+      void this.sendNodeUORequest({ capability: 'protocol.renegotiate', timeoutMs: 5000,
+        payload: { operation: 'accept', epoch, features: selected,
+          manifest: { fingerprint: manifest.fingerprint,
+            schemas: Object.fromEntries(manifest.features.map((entry) => [entry.id, entry.schema])) } },
+      }).then((result) => {
+        if (!result?.ok || Number(result.epoch) !== epoch) return;
+        this.nodeUOFeatures = new Map((result.features ?? selected)
+          .map((entry) => [entry.id, entry.version]));
+        this.nodeUOManifest = result.manifest ?? buildNodeUOManifest(result.features ?? selected);
+        this._nodeUODisabledFeatures.clear();
+        bus.emit('nodeuo:capabilities', {
+          major: 2, minor: 0, renegotiated: true, epoch,
+          capabilities: 0, features: Object.fromEntries(this.nodeUOFeatures),
+          transport: NODEUO_JSON_SUBPROTOCOL,
+        });
+      }).catch((error) => console.warn('[nodeuo-json] renegotiation failed:', error.message));
+      return true;
+    }
+    if (!this.nodeUONegotiated || !this.supportsNodeUO(message.feature)) return false;
+    if (Number(message.featureVersion) > (this.nodeUOFeatures.get(message.feature) ?? 0)) return false;
+    this._resolveNodeUOResponse(message);
+    try { return this._nodeUOJsonHandler?.(message) !== false; }
+    catch (error) {
+      console.warn(`[nodeuo-json] ${message.feature} consumer failed:`, error?.message ?? error);
+      if (message.feature !== 'protocol.feature-health' && this.supportsNodeUO('protocol.feature-health')) {
+        this.sendNodeUOMessage({ kind: NodeUOJsonKind.Event, feature: 'protocol.feature-health',
+          delivery: NodeUODelivery.Latest, replace: `feature-health:${message.feature}`,
+          payload: { operation: 'report', reports: [{ feature: message.feature, status: 'failed',
+            error: String(error?.message ?? error).slice(0, 256) }] } });
+      }
+      this._nodeUODisabledFeatures.add(message.feature);
+      return false;
+    }
   }
 
   /** Ensure the rx buffer has at least `extra` bytes of free tail space. */
@@ -304,6 +724,13 @@ export class NetClient {
     if (data instanceof ArrayBuffer) raw = new Uint8Array(data);
     else if (ArrayBuffer.isView(data)) raw = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
     else if (typeof data === 'string') {
+      if (this.nodeUOJsonTransport) {
+        this.stats.bytesReceived += new TextEncoder().encode(data).byteLength;
+        this.stats.packetsReceived++;
+        this.stats.lastRecvAt = performance.now();
+        this._onNodeUOJsonText(data);
+        return;
+      }
       console.warn('[net] dropped text frame:', data);
       return;
     } else {

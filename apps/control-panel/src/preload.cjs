@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('uo', {
   killPort:     (port) => ipcRenderer.invoke('kill-port', { port }),
   openUrl:      (url) => ipcRenderer.invoke('open-url', { url }),
   probeHttp:     (url, timeoutMs) => ipcRenderer.invoke('probe-http', { url, timeoutMs }),
+  preflightStatus: (sourcePath, toktxPath) => ipcRenderer.invoke('preflight-status', { sourcePath, toktxPath }),
   chooseDirectory: (defaultPath) => ipcRenderer.invoke('choose-directory', { defaultPath }),
   onLog:        (cb) => ipcRenderer.on('service:log',   (_e, p) => cb(p)),
   onState:      (cb) => ipcRenderer.on('service:state', (_e, p) => cb(p)),

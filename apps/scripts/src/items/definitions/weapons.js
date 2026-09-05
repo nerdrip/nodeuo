@@ -26,7 +26,7 @@ const __PENDING__ = [];
  */
 
 function weapon(def) {
-  // FAZA FN: derive a runtime `weapon` descriptor that the equip path
+  // PHASE FN: derive a runtime `weapon` descriptor that the equip path
   // (handlers.handleWearItem) copies onto mob._weapon. Combat-formulas
   // + ranged-arrow-consume + slayer-matrix all read from there.
   const isBow = def.category === 'bow';

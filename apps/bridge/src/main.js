@@ -32,11 +32,31 @@
 //                      to confirm what's actually on the wire when the client
 //                      reports framing drift.
 //   UO_BRIDGE_DEBUG_BYTES  how many bytes of each chunk to dump (default 64).
+//   UO_BRIDGE_WORKERS  supervised worker count (default 1; protocol unchanged).
+//   UO_BRIDGE_CONNECT_TIMEOUT_MS  target TCP connect timeout (default 10000).
 
 import http from 'node:http';
 import net from 'node:net';
+import cluster from 'node:cluster';
+import os from 'node:os';
 import { WebSocketServer } from 'ws';
-import { huffmanDecompress } from '@uo/protocol';
+import { UOHuffmanStreamDecoder } from '@uo/protocol';
+
+const BRIDGE_WORKERS = Math.max(1, Math.min(32, Number(process.env.UO_BRIDGE_WORKERS ?? 1) | 0));
+if (cluster.isPrimary && BRIDGE_WORKERS > 1) {
+  let stopping = false;
+  for (let index = 0; index < Math.min(BRIDGE_WORKERS, os.availableParallelism?.() ?? os.cpus().length); index++) cluster.fork();
+  cluster.on('exit', () => { if (!stopping) cluster.fork(); });
+  const stopCluster = () => {
+    if (stopping) return;
+    stopping = true;
+    cluster.disconnect(() => process.exit(0));
+    const timer = setTimeout(() => process.exit(1), 5000); timer.unref?.();
+  };
+  process.on('SIGINT', stopCluster);
+  process.on('SIGTERM', stopCluster);
+  await new Promise(() => {});
+}
 
 const HOST = process.env.UO_BRIDGE_HOST ?? '127.0.0.1';
 const PORT = Number(process.env.UO_BRIDGE_PORT ?? 2595);
@@ -57,8 +77,18 @@ const DEBUG = cliDebug || process.env.UO_BRIDGE_DEBUG === '1';
 const DEBUG_BYTES = Number(
   cliBytesArg ? cliBytesArg.split('=')[1] : (process.env.UO_BRIDGE_DEBUG_BYTES ?? 64),
 );
+const MAX_WS_PAYLOAD = Math.max(64 * 1024, Number(process.env.UO_BRIDGE_MAX_PAYLOAD ?? 256 * 1024));
+const MAX_PRECONNECT_BYTES = Math.max(64 * 1024, Number(process.env.UO_BRIDGE_PRECONNECT_BYTES ?? 512 * 1024));
+const WS_SOFT_PENDING_BYTES = Math.max(64 * 1024, Number(process.env.UO_BRIDGE_WS_SOFT_BYTES ?? 512 * 1024));
+const WS_HARD_PENDING_BYTES = Math.max(WS_SOFT_PENDING_BYTES, Number(process.env.UO_BRIDGE_WS_HARD_BYTES ?? 2 * 1024 * 1024));
+const TCP_CONNECT_TIMEOUT_MS = Math.max(1000, Math.min(60_000, Number(process.env.UO_BRIDGE_CONNECT_TIMEOUT_MS ?? 10_000)));
 
 let nextId = 1;
+const bridgeStats = {
+  opened: 0, closed: 0, active: 0, rejected: 0,
+  wsToTcpBytes: 0, tcpToWsBytes: 0, decodedBytes: 0,
+  tcpPauses: 0, wsPauses: 0, overflows: 0,
+};
 
 function parseTarget(req) {
   let raw = '';
@@ -85,27 +115,42 @@ function parseTarget(req) {
 
 const httpServer = http.createServer((req, res) => {
   if (req.url === '/health') {
-    res.writeHead(200, { 'content-type': 'text/plain' });
-    res.end('ok');
+    res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+    res.end(JSON.stringify({ ok: true, worker: cluster.worker?.id ?? 0, workersConfigured: BRIDGE_WORKERS, ...bridgeStats }));
     return;
   }
   res.writeHead(404, { 'content-type': 'text/plain' });
   res.end('this is a WebSocket bridge — connect via WS\n');
 });
 
-const wss = new WebSocketServer({ noServer: true });
+const wss = new WebSocketServer({
+  noServer: true,
+  perMessageDeflate: false,
+  maxPayload: MAX_WS_PAYLOAD,
+});
 
 httpServer.on('upgrade', (req, socket, head) => {
   // Accept upgrades only on our path.
   let path = '/';
   try { path = new URL(req.url, 'http://x').pathname; } catch { /* ignore */ }
   if (path !== PATH) {
+    bridgeStats.rejected++;
     socket.write('HTTP/1.1 404 Not Found\r\n\r\n');
+    socket.destroy();
+    return;
+  }
+  // The generic bridge has no private protocol of its own. Reject any offer
+  // before opening upstream TCP; the NodeUO browser client immediately retries
+  // without a subprotocol and can then talk to ServUO/POL unchanged.
+  if (req.headers['sec-websocket-protocol']) {
+    bridgeStats.rejected++;
+    socket.write('HTTP/1.1 426 Upgrade Required\r\nConnection: close\r\n\r\n');
     socket.destroy();
     return;
   }
   const parsed = parseTarget(req);
   if (parsed.error) {
+    bridgeStats.rejected++;
     socket.write(`HTTP/1.1 400 Bad Request\r\n\r\n${parsed.error}\n`);
     socket.destroy();
     console.warn(`[bridge] reject upgrade: ${parsed.error}`);
@@ -122,10 +167,20 @@ function bridge(ws, host, port, fromAddr) {
   const tag = `[bridge#${id}]`;
   console.log(`${tag} ws ${fromAddr} -> tcp ${host}:${port}`);
 
-  const tcp = net.connect({ host, port });
+  const tcp = net.connect({ host, port, writableHighWaterMark: 128 * 1024 });
+  tcp.setNoDelay(true);
+  tcp.setKeepAlive(true, 30_000);
+  const connectTimer = setTimeout(() => fail(1013, 'tcp connect timeout'), TCP_CONNECT_TIMEOUT_MS);
+  connectTimer.unref?.();
   let tcpReady = false;
+  let tcpBlocked = false;
+  let closed = false;
   /** @type {Buffer[]} */
   const wsPending = []; // bytes from ws received before tcp connected
+  let wsPendingHead = 0;
+  let wsPendingBytes = 0;
+  bridgeStats.opened++;
+  bridgeStats.active++;
 
   // Real UO servers (ServUO/RunUO/OSI) Huffman-compress server→client traffic
   // — but only AFTER the client sends 0x91 GameServerLogin. The earlier
@@ -134,6 +189,7 @@ function bridge(ws, host, port, fromAddr) {
   // client always sees plain bytes regardless of which side it talks to.
   let serverHuffman = false;
   let sawGameLogin = false;
+  const huffmanDecoder = new UOHuffmanStreamDecoder();
   // ServUO/RunUO `Encryption.cs::DetermineClientType` reads the FIRST 4
   // bytes of the TCP stream as the client's "seed" (legacy: client IP
   // packed BE), then peeks the byte at offset 4 — must be 0x80 / 0x91 /
@@ -156,32 +212,113 @@ function bridge(ws, host, port, fromAddr) {
   }
   const bareSeed = makeBareSeed(fromAddr);
 
-  tcp.on('connect', () => {
-    tcpReady = true;
-    if (wsPending.length) {
-      for (const b of wsPending) tcp.write(b);
-      wsPending.length = 0;
+  function finish(reason) {
+    if (closed) return;
+    closed = true;
+    clearTimeout(connectTimer);
+    bridgeStats.active = Math.max(0, bridgeStats.active - 1);
+    bridgeStats.closed++;
+    wsPending.length = 0;
+    wsPendingBytes = 0;
+    if (DEBUG) console.log(`${tag} closed (${reason})`);
+  }
+
+  function fail(code, reason) {
+    finish(reason);
+    try { ws.close(code, reason); } catch { /* ignore */ }
+    try { tcp.destroy(); } catch { /* ignore */ }
+  }
+
+  function pauseWsInput() {
+    if (ws._socket?.isPaused?.()) return;
+    ws._socket?.pause?.();
+    bridgeStats.wsPauses++;
+  }
+
+  function flushTcpQueue() {
+    if (!tcpReady || tcpBlocked || closed) return;
+    while (wsPendingHead < wsPending.length) {
+      const payload = wsPending[wsPendingHead++];
+      wsPendingBytes -= payload.length;
+      bridgeStats.wsToTcpBytes += payload.length;
+      if (!tcp.write(payload)) {
+        tcpBlocked = true;
+        pauseWsInput();
+        break;
+      }
     }
+    if (wsPendingHead >= wsPending.length) {
+      wsPending.length = 0;
+      wsPendingHead = 0;
+      wsPendingBytes = 0;
+      if (!tcpBlocked) ws._socket?.resume?.();
+    } else if (wsPendingHead > 256 && wsPendingHead * 2 >= wsPending.length) {
+      wsPending.splice(0, wsPendingHead);
+      wsPendingHead = 0;
+    }
+  }
+
+  function queueTcp(payload) {
+    if (closed) return;
+    wsPending.push(payload);
+    wsPendingBytes += payload.length;
+    if (wsPendingBytes > MAX_PRECONNECT_BYTES) {
+      bridgeStats.overflows++;
+      fail(1009, 'tcp queue overflow');
+      return;
+    }
+    flushTcpQueue();
+  }
+
+  function sendWs(payload) {
+    if (closed || payload.length === 0 || ws.readyState !== ws.OPEN) return;
+    const pending = Number(ws.bufferedAmount) || 0;
+    if (pending + payload.length > WS_HARD_PENDING_BYTES) {
+      bridgeStats.overflows++;
+      fail(1013, 'websocket queue overflow');
+      return;
+    }
+    if (pending + payload.length > WS_SOFT_PENDING_BYTES) {
+      tcp.pause();
+      bridgeStats.tcpPauses++;
+    }
+    bridgeStats.tcpToWsBytes += payload.length;
+    ws.send(payload, { binary: true }, (error) => {
+      if (error) {
+        fail(1011, 'websocket send failed');
+        return;
+      }
+      if (!closed && (Number(ws.bufferedAmount) || 0) <= WS_SOFT_PENDING_BYTES) tcp.resume();
+    });
+  }
+
+  tcp.on('connect', () => {
+    clearTimeout(connectTimer);
+    tcpReady = true;
+    flushTcpQueue();
+  });
+  tcp.on('drain', () => {
+    tcpBlocked = false;
+    flushTcpQueue();
+    if (!tcpBlocked && wsPendingBytes === 0) ws._socket?.resume?.();
   });
   tcp.on('data', (chunk) => {
-    if (ws.readyState !== ws.OPEN) return;
+    if (ws.readyState !== ws.OPEN || closed) return;
     if (!serverHuffman) {
-      ws.send(chunk, { binary: true });
+      sendWs(chunk);
       return;
     }
-    // Decompress before forwarding. Each TCP chunk may contain one or more
-    // packets concatenated, all in a single Huffman stream terminated by the
-    // 0x100 sentinel. huffmanDecompress stops at the terminator and returns
-    // whatever it decoded; we forward that. (If ServUO ever flushed mid-
-    // packet across two TCP chunks we'd need a stateful streaming decoder —
-    // not observed in practice because ServUO writes whole-packet groups.)
+    // TCP may split a Huffman symbol or packet at any byte. The stateful
+    // decoder keeps the partial tree node between reads; the browser still
+    // receives the original uncompressed UO byte stream in the same order.
     let plain;
-    try { plain = huffmanDecompress(new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength)); }
+    try { plain = huffmanDecoder.push(new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength)); }
     catch (e) {
       console.warn(`${tag} huffman decompress failed: ${e.message}`);
-      try { ws.close(1011, 'huffman error'); } catch { /* ignore */ }
+      fail(1011, 'huffman error');
       return;
     }
+    bridgeStats.decodedBytes += plain.length;
     if (DEBUG) {
       const n = Math.min(plain.length, DEBUG_BYTES);
       const hex = Array.from(plain.subarray(0, n)).map((b) => b.toString(16).padStart(2, '0')).join(' ');
@@ -192,14 +329,15 @@ function bridge(ws, host, port, fromAddr) {
       const occStr = occurrences.length ? ` 0x1b@[${occurrences.join(',')}]` : '';
       console.log(`${tag} dec ${plain.length}B${occStr} | ${hex}${plain.length > n ? '…' : ''}`);
     }
-    ws.send(Buffer.from(plain.buffer, plain.byteOffset, plain.byteLength), { binary: true });
+    sendWs(Buffer.from(plain.buffer, plain.byteOffset, plain.byteLength));
   });
   tcp.on('error', (err) => {
     console.warn(`${tag} tcp error: ${err.message}`);
-    try { ws.close(1011, 'tcp error'); } catch { /* ignore */ }
+    fail(1011, 'tcp error');
   });
   tcp.on('close', () => {
     console.log(`${tag} tcp closed`);
+    finish('tcp closed');
     try { ws.close(1000, 'tcp closed'); } catch { /* ignore */ }
   });
 
@@ -248,15 +386,16 @@ function bridge(ws, host, port, fromAddr) {
         }
       }
     }
-    if (tcpReady) tcp.write(toSend);
-    else wsPending.push(toSend);
+    queueTcp(toSend);
   });
   ws.on('close', () => {
     console.log(`${tag} ws closed`);
+    finish('ws closed');
     try { tcp.end(); } catch { /* ignore */ }
   });
   ws.on('error', (err) => {
     console.warn(`${tag} ws error: ${err.message}`);
+    finish('ws error');
     try { tcp.destroy(); } catch { /* ignore */ }
   });
 }

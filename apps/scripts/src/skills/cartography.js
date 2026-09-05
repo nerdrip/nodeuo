@@ -3,7 +3,7 @@
 // of higher tier (level 1 to 5; ServUO uses 7 tiers).
 //
 // MVP: spawn a `treasure-map` item with `mapLevel` + `targetX/Y/Z` set.
-// Actual treasure-map digging quest is FAZA AA part 2.
+// Actual treasure-map digging quest is PHASE AA part 2.
 
 import { normalizeSkillValue } from '../_rules.js';
 import { findInPack } from '../_inventory.js';
@@ -29,7 +29,7 @@ export default function register(api) {
         return;
       }
 
-      // BUGFIX #85 (FAZA DQ): the cooldown was set BEFORE the blank-
+      // BUGFIX #85 (PHASE DQ): the cooldown was set BEFORE the blank-
       // scroll check. Players running out of scrolls were locked out
       // of `[map` for 5 seconds without consuming anything — the
       // failure path took as long as a successful draw.
@@ -80,7 +80,7 @@ export default function register(api) {
     },
   });
 
-  // FAZA DQ — `[decodemap` decodes a treasure map (or MIB from fishing)
+  // PHASE DQ — `[decodemap` decodes a treasure map (or MIB from fishing)
   // in the player's pack. Decoding requires Cartography ≥ map.level × 20
   // (ServUO: `BaseMap.OnDoubleClickReady`). Once decoded, the digging
   // command (`[dig`) can pull treasure if the player is within range

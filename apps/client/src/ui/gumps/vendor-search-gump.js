@@ -1,5 +1,5 @@
 // VendorSearchGump — vendor-stone client UI (ServUO `Gumps/VendorSearchGump.cs`).
-// Faza G #6.
+// Phase G #6.
 //
 // Wraps the `[vsearch` command in a form-style gump. Rather than having
 // players type `min:50 max:1000 kind:weapon prop:di sort:asc`, this
@@ -12,6 +12,7 @@
 import { WindowGump } from './window-gump.js';
 import { Label } from '../controls/label.js';
 import { Button, ButtonAction } from '../controls/button.js';
+import { NodeUOChannel, NodeUOFeature } from '@uo/nodeuo-protocol';
 
 const KINDS = [
   ['Any',     null],
@@ -46,7 +47,7 @@ const SORTS = [
 export class VendorSearchGump extends WindowGump {
   /** @param {{ net?: any, ui?: any }} opts */
   constructor(opts = {}) {
-    super({ title: 'Vendor Search', width: 420, height: 380, x: 220, y: 130 });
+    super({ title: 'Vendor Search', width: 420, height: 470, x: 220, y: 90 });
     this._net = opts.net;
     this._ui = opts.ui;
     this._query = { text: '', kind: null, property: null, minPrice: 0, maxPrice: 0, sort: 'asc' };
@@ -73,21 +74,27 @@ export class VendorSearchGump extends WindowGump {
     this.addContent(new Label('Sort:', { fontSize: 11, hue: 0xffe0a0 }), 14, 272);
     this._addRadioRow(SORTS, 14, 290, (v) => this._query.sort = v);
 
+    this._results = new Label('Searches all registered shard vendors. Classic shards use [vsearch.', {
+      fontSize: 10, hue: 0xd8c58d, maxWidth: 386, wordWrap: true, lineHeight: 15,
+    });
+    this.addContent(this._results, 14, 320);
+
     const search = new Button({
       normalGumpId: 0x0481, pressedGumpId: 0x0482,
       width: 110, height: 24,
       label: 'Search', action: ButtonAction.Activate,
     });
-    search.setPosition(14, 332);
+    search.setPosition(14, 420);
     search.onClick = () => this._submit();
     this.add(search);
+    this._searchButton = search;
 
     const close = new Button({
       normalGumpId: 0x0481, pressedGumpId: 0x0482,
       width: 110, height: 24,
       label: 'Close', action: ButtonAction.Cancel,
     });
-    close.setPosition(286, 332);
+    close.setPosition(286, 420);
     close.onClick = () => this.close();
     this.add(close);
   }
@@ -130,7 +137,7 @@ export class VendorSearchGump extends WindowGump {
     return input;
   }
 
-  _submit() {
+  async _submit() {
     const parts = [];
     if (this._query.text) parts.push(this._query.text);
     if (this._query.kind) parts.push(`kind:${this._query.kind}`);
@@ -138,6 +145,24 @@ export class VendorSearchGump extends WindowGump {
     if (this._query.minPrice > 0) parts.push(`min:${this._query.minPrice}`);
     if (this._query.maxPrice > 0) parts.push(`max:${this._query.maxPrice}`);
     if (this._query.sort) parts.push(`sort:${this._query.sort}`);
+    if (this._net?.supportsNodeUO?.(NodeUOFeature.VendorSearch)) {
+      this._searchButton.enabled = false;
+      this._searchButton.setLabel('Searching…');
+      try {
+        const result = await this._net.sendNodeUORequest({
+          channel: NodeUOChannel.Interface, namespace: 'nodeuo.vendor',
+          capability: NodeUOFeature.VendorSearch,
+          payload: { query: this._query.text, kind: this._query.kind,
+            property: this._query.property, minPrice: this._query.minPrice,
+            maxPrice: this._query.maxPrice, sort: this._query.sort, limit: 5 },
+        });
+        const rows = (result?.entries ?? []).map((entry) =>
+          `${entry.name || `item 0x${entry.itemId.toString(16)}`} — ${entry.price} gp · ${entry.vendorName || 'vendor'} (${entry.x},${entry.y})`);
+        this._results.setText(rows.length ? `${result.total} result(s)\n${rows.join('\n')}` : (result?.error || 'No matching offers.'));
+      } catch (error) { this._results.setText(`Search failed: ${error.message}`); }
+      finally { this._searchButton.enabled = true; this._searchButton.setLabel('Search'); }
+      return;
+    }
     const cmd = `vsearch ${parts.join(' ')}`.trim();
     if (this._net?.sendCommand) {
       try { this._net.sendCommand(cmd); } catch { /* */ }

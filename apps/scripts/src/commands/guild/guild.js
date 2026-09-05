@@ -30,7 +30,7 @@ export default function (api) {
         if (!msg) return;
         guilds.chat(state.mobile.serial, msg);
       } else if (sub === 'gump') {
-        // Faza H.2 — emit sentinel so client opens the rich GuildGump
+        // Phase H.2 — emit sentinel so client opens the rich GuildGump
         // overlay (roster + charter + wars tabs).
         const guild = state.mobile._guild
                    ?? guilds.guildOf?.(state.mobile.serial)

@@ -26,11 +26,11 @@ export default function (api) {
   // truthy from a useItem hook short-circuits the chain — the system
   // message lands in the player's journal so they know why nothing
   // happened. Only triggers when the item itself carries the lock.
-  api.templates?.addUseItemHook?.((world, item, user) => {
+  const removeUseHook = api.templates?.addUseItemHook?.((world, item, user) => {
     if (!item._imbueLocked) return false;
     user.client?.sendSystemMessage?.('That item is locked and cannot be used.');
     return true;
-  });
+  }) ?? (() => {});
 
   commands.register({
     name: 'imbueinfo',
@@ -295,5 +295,8 @@ export default function (api) {
     },
   });
 
-  return () => commands.unregister('imbueinfo');
+  return () => {
+    removeUseHook();
+    commands.unregister('imbueinfo');
+  };
 }

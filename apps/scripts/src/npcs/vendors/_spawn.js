@@ -1,4 +1,4 @@
-// FAZA CB — shared NPC spawn helper.
+// PHASE CB — shared NPC spawn helper.
 //
 // Centralises the "create mobile + apply default clothing + broadcast
 // mobileIncoming" pipeline that every NPC-spawning script needs. Before
@@ -8,8 +8,7 @@
 //     until the player walked away and back (BUGFIX #44).
 //   - Different NPCs had subtly different broadcast loops; some
 //     forgot to send equipment, some forgot to filter by map.
-//   - NPCs spawned naked (BUGFIX #44 again — the user complaint
-//     "npc powinny mieć jakieś ubrania po zrobieniu").
+//   - NPCs spawned naked (BUGFIX #44: newly created NPCs need clothing).
 //
 // Now every NPC goes through `spawnNPC(api, sender, opts)` and looks the
 // part on day one.
@@ -86,7 +85,7 @@ export function spawnNPC(api, sender, opts) {
   }
 
   // Speech-listen flag + keywords. Without `_listensToSpeech` the speech
-  // dispatcher in handlers.js drops chat before the AI sees it (FAZA AY
+  // dispatcher in handlers.js drops chat before the AI sees it (PHASE AY
   // bugfix #15), so AI behaviours never get to react.
   if (opts.keywords && opts.keywords.length) {
     mob._listensToSpeech = true;
@@ -115,7 +114,10 @@ export function spawnNPC(api, sender, opts) {
 
   // Attach AI.
   if (opts.behavior && api.ai) {
-    try { api.ai.attach(mob, opts.behavior); }
+    try {
+      api.ai.attach(mob, opts.behavior);
+      mob.aiBehavior = opts.behavior;
+    }
     catch (e) { api.log?.(`spawn: attach ${opts.behavior} failed: ${e.message}`); }
   }
 
@@ -136,7 +138,7 @@ export function spawnNPC(api, sender, opts) {
       flags: mob.flags ?? 0, notoriety: mob.notoriety ?? 1,
       equipment,
     });
-    // BUGFIX #65 (FAZA CW): the previous loop filtered by map only —
+    // BUGFIX #65 (PHASE CW): the previous loop filtered by map only —
     // missing the canon UO 18-tile visibility radius. An NPC spawned
     // in Britain would emit a mobileIncoming to every player on the
     // SAME facet regardless of distance. Add the radius check.

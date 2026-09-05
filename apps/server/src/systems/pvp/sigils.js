@@ -1,4 +1,4 @@
-// FAZA EI — faction sigils.
+// PHASE EI — faction sigils.
 //
 // ServUO `Engines/Factions/Core/Sigil.cs`: 5 town sigils (Britain,
 // Magincia, Minoc, Trinsic, Yew). Holding a sigil for 10 minutes
@@ -29,6 +29,7 @@ export function registerSigil(town, x, y, map = 1) {
 
 export function getSigil(town) { return sigils.get(town) ?? null; }
 export function listSigils() { return [...sigils.values()]; }
+export function resetSigils() { const removed = sigils.size; sigils.clear(); return { removed }; }
 
 /** Audit #34 P3 #7 — ServUO `StuckMenu.cs:319` and the Recall/Gate/
  *  SacredJourney `CheckCast` paths refuse long-distance teleport when
@@ -64,7 +65,7 @@ export function drop(town, mobSerial) {
  * If carrier has held the sigil long enough, mark corruption. `factionFor`
  * resolves a mobile serial to a faction id (or null).
  *
- * BUGFIX #127 (FAZA HM): every faction member should hear "{Town}
+ * BUGFIX #127 (PHASE HM): every faction member should hear "{Town}
  * has been corrupted by {Faction}!" when the rite completes —
  * faction warfare without that announcement felt invisible. Caller
  * passes an optional `broadcast(message)` callback (main.js wires it

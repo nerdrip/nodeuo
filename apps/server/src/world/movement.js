@@ -228,6 +228,20 @@ function getStartZ(facet, x, y, z) {
     }
   }
 
+  if (_runtimeSurfaceAt) {
+    for (const s of _runtimeSurfaceAt(facet, x, y)) {
+      const height = Math.max(0, s.height | 0);
+      const calcTop = (s.z | 0) + (s.bridge ? (height >> 1) : height);
+      if (z < calcTop) continue;
+      if (!isSet || calcTop >= zCenter) {
+        zLow = s.z | 0;
+        zCenter = calcTop;
+        zTop = Math.max(zTop, (s.z | 0) + height);
+        isSet = true;
+      }
+    }
+  }
+
   if (!isSet) {
     zLow = zTop = z;
   } else if (z > zTop) {
@@ -264,12 +278,12 @@ function isOk(facet, x, y, ourZ, ourTop) {
     // AABB vertical overlap (strict: equality means flush, not overlapping).
     if (checkTop > ourZ && ourTop > checkZ) return false;
   }
-  // FAZA AY: scan runtime-spawned solid items at the destination tile.
+  // PHASE AY: scan runtime-spawned solid items at the destination tile.
   // Closed doors (item.door.isOpen === false) and explicitly solid
   // items (item.solid === true) block. The `runtimeSolidAt` resolver
   // is wired by main.js at boot — it indexes items by tile so we
   // don't pay an O(N) cost on every step.
-  // FAZA BD: Z-aware overlap. Closed doors / solid items only block
+  // PHASE BD: Z-aware overlap. Closed doors / solid items only block
   // when their vertical span actually overlaps the mover's body. A
   // closed cellar door at z=-10 must not block an upper-floor walker
   // at z=20. Use the same AABB rule as the static check (strict
@@ -287,11 +301,21 @@ function isOk(facet, x, y, ourZ, ourTop) {
       if (itTop > ourZ && ourTop > itZ) return false;
     }
   }
+  if (_runtimeSurfaceAt) {
+    for (const it of _runtimeSurfaceAt(facet, x, y)) {
+      const itZ = it.z | 0;
+      const height = Math.max(0, it.height | 0);
+      const itTop = itZ + (it.bridge ? (height >> 1) : height);
+      if (itTop > ourZ && ourTop > itZ) return false;
+    }
+  }
   return true;
 }
 
 /** @type {((facet:number, x:number, y:number) => Iterable<any>) | null} */
 let _runtimeSolidAt = null;
+/** @type {((facet:number, x:number, y:number) => Iterable<any>) | null} */
+let _runtimeSurfaceAt = null;
 
 /**
  * Install a runtime solid-item resolver. Called once from main.js with
@@ -301,6 +325,10 @@ let _runtimeSolidAt = null;
  */
 export function setRuntimeSolidAt(fn) {
   _runtimeSolidAt = typeof fn === 'function' ? fn : null;
+}
+
+export function setRuntimeSurfaceAt(fn) {
+  _runtimeSurfaceAt = typeof fn === 'function' ? fn : null;
 }
 
 /**
@@ -324,8 +352,14 @@ function resolveCardinalStep(facet, x, y, z, nx, ny) {
   const checkTop = startZ + PERSON_HEIGHT;
 
   const land = landProvider.landAt(facet, nx, ny);
+  const destinationStatics = landProvider.staticsAt(facet, nx, ny);
+  const runtimeSurfaces = _runtimeSurfaceAt
+    ? [...(_runtimeSurfaceAt(facet, nx, ny) ?? [])]
+    : [];
   // No land block loaded yet — be permissive so the player isn't stranded.
-  if (!land && landProvider.staticsAt(facet, nx, ny).length === 0) return z;
+  // Runtime floors still need normal step/collision resolution even when the
+  // underlying map chunk is absent (custom houses may legitimately bridge it).
+  if (!land && destinationStatics.length === 0 && runtimeSurfaces.length === 0) return z;
 
   // ServUO: pre-compute the destination's 4-corner stats once. landAvg is
   // what the mover stands at if they accept the land candidate; landZ
@@ -366,7 +400,7 @@ function resolveCardinalStep(facet, x, y, z, nx, ny) {
     }
   };
 
-  for (const s of landProvider.staticsAt(facet, nx, ny)) {
+  for (const s of destinationStatics) {
     const info = staticInfo(s.tileId);
     // ServUO `Check` candidate filter: `(flags & ImpassableSurface) ==
     // TileFlag.Surface` — Surface bit set AND Impassable bit NOT set.
@@ -381,6 +415,9 @@ function resolveCardinalStep(facet, x, y, z, nx, ny) {
     const isDoor = (info.flags & FLAG_DOOR) !== 0;
     if (!isWalkable && !isDoor) continue;
     tryCandidate(s.z, info.height | 0, (info.flags & FLAG_BRIDGE) !== 0);
+  }
+  for (const s of runtimeSurfaces) {
+    tryCandidate(s.z | 0, Math.max(0, s.height | 0), s.bridge === true);
   }
 
   // Land is checked LAST in ServUO — after every static — and only if the
@@ -444,6 +481,12 @@ export function findStandingZ(facet, x, y, requestedZ) {
     const isDoor = (info.flags & FLAG_DOOR) !== 0;
     if (!isWalkable && !isDoor) continue;
     candidates.push({ z: s.z + calcHeight(info) });
+  }
+  if (_runtimeSurfaceAt) {
+    for (const s of _runtimeSurfaceAt(facet, x, y)) {
+      const height = Math.max(0, s.height | 0);
+      candidates.push({ z: (s.z | 0) + (s.bridge ? (height >> 1) : height) });
+    }
   }
   if (!candidates.length) return requestedZ;
 

@@ -1,111 +1,88 @@
-# Systems — gameplay engines
+# Gameplay systems
 
-Each subdirectory is a self-contained gameplay engine ported from ServUO.
-Engines own the dispatch pipeline for their domain (cast pipeline, craft
-pipeline, combat pipeline…); domain content (individual spells, recipes)
-lives in sibling files that self-register at module-load time.
+`apps/server/src/systems` contains reusable, server-authoritative engines. A
+system validates requests, owns runtime state and exposes a narrow registration
+or dispatch API. Concrete shard content lives in `apps/scripts` and registers
+through those APIs.
 
-## Why not ServUO's OOP model?
+Cross-cutting verification services include:
 
-ServUO gives every spell and every recipe its own C# class (200+ files
-per school/trade). Each class inherits from a base (`MagerySpell`,
-`CraftItem`, `Skill`) and overrides `OnCast()` / `OnCraft()`. That's a
-lot of boilerplate for a data pattern — a spell is *99% data* (id, name,
-mana cost, target type, effect closure). We collapsed that into plain-
-object definitions that the dispatcher reads with `dispatch(def, ctx)`.
+- `state-verification.js`: deterministic SHA-256 world fingerprints,
+  checkpoints, comparisons, and bounded invariant scans;
+- `content-dependency-graph.js`: cached forward/reverse imports and asset
+  dependencies used by release review and Script Studio;
+- `economy/transaction-ledger.js`: balanced gold postings with an append-only
+  SHA-256 hash chain and reconciliation;
+- `request-context.js`: `AsyncLocalStorage` propagation for NodeUO trace,
+  correlation, causation, transaction, outcome, and duration fields.
+- `platform-operations.js`: atomically persisted moderation cases, independent
+  approvals, incident history and live-event definitions, plus memory-isolated
+  preview sessions and cached script event-contract discovery.
 
-Net effect: **~10× less code per parity feature** with the same gameplay.
+They expose narrow snapshots to the admin API. None changes the classic UO
+wire path, and none grants the enhanced client authority over world state.
 
-## Architecture
+## Domains
 
+- `spells` and `crafting`: cast/craft pipelines, validation and registries;
+- `bards`, `pvp`, `pets`, `housing` and `boats`: player-facing mechanics;
+- `quests`, `bosses`, `events`, `economy` and `rewards`: durable domain state
+  and event processing;
+- runtime infrastructure at the systems root: service levels, load shedding,
+  profiling, worker pools, replication, replay, NodeUO settings, per-feature
+  protocol costs, shard-wide fair traffic, feature rollouts and content
+  release validation.
+
+Other engine modules remain at the systems root when a directory would add no
+useful ownership boundary. The directory structure is descriptive, not a
+requirement to split small cohesive modules.
+
+## Registration pattern
+
+Keep registries dependency-neutral. Definitions import a registry facade;
+dispatchers may import definitions for startup registration, but a definition
+must not import the dispatcher entry point.
+
+```js
+// registry.js
+const definitions = new Map();
+export function register(definition) {
+  definitions.set(definition.id, Object.freeze({ ...definition }));
+  return () => definitions.delete(definition.id);
+}
+
+// dispatcher.js
+export function execute(id, context) {
+  const definition = definitions.get(id);
+  if (!definition) return { ok: false, error: 'unknown-definition' };
+  return definition.run(context);
+}
 ```
-systems/
-├── spells/
-│   ├── registry.js    ← shared Map<id, SpellDef>, no deps
-│   ├── index.js       ← castSpell(ctx) dispatcher, re-exports registry
-│   ├── chivalry.js    ← 10 spells, `registerSpell({...})` each
-│   └── magery.js      ← 64 spells
-├── crafting/
-│   ├── registry.js
-│   ├── index.js       ← craft(ctx) dispatcher
-│   ├── blacksmithing.js ← 30+ recipes
-│   ├── tailoring.js     ← 40+ recipes
-│   └── alchemy.js       ← 25 potions
-└── (future: pet-training, factions, housing, …)
+
+## Runtime requirements
+
+- Validate permissions, ownership, range, revisions and resource costs on the
+  server before mutating state.
+- Bound queues, caches, per-pulse work and externally supplied collections.
+- Use sector/AOI queries for nearby entities instead of scanning the world.
+- Coalesce replaceable work and preserve ordering for authoritative work.
+- Make partial mutations transactional or supply an explicit rollback path.
+- Expose live counters for budgets, drops, retries and circuit-breaker state.
+- Dispose timers, listeners, workers and registrations during reload/shutdown.
+- Emit ordinary UO packets for classic behavior; negotiated NodeUO messages
+  are optional enhancements only.
+
+## Verification
+
+System behavior is covered by focused tests under `apps/server/test`, the full
+server suite and the short performance gates:
+
+```powershell
+pnpm --filter @uo/server test
+pnpm audit:performance
+pnpm audit:gameplay-performance
+node tools/audit/architecture-budget.mjs
 ```
 
-## Adding a new spell school
-
-1. Create `systems/spells/<school>.js`.
-2. At top: `import { registerSpell } from './registry.js';`
-3. For each spell call `registerSpell({ id, name, school, skillId,
-   minSkill, mana, delayMs, soundId, effect })`.
-4. Add `import './<school>.js';` at the bottom of `systems/spells/index.js`.
-
-Done. The dispatcher picks up the new spells automatically.
-
-## Adding a new crafting profession
-
-Identical pattern under `systems/crafting/`. Skill id is the ServUO skill
-number (7 blacksmith, 8 tailor, 2 alchemy, 9 carpenter, 11 cartography,
-23 cooking, 26 magery, …).
-
-## Critical: no circular imports
-
-The `registry.js` split exists because `index.js` imports domains at the
-bottom (for side-effect registration) AND domains import the registry.
-Without the split the ES-module graph forms a cycle that leaves exports
-undefined at evaluation time.
-
-Rule of thumb: **domain files import only `./registry.js`**. Never
-`./index.js`.
-
-## Content vs Systems
-
-- `systems/*` — the engines. Change these to change *behaviour*.
-- `content/*` — the data. Change these to change *what exists*.
-
-Item catalogue (`content/items/`), mobile templates (`content/mobiles/`),
-regions (`content/regions/`), and quests (`content/quests/`) follow the
-same registry pattern: a `registry.js` with a Map, domain files that
-call `registerItem/Mobile/Region/...`, and an `index.js` that re-exports
-and loads the domains.
-
-## Migration status
-
-| System | Coverage | Notes |
-|---|---|---|
-| Spells / Magery   | 64/64 | Full book; circles 1-8 |
-| Spells / Necromancy | 17/17 | Full book (FAZA K) |
-| Spells / Chivalry | 10/10 | All effects implemented (FAZA AI, AS) |
-| Spells / Bushido | 6/6 | Full book (FAZA Q part 2) |
-| Spells / Ninjitsu | 8/8 | Full book (FAZA Q part 2) |
-| Spells / Spellweaving | 16/16 | Full book (FAZA Q part 2) |
-| Spells / Mysticism | 16/16 | Full book (FAZA Q part 2) |
-| Crafting / Blacksmithing | 35/60 | Weapons, armor, shields |
-| Crafting / Tailoring | 40/50 | Clothing, leather, bone, studded |
-| Crafting / Alchemy | 25/25 | All standard potions |
-| Crafting / Carpentry | 15/30 | Weapons, containers, furniture |
-| Crafting / Fletching | 6/20 | Bows, crossbows, arrows, bolts |
-| Crafting / Inscription | 12/64 | Circles 1-7 |
-| Crafting / Cooking / Cartography / Mining (commands) | ✅ | Targeted activities (FAZA S, X) |
-| Items / Weapons | 50+/80 | Melee + ranged + ammo |
-| Items / Armor | 50+/60 | All materials represented |
-| Items / Consumables | 50+/100 | Potions + food + reagents (necro+mystic) |
-| Mobiles / Humanoids | 8/30 | Wanderer/Farmer/Guard/Milkmaid/Hermit/Beggar/etc |
-| Mobiles / Animals | 14/40 | Cat/dog/horse/llama/bull/wolf/chicken/pig/sheep/deer/rabbit |
-| Mobiles / Undead | 9/20 | Skeleton/zombie/lich/ghoul/mummy/wisp/skeletal-knight |
-| Mobiles / Monsters | 16+/30 | Dragon/cyclops/titan/4 elementals/ettin/ogre/troll/balron/daemon |
-| Banker NPC | ✅ | Speech-driven (FAZA Y) |
-| Healer NPC | ✅ | AI behaviour |
-| Vendor types | 5 | Provisioner/Blacksmith/Mage/Armorer/Innkeeper |
-| Quest system | ✅ | 5 sample quests + journal commands (FAZA AA) |
-| Champion altars | 3 | Shame/Destard/Despise + boss + power-scroll loot |
-| Houses | scaffold | Place/walls/door spawns + ACL |
-| Boats (rowboat) | MVP | Spawn/board/forward/turn |
-| Mounted system | MVP | Body swap on adjacent owned pet |
-| Stable | ✅ | 5-pet capacity |
-| Region tracker (music) | ✅ | 0x6D PlayMusic on region cross |
-| Notoriety | per-viewer | Party/guild/pet inheritance |
-| Combat status consumers | 11 | Lightning-strike, evasion, blood-oath, vampiric etc. |
-| Skill action bar | ✅ | 0x12 type 0x24 dispatched to commands (FAZA AS) |
+Long soak runs are separate release checks and are never required for ordinary
+local development.

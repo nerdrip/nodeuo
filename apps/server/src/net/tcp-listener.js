@@ -32,13 +32,15 @@ export function startTcpListener({ host, port, sharedCtx, log = console.log }) {
   const server = net.createServer((socket) => {
     const id = ++connId;
     const remoteAddress = socket.remoteAddress;
+    socket.setNoDelay(true);
+    socket.setKeepAlive(true, 30_000);
     log(`[tcp#${id}] connected from ${remoteAddress}:${socket.remotePort}`);
 
     // First-byte diagnostics — log what the client SENDS as soon as the
     // initial chunk arrives. Without this the server log is silent
     // between "connected" and the first parsed packet, which makes
-    // "ClassicUO doesn't connect" hard to triage. Marcin: "nie mam
-    // żadnych logów w naszym terminalu". One-shot listener: removed
+    // "ClassicUO doesn't connect" hard to triage when the terminal has no
+    // connection evidence. This one-shot listener is removed
     // after the first chunk so we don't log every byte forever.
     const onFirstChunk = (chunk) => {
       socket.removeListener('data', onFirstChunk);
@@ -55,11 +57,16 @@ export function startTcpListener({ host, port, sharedCtx, log = console.log }) {
     // TCP connection but never forward client bytes (commonly the case
     // when CUO's "encryption" toggle is left on and our server speaks
     // plaintext). Print a hint so the operator knows where to look.
-    const silentTimer = setTimeout(() => {
+    const silentTick = () => {
       log(`[tcp#${id}] no data after 5s — check that ClassicUO has encryption DISABLED + correct host:port (currently ${host}:${port}).`);
-    }, 5_000);
-    socket.on('data', () => clearTimeout(silentTimer));
-    socket.on('close', () => clearTimeout(silentTimer));
+    };
+    const silentTimer = sharedCtx.scheduler?.once
+      ? sharedCtx.scheduler.once(`tcp-silent:${id}`, 5_000, silentTick)
+      : setTimeout(silentTick, 5_000);
+    const cancelSilent = () => typeof silentTimer?.cancel === 'function'
+      ? silentTimer.cancel() : clearTimeout(silentTimer);
+    socket.on('data', cancelSilent);
+    socket.on('close', cancelSilent);
 
     socket.on('close', (hadError) => {
       log(`[tcp#${id}] closed${hadError ? ' (with error)' : ''}`);
@@ -99,10 +106,18 @@ export function startTcpListener({ host, port, sharedCtx, log = console.log }) {
     // "I configured CUO and nothing happened" but not so spammy that
     // it pollutes the log for a healthy long-running shard.
     let pingsLeft = 10;
-    const ping = setInterval(() => {
-      if (connId > 0 || pingsLeft-- <= 0) { clearInterval(ping); return; }
+    let ping = null;
+    const pingTick = () => {
+      if (connId > 0 || pingsLeft-- <= 0) {
+        if (typeof ping?.cancel === 'function') ping.cancel();
+        else clearInterval(ping);
+        return;
+      }
       log(`[uo-node] TCP listener idle on ${actualHost}:${actualPort} — no client connections yet. Check that CUO's host=${actualHost === '0.0.0.0' ? '127.0.0.1' : actualHost}, port=${actualPort}, encryption=NONE.`);
-    }, 30_000);
+    };
+    ping = sharedCtx.scheduler?.every
+      ? sharedCtx.scheduler.every('tcp-listener-idle', 30_000, pingTick)
+      : setInterval(pingTick, 30_000);
     if (typeof ping.unref === 'function') ping.unref();
   });
 

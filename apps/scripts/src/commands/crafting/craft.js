@@ -31,7 +31,7 @@ const SKILL_ALIAS = {
   cook: 14, cooking: 14,
   tinker: 38, tinkering: 38,
   carto: 13, cartography: 13,
-  mason: 0, masonry: 0,            // 0 = unknown id; runtime checks recipe
+  mason: 12, masonry: 12,          // learned Carpentry branch
   // Glassblowing — ServUO parity: backed by Alchemy (skill 1).
   glass: 1, glassblowing: 1, glassblow: 1,
 };
@@ -47,12 +47,31 @@ const TOOL_KIND_ITEM_IDS = {
   carp:        [0x1034, 0x1101],
   tailor:      [0x0F9D, 0x0F9F],           // sewing kit / scissors
   cook:        [0x097F],                   // skillet
+  alchemy:     [0x0E9B],                   // mortar and pestle
+  alch:        [0x0E9B],
+  carto:       [0x0FBF],                   // scribe/mapmaker pen
+  cartography: [0x0FBF],
+  mason:       [0x12B3],                   // mallet and chisel
+  masonry:     [0x12B3],
   inscribe:    [0x0FBE, 0x0FBF],           // inkwell variants
   // Glassblowing — ServUO uses the Glass Blower's Pipe (0x182D).
-  glass:       [0x182D],
-  glassblowing:[0x182D],
-  glassblow:   [0x182D],
+  glass:       [0x0E8A, 0x182D],           // blowpipe; second id is legacy content
+  glassblowing:[0x0E8A, 0x182D],
+  glassblow:   [0x0E8A, 0x182D],
 };
+
+const SPECIALIST_BRANCH = Object.freeze({
+  mason: 'mason', masonry: 'mason',
+  glass: 'glassblowing', glassblowing: 'glassblowing', glassblow: 'glassblowing',
+});
+
+function recipesForSelection(crafting, selector) {
+  if (!selector) return crafting.allRecipes();
+  const branch = SPECIALIST_BRANCH[selector];
+  if (branch) return crafting.allRecipes().filter((recipe) => recipe.toolKind === branch);
+  const skillId = SKILL_ALIAS[selector];
+  return skillId != null ? crafting.recipesForSkill(skillId) : crafting.allRecipes();
+}
 
 const CRAFT_MATERIALS = Object.freeze({
   iron:          { hue: 0x000, skillReq: 0 },
@@ -77,6 +96,21 @@ export function findCraftingTool(api, mob, toolKind) {
     return it;
   }
   return null;
+}
+
+export function validateRecipeAccess(api, crafter, recipe) {
+  const spellId = recipe?.requiresSpell;
+  if (!spellId) return true;
+  if (!api.spellbooks?.knows) return 'spellbook-unavailable';
+  // Authored Mysticism ids are zero-based at 677..692, while the classic UO
+  // spellbook packet is one-based at 678..693. Translate only at this wire
+  // boundary; changing authored ids would break the NodeUO spell catalogue.
+  const bookSpellId = recipe.category === 'Mysticism' ? spellId + 1 : spellId;
+  for (const item of packItems(api, crafter)) {
+    if (!item?.spellbook && ![0x0E3B, 0x0EFA, 0x2253, 0x2D9D].includes(item?.itemId | 0)) continue;
+    if (api.spellbooks.knows(item.serial, bookSpellId)) return true;
+  }
+  return 'spell-not-known';
 }
 
 export function buildItemStore(api) {
@@ -176,7 +210,7 @@ function recipeByArg(crafting, arg) {
 }
 
 function supportsWorkbench(api, state) {
-  const capability = api.protocol?.NodeUOCapability?.CraftingWorkbench;
+  const capability = api.nodeUO?.features?.CraftingWorkbench;
   return !!capability && !!state?.supportsNodeUO?.(capability);
 }
 
@@ -196,6 +230,8 @@ function resultMessage(recipe, result) {
     'low-skill': `You lack the skill to craft ${recipe.name}.`,
     'material-skill': 'You lack the skill required for the selected material.',
     'recipe-locked': `You have not learned the recipe for ${recipe.name}.`,
+    'spell-not-known': `Your spellbook does not contain the spell for ${recipe.name}.`,
+    'spellbook-unavailable': 'The spellbook service is unavailable.',
     'insufficient-materials': 'You lack the required materials.',
     'no-mana': 'You lack the mana required for this recipe.',
     'failed': 'You failed to craft the item.',
@@ -257,6 +293,7 @@ function scheduleAttempt(api, crafting, ctx, recipe, onComplete) {
       itemStore: buildItemStore(api),
       tool,
       requireTool,
+      validateAccess: (candidate) => validateRecipeAccess(api, senderRef, candidate),
       emitSfx: false,
       material: senderRef._craftMaterial ?? null,
     });
@@ -372,11 +409,15 @@ export default function register(api) {
       if (arg.toLowerCase().startsWith('gump')) {
         const rest = arg.slice(4).trim().toLowerCase();
         const skillId = rest ? SKILL_ALIAS[rest] ?? null : null;
-        const recipes = skillId != null ? crafting.recipesForSkill(skillId) : crafting.allRecipes();
+        const recipes = recipesForSelection(crafting, rest);
         const rich = supportsWorkbench(api, ctx.state);
         // The first five fields remain backwards compatible. Skill values on
         // the wire are human-facing (0.0–120.0), while recipes store tenths.
-        const rows = recipes.slice(0, 80).map((r) =>
+        // The largest authored branch is Inscription (97 recipes). The old
+        // cap of 80 silently hid its final Mysticism entries from the visual
+        // workbench. 256 remains comfortably below the packet guard while
+        // making every individual craft branch complete.
+        const rows = recipes.slice(0, 256).map((r) =>
           [
             r.id, String(r.name).replace(/[|;]/g, ' '), r.skillId,
             (r.minSkill / 10).toFixed(1), (r.maxSkill / 10).toFixed(1),
@@ -412,6 +453,19 @@ export default function register(api) {
       }
       if (!arg || arg.toLowerCase().startsWith('list')) {
         const rest = arg.slice(4).trim().toLowerCase();
+        const selected = recipesForSelection(crafting, rest);
+        if (rest && SPECIALIST_BRANCH[rest]) {
+          if (!selected.length) ctx.state.sendSystemMessage('No recipes registered for that branch.');
+          else {
+            ctx.state.sendSystemMessage(`${selected.length} recipe(s):`);
+            for (const recipe of selected.slice(0, 30)) {
+              ctx.state.sendSystemMessage(
+                `  #${recipe.id} ${recipe.name} — skill ${recipe.skillId} (${recipe.minSkill}-${recipe.maxSkill})`,
+              );
+            }
+          }
+          return;
+        }
         const skillId = rest ? SKILL_ALIAS[rest] ?? null : null;
         return listRecipes(ctx, skillId, crafting);
       }

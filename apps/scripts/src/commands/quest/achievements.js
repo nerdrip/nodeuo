@@ -2,7 +2,7 @@
 // equip achievement titles. Mirrors ServUO `Engines/PointsSystems/`
 // achievement gump.
 //
-// Faza H.3 UNIFICATION: `[achievements gump|ui|browse|overlay|panel`
+// Phase H.3 UNIFICATION: `[achievements gump|ui|browse|overlay|panel`
 // all route to the same client-side AchievementProgressGump overlay
 // (richer than the legacy 0xB0 paginated browser, single canonical UI
 // for players).
@@ -29,7 +29,7 @@ export default function register(api) {
         case 'browse':
         case 'overlay':
         case 'panel': {
-          // Faza H.3 UNIFICATION: all 5 gump-opening aliases route to
+          // Phase H.3 UNIFICATION: all 5 gump-opening aliases route to
           // the SAME AchievementProgressGump overlay (gump-ui-browse-
           // overlay-panel). The legacy 0xB0 paginated server-rendered
           // version was removed — one canonical UI for players.

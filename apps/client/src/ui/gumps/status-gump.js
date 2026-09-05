@@ -151,8 +151,7 @@ export class StatusGump extends WindowGump {
     // HP / Mana / Stam, Str / Dex / Int, Sex, Hits Inc, Stam Inc,
     // Mana Inc, Followers, Armor, Weight, Gold, plus the AOS resist
     // column). Passing an empty title prevents WindowGump from
-    // overlaying a redundant "Status" label on top of the baked
-    // header. Marcin: "gump zawiera juz teksty w grafice".
+    // overlaying a redundant "Status" label on top of the baked header.
     super({
       title: '', width: v.width, height: v.height,
       x: 16, y: 60, backgroundId: v.art, singleSprite: true,
@@ -202,8 +201,7 @@ export class StatusGump extends WindowGump {
       // the 0x0802 art (above the stat block, ~y=36). Earlier we
       // anchored at y=138 (bottom-center) which left the name dangling
       // below the gump border while the "NAME:" label at the top sat
-      // empty — Marcin: "imię postaci jest w złym miejscu, powinno być
-      // na górze". CUO `StatusGumpClassic.cs:200` reads the name into
+      // empty. CUO `StatusGumpClassic.cs:200` reads the name into
       // the top-row slot at (90, 33) too.
       this._name.setPosition(90, 33);
       this.add(this._name);

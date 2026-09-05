@@ -1,5 +1,9 @@
-// Server configuration. Everything overridable via env vars for simple
-// deployments; see README for full list.
+// Server configuration. Everything overridable via env vars for simple deployments.
+
+function jsonSetting(name, fallback) {
+  try { return process.env[name] ? JSON.parse(process.env[name]) : fallback; }
+  catch { return fallback; }
+}
 
 export const config = Object.freeze({
   host: process.env.UO_HOST ?? '0.0.0.0',
@@ -26,6 +30,9 @@ export const config = Object.freeze({
   // Accept any password. For real accounts use an auth backend.
   devAutoAccept: (process.env.UO_DEV_AUTO_ACCEPT ?? '1') === '1',
   logPackets: (process.env.UO_LOG_PACKETS ?? '0') === '1',
+  nodeUOTheme: jsonSetting('UO_NODEUO_THEME', { variables: {} }),
+  nodeUOLocalization: jsonSetting('UO_NODEUO_LOCALIZATION', {}),
+  nodeUOWebTransportUrl: process.env.UO_NODEUO_WEBTRANSPORT_URL ?? '',
 });
 
 export function validateConfig(value = config) {
@@ -36,6 +43,9 @@ export function validateConfig(value = config) {
   if (value.tcpPort != null && !validPort(value.tcpPort)) errors.push('UO_TCP_PORT must be an integer in 1..65535');
   if (value.tcpPort != null && value.tcpPort === value.port && value.tcpHost === value.host) errors.push('WebSocket and TCP listeners cannot bind the same address and port');
   if (!String(value.shardName || '').trim()) errors.push('UO_SHARD_NAME cannot be empty');
+  if (value.nodeUOWebTransportUrl && !/^https:\/\//i.test(value.nodeUOWebTransportUrl)) {
+    errors.push('UO_NODEUO_WEBTRANSPORT_URL must use https://');
+  }
   if (value.devAutoAccept && !['127.0.0.1', '::1', 'localhost'].includes(String(value.host))) warnings.push('development auto-accept is enabled on a non-loopback bind');
   for (const [key, entry] of Object.entries(process.env)) {
     if (/^(UO_.*(?:PASS|PASSWORD|SECRET|TOKEN|KEY))$/i.test(key) && entry === '') errors.push(`${key} is configured but empty`);

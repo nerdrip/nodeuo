@@ -1463,6 +1463,309 @@
     "controlOverrides": []
   },
   {
+    "definitionId": "client:npc-dialog-gump",
+    "scope": "client",
+    "name": "Npc Dialog",
+    "className": "NpcDialogGump",
+    "type": "npc-dialog",
+    "source": "npc-dialog-gump.js",
+    "abstract": false,
+    "frame": {
+      "enabled": true,
+      "width": 780,
+      "height": 390,
+      "opacity": 1
+    },
+    "behavior": {
+      "enabled": true,
+      "canMove": true,
+      "canClose": true,
+      "canCloseWithEsc": true,
+      "canCloseWithRMB": true
+    },
+    "controlOverrides": [
+      {
+        "controlId": "window-background",
+        "x": 0,
+        "y": 0,
+        "width": 780,
+        "height": 390
+      },
+      {
+        "controlId": "window-title",
+        "x": 10,
+        "y": 4,
+        "width": 160,
+        "height": 18,
+        "previewType": "label"
+      },
+      {
+        "controlId": "cinema-panel",
+        "x": 8,
+        "y": 25,
+        "width": 764,
+        "height": 357,
+        "previewType": "panel"
+      },
+      {
+        "controlId": "portrait-panel",
+        "x": 18,
+        "y": 38,
+        "width": 202,
+        "height": 326,
+        "previewType": "panel"
+      },
+      {
+        "controlId": "npc-portrait",
+        "x": 24,
+        "y": 44,
+        "width": 190,
+        "height": 312,
+        "previewType": "image"
+      },
+      {
+        "controlId": "npc-name",
+        "x": 240,
+        "y": 39,
+        "width": 500,
+        "height": 23,
+        "previewType": "label"
+      },
+      {
+        "controlId": "npc-title",
+        "x": 241,
+        "y": 64,
+        "width": 499,
+        "height": 15,
+        "previewType": "label"
+      },
+      {
+        "controlId": "dialogue-panel",
+        "x": 232,
+        "y": 84,
+        "width": 528,
+        "height": 132,
+        "previewType": "panel"
+      },
+      {
+        "controlId": "dialogue-text",
+        "x": 248,
+        "y": 99,
+        "width": 496,
+        "height": 102,
+        "previewType": "label"
+      },
+      {
+        "controlId": "action-hint",
+        "x": 240,
+        "y": 226,
+        "width": 520,
+        "height": 14,
+        "previewType": "label"
+      },
+      {
+        "controlId": "action-list",
+        "x": 240,
+        "y": 244,
+        "width": 520,
+        "height": 116,
+        "previewType": "panel"
+      },
+      {
+        "controlId": "action-1",
+        "x": 0,
+        "y": 0,
+        "width": 492,
+        "height": 27,
+        "previewType": "button"
+      },
+      {
+        "controlId": "action-2",
+        "x": 0,
+        "y": 30,
+        "width": 492,
+        "height": 27,
+        "previewType": "button"
+      },
+      {
+        "controlId": "action-3",
+        "x": 0,
+        "y": 60,
+        "width": 492,
+        "height": 27,
+        "previewType": "button"
+      },
+      {
+        "controlId": "action-4",
+        "x": 0,
+        "y": 90,
+        "width": 492,
+        "height": 27,
+        "previewType": "button"
+      },
+      {
+        "controlId": "action-5",
+        "x": 0,
+        "y": 120,
+        "width": 492,
+        "height": 27,
+        "previewType": "button"
+      },
+      {
+        "controlId": "action-6",
+        "x": 0,
+        "y": 150,
+        "width": 492,
+        "height": 27,
+        "previewType": "button"
+      },
+      {
+        "controlId": "action-7",
+        "x": 0,
+        "y": 180,
+        "width": 492,
+        "height": 27,
+        "previewType": "button"
+      },
+      {
+        "controlId": "action-8",
+        "x": 0,
+        "y": 210,
+        "width": 492,
+        "height": 27,
+        "previewType": "button"
+      },
+      {
+        "controlId": "action-9",
+        "x": 0,
+        "y": 240,
+        "width": 492,
+        "height": 27,
+        "previewType": "button"
+      },
+      {
+        "controlId": "action-10",
+        "x": 0,
+        "y": 270,
+        "width": 492,
+        "height": 27,
+        "previewType": "button"
+      },
+      {
+        "controlId": "action-11",
+        "x": 0,
+        "y": 300,
+        "width": 492,
+        "height": 27,
+        "previewType": "button"
+      },
+      {
+        "controlId": "action-12",
+        "x": 0,
+        "y": 330,
+        "width": 492,
+        "height": 27,
+        "previewType": "button"
+      },
+      {
+        "controlId": "action-13",
+        "x": 0,
+        "y": 360,
+        "width": 492,
+        "height": 27,
+        "previewType": "button"
+      },
+      {
+        "controlId": "action-14",
+        "x": 0,
+        "y": 390,
+        "width": 492,
+        "height": 27,
+        "previewType": "button"
+      },
+      {
+        "controlId": "action-15",
+        "x": 0,
+        "y": 420,
+        "width": 492,
+        "height": 27,
+        "previewType": "button"
+      },
+      {
+        "controlId": "action-16",
+        "x": 0,
+        "y": 450,
+        "width": 492,
+        "height": 27,
+        "previewType": "button"
+      },
+      {
+        "controlId": "action-17",
+        "x": 0,
+        "y": 480,
+        "width": 492,
+        "height": 27,
+        "previewType": "button"
+      },
+      {
+        "controlId": "action-18",
+        "x": 0,
+        "y": 510,
+        "width": 492,
+        "height": 27,
+        "previewType": "button"
+      },
+      {
+        "controlId": "action-19",
+        "x": 0,
+        "y": 540,
+        "width": 492,
+        "height": 27,
+        "previewType": "button"
+      },
+      {
+        "controlId": "action-20",
+        "x": 0,
+        "y": 570,
+        "width": 492,
+        "height": 27,
+        "previewType": "button"
+      },
+      {
+        "controlId": "action-21",
+        "x": 0,
+        "y": 600,
+        "width": 492,
+        "height": 27,
+        "previewType": "button"
+      },
+      {
+        "controlId": "action-22",
+        "x": 0,
+        "y": 630,
+        "width": 492,
+        "height": 27,
+        "previewType": "button"
+      },
+      {
+        "controlId": "action-23",
+        "x": 0,
+        "y": 660,
+        "width": 492,
+        "height": 27,
+        "previewType": "button"
+      },
+      {
+        "controlId": "action-24",
+        "x": 0,
+        "y": 690,
+        "width": 492,
+        "height": 27,
+        "previewType": "button"
+      }
+    ]
+  },
+  {
     "definitionId": "client:opened-corpse-gump",
     "scope": "client",
     "name": "Opened Corpse",

@@ -404,8 +404,7 @@ export function buildPopupMenuChoice(serial, responseId) {
  *  packet's opcode position. After a few cast→target rounds the rx
  *  buffer looked like it was sliced wrong, the framer raised
  *  "Unknown opcode 0xC6 / 0x35", skip-recovered, and eventually the
- *  cast pipeline + walker stalled. Marcin: "rzucilem zaklecie na moga
- *  i przestalem moc rzucac zaklec".
+ *  cast pipeline and walker stalled.
  *
  *  Z is i8 in the wire, prefixed by a u8 padding byte (always 0). */
 export function buildTargetResponse({

@@ -113,10 +113,11 @@ export default function register(api) {
         if (archery.soundId) api.combat.playSoundNear?.(ctx.world, mob, archery.soundId);
         const [lo, hi] = archery.damage ?? [6, 12];
         const dmg = lo + Math.floor(Math.random() * (hi - lo + 1));
-        // ServUO archery rolls Archery skill vs target's Tactics+Combat
-        // for hit chance — here we just use a flat 75% to-hit. Skill
-        // scaling can wire in via api.combat.hitChance() later.
-        if (Math.random() < 0.75 && api.combat.damage) {
+        // Use the same skill/attribute/weapon hit formula as player combat.
+        // This keeps custom archer templates and debuffs meaningful instead
+        // of giving every ranged NPC an unconditional flat 75% roll.
+        const chance = api.combat.hitChance?.(mob, target) ?? 0.75;
+        if (Math.random() < chance && api.combat.damage) {
           api.combat.damage(ctx.world, target, dmg, { attacker: mob, type: 'physical' });
         }
       }

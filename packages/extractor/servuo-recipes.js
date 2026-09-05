@@ -1,7 +1,7 @@
 // ServUO craft recipes extractor — reads every `Def<Skill>.cs` under
 // `templates/ServUO/Scripts/Services/Craft/` and pulls out each
 // AddCraft + AddRes call. Output:
-// `apps/scripts/src/data/recipes.json`.
+// `apps/scripts/src/data/config/recipes.json`.
 //
 // AddCraft signature (the canonical one we care about):
 //   AddCraft(typeof(RefreshPotion), 1116348, 1044538, -25, 25.0,
@@ -25,7 +25,7 @@ import { fileURLToPath } from 'node:url';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..', '..');
 const CRAFT_DIR = join(ROOT, 'templates', 'ServUO', 'Scripts', 'Services', 'Craft');
-const OUT = join(ROOT, 'apps', 'scripts', 'src', 'data', 'recipes.json');
+const OUT = join(ROOT, 'apps', 'scripts', 'src', 'data', 'config', 'recipes.json');
 
 const RX_MAIN_SKILL = /SkillName\.([A-Za-z]+)/;
 const RX_ADD_CRAFT = /AddCraft\(\s*typeof\(([A-Za-z0-9_]+)\)\s*,\s*\d+\s*,\s*\d+\s*,\s*([-]?[\d.]+)\s*,\s*([-]?[\d.]+)\s*,\s*typeof\(([A-Za-z0-9_]+)\)\s*,\s*\d+\s*,\s*(\d+)/g;

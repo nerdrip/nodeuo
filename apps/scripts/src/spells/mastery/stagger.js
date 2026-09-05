@@ -6,6 +6,6 @@ export default {
   name: 'stagger',
   cast(api, ctx) {
     const caster = ctx.sender;
-    caster.staggerCharge = 1;
+    caster._staggerCharge = 1;
   },
 };

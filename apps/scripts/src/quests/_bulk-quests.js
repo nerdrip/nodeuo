@@ -1,9 +1,8 @@
 // Bulk quest pack — registers quest definitions through the existing
 // `systems/quests/mlquests.js` engine (`api.mlQuests.registerQuest`). Each
-// quest is a flat record with the framework's 5 objective types
-// (`slay`, `collect`, `escort`, `deliver`, `talk`). Stage chaining is
-// not yet supported by the framework — multi-stage chains here are
-// flattened into one quest with all objectives required to complete.
+// quest is a record with the framework's 5 objective types (`slay`,
+// `collect`, `escort`, `deliver`, `talk`). All objectives in a record are
+// required; separate records can form ordered chains through `requires`.
 //
 // Mirrors ServUO `Scripts/Quests/UzeraanTurmoil/`, `DarkTides/`,
 // `EminosUndertaking/`, `HaochisTrials/`, `Eodon/`, `Collector/`,
@@ -364,8 +363,9 @@ export default function register(api) {
     api.log('quests/_bulk-quests: api.mlQuests.registerQuest unavailable; skipping');
     return () => {};
   }
+  const registered = [];
   for (const q of QUESTS) {
-    try { reg(q); }
+    try { reg(q); registered.push(q.id); }
     catch (e) {
       // Quest already registered (hot-reload race) — ignore.
       if (!String(e?.message ?? '').includes('Duplicate')) {
@@ -373,6 +373,21 @@ export default function register(api) {
       }
     }
   }
-  api.log(`quests/_bulk-quests: registered ${QUESTS.length} quest definitions`);
-  return () => {};   // mlquests engine doesn't expose unregister
+  const removeKillHook = api.corpse?.addKillHook?.((_world, victim, killer) => {
+    if (!killer?.client || victim?.client || !victim?.kind) return;
+    const advanced = api.mlQuests?.trackKill?.(killer, victim.kind)
+      ?? api.systems?.mlQuests?.trackKill?.(killer, victim.kind)
+      ?? [];
+    for (const row of advanced) {
+      if (row.q?.completed) {
+        killer.client.sendSystemMessage?.(`Quest objective complete: ${row.def?.title ?? row.q.id}.`);
+      }
+    }
+  });
+  api.log(`quests/_bulk-quests: registered ${registered.length} quest definitions`);
+  return () => {
+    removeKillHook?.();
+    const unregister = api.mlQuests?.unregisterQuest ?? api.systems?.mlQuests?.unregisterQuest;
+    for (const id of registered) unregister?.(id);
+  };
 }

@@ -91,8 +91,8 @@ export default function register(api) {
       // Discordance — debuff one enemy's skills.
       if (skillDisc >= 30 && Math.random() < (skillDisc / 100) * inst) {
         const v = enemies[0].m;
-        v.discordedUntil = Date.now() + 30_000;
-        v.discordPenalty = Math.max(5, Math.floor(skillDisc / 5));
+        v._discordedUntil = Date.now() + 30_000;
+        v._discordPenaltyPct = Math.min(0.30, Math.max(0.05, skillDisc / 500));
         ctx.broadcastSpeech?.(mob, '*plays a discordant tune*', 0x481);
         return;
       }
@@ -100,7 +100,7 @@ export default function register(api) {
       // Peacemaking — calm everyone in earshot.
       if (skillPeace >= 30 && Math.random() < (skillPeace / 100) * inst) {
         for (const { m } of enemies) {
-          m.peacemakingUntil = Date.now() + 8000;
+          m._peacefulUntil = Date.now() + 8000;
           m.combatTarget = 0;
         }
         ctx.broadcastSpeech?.(mob, '*plays a soothing melody*', 0x481);

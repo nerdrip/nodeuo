@@ -80,7 +80,7 @@ export function mobileStatus({
   // v5 fields — resists + luck + damage range + tithing.
   fireResist = 0, coldResist = 0, poisonResist = 0, energyResist = 0,
   luck = 0, dmgMin = 0, dmgMax = 0, tithingPoints = 0,
-  // BUGFIX #54 (FAZA CL): version gates how much we serialise. Version
+  // BUGFIX #54 (PHASE CL): version gates how much we serialise. Version
   // 0x00 = "brief" (name + HP + hpMax + canRename only) — what ServUO
   // ships to non-self status requests. Version 0x05 (default) keeps the
   // full classic-AOS layout INCLUDING resists / luck / damage range /

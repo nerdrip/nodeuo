@@ -17,6 +17,8 @@
 import { registerSpecialMove, getSpecialMove, invokeMove as _invokeSpecialMove } from './special-moves.js';
 import { normalizeSkillValue } from '../combat-formulas.js';
 import { registerSummon } from './pets/summon-expire.js';
+import { applyPoison, forceCure } from '../poison.js';
+import { apply as applyStatusEffect, remove as removeStatusEffect } from '../status-effects.js';
 
 const MASTERY_PREFIX = 'mastery:';
 
@@ -31,6 +33,10 @@ function skillValue(mob, id) {
  * @property {number} mana
  * @property {number} cooldownMs
  * @property {string} [school]   bushido|ninjitsu|bard|melee|caster|ranged|tame
+ * @property {boolean} [requiresTarget]
+ * @property {'mobile'|'location'} [targetKind]
+ * @property {boolean} [harmful]
+ * @property {(target:any,mob:any,world:any) => boolean|string} [validateTarget]
  * @property {(mob:any) => boolean} [canUse]
  * @property {(world:any, mob:any, target:any) => void} apply
  */
@@ -56,6 +62,19 @@ export function getMastery(name)   { return _masteries.get(name); }
 export function listMasteries()    { return [..._masteries.values()]; }
 
 export function invokeMastery(world, mob, target, name) {
+  const spec = getMastery(name);
+  if (!spec) return { ok: false, reason: 'unknown-mastery' };
+  if (spec.requiresTarget && !target) return { ok: false, reason: 'target-required' };
+  if (spec.targetKind === 'mobile' && (!target?.serial || target === mob && spec.harmful)) {
+    return { ok: false, reason: 'invalid-target' };
+  }
+  if (spec.targetKind === 'location' && (!Number.isFinite(target?.x) || !Number.isFinite(target?.y))) {
+    return { ok: false, reason: 'invalid-target' };
+  }
+  const validation = spec.validateTarget?.(target, mob, world);
+  if (validation !== undefined && validation !== true) {
+    return { ok: false, reason: typeof validation === 'string' ? validation : 'invalid-target' };
+  }
   return _invokeSpecialMove(world, mob, target, MASTERY_PREFIX + name);
 }
 
@@ -131,15 +150,54 @@ registerMastery({
 
 registerMastery({
   name: 'StoneFormMastery', mana: 40, cooldownMs: 90_000, school: 'caster',
-  apply(_w, mob) { applyTimer(mob, '_stoneFormUntil', 30_000); },
+  apply(world, mob) {
+    const durationMs = 30_000;
+    const bonus = Math.max(2, Math.min(8, Math.floor((skillValue(mob, 56) + skillValue(mob, 51)) / 24)));
+    applyTimer(mob, '_stoneFormUntil', durationMs);
+    mob._stoneForm = true;
+    mob._stoneFormWalkOnly = true;
+    mob._stoneFormDmgBonus = Math.max(1, Math.floor(bonus / 2));
+    const overlay = mob._resistOverlay ?? (mob._resistOverlay = {});
+    for (const type of ['physical', 'fire', 'cold', 'poison', 'energy']) {
+      overlay[type] = (overlay[type] | 0) + bonus;
+    }
+    mob._resBagDirty = true;
+    applyStatusEffect(mob, {
+      name: 'stone-form-mastery', durationMs,
+      onRemove(target) {
+        target._stoneFormUntil = 0;
+        target._stoneForm = false;
+        target._stoneFormWalkOnly = false;
+        target._stoneFormDmgBonus = 0;
+        const current = target._resistOverlay ?? {};
+        for (const type of ['physical', 'fire', 'cold', 'poison', 'energy']) {
+          current[type] = (current[type] | 0) - bonus;
+        }
+        if (!current.physical && !current.fire && !current.cold && !current.poison && !current.energy) {
+          target._resistOverlay = null;
+        }
+        target._resBagDirty = true;
+      },
+    });
+    void world;
+  },
 });
 
 registerMastery({
   name: 'Conduit', mana: 50, cooldownMs: 180_000, school: 'caster',
-  // No mana cost on next 5 spells in 30s (counter on mob).
-  apply(_w, mob) {
-    applyTimer(mob, '_conduitUntil', 30_000);
-    mob._conduitCharges = 5;
+  requiresTarget: true, targetKind: 'location',
+  // Necromancy damage dealt to a target in this zone is echoed to other
+  // valid creatures in the zone. Spell scripts consume the area metadata.
+  apply(_w, mob, target) {
+    const durationMs = Math.max(4_000, Math.min(10_000,
+      4_000 + Math.floor((skillValue(mob, 49) + skillValue(mob, 33)) * 28)));
+    applyTimer(mob, '_conduitUntil', durationMs);
+    mob._conduitArea = {
+      x: target.x | 0, y: target.y | 0, map: target.map ?? mob.map,
+      radius: 3,
+    };
+    mob._conduitStrength = Math.max(0.2, Math.min(1,
+      (skillValue(mob, 49) + skillValue(mob, 33)) / 250));
   },
 });
 
@@ -153,11 +211,28 @@ registerMastery({
 });
 
 registerMastery({
-  name: 'Rejuvinate', mana: 50, cooldownMs: 90_000, school: 'caster',
-  // Cleanse all debuffs from self.
-  apply(_w, mob) {
-    if (Array.isArray(mob.statusEffects)) mob.statusEffects.length = 0;
-    mob._rejuvenatedAt = Date.now();
+  name: 'Rejuvinate', mana: 10, cooldownMs: 90_000, school: 'caster',
+  requiresTarget: true, targetKind: 'mobile',
+  // Restore one third of the target's missing vitals and cleanse harmful
+  // effects. Keep beneficial effects intact: clearing the entire effect list
+  // used to remove the target's buffs and still missed the real `effects[]`.
+  apply(world, mob, target) {
+    const recipient = target ?? mob;
+    for (const [current, maximum] of [['hp', 'hpMax'], ['stam', 'stamMax'], ['mana', 'manaMax']]) {
+      const max = Math.max(0, recipient[maximum] ?? 0);
+      const value = Math.max(0, recipient[current] ?? 0);
+      recipient[current] = Math.min(max, value + Math.ceil((max - value) / 3));
+    }
+    forceCure(recipient, world);
+    for (const name of [
+      'clumsy', 'feeblemind', 'weaken', 'curse', 'mass-curse', 'evil-omen',
+      'strangle', 'corpse-skin', 'blood-oath-curse', 'mind-rot', 'paralyze',
+    ]) removeStatusEffect(recipient, name, world);
+    for (const key of [
+      '_paralyzedUntil', '_mortalStrikeUntil', '_bleedUntil', '_burnUntil',
+      '_despairUntil', 'statDebuffUntil', 'evilOmenUntil',
+    ]) recipient[key] = 0;
+    recipient._rejuvenatedAt = Date.now();
   },
 });
 
@@ -202,6 +277,7 @@ registerMastery({
 
 registerMastery({
   name: 'Onslaught', mana: 50, cooldownMs: 30_000, school: 'melee',
+  requiresTarget: true, targetKind: 'mobile', harmful: true,
   apply(world, mob, target) {
     const dmg = 25 + Math.floor(Math.random() * 15);
     damageIfTarget(world, target, dmg, mob);
@@ -211,6 +287,7 @@ registerMastery({
 
 registerMastery({
   name: 'Stagger', mana: 25, cooldownMs: 20_000, school: 'melee',
+  requiresTarget: true, targetKind: 'mobile', harmful: true,
   // Slows target by 50% swing for 6s.
   apply(_w, _m, target) {
     if (target) applyTimer(target, '_staggerUntil', 6_000);
@@ -219,6 +296,7 @@ registerMastery({
 
 registerMastery({
   name: 'Pierce', mana: 25, cooldownMs: 20_000, school: 'ranged',
+  requiresTarget: true, targetKind: 'mobile', harmful: true,
   apply(world, mob, target) {
     const dmg = 18 + Math.floor(Math.random() * 12);
     damageIfTarget(world, target, dmg, mob);
@@ -227,6 +305,7 @@ registerMastery({
 
 registerMastery({
   name: 'Thrust', mana: 25, cooldownMs: 20_000, school: 'melee',
+  requiresTarget: true, targetKind: 'mobile', harmful: true,
   apply(world, mob, target) {
     const dmg = 22 + Math.floor(Math.random() * 14);
     damageIfTarget(world, target, dmg, mob);
@@ -235,6 +314,7 @@ registerMastery({
 
 registerMastery({
   name: 'CalledShot', mana: 40, cooldownMs: 45_000, school: 'ranged',
+  requiresTarget: true, targetKind: 'mobile', harmful: true,
   apply(world, mob, target) {
     if (!target) return;
     // Headshot: 2x damage, ignores shield, applies bleed. Bleed dmg
@@ -251,6 +331,7 @@ registerMastery({
 
 registerMastery({
   name: 'FlamingShot', mana: 30, cooldownMs: 30_000, school: 'ranged',
+  requiresTarget: true, targetKind: 'mobile', harmful: true,
   apply(world, mob, target) {
     const dmg = 18 + Math.floor(Math.random() * 12);
     damageIfTarget(world, target, dmg, mob);
@@ -264,6 +345,7 @@ registerMastery({
 
 registerMastery({
   name: 'Stab', mana: 25, cooldownMs: 20_000, school: 'melee',
+  requiresTarget: true, targetKind: 'mobile', harmful: true,
   apply(world, mob, target) {
     const dmg = 14 + Math.floor(Math.random() * 10);
     damageIfTarget(world, target, dmg, mob);
@@ -272,16 +354,18 @@ registerMastery({
 
 registerMastery({
   name: 'ShieldBash', mana: 35, cooldownMs: 30_000, school: 'melee',
+  requiresTarget: true, targetKind: 'mobile', harmful: true,
   // Stuns target 2s + small dmg.
   apply(world, mob, target) {
     if (!target) return;
     damageIfTarget(world, target, 12 + Math.floor(Math.random() * 8), mob);
-    applyTimer(target, '_paralyzeUntil', 2_000);
+    applyTimer(target, '_paralyzedUntil', 2_000);
   },
 });
 
 registerMastery({
   name: 'FistsOfFury', mana: 30, cooldownMs: 25_000, school: 'melee',
+  requiresTarget: true, targetKind: 'mobile', harmful: true,
   apply(world, mob, target) {
     // 3-strike combo: 3 quick damage rolls.
     for (let i = 0; i < 3; i++) {
@@ -310,10 +394,11 @@ registerMastery({
 
 registerMastery({
   name: 'InjectedStrike', mana: 30, cooldownMs: 30_000, school: 'melee',
+  requiresTarget: true, targetKind: 'mobile', harmful: true,
   apply(world, mob, target) {
     // Apply strong poison + small damage.
     damageIfTarget(world, target, 8, mob);
-    if (target) applyTimer(target, '_poisonUntil', 12_000);
+    if (target) applyPoison(target, 3, mob);
   },
 });
 
@@ -329,10 +414,22 @@ registerMastery({
 
 registerMastery({
   name: 'Invigorate', mana: 24, cooldownMs: 30_000, school: 'bard',
-  apply(_w, mob) {
-    applyTimer(mob, '_invigorateUntil', 30_000);
-    if (mob.hp != null && mob.hpMax != null) {
-      mob.hp = Math.min(mob.hpMax, mob.hp + 25);
+  apply(world, mob) {
+    const recipients = [mob];
+    const party = world?._partyRegistry?.partyOf?.(mob.serial);
+    for (const serial of party?.members ?? []) {
+      const member = world.mobiles?.get?.(serial >>> 0);
+      if (member && member !== mob && member.map === mob.map
+          && Math.max(Math.abs(member.x - mob.x), Math.abs(member.y - mob.y)) <= 10) {
+        recipients.push(member);
+      }
+    }
+    for (const recipient of recipients) {
+      applyTimer(recipient, '_invigorateUntil', 30_000);
+      recipient._invigorateNextHealAt = Date.now() + 4_000;
+      if (recipient.hp != null && recipient.hpMax != null) {
+        recipient.hp = Math.min(recipient.hpMax, recipient.hp + 25);
+      }
     }
   },
 });
@@ -349,6 +446,7 @@ registerMastery({
 
 registerMastery({
   name: 'Tribulation', mana: 16, cooldownMs: 25_000, school: 'bard',
+  requiresTarget: true, targetKind: 'mobile', harmful: true,
   apply(_w, _m, target) {
     if (target) applyTimer(target, '_tribulationUntil', 30_000);
   },
@@ -356,8 +454,15 @@ registerMastery({
 
 registerMastery({
   name: 'Despair', mana: 24, cooldownMs: 30_000, school: 'bard',
+  requiresTarget: true, targetKind: 'mobile', harmful: true,
   apply(_w, _m, target) {
-    if (target) applyTimer(target, '_despairUntil', 30_000);
+    if (target) {
+      applyTimer(target, '_despairUntil', 30_000);
+      target.statDebuffUntil = target._despairUntil;
+      target.statDebuffPct = 0.10;
+      target._despairDmg = 10;
+      target._despairNextTickAt = Date.now() + 2_000;
+    }
   },
 });
 
@@ -373,6 +478,7 @@ registerMastery({
 
 registerMastery({
   name: 'NetherBlast', mana: 50, cooldownMs: 45_000, school: 'caster',
+  requiresTarget: true, targetKind: 'mobile', harmful: true,
   apply(world, mob, target) {
     const dmg = 25 + Math.floor(Math.random() * 18);
     damageIfTarget(world, target, dmg, mob);
@@ -381,6 +487,7 @@ registerMastery({
 
 registerMastery({
   name: 'DeathRay', mana: 50, cooldownMs: 60_000, school: 'caster',
+  requiresTarget: true, targetKind: 'mobile', harmful: true,
   apply(world, mob, target) {
     const dmg = 30 + Math.floor(Math.random() * 25);
     damageIfTarget(world, target, dmg, mob);
@@ -389,6 +496,7 @@ registerMastery({
 
 registerMastery({
   name: 'ElementalFury', mana: 50, cooldownMs: 90_000, school: 'caster',
+  requiresTarget: true, targetKind: 'mobile', harmful: true,
   // Random-element nuke; pick from fire/cold/poison/energy.
   apply(world, mob, target) {
     const dmg = 28 + Math.floor(Math.random() * 18);
@@ -398,6 +506,7 @@ registerMastery({
 
 registerMastery({
   name: 'HolyFist', mana: 40, cooldownMs: 60_000, school: 'caster',
+  requiresTarget: true, targetKind: 'mobile', harmful: true,
   apply(world, mob, target) {
     const dmg = 25 + Math.floor(Math.random() * 15);
     damageIfTarget(world, target, dmg, mob);
@@ -420,18 +529,53 @@ registerMastery({
 
 registerMastery({
   name: 'CommandUndead', mana: 40, cooldownMs: 60_000, school: 'caster',
-  apply(_w, mob, target) {
-    if (target?.kind?.includes?.('undead') || target?.body === 0x18) {
-      target._charmedBy = mob.serial;
-      applyTimer(target, '_charmedUntil', 30_000);
-    }
+  requiresTarget: true, targetKind: 'mobile', harmful: true,
+  validateTarget(target) {
+    if (target?.controlled || target?.summoned || target?.isBoss || target?.boss) return 'invalid-target';
+    return target?.kind?.includes?.('undead') || target?.body === 0x18 || 'not-undead';
+  },
+  apply(world, mob, target) {
+    if (!(target?.kind?.includes?.('undead') || target?.body === 0x18)) return;
+    const previous = {
+      controlMaster: target.controlMaster ?? null,
+      controlled: !!target.controlled,
+      controlOrder: target.controlOrder ?? null,
+      controlTarget: target.controlTarget ?? null,
+    };
+    target._charmedBy = mob.serial >>> 0;
+    applyTimer(target, '_charmedUntil', 30_000);
+    target.controlMaster = mob.serial >>> 0;
+    target.controlled = true;
+    target.controlOrder = 'follow';
+    target.controlTarget = mob.serial >>> 0;
+    target.combatTarget = null;
+    applyStatusEffect(target, {
+      name: 'command-undead', durationMs: 30_000,
+      onRemove(undead) {
+        undead._charmedBy = 0;
+        undead._charmedUntil = 0;
+        undead.controlMaster = previous.controlMaster;
+        undead.controlled = previous.controlled;
+        undead.controlOrder = previous.controlOrder;
+        undead.controlTarget = previous.controlTarget;
+      },
+    });
+    world?._ai?.wake?.(target, mob);
   },
 });
 
 registerMastery({
-  name: 'Whispering', mana: 16, cooldownMs: 20_000, school: 'tame',
-  // Pet bond stat regen.
-  apply(_w, mob) { applyTimer(mob, '_whisperingUntil', 30_000); },
+  name: 'Whispering', mana: 40, cooldownMs: 1_800_000, school: 'tame',
+  // Enhance skill/training gains of controlled pets in range.
+  apply(world, mob) {
+    applyTimer(mob, '_whisperingUntil', 600_000);
+    for (const pet of world?.mobiles?.values?.() ?? []) {
+      if ((pet.controlMaster >>> 0) !== (mob.serial >>> 0) || pet.map !== mob.map) continue;
+      if (Math.max(Math.abs(pet.x - mob.x), Math.abs(pet.y - mob.y)) > 10) continue;
+      applyTimer(pet, '_whisperingUntil', 600_000);
+      pet._whisperingGainBonus = 0.25;
+    }
+  },
 });
 
 registerMastery({
@@ -440,13 +584,17 @@ registerMastery({
   apply(world, mob) {
     applyTimer(mob, '_warcryUntil', 30_000);
     if (!world?.mobiles) return;
-    for (const o of world.mobiles.values()) {
-      if (o === mob) continue;
-      if (o.map !== mob.map) continue;
-      if (Math.max(Math.abs(o.x - mob.x), Math.abs(o.y - mob.y)) > 8) continue;
-      // Same-party / pet: buff. Otherwise: nothing.
-      if (o.partyId && o.partyId === mob.partyId) {
-        applyTimer(o, '_warcryUntil', 30_000);
+    const party = world._partyRegistry?.partyOf?.(mob.serial);
+    for (const serial of party?.members ?? []) {
+      const other = world.mobiles.get(serial >>> 0);
+      if (!other || other === mob || other.map !== mob.map) continue;
+      if (Math.max(Math.abs(other.x - mob.x), Math.abs(other.y - mob.y)) > 8) continue;
+      applyTimer(other, '_warcryUntil', 30_000);
+    }
+    for (const pet of world.mobiles.values()) {
+      if ((pet.controlMaster >>> 0) !== (mob.serial >>> 0) || pet.map !== mob.map) continue;
+      if (Math.max(Math.abs(pet.x - mob.x), Math.abs(pet.y - mob.y)) <= 8) {
+        applyTimer(pet, '_warcryUntil', 30_000);
       }
     }
   },

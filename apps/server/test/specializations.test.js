@@ -3,7 +3,7 @@ import {
   allocate, availablePoints, castTimeMs, manaCost, milestonePoints,
   modifyDamage, open, reset, snapshot,
 } from '../src/systems/specializations.js';
-import { NodeUOCapability, NodeUOSpecializationMessage } from '@uo/protocol';
+import { NodeUOFeature, NodeUOSpecializationMessage } from '@uo/nodeuo-protocol';
 
 function skilledMob() {
   return { hp: 100, hpMax: 100, skills: { 26: 100, 41: 100 } };
@@ -45,10 +45,13 @@ describe('specializations', () => {
 
     const rich = {
       mobile: skilledMob(),
-      supportsNodeUO: (cap) => cap === NodeUOCapability.Specializations,
-      send: (packet) => sent.push(packet),
+      nodeUOJsonTransport: true,
+      nodeUOFeatures: new Map([[NodeUOFeature.Specializations, 1]]),
+      supportsNodeUO: (cap) => cap === NodeUOFeature.Specializations,
+      sendNodeUOMessage: (message) => { sent.push(message); return true; },
     };
     expect(open(rich, 7)).toBe(true);
-    expect(sent[0][5]).toBe(NodeUOSpecializationMessage.Open);
+    expect(sent[0]).toMatchObject({ feature: NodeUOFeature.Specializations,
+      payload: { eventKind: NodeUOSpecializationMessage.Open, requestId: 7 } });
   });
 });

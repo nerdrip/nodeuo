@@ -173,11 +173,11 @@ export function deleteMoongates(api, opts = {}) {
   return { removed };
 }
 
-// Default registration: apply on script load so a fresh boot still has
-// the gates without `[createworld`. Idempotency guard above prevents
-// duplicates when both this register AND `[createworld` run in the same
-// session.
+// Existing populated shards reconcile their runtime-owned gates on startup.
+// An explicitly clean world stays empty until `[createworld` invokes the
+// exported apply function.
 export default function register(api) {
+  if (api.world?._createWorldDone === false) return () => deleteMoongates(api);
   const r = applyMoongates(api);
   if (r.added > 0) {
     api.log?.(`moongates: ${r.added} placed across ${FACET_GATES.length} facets`);

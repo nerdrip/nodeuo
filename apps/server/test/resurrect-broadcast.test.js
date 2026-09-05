@@ -1,11 +1,11 @@
-// FAZA DG / bugfix #75: resurrect must broadcast healthUpdate to
+// PHASE DG / bugfix #75: resurrect must broadcast healthUpdate to
 // observers; resurrector earns Compassion virtue.
 
 import { describe, it, expect } from 'vitest';
 import { World } from '../src/world/world.js';
 import { resurrectMobile } from '../src/corpse.js';
 
-describe('resurrectMobile broadcast (FAZA DG / #75)', () => {
+describe('resurrectMobile broadcast (PHASE DG / #75)', () => {
   it('ships 0xA1 healthUpdate to nearby observers', () => {
     const w = new World();
     const subject = w.createMobile({

@@ -1,4 +1,4 @@
-// FAZA CZ — teleporter lifecycle script: walking on a teleporter
+// PHASE CZ — teleporter lifecycle script: walking on a teleporter
 // tile moves the mobile to the destination, broadcasts mobileUpdate
 // to self + mobileMoving to nearby observers.
 
@@ -10,7 +10,7 @@ import {
 } from '../src/world/item-scripts.js';
 import buildTeleporterScript from '../../scripts/src/items/scripts/world/teleporter.js';
 
-describe('teleporter script (FAZA CZ)', () => {
+describe('teleporter script (PHASE CZ)', () => {
   /** @type {World} */ let w;
   /** @type {any} */ let mob;
   /** @type {any[]} */ let mobSent;

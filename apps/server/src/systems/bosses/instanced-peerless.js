@@ -9,7 +9,7 @@ const _instances = new Map();    // bossKind → { partyId, ownerSerial, expires
 export function isOccupied(bossKind, now = Date.now()) {
   const inst = _instances.get(bossKind);
   if (!inst) return false;
-  if (now > inst.expiresAt) { _instances.delete(bossKind); return false; }
+  if (now >= inst.expiresAt) { _instances.delete(bossKind); return false; }
   return true;
 }
 
@@ -42,4 +42,9 @@ export function isMember(bossKind, mob, party) {
 export function listActive() {
   return Array.from(_instances.entries())
     .map(([k, v]) => ({ bossKind: k, ...v }));
+}
+
+/** Test and clean-shutdown helper. */
+export function reset() {
+  _instances.clear();
 }

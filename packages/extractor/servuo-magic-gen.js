@@ -6,7 +6,7 @@
 //
 // Each entry feeds the random-magic-item generator (LootPack rolls a
 // budget, picks `weight`-rolled affixes, draws an intensity in
-// [start..maxInt]). Output: `apps/scripts/src/data/magic-properties.json`.
+// [start..maxInt]). Output: `apps/scripts/src/data/config/magic-properties.json`.
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..', '..');
 const SRC = join(ROOT, 'templates', 'ServUO', 'Scripts', 'Services', 'LootGeneration', 'ItemPropertyInfo.cs');
-const OUT = join(ROOT, 'apps', 'scripts', 'src', 'data', 'magic-properties.json');
+const OUT = join(ROOT, 'apps', 'scripts', 'src', 'data', 'config', 'magic-properties.json');
 
 // Two register signatures — short (no resource args) and long (with res
 // types). We try long first since it's more specific.

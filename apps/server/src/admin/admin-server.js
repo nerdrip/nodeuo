@@ -31,7 +31,9 @@ const UI_FILE = path.join(HERE, 'admin-ui.html');
 const LOGIN_FILE = path.join(HERE, 'login.html');
 const EDITOR_FILE = path.join(HERE, 'editor.html');
 const DATA_EDITOR_FILE = path.join(HERE, 'data-editor.html');
+const ASSETS_WORKBENCH_FILE = path.join(HERE, 'assets-workbench.html');
 const STUDIO_FILE = path.join(HERE, 'studio.html');
+const SCRIPT_STUDIO_FILE = path.join(HERE, 'script-studio.html');
 const DOCS_FILE = path.join(HERE, 'docs.html');
 const ADMIN_ASSETS_DIR = HERE;
 // Public extractor output (atlases, tiledata, map blocks). Served as
@@ -42,8 +44,9 @@ const CLIENT_ASSETS_DIR = path.resolve(HERE, '..', '..', '..', 'client', 'public
 // notoriety hue table) live in `apps/client/src/shared/`. Both the in-
 // game client and the admin editor `import` them — one source of truth
 // for iso projection and the small handful of pure-data helpers that
-// would otherwise drift between the two surfaces. Marcin: "uwspólnij
-// komponenty które mogą być". Path-traversal guarded same as /assets/.
+// would otherwise drift between the two surfaces. Shared components remain
+// reusable wherever their data boundary permits it. Path traversal is guarded
+// in the same way as /assets/.
 const SHARED_DIR = path.resolve(HERE, '..', '..', '..', 'client', 'src', 'shared');
 const COOKIE_NAME = 'uo_admin';
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;       // 8 h
@@ -55,6 +58,7 @@ const FRESH_AUTH_MS = 5 * 60 * 1000;
 const EMBEDDABLE_ADMIN_PATHS = new Set([
   '/editor', '/editor.html',
   '/data-editor', '/data-editor.html',
+  '/assets-workbench', '/assets-workbench.html',
 ]);
 
 function accessRank(level) { return ACCESS_RANK[String(level)] ?? 0; }
@@ -63,7 +67,12 @@ function requiredRank(method, pathname) {
   if (method === 'GET') return 1;
   if (pathname.startsWith('/api/accounts') || pathname === '/api/world/shutdown'
       || pathname.startsWith('/api/backups/restore') || pathname.startsWith('/api/migrations/apply')
-      || pathname.startsWith('/api/feature-flags')) return 4;
+      || pathname.startsWith('/api/feature-flags') || pathname === '/api/operations/budgets'
+      || pathname === '/api/operations/alerts'
+      || pathname.startsWith('/api/platform/approvals') || pathname === '/api/platform/policy'
+      || pathname === '/api/operations/scripts/control'
+      || (method !== 'GET' && (pathname.startsWith('/api/nodeuo/rollouts')
+        || pathname.startsWith('/api/nodeuo/releases')))) return 4;
   if (pathname === '/api/me/teleport' || pathname === '/api/world/broadcast'
       || pathname.endsWith('/teleport') || pathname.endsWith('/kick')) return 2;
   return 3;
@@ -72,7 +81,14 @@ function requiresFreshAuth(method, pathname) {
   return method !== 'GET' && (pathname.startsWith('/api/accounts')
     || pathname.startsWith('/api/world/cmd') || pathname === '/api/world/shutdown'
     || pathname.startsWith('/api/backups/restore') || pathname.startsWith('/api/migrations/apply')
-    || pathname.startsWith('/api/feature-flags'));
+    || pathname.startsWith('/api/feature-flags') || pathname === '/api/operations/budgets'
+    || pathname === '/api/operations/alerts'
+    || pathname.startsWith('/api/platform/approvals') || pathname === '/api/platform/policy'
+    || pathname === '/api/operations/scripts/control'
+    || pathname.startsWith('/api/assets/editor')
+    || (pathname === '/api/script-studio/file' && (method === 'PUT' || method === 'DELETE'))
+    || pathname.startsWith('/api/nodeuo/rollouts')
+    || pathname.startsWith('/api/nodeuo/releases'));
 }
 function scopesFor(level) {
   const rank = accessRank(level);
@@ -145,6 +161,11 @@ const ASSET_MIMES = {
   '.mjs':  'application/javascript; charset=utf-8',
   '.css':  'text/css; charset=utf-8',
 };
+const MUTABLE_CLIENT_ASSETS = new Set([
+  'asset-overrides.json', 'patches.json', 'tiledata.json', 'hues.json',
+  'animdata.json', 'multi.json', 'radarcol.json', 'cliloc.json',
+  'sounds.json', 'music.json', 'cursors.json',
+]);
 
 /**
  * @param {{
@@ -206,11 +227,15 @@ export function startAdminServer(opts) {
   const sessions = new Map();
   const idempotency = new Map();
   // Cleanup expired tokens every 5 min — cheap, avoids unbounded growth.
-  setInterval(() => {
+  const sweepSessions = () => {
     const now = Date.now();
     for (const [tok, s] of sessions) if (s.expires < now) sessions.delete(tok);
     for (const [key, entry] of idempotency) if (entry.expires < now) idempotency.delete(key);
-  }, 5 * 60 * 1000).unref?.();
+  };
+  const sessionSweep = opts.sharedCtx?.scheduler?.every
+    ? opts.sharedCtx.scheduler.every('admin-session-sweep', 5 * 60 * 1000, sweepSessions)
+    : setInterval(sweepSessions, 5 * 60 * 1000);
+  sessionSweep.unref?.();
 
   const handlers = buildHandlers({
     sharedCtx: opts.sharedCtx,
@@ -220,6 +245,7 @@ export function startAdminServer(opts) {
     persistence: opts.persistence,
     accounts: accountsApi,
     sessions,
+    clientAssetsDir: CLIENT_ASSETS_DIR,
   });
 
   /** Auth: try env credential first, then shard account; require Admin. */
@@ -333,11 +359,27 @@ export function startAdminServer(opts) {
         return;
       }
 
+      if (req.method === 'GET' && (req.url === '/assets-workbench' || req.url === '/assets-workbench.html' || req.url?.startsWith('/assets-workbench?'))) {
+        if (!readSession(req)) { res.writeHead(302, { location: '/login' }); res.end(); return; }
+        try {
+          sendCachedStatic(req, res, ASSETS_WORKBENCH_FILE, 'text/html; charset=utf-8');
+        } catch { res.writeHead(500); res.end('assets-workbench.html missing'); }
+        return;
+      }
+
       if (req.method === 'GET' && (req.url === '/studio' || req.url === '/studio.html' || req.url?.startsWith('/studio?'))) {
         if (!readSession(req)) { res.writeHead(302, { location: '/login' }); res.end(); return; }
         try {
           sendCachedStatic(req, res, STUDIO_FILE, 'text/html; charset=utf-8');
         } catch { res.writeHead(500); res.end('studio.html missing'); }
+        return;
+      }
+
+      if (req.method === 'GET' && (req.url === '/script-studio' || req.url === '/script-studio.html' || req.url?.startsWith('/script-studio?'))) {
+        if (!readSession(req)) { res.writeHead(302, { location: '/login' }); res.end(); return; }
+        try {
+          sendCachedStatic(req, res, SCRIPT_STUDIO_FILE, 'text/html; charset=utf-8');
+        } catch { res.writeHead(500); res.end('script-studio.html missing'); }
         return;
       }
 
@@ -418,10 +460,34 @@ export function startAdminServer(opts) {
         const ext = path.extname(full).toLowerCase();
         const mime = ASSET_MIMES[ext] ?? 'application/octet-stream';
         const etag = `W/"${st.size.toString(16)}-${Math.trunc(st.mtimeMs).toString(16)}"`;
+        const normalizedRel = rel.replace(/\\/g, '/');
+        const mutable = rel.startsWith(`overrides${path.sep}`) || rel.startsWith('overrides/')
+          || normalizedRel === 'mobiles-atlas-index.json'
+          || MUTABLE_CLIENT_ASSETS.has(normalizedRel);
+        const immutableShard = /^mobiles-atlas-bodies-[a-f0-9-]+\.json$/i.test(normalizedRel)
+          || /^mobiles-atlas-page-\d+-[a-f0-9]{16}\.(?:png|ktx2)$/i.test(normalizedRel);
         res.setHeader('etag', etag);
-        res.setHeader('cache-control', 'public, max-age=3600');
+        res.setHeader('accept-ranges', 'bytes');
+        res.setHeader('cache-control', mutable
+          ? 'private, no-cache'
+          : (immutableShard ? 'public, max-age=31536000, immutable' : 'public, max-age=3600'));
         if (req.headers['if-none-match'] === etag) {
           res.writeHead(304); res.end(); return;
+        }
+        const rangeHeader = String(req.headers.range ?? '');
+        if (rangeHeader) {
+          const match = /^bytes=(\d*)-(\d*)$/i.exec(rangeHeader);
+          let start = match && match[1] ? Number(match[1]) : 0;
+          let end = match && match[2] ? Number(match[2]) : st.size - 1;
+          if (!match || !Number.isSafeInteger(start) || !Number.isSafeInteger(end)
+              || start < 0 || end < start || start >= st.size) {
+            res.writeHead(416, { 'content-range': `bytes */${st.size}` }); res.end(); return;
+          }
+          end = Math.min(end, st.size - 1);
+          res.writeHead(206, { 'content-type': mime, 'content-length': end - start + 1,
+            'content-range': `bytes ${start}-${end}/${st.size}` });
+          fs.createReadStream(full, { start, end }).pipe(res);
+          return;
         }
         const compressible = st.size >= 4096 && ['.json', '.js', '.mjs', '.css', '.svg'].includes(ext);
         const accepted = String(req.headers['accept-encoding'] ?? '');
@@ -672,6 +738,10 @@ export function startAdminServer(opts) {
 
   server.listen(port, host, () => {
     console.log(`[admin] panel on http://${host === '0.0.0.0' ? 'localhost' : host}:${port}/  (login at /login)`);
+  });
+  server.once('close', () => {
+    if (typeof sessionSweep?.cancel === 'function') sessionSweep.cancel();
+    else clearInterval(sessionSweep);
   });
   return server;
 }

@@ -9,8 +9,8 @@
 // script loader walks alphabetically and this file loads AFTER `data.js`,
 // the local entries silently OVERWROTE the canonical registrations —
 // notably, torch was set to 0x0A25 (lit-lantern art) and lost its
-// items.json `script: 'torch'` link. User report 2026-05-19 "torch tworzy
-// się w eq z grafiką latarni". Keep only entries that are unique to this
+// items.json `script: 'torch'` link, creating a torch with lantern art.
+// Keep only entries that are unique to this
 // file (no name collision with items.json).
 import { nearbyClients } from '../../_spatial.js';
 

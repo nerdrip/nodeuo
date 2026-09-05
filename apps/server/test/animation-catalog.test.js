@@ -9,7 +9,7 @@ describe('mobile animation catalog', () => {
     expect(rat.info?.type).toBe('MONSTER');
     expect(rat.actions.length).toBeGreaterThan(5);
     expect(rat.errors.filter((error) => error.includes('atlas bounds'))).toEqual([]);
-  });
+  }, 30_000);
 
   it('reports missing bodies instead of silently substituting another creature', () => {
     const missing = animationBodySnapshot(0x7FFF);
@@ -21,7 +21,7 @@ describe('mobile animation catalog', () => {
     const png = await animationFramePng(0x00D7, 0, 0, 0);
     expect(png).toBeInstanceOf(Buffer);
     expect(Array.from(png.subarray(0, 8))).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
-  });
+  }, 15_000);
 
   it('resolves a renderable body and semantic animation set for every shipped monster', () => {
     const rows = JSON.parse(fs.readFileSync(

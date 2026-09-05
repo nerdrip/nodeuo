@@ -1,5 +1,5 @@
 // GuildGump — guild management UI (ServUO `Gumps/Guilds/GuildGump.cs`).
-// Faza G #5.
+// Phase G #5.
 //
 // Three views, switched by `mode` constructor arg:
 //   • 'roster'  — list members + leave/chat buttons

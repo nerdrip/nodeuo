@@ -18,7 +18,9 @@ import url from 'node:url';
 import { createItem, destroyItemBySerial } from '../_items.js';
 import { findBackpack, packItems } from '../_inventory.js';
 import { allItems, allMobiles } from '../_spatial.js';
-import { canCreateMobile, createMobile } from '../_mobiles.js';
+import { canCreateMobile, createMobile, destroyMobileBySerial } from '../_mobiles.js';
+import { registerWorldContentSeed } from '../_world-content.js';
+import { mobileBySerial } from '../_entities.js';
 
 const __HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const __DATA = path.resolve(__HERE, '../data/world/spawns/tokuno-sky-garden.json');
@@ -61,8 +63,44 @@ function placeMaster(api) {
 export default function register(api) {
   if (!api.commands || !api.world) return () => {};
 
-  // Defer master placement until world.mobiles is ready.
-  (api.lifecycle?.setImmediate ?? setImmediate)(() => { placeMaster(api); });
+  let canonicalMaster = null;
+  const applyMaster = (opts = {}) => {
+    if (opts.facets && !opts.facets.includes(SKY_GARDEN_CENTER.map)) return { added: 0 };
+    canonicalMaster = [...allMobiles(api)].find((mobile) =>
+      (mobile._skyGardenMaster || mobile.kind === 'sky-garden-master') &&
+      mobile.name === 'Sky Garden Master' && mobile.map === SKY_GARDEN_CENTER.map &&
+      mobile.x === SKY_GARDEN_CENTER.x && mobile.y === SKY_GARDEN_CENTER.y &&
+      mobile.z === SKY_GARDEN_CENTER.z);
+    const added = canonicalMaster ? 0 : 1;
+    canonicalMaster ??= placeMaster(api);
+    if (canonicalMaster) canonicalMaster._worldContentSeed = 'sky-garden-master';
+    return { added: canonicalMaster ? added : 0, failed: canonicalMaster ? 0 : 1 };
+  };
+  const removeMaster = (opts = {}) => {
+    if (opts.facets && !opts.facets.includes(SKY_GARDEN_CENTER.map)) return { removed: 0 };
+    const serials = new Set();
+    for (const mobile of allMobiles(api)) {
+      if (mobile._worldContentSeed === 'sky-garden-master' ||
+          (mobile.name === 'Sky Garden Master' && mobile.kind === 'sky-garden-master' &&
+           mobile.map === SKY_GARDEN_CENTER.map && mobile.x === SKY_GARDEN_CENTER.x &&
+           mobile.y === SKY_GARDEN_CENTER.y)) serials.add(mobile.serial >>> 0);
+    }
+    if (canonicalMaster) serials.add(canonicalMaster.serial >>> 0);
+    let removed = 0;
+    for (const serial of serials) {
+      try { if (mobileBySerial(api, serial)) { destroyMobileBySerial(api, serial); removed++; } }
+      catch (error) { api.log?.(`[sky-garden] master remove failed: ${error.message}`); }
+    }
+    canonicalMaster = null;
+    return { removed };
+  };
+  const unregisterSeed = registerWorldContentSeed(api, 'sky-garden-master', {
+    apply: applyMaster,
+    remove: removeMaster,
+  });
+  if (api.world._createWorldDone !== false) {
+    (api.lifecycle?.setImmediate ?? setImmediate)(applyMaster);
+  }
 
   api.commands.register({
     name: 'skygarden',
@@ -192,5 +230,8 @@ export default function register(api) {
     },
   });
 
-  return () => api.commands.unregister('skygarden');
+  return () => {
+    unregisterSeed();
+    api.commands.unregister('skygarden');
+  };
 }

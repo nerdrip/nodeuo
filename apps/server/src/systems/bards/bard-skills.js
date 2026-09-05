@@ -73,19 +73,17 @@ export function applyDiscordance(world, bard, target, instrument) {
  *  keeps refreshing. Stepping out starts a 15 s grace timer; if the
  *  bard returns the leash resumes. Otherwise the effect lapses. */
 function _startDiscordLeash(world, bard, target) {
-  if (target._discordLeashTimer) clearInterval(target._discordLeashTimer);
+  _cancelDiscordLeash(target);
   const start = Date.now();
-  target._discordLeashTimer = setInterval(() => {
+  const tick = () => {
     if (!target || (target.hp ?? 0) <= 0) {
-      clearInterval(target._discordLeashTimer);
-      target._discordLeashTimer = null;
+      _cancelDiscordLeash(target);
       return;
     }
     const now = Date.now();
     // Hard ceiling so a forgotten interval never runs forever.
     if (now - start > 10 * 60_000) {
-      clearInterval(target._discordLeashTimer);
-      target._discordLeashTimer = null;
+      _cancelDiscordLeash(target);
       return;
     }
     const inRange = bard
@@ -99,14 +97,23 @@ function _startDiscordLeash(world, bard, target) {
       if (now > target._discordGracedUntil) {
         // Lapse — let the buff expire naturally; no need to mutate
         // since `_discordedUntil` is already older than `now`.
-        clearInterval(target._discordLeashTimer);
-        target._discordLeashTimer = null;
+        _cancelDiscordLeash(target);
         target._discordPenaltyPct = 0;
         target._discordedUntil = 0;
       }
     }
-  }, 1_250);
+  };
+  target._discordLeashTimer = world?._scheduler?.every
+    ? world._scheduler.every(`bard-discord:${target.serial >>> 0}`, 1_250, tick)
+    : setInterval(tick, 1_250);
   target._discordLeashTimer.unref?.();
+}
+
+function _cancelDiscordLeash(target) {
+  const handle = target?._discordLeashTimer;
+  if (typeof handle?.cancel === 'function') handle.cancel();
+  else if (handle) clearInterval(handle);
+  if (target) target._discordLeashTimer = null;
 }
 
 /** Audit #35 P2 #5 — wrap a music-check failure with the canonical

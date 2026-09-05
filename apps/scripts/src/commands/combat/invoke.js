@@ -11,14 +11,15 @@
 //   [invoke valor               (Valor: spawn champion altar at feet)
 //   [invoke spirituality        (Spirituality: mana regen 60s)
 //   [invoke humility            (Humility: gargoyle form 60s)
+//   [invoke honesty <item>      (Honesty: mark a dropped item for return)
 
 import { resolveMobileArg } from '../_targeting-helpers.js';
-import { mobileBySerial } from '../../_entities.js';
+import { itemBySerial, mobileBySerial } from '../../_entities.js';
 
 const ALIAS = {
   compassion: 'Compassion', honor: 'Honor', justice: 'Justice',
   sacrifice: 'Sacrifice', valor: 'Valor', spirituality: 'Spirituality',
-  humility: 'Humility',
+  humility: 'Humility', honesty: 'Honesty',
 };
 
 export default function (api) {
@@ -45,8 +46,9 @@ export default function (api) {
         ctx.state.sendSystemMessage('That virtue cannot be invoked yet.');
         return;
       }
-      // Compassion / Sacrifice / Justice need a target — open targeting.
-      const needsTarget = (key === 'Compassion' || key === 'Sacrifice' || key === 'Justice');
+      // Compassion / Sacrifice / Justice need a mobile; Honesty needs an item.
+      const needsTarget = (key === 'Compassion' || key === 'Sacrifice'
+        || key === 'Justice' || key === 'Honesty');
       const finish = (target) => {
         const r = virtues.invokeVirtue(ctx.sender, key, target);
         if (!r.ok) {
@@ -55,6 +57,7 @@ export default function (api) {
             'cooldown':         `${key} is recovering — try again later.`,
             'need-ghost-target':'Target a ghost.',
             'need-protege':     'Target a player to protect.',
+            'need-item-target': 'Target a dropped item.',
             'unknown-virtue':   `Unknown virtue: ${key}.`,
             'unimplemented':    `${key} invocation is not yet implemented.`,
           })[r.reason] ?? `Failed (${r.reason}).`;
@@ -87,6 +90,9 @@ export default function (api) {
           case 'gargoyle-form':
             ctx.state.sendSystemMessage('Humility transforms you into the form of a gargoyle.');
             break;
+          case 'honesty-mark':
+            ctx.state.sendSystemMessage('The item is marked for an honest return.');
+            break;
           default:
             ctx.state.sendSystemMessage(`${key} invoked.`);
         }
@@ -94,15 +100,24 @@ export default function (api) {
 
       if (needsTarget) {
         ctx.state.sendSystemMessage(
-          key === 'Justice' ? 'Whom do you wish to protect?' : 'Who shall receive your gift?',
+          key === 'Honesty' ? 'Which dropped item shall be marked?'
+            : key === 'Justice' ? 'Whom do you wish to protect?'
+              : 'Who shall receive your gift?',
         );
         if (api.targeting?.request) {
           api.targeting.request(ctx.state, (picked) => {
             if (!picked?.serial) return;
-            const m = mobileBySerial(api, picked.serial >>> 0);
-            if (!m) { ctx.state.sendSystemMessage('That is not a person.'); return; }
-            finish(m);
+            const selected = key === 'Honesty'
+              ? itemBySerial(api, picked.serial >>> 0)
+              : mobileBySerial(api, picked.serial >>> 0);
+            if (!selected) {
+              ctx.state.sendSystemMessage(key === 'Honesty' ? 'That is not an item.' : 'That is not a person.');
+              return;
+            }
+            finish(selected);
           });
+        } else if (key === 'Honesty') {
+          ctx.state.sendSystemMessage('Item targeting is unavailable.');
         } else {
           resolveMobileArg(api, ctx, 1, finish);
         }

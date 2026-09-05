@@ -1,4 +1,4 @@
-// FAZA DD — peerless altar lifecycle script.
+// PHASE DD — peerless altar lifecycle script.
 //
 // An altar in front of a sealed dungeon door. Dropping the right
 // quest keys on it (item names matching `arenaName`'s requiredKeys
@@ -17,6 +17,7 @@
 
 import { moveMobile } from '../../../_movement.js';
 import { mobileBySerial } from '../../../_entities.js';
+import { destroyMobileBySerial } from '../../../_mobiles.js';
 
 export default function buildPeerlessAltarScript(api) {
   return {
@@ -33,7 +34,7 @@ export default function buildPeerlessAltarScript(api) {
         user.client?.sendSystemMessage?.('The altar still hums with recent power. Wait a while.');
         return;
       }
-      const result = peerless.tryUnlock(world, altar);
+      const result = peerless.validateUnlock(world, altar);
       if (!result.ok) {
         if (result.reason === 'cooldown') {
           user.client?.sendSystemMessage?.('The altar is on cooldown.');
@@ -46,11 +47,32 @@ export default function buildPeerlessAltarScript(api) {
         return;
       }
       const def = result.def;
-      // Spawn the boss at the arena point.
+      const party = api.party?.partyOf?.(user.serial) ?? null;
+      const instances = api.systems?.instancedPeerless;
+      if (instances && !instances.claim(def.bossKind, party, user)) {
+        user.client?.sendSystemMessage?.('Another party is already fighting in this arena.');
+        return;
+      }
+      // Spawn first and consume the offering only after a real mobile exists.
+      let boss = null;
       try {
-        api.npcs?.spawn?.(world, def.bossKind, def.spawnAt);
+        const factory = api.ctx?.spawnFactory ?? api.spawnFactory;
+        if (typeof factory !== 'function') throw new Error('spawn factory unavailable');
+        boss = factory(world, def.bossKind, def.spawnAt);
+        if (!boss) throw new Error(`unknown or unavailable boss kind: ${def.bossKind}`);
+        boss._peerlessArenaName = def.name;
+        api.systems?.peerlessBosses?.registerBossInstance?.(world, boss);
       } catch (e) {
         api.log?.(`peerless-altar: boss spawn failed: ${e?.message ?? e}`);
+        instances?.release?.(def.bossKind);
+        user.client?.sendSystemMessage?.('The altar cannot open the arena right now. Your offerings were preserved.');
+        return;
+      }
+      if (!peerless.commitUnlock(world, result)) {
+        destroyMobileBySerial({ ...api, world }, boss.serial);
+        instances?.release?.(def.bossKind);
+        user.client?.sendSystemMessage?.('The offering changed before the ritual completed. Nothing was consumed.');
+        return;
       }
       // Teleport the user (and any nearby party members) into the arena.
       const partyMembers = collectPartyAtAltar(api, world, user, altar);
@@ -75,7 +97,7 @@ export default function buildPeerlessAltarScript(api) {
  */
 function collectPartyAtAltar(api, world, user, altar) {
   const out = [user];
-  const party = api.party?.getParty?.(user.serial);
+  const party = api.party?.partyOf?.(user.serial);
   if (!party) return out;
   for (const memberSerial of party.members ?? []) {
     if (memberSerial === user.serial) continue;

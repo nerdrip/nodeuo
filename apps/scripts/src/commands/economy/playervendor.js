@@ -145,7 +145,7 @@ export default function register(api) {
       switch (sub) {
         case 'gump':
         case 'browse-ui': {
-          // Faza H.3 — open PlayerVendorGump overlay for a specific
+          // Phase H.3 — open PlayerVendorGump overlay for a specific
           // vendor (args[1] = vendor hex serial). Triggers [pv-browse
           // server-side which emits the inventory lines the gump parses.
           const vSerial = parseInt(args[1], 16) || 0;
@@ -171,13 +171,13 @@ export default function register(api) {
           return;
         }
         case 'rent': {
-          // Faza H.3 — open VendorRentalGump (shop name + deposit).
+          // Phase H.3 — open VendorRentalGump (shop name + deposit).
           ctx.state.sendSystemMessage?.('@@OPEN_VENDORRENTAL_GUMP@@');
           return;
         }
         case 'inv':
         case 'inventory': {
-          // Faza H.3 — open VendorInventoryGump (owner management).
+          // Phase H.3 — open VendorInventoryGump (owner management).
           ctx.state.sendSystemMessage?.('@@OPEN_VENDORINV_GUMP@@');
           return;
         }

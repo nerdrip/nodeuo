@@ -378,6 +378,48 @@ export default function register(api) {
   // Expose the table so `[questnpc` can spawn quest NPCs without
   // duplicating the schema.
   api.questNamed = namedQuestNPCs;
+  const spawned = new Set();
+  const placeCanonicalNpcs = () => {
+    let added = 0;
+    let skipped = 0;
+    for (const [, cfg] of Object.entries(namedQuestNPCs)) {
+      const hint = cfg.mapHint;
+      if (!hint) continue;
+      const existing = [...allMobiles(api)].find((m) =>
+        m.name === cfg.name && m.x === hint.x && m.y === hint.y && m.map === hint.map);
+      if (existing) {
+        spawned.add(existing.serial);
+        skipped++;
+        continue;
+      }
+      const mob = createMobile(api, api.world, {
+        name: cfg.name, body: cfg.body, hue: cfg.hue ?? 0,
+        notoriety: cfg.notoriety ?? 7,
+        invulnerable: (cfg.notoriety ?? 7) === 7,
+        x: hint.x, y: hint.y, z: 0, map: hint.map,
+      });
+      if (!mob) continue;
+      mob._greetings = cfg.says;
+      mob._questGiver = cfg.questGiver;
+      mob._questStage = cfg.questStage;
+      mob._side = cfg.side;
+      spawned.add(mob.serial);
+      added++;
+    }
+    return { added, skipped };
+  };
+  const removeCanonicalNpcs = () => {
+    let removed = 0;
+    for (const serial of spawned) {
+      try {
+        const mob = mobileBySerial(api, serial);
+        if (mob && !mob.client) { destroyMobileBySerial(api, mob); removed++; }
+      } catch { /* already removed */ }
+    }
+    spawned.clear();
+    return { removed };
+  };
+  api.questContent = { placeCanonicalNpcs, removeCanonicalNpcs };
 
   // Register a `[questnpc` command that uses _spawn helper similar to
   // [spawnnamed but reads from questNamed.
@@ -420,46 +462,19 @@ export default function register(api) {
       },
     });
 
-    // Auto-spawn all canonical quest NPCs at boot. Each NPC is placed
-    // at its `mapHint` coords. Re-runs on hot-reload because the
-    // disposer below removes the previous batch first.
-    const spawned = [];
-    for (const [, cfg] of Object.entries(namedQuestNPCs)) {
-      const hint = cfg.mapHint;
-      if (!hint) continue;
-      // Skip if already there from a prior run (find by name + position).
-      const existing = [...allMobiles(api)].find((m) =>
-        m.name === cfg.name && m.x === hint.x && m.y === hint.y && m.map === hint.map);
-      if (existing) {
-        spawned.push(existing.serial);
-        continue;
-      }
-      const mob = createMobile(api, api.world, {
-        name: cfg.name, body: cfg.body, hue: cfg.hue ?? 0,
-        notoriety: cfg.notoriety ?? 7,
-        invulnerable: (cfg.notoriety ?? 7) === 7,
-        x: hint.x, y: hint.y, z: 0, map: hint.map,
-      });
-      if (mob) {
-        mob._greetings = cfg.says;
-        mob._questGiver = cfg.questGiver;
-        mob._questStage = cfg.questStage;
-        mob._side = cfg.side;
-        spawned.push(mob.serial);
-      }
+    // Existing populated worlds reconcile runtime-owned quest NPCs at boot.
+    // Explicitly clean worlds wait for the CreateWorld stage below.
+    if (api.world?._createWorldDone !== false) {
+      const result = placeCanonicalNpcs();
+      api.log(`quest-content: ${result.added} quest NPCs auto-spawned`);
     }
-    api.log(`quest-content: ${spawned.length} quest NPCs auto-spawned`);
 
     disposers.push(() => {
       api.commands.unregister('questnpc');
       api.commands.unregister('questnpc-list');
-      for (const serial of spawned) {
-        try {
-          const mob = mobileBySerial(api, serial);
-          if (mob && !mob.client) destroyMobileBySerial(api, mob);
-        } catch {}
-      }
+      removeCanonicalNpcs();
       delete api.questNamed;
+      delete api.questContent;
     });
   }
 

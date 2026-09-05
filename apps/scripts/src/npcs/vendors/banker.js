@@ -13,18 +13,10 @@ const HEAR_RANGE = 12;
 export default function register(api) {
   if (!api.commands || !api.protocol) return () => {};
 
-  // Hook player speech via the unicode handler. The simplest route is to
-  // patch `api.handlers[0xAD]` — but we don't want to break the existing
-  // chain, so we wrap. Speech handlers in ServUO scan all NPCs in range
-  // and let each react; we approximate by listening to a global "speech"
-  // event we attach via the protocol layer here.
-  //
-  // A clean alternative is to register a behaviour on each banker NPC
-  // and have it tick every 250ms scanning for nearby speakers — but
-  // there's no convenient inbound speech buffer. For MVP we expose a
-  // command `[banker spawn` that creates a banker, and the banker
-  // greets when `bank` is spoken via a hook on the world's chat
-  // broadcast (set up in main.js if needed).
+  // The network speech dispatcher performs the range/listener checks and
+  // appends intelligible lines to each NPC's bounded `_speechQueue`. The
+  // banker behavior consumes that queue, so it never scans all players and
+  // never patches a packet handler or global event chain.
 
   function ensureBankBox(world, mob) {
     if (!api.ctx.bankBoxes) api.ctx.bankBoxes = new Map();
@@ -35,18 +27,57 @@ export default function register(api) {
         itemId: 0x09AB, hue: 0x0032,
         x: 0, y: 0, z: 0, map: mob.map,
         name: `${mob.name}'s bank box`,
-        parent: mob.serial, layer: 0x1D, gumpId: 0x003C,
+        parent: mob.serial, layer: 0x1D, gumpId: 0x004A,
       });
       api.ctx.bankBoxes.set(mob.serial, box.serial);
     }
     return box;
   }
 
+  function bankGold(box) {
+    let total = 0;
+    for (const item of childrenOf(api, box)) {
+      if (item.itemId === 0x0EED) total += Math.max(0, item.amount ?? 1);
+    }
+    return total;
+  }
+
+  function debitBankGold(box, amount) {
+    if (!Number.isSafeInteger(amount) || amount <= 0 || bankGold(box) < amount) return false;
+    let remaining = amount;
+    for (const item of [...childrenOf(api, box)]) {
+      if (remaining === 0) break;
+      if (item.itemId !== 0x0EED) continue;
+      const take = Math.min(Math.max(0, item.amount ?? 1), remaining);
+      item.amount = Math.max(0, (item.amount ?? 1) - take);
+      remaining -= take;
+      if (item.amount === 0) {
+        try { destroyItemBySerial(api, item.serial); }
+        catch { /* already removed */ }
+      } else {
+        api.markers?.markItemDirty?.(item);
+      }
+    }
+    return remaining === 0;
+  }
+
+  function bankEntries(box) {
+    const entries = [];
+    for (const item of childrenOf(api, box)) {
+      entries.push({
+        serial: item.serial, itemId: item.itemId, amount: item.amount ?? 1,
+        gridX: item.gridX ?? 0, gridY: item.gridY ?? 0,
+        gridLocation: item.gridLocation ?? 0, hue: item.hue ?? 0,
+      });
+    }
+    return entries;
+  }
+
   // Banker behaviour — wanders only a tile or two, greets nearby
   // speakers when they utter "bank".
   api.ai?.registerBehavior?.({
     name: 'banker',
-    initState() { return { lastGreet: 0 }; },
+    initState() { return { lastGreetBySpeaker: new Map() }; },
     tick(ctx, mob, state) {
       // No movement — bankers stay at their counter.
       // Listen via `mob._heardSpeech` queue if any speech hook fills it.
@@ -75,8 +106,17 @@ export default function register(api) {
         else if (text === 'balance' || text === 'bank balance') kind = 'balance';
         else if (text.includes('bank')) kind = 'bank';
         if (!kind) continue;
-        if (now - state.lastGreet < 4_000) continue;
-        state.lastGreet = now;
+        const speakerKey = speaker.serial >>> 0;
+        const lastGreet = state.lastGreetBySpeaker.get(speakerKey) ?? -Infinity;
+        if (now - lastGreet < 4_000) continue;
+        state.lastGreetBySpeaker.set(speakerKey, now);
+        // Keep a long-lived banker bounded even on a busy shard.
+        if (state.lastGreetBySpeaker.size > 256) {
+          const cutoff = now - 60_000;
+          for (const [serial, at] of state.lastGreetBySpeaker) {
+            if (at < cutoff) state.lastGreetBySpeaker.delete(serial);
+          }
+        }
         // Criminal lockout — applies to every keyword.
         if ((speaker.criminalUntil ?? 0) > Date.now()) {
           speaker.client?.sendSystemMessage?.('Thou art a criminal and cannot access thy bank box.');
@@ -86,7 +126,7 @@ export default function register(api) {
           const box = ensureBankBox(api.world, speaker);
           if (speaker.client) {
             speaker.client.send(api.protocol.displayContainer(box.serial, box.gumpId));
-            speaker.client.send(api.protocol.containerContents(box.serial, []));
+            speaker.client.send(api.protocol.containerContents(box.serial, bankEntries(box)));
             speaker.client.sendSystemMessage?.(`${mob.name ?? 'The banker'} opens your bank box.`);
           }
           ctx.broadcastSpeech?.(mob, 'I will safeguard your wares.', 0x35);
@@ -95,11 +135,7 @@ export default function register(api) {
         if (kind === 'balance') {
           // Sum gold in the speaker's bank box (item id 0x0EED).
           const box = ensureBankBox(api.world, speaker);
-          let gold = 0;
-          for (const it of childrenOf(api, box)) {
-            if (it.itemId !== 0x0EED) continue;
-            gold += (it.amount ?? 1);
-          }
+          const gold = bankGold(box);
           speaker.client?.sendSystemMessage?.(`Thy bank balance is ${gold} gold.`);
           continue;
         }
@@ -113,32 +149,20 @@ export default function register(api) {
             continue;
           }
           const box = ensureBankBox(api.world, speaker);
-          // Walk gold piles, draining `amount`.
-          let remaining = amount;
-          for (const it of [...childrenOf(api, box)]) {
-            if (remaining <= 0) break;
-            if (it.itemId !== 0x0EED) continue;
-            const take = Math.min(it.amount ?? 0, remaining);
-            it.amount -= take;
-            remaining -= take;
-            if (it.amount <= 0) {
-              try { destroyItemBySerial(api, it.serial); }
-              catch { /* already withdrawn */ }
-            }
-          }
-          if (remaining === amount) {
+          // Validate the complete debit before touching a pile. The old path
+          // silently converted a partial balance into a partial withdrawal.
+          if (!debitBankGold(box, amount)) {
             speaker.client?.sendSystemMessage?.('Thou hast not the gold in thy account.');
             continue;
           }
-          const taken = amount - remaining;
           // Drop gold into the speaker's pack as a stack.
           api.game?.mobile?.giveItem?.(speaker, {
             itemId: 0x0EED,
-            amount: taken,
+            amount,
             name: 'gold',
             stackable: true,
           }, { randomGrid: true });
-          speaker.client?.sendSystemMessage?.(`Withdrawn ${taken} gold.`);
+          speaker.client?.sendSystemMessage?.(`Withdrawn ${amount} gold.`);
           continue;
         }
         if (kind === 'check') {
@@ -154,27 +178,14 @@ export default function register(api) {
           }
           const total = amount + FEE;
           const box = ensureBankBox(api.world, speaker);
-          let bal = 0;
-          for (const it of childrenOf(api, box)) {
-            if (it.itemId !== 0x0EED) continue;
-            bal += (it.amount ?? 1);
-          }
-          if (bal < total) {
+          if (bankGold(box) < total) {
             speaker.client?.sendSystemMessage?.(
               `You need ${total} gold (including a 30 gold fee) in your bank box.`);
             continue;
           }
-          let remaining = total;
-          for (const it of [...childrenOf(api, box)]) {
-            if (remaining <= 0) break;
-            if (it.itemId !== 0x0EED) continue;
-            const take = Math.min(it.amount ?? 0, remaining);
-            it.amount -= take;
-            remaining -= take;
-            if (it.amount <= 0) {
-              try { destroyItemBySerial(api, it.serial); }
-              catch { /* already withdrawn */ }
-            }
+          if (!debitBankGold(box, total)) {
+            speaker.client?.sendSystemMessage?.('The transaction could not be completed.');
+            continue;
           }
           if (canCreateItem(api, api.world)) {
             const check = createItem(api, api.world, {
@@ -201,14 +212,14 @@ export default function register(api) {
     help: '[banker — admin: spawn a banker NPC at your feet.',
     access: 'Admin',
     run(ctx) {
-      // BUGFIX #44 (FAZA CB): the previous body of this command did
+      // BUGFIX #44 (PHASE CB): the previous body of this command did
       // `createMobile(api, api.world, ...)` but never broadcast `mobileIncoming`,
       // so the banker was invisible to every player until a re-stream.
       // It also spawned naked. `spawnNPC` centralises both fixes.
       const mob = spawnNPC(api, ctx.sender, {
         name: 'Banker', body: 0x0190, hue: 0x83EA,
         kind: 'banker', outfit: 'noble',
-        keywords: ['bank'],
+        keywords: ['bank', 'balance', 'withdraw', 'check'],
         behavior: 'banker',
       });
       ctx.state.sendSystemMessage(`Banker 0x${mob.serial.toString(16)} spawned at your feet.`);

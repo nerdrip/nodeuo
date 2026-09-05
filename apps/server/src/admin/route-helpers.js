@@ -26,8 +26,9 @@ export function snapshotMobile(mob) {
     client: mob.client ? {
       id: mob.client.id ?? null,
       version: mob.client.clientVersionString ?? null,
-      transport: mob.client.nodeUOTransport ? 'nodeuo.v1' : 'standard-uo',
-      capabilities: mob.client.nodeUOCapabilities >>> 0,
+      transport: mob.client.nodeUOTransportVersion
+        || (mob.client.transportKind === 'tcp' ? 'uo.tcp' : 'uo.websocket'),
+      features: mob.client.nodeUOFeatures?.size ? Object.fromEntries(mob.client.nodeUOFeatures) : {},
       pendingBytes: Number(mob.client.ws?.bufferedAmount ?? mob.client.socket?.writableLength ?? 0) || 0,
     } : null,
     // Civic-NPC tag exposed for the admin "Vendors" filter — without

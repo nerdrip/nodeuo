@@ -1,4 +1,4 @@
-// FAZA DF — Bulk Order Reward NPC.
+// PHASE DF — Bulk Order Reward NPC.
 //
 // ServUO: Scripts/Engines/BulkOrders/BulkOrderHandler.cs has a vendor
 // type that turns in completed deeds for ranked rewards (runic tools,

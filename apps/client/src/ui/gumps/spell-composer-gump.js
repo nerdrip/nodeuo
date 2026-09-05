@@ -7,7 +7,7 @@ import { Combobox } from '../controls/combobox.js';
 import { ScrollArea } from '../controls/scroll-area.js';
 import { net } from '../../net/net-client.js';
 import { bus } from '../../core/event-bus.js';
-import { extNodeUOSpellComposer, NodeUOSpellComposerMessage } from '@uo/protocol';
+import { NodeUOJsonKind, NodeUOSpellComposerMessage } from '@uo/nodeuo-protocol';
 
 const BUTTON = {
   normalGumpId: 0x0FA8, pressedGumpId: 0x0FAA,
@@ -389,7 +389,15 @@ export class SpellComposerGump extends WindowGump {
   }
 
   _send(kind, payload = this._draft()) {
-    try { net.send(extNodeUOSpellComposer({ kind, requestId: this.requestId, payload })); }
+    try {
+      net.sendNodeUOMessage({
+        kind: NodeUOJsonKind.Event, feature: 'spell.composer',
+        payload: { operation: kind === NodeUOSpellComposerMessage.Publish ? 'publish'
+          : kind === NodeUOSpellComposerMessage.Scribe ? 'scribe' : 'save',
+          eventKind: kind, requestId: this.requestId, data: payload },
+        idempotencyKey: `spell:${this.requestId}:${kind}:${payload?.id ?? payload?.name ?? ''}`,
+      });
+    }
     catch (error) { this._status.setText(`Send failed: ${error?.message ?? error}`); }
   }
 

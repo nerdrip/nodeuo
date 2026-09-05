@@ -1,7 +1,7 @@
 // HouseCustomizationManager — drives the house-builder edit flow.
-// Mirrors the action surface of CUO `Game/Managers/HouseCustomizationManager.cs`
-// without the asset catalog parsing (walls.txt / floors.txt / etc. —
-// those are content tables we'll wire when we extract them).
+// Mirrors the action surface of CUO `Game/Managers/HouseCustomizationManager.cs`.
+// The gump reads the extracted housedata catalogue; this manager keeps the
+// draft state and emits byte-for-byte standard 0xD7 authoring commands.
 //
 // Server protocol: every authoring action is a 0xD7 packet with:
 //   u8 op (0xD7)
@@ -16,10 +16,10 @@
 // places drag-tools, picks tiles, and calls our builders to send 0xD7
 // commands. The actual rendering happens elsewhere (multi-ghost overlay).
 
-import {
-  PacketWriter, extNodeUOHouseTools, NodeUOCapability, NodeUOHouseToolsMessage,
-} from '@uo/protocol';
+import { PacketWriter } from '@uo/protocol';
+import { NodeUOFeature, NodeUOHouseToolsMessage, NodeUOJsonKind } from '@uo/nodeuo-protocol';
 import { net } from '../net/net-client.js';
+import { buildCustomHouseDataRequest } from '../net/outgoing.js';
 import { world } from '../world/world.js';
 import { bus } from '../core/event-bus.js';
 
@@ -48,7 +48,7 @@ function _close(w) {
 }
 
 // Subop catalogue (CUO `OutgoingPackets.Send_CustomHouse*`).
-function buildHouseBackup()         { const w = _open(0x02); w.writeU8(0x0A); return w.bytes(); }
+function buildHouseBackup()         { return _close(_open(0x02)); }
 function buildHouseRestore()        { return _close(_open(0x03)); }
 function buildHouseCommit()         { return _close(_open(0x04)); }
 function buildHouseDeleteItem(g, x, y, z) {
@@ -59,15 +59,13 @@ function buildHouseDeleteItem(g, x, y, z) {
   w.writeU8(0x00); w.writeI32(z | 0);
   return _close(w);
 }
-const HOUSE_KIND_CODE = Object.freeze({ item: 0, wall: 1, door: 2, floor: 3, misc: 4, teleport: 5 });
-function buildHouseAddItem(g, x, y, kind = 'item') {
+function buildHouseAddItem(g, x, y) {
   const w = _open(0x06);
   w.writeU8(0x00); w.writeU32(g >>> 0);
   w.writeU8(0x00); w.writeU32(x >>> 0);
   w.writeU8(0x00); w.writeU32(y >>> 0);
-  // NodeUO extension: one optional kind byte before the standard 0x0A
-  // terminator. Classic clients omit it and remain fully compatible.
-  w.writeU8(HOUSE_KIND_CODE[kind] ?? 0);
+  // Keep 0xD7 byte-for-byte standard so this client can customize on ServUO,
+  // POL and other emulators. NodeUO derives the piece role from housedata.
   return _close(w);
 }
 function buildHouseExit()           { return _close(_open(0x0C)); }
@@ -122,14 +120,31 @@ class HouseCustomizationManager {
     this.toolState = { history: null, templates: [], validation: null };
     this.draftTiles = [];
     this._draftBackup = [];
+    this._lastCollaborationCursorAt = 0;
+    this._commitPending = false;
   }
   install() {
     if (this._installed) return;
     this._installed = true;
+    bus.on('net:close', () => this._finishLocal());
     bus.on('house:custom-start', ({ serial }) => this.beginEdit(serial));
-    bus.on('house:custom-end',   () => this.exit());
+    bus.on('house:custom-end',   () => this._finishLocal());
+    bus.on('house:design', ({ serial, tiles }) => {
+      if (this.state === HouseCustomState.Idle || (serial >>> 0) !== this.targetSerial) return;
+      const foundation = world.items.get(this.targetSerial);
+      if (!foundation || !Array.isArray(tiles)) return;
+      this.draftTiles = tiles.map((tile) => ({
+        graphic: tile.graphic >>> 0,
+        kind: tile.kind ?? 'item',
+        x: (foundation.x | 0) + (tile.x | 0),
+        y: (foundation.y | 0) + (tile.y | 0),
+        z: (foundation.z | 0) + (tile.z | 0),
+      }));
+      bus.emit('house:draft-changed', { tiles: this.draftTiles });
+    });
     bus.on('nodeuo:house-tools', ({ payload }) => {
       this.toolState = {
+        operation: payload?.operation ?? null,
         history: payload?.history ?? this.toolState.history,
         templates: payload?.templates ?? this.toolState.templates,
         validation: payload?.validation ?? null,
@@ -137,6 +152,10 @@ class HouseCustomizationManager {
         ok: payload?.ok,
       };
       bus.emit('house:tools-result', this.toolState);
+      if (payload?.operation === 'commit') {
+        this._commitPending = false;
+        if (payload.ok) this._finishLocal();
+      }
     });
   }
 
@@ -147,8 +166,14 @@ class HouseCustomizationManager {
     this.currentFloor = 1;
     this.draftTiles = [];
     this._draftBackup = [];
+    this._commitPending = false;
     bus.emit('house:draft-changed', { tiles: [] });
     bus.emit('house:custom-state', { state: this.state });
+    this._collaborate('join');
+    // Request the editable state even when its revision matches our cached
+    // committed design. Standard shards can freeze fixtures only for the
+    // customizing client, so the cached non-editing payload is insufficient.
+    try { net.send(buildCustomHouseDataRequest(this.targetSerial)); } catch { /* socket */ }
   }
   exit() {
     if (this.state === HouseCustomState.Idle) return;
@@ -156,6 +181,7 @@ class HouseCustomizationManager {
     this._finishLocal();
   }
   _finishLocal() {
+    this._collaborate('leave');
     this.state = HouseCustomState.Idle;
     this.targetSerial = 0;
     this.clearPreviewTile();
@@ -185,6 +211,12 @@ class HouseCustomizationManager {
     this.previewX = x | 0;
     this.previewY = y | 0;
     this.previewZ = (z | 0) + 7 + (Math.max(1, this.currentFloor | 0) - 1) * 20;
+    const now = performance.now();
+    if (now - this._lastCollaborationCursorAt >= 100) {
+      this._lastCollaborationCursorAt = now;
+      this._collaborate('cursor', { x: this.previewX, y: this.previewY, z: this.previewZ,
+        tool: this.brushKind });
+    }
   }
 
   clearPreviewTile() {
@@ -219,8 +251,12 @@ class HouseCustomizationManager {
     try { net.send(buildHouseRestore()); } catch { /* socket */ }
   }
   commit()  {
+    if (this._commitPending) return false;
+    const waitsForResult = net.supportsNodeUO?.(NodeUOFeature.HouseTools) === true;
+    this._commitPending = waitsForResult;
     try { net.send(buildHouseCommit()); } catch { /* socket */ }
-    this._finishLocal();
+    if (!waitsForResult) this._finishLocal();
+    return !waitsForResult;
   }
   sync()    { try { net.send(buildHouseSync());    } catch { /* socket */ } }
   clear()   {
@@ -235,11 +271,24 @@ class HouseCustomizationManager {
   }
 
   _tool(kind, payload = {}) {
-    if (!net.supportsNodeUO?.(NodeUOCapability.HouseTools)) return false;
+    if (!net.supportsNodeUO?.(NodeUOFeature.HouseTools)) return false;
     try {
-      net.send(extNodeUOHouseTools({ kind, requestId: ++this._requestId, payload }));
-      return true;
+      const requestId = ++this._requestId;
+      return net.sendNodeUOMessage({
+        kind: NodeUOJsonKind.Event, feature: 'housing.tools',
+        payload: { eventKind: kind, requestId, data: payload },
+        idempotencyKey: `house:${requestId}`,
+      });
     } catch { return false; }
+  }
+  _collaborate(operation, payload = {}) {
+    if (!net.nodeUOJsonTransport || !net.supportsNodeUO?.('housing.collaboration')) return false;
+    return net.sendNodeUOMessage({ kind: NodeUOJsonKind.Event, feature: 'housing.collaboration',
+      delivery: operation === 'cursor' ? 'latest' : 'reliable',
+      replace: operation === 'cursor' ? 'house-cursor' : undefined,
+      ttlMs: operation === 'cursor' ? 1000 : undefined,
+      payload: { operation, data: { ...payload, houseSerial: this.targetSerial >>> 0 } },
+    });
   }
   undo() { return this._tool(NodeUOHouseToolsMessage.Undo) || (this.restore(), false); }
   redo() { return this._tool(NodeUOHouseToolsMessage.Redo); }
@@ -259,17 +308,25 @@ class HouseCustomizationManager {
 
   // Per-tile authoring -----------------------------------------------------
 
+  _relativeToFoundation(x, y, z = 0) {
+    const foundation = world.items.get(this.targetSerial);
+    return foundation
+      ? { x: (x | 0) - (foundation.x | 0), y: (y | 0) - (foundation.y | 0), z: (z | 0) - (foundation.z | 0) }
+      : { x: x | 0, y: y | 0, z: z | 0 };
+  }
+
   /** Place / erase based on current brush kind at (x, y, z). */
   place(x, y, z) {
     if (this.state !== HouseCustomState.Editing) return;
     if (!this.brush) return;
     const floorZ = (z | 0) + 7 + (Math.max(1, this.currentFloor | 0) - 1) * 20;
+    const relative = this._relativeToFoundation(x, y, floorZ);
     if (this.brushKind === 'roof') {
-      try { net.send(buildHouseAddRoof(this.brush, x, y, floorZ)); } catch { /* socket */ }
+      try { net.send(buildHouseAddRoof(this.brush, relative.x, relative.y, relative.z)); } catch { /* socket */ }
     } else if (this.brushKind === 'stair') {
-      try { net.send(buildHouseAddStair(this.brush, x, y)); } catch { /* socket */ }
+      try { net.send(buildHouseAddStair(this.brush, relative.x, relative.y)); } catch { /* socket */ }
     } else {
-      try { net.send(buildHouseAddItem(this.brush, x, y, this.brushKind)); } catch { /* socket */ }
+      try { net.send(buildHouseAddItem(this.brush, relative.x, relative.y)); } catch { /* socket */ }
     }
     this.draftTiles.push({
       graphic: this.brush | 0, kind: this.brushKind,
@@ -279,10 +336,11 @@ class HouseCustomizationManager {
   }
   erase(graphic, x, y, z) {
     if (this.state === HouseCustomState.Idle) return;
+    const relative = this._relativeToFoundation(x, y, z);
     if (this.brushKind === 'roof') {
-      try { net.send(buildHouseDeleteRoof(graphic, x, y, z | 0)); } catch { /* socket */ }
+      try { net.send(buildHouseDeleteRoof(graphic, relative.x, relative.y, relative.z)); } catch { /* socket */ }
     } else {
-      try { net.send(buildHouseDeleteItem(graphic, x, y, z | 0)); } catch { /* socket */ }
+      try { net.send(buildHouseDeleteItem(graphic, relative.x, relative.y, relative.z)); } catch { /* socket */ }
     }
     for (let i = this.draftTiles.length - 1; i >= 0; i--) {
       const tile = this.draftTiles[i];

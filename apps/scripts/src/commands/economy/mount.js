@@ -102,7 +102,7 @@ function broadcastUpdate(api, mob) {
     direction: mob.direction, hue: mob.hue,
     flags: mob.flags, notoriety: mob.notoriety,
   });
-  // BUGFIX #65 (FAZA CW): visibility-gate. Mounting / dismounting body
+  // BUGFIX #65 (PHASE CW): visibility-gate. Mounting / dismounting body
   // change is local — only nearby clients need the 0x77 update.
   for (const other of nearbyClients(api, mob)) other.client.send(moving);
 }
@@ -220,6 +220,12 @@ export default function register(api) {
         ctx.state.sendSystemMessage('You dismount.');
         return;
       }
+      const remountAt = Number(mob._dismountedUntil) || 0;
+      if (remountAt > Date.now()) {
+        const seconds = Math.max(1, Math.ceil((remountAt - Date.now()) / 1000));
+        ctx.state.sendSystemMessage(`You must wait ${seconds}s before mounting again.`);
+        return;
+      }
       // Try to find an adjacent owned pet.
       const pet = adjacentMyPet(api, mob);
       if (!pet) {
@@ -245,7 +251,7 @@ export default function register(api) {
         name: `${pet.name ?? pet.kind} (mounted)`,
       });
       mob._mountItemSerial = mountItem?.serial >>> 0;
-      // BUGFIX #26 (FAZA BJ): the previous version `world.mobiles.delete(pet)`
+      // BUGFIX #26 (PHASE BJ): the previous version `world.mobiles.delete(pet)`
       // — pet was permanently dropped from the world map. After server
       // restart (mounted state persisted, pet didn't), `world.mobiles
       // .get(pet.serial)` returned undefined and dismount silently

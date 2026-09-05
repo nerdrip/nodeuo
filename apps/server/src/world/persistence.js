@@ -1,11 +1,6 @@
-// World save/load. JSON format for compatibility + a gzip-binary mode
-// for large worlds (UO_BINARY_SAVE=1 turns it on). The binary format is
-// just gzip-compressed JSON — keeps the schema unchanged but cuts disk
-// size 5-10× and write time proportionally for 50k+ item worlds. ServUO
-// uses raw binary records; the win there is fixed-width fields and
-// no parser overhead, but in V8 the GC cost of allocating thousands of
-// objects on load dominates and gzip-JSON is within 2× of what binary
-// would buy us at one-tenth the maintenance burden.
+// World persistence codec and SQLite facade. Runtime saves use world.sqlite
+// in WAL mode; the JSON routines below remain explicit import/export helpers
+// for recovery tooling and the one-time player-character import.
 //
 // File layout (mirrors ServUO's `Mobiles.bin / Items.bin / Accounts.bin`
 // per-bucket split — keeps individual files small and lets a hot-reload
@@ -45,6 +40,15 @@ import { Worker } from 'node:worker_threads';
 import { fileURLToPath } from 'node:url';
 import { isMobileSerial, isItemSerial } from './serial.js';
 import { CURRENT_SNAPSHOT_VERSION, migrateSnapshot } from './persistence-migrations.js';
+import { mutationJournalDiagnostics } from './mutation-journal.js';
+import {
+  getSchemaValueSync,
+  loadWorldSnapshotSync,
+  setSchemaValueSync,
+  sqliteCheckpointSync,
+  sqliteDiagnosticsSync,
+  writeWorldBatchSync,
+} from './sqlite-store.js';
 
 const PERSISTENT_ITEM_FIELDS = Symbol.for('uo.itemPersistentFields');
 
@@ -102,7 +106,7 @@ export const SAVE_VERSION = CURRENT_SNAPSHOT_VERSION;
  * Serialize the world to a plain JS object suitable for JSON.stringify.
  * @param {import('./world.js').World} world
  */
-// BUGFIX #24 (FAZA BH): the previous snapshot serialized ONLY canonical
+// BUGFIX #24 (PHASE BH): the previous snapshot serialized ONLY canonical
 // fields (stats, skills, position). Every runtime extension that
 // scripts hung off mobiles/items — `vendorKind`, `teaches`, `tameable`,
 // `controlMaster`, `door`, `solid`, `_speechKeywords`, `_listensToSpeech`,
@@ -114,6 +118,7 @@ export const SAVE_VERSION = CURRENT_SNAPSHOT_VERSION;
 // MOBILE_EXT_KEYS / ITEM_EXT_KEYS.
 
 const MOBILE_EXT_KEYS = [
+  '_nodeUOConsent', 'nodeUOCodex', 'nodeUOWorldLayer',
   'kind', 'aiBehavior', 'tameable', 'tameMinSkill', 'tameMaxSkill',
   // Spawn anchor + home leash. Without these, a save round-trip
   // erases the AI's home tile and wandering monsters either drift
@@ -137,7 +142,8 @@ const MOBILE_EXT_KEYS = [
   // BH #13 B3 — PvP debuff fields stamped at runtime but missing
   // from whitelist → relog cured paralyze/bleed/burn/etc., used as
   // exploit in arena PvP. Includes Anatomy/SS-scaled DoT magnitudes.
-  '_paralyzedUntil', '_bleedUntil', '_bleedDmg',
+  '_paralyzedUntil', '_bleedUntil', '_bleedDmg', '_slowedUntil',
+  '_chillSlowUntil', '_chillStepMs', '_nextAttackAt',
   '_burnUntil', '_burnDmg', '_sufferingUntil', '_sufferingDmg',
   '_mortalStrikeUntil', '_armorIgnoreUntil', '_doubleStrikeUntil',
   // Server audit #28 P1 #3 — poison status survived in `poisoned` /
@@ -154,6 +160,14 @@ const MOBILE_EXT_KEYS = [
   // on relog (and re-invokes immediately).
   '_virtueCooldown', '_honorEmbraceUntil', '_protegeOf', '_protegeOwner',
   '_protegeUntil', '_spiritualityUntil', '_humilityUntil',
+  '_honestyOwner', '_honestyUntil',
+  // Regeneration and transformation readers. Persist both the expiry and
+  // magnitude; keeping only one side turns these buffs into no-ops on relog.
+  'horrificBeastUntil', '_horrificDamageBonus', '_horrificHpRegen',
+  'hpRegenBonusUntil', 'hpRegenBonus', '_restedUntil', '_restedRegen',
+  '_mysticTransformation', '_mysticTransformUntil',
+  '_mysticTransformDmgBonus', '_mysticTransformManaRegen',
+  '_reaperForm', '_reaperSSI', '_reaperSDI', '_reaperWalkOnly',
   // Bard skill timers + stat-debuff timers — bug-hunt #6 P1 #1 / P2 #2.
   // Without these the discord penalty, peacemaking calm, provocation
   // target swap, magery stat debuffs all silently disappear on restart.
@@ -182,64 +196,75 @@ const MOBILE_EXT_KEYS = [
   '_servuoLastMastery', '_servuoLastMasteryAt',
   '_specialMoveContext', '_transformContext',
   '_whiteTigerUntil', '_formBackup',
-  '_toughnessUntil', '_toleranceUntil', '_manaShieldUntil',
-  '_rampageUntil', '_conduitUntil', '_conduitCharges',
+  '_toughnessUntil', '_toughnessRegen', '_toleranceUntil', '_manaShieldUntil',
+  '_rampageUntil', '_conduitUntil', '_conduitCharges', '_conduitArea', '_conduitStrength',
+  '_etherealBurstUntil', '_etherealBurstPool',
   '_rejuvenatedAt', '_onslaughtUntil', '_staggerUntil',
   '_focusedEyeUntil', '_heightenedUntil', '_warcryUntil',
-  '_bodyGuardUntil', '_combatTrainingUntil', '_whisperingUntil',
+  '_bodyGuardUntil', '_combatTrainingUntil', '_whisperingUntil', '_whisperingGainBonus',
+  '_invigorateUntil', '_invigorateNextHealAt',
+  '_stoneFormUntil', '_stoneForm', '_stoneFormWalkOnly', '_stoneFormDmgBonus',
+  '_playingOddsUntil', '_inspireUntil', '_inspireDmgBonus',
+  '_resilienceUntil', '_perseveranceUntil', '_perseveranceReduction',
+  '_tribulationUntil', '_tribulationPct',
+  '_despairUntil', '_despairDmg', '_despairNextTickAt',
+  '_mysticWeaponUntil', '_shadowUntil', '_defenseMasteryUntil',
+  '_dualWieldUntil', '_movingShotUntil',
+  '_onslaughtCharge', '_pierceCharge', '_staggerCharge',
+  '_peerlessArenaName',
   // Summon expire — bug-hunt #6 P2 #7. Without this a player who
   // relogs mid-summon gets a permanent Daemon.
   'summoned', 'summonedUntil',
-  'vendorKind', 'teaches',
+  'vendorKind', 'npcKind', 'isGuard', 'teaches',
   '_listensToSpeech', '_speechKeywords',
   'profileBody', 'tithingPoints',
   'skillCaps', 'skillLocks',
   // NodeUO specialization tree. Plain JSON only, so snapshots remain
   // portable and older saves simply start with an empty allocation map.
   'specializations',
-  // BUGFIX #88 (FAZA DT): statCaps was missing from the whitelist —
+  // BUGFIX #88 (PHASE DT): statCaps was missing from the whitelist —
   // stat scrolls (`[statscroll str 25`) mutated the field but every
   // server restart silently reset it to 100/100/100, so a player's
   // 250-stat-point grind round-trip-evaporated. Same bug class as #24.
   'statCaps',
-  'stabled', 'activeQuests',
+  'stabled', 'activeQuests', 'mlQuests', '_chainQuests',
   'kills', 'karma', 'criminalUntil',
   // ServUO AnkhOfSacrificeComponent: players can lock karma gains and
   // ankh resurrection has a one-hour cooldown.
   'karmaLocked', 'KarmaLocked', 'ankhNextUseAt', 'ankhNextUse',
   'ghost', 'dead',
   'partyId', '_origBody',
-  // FAZA BJ: mount round-trip — `mounted` flags a hidden pet, the
+  // PHASE BJ: mount round-trip — `mounted` flags a hidden pet, the
   // rider's `mountedFrom`/`mountedOriginalBody` let dismount reverse.
   'mounted', 'mountedFrom', 'mountedOriginalBody', '_mountItemSerial',
   'mountAbilityCooldowns', '_mountCargoSerial', 'mountCargoCapacity',
   '_mountSprintUntil', '_mountSurefootedUntil', '_mountChargeUntil',
-  // FAZA BY: faction membership — string key into FACTIONS / kill score.
+  // PHASE BY: faction membership — string key into FACTIONS / kill score.
   'faction', 'factionKills',
-  // BUGFIX #49 (FAZA CG): pet command state. Without this, every
+  // BUGFIX #49 (PHASE CG): pet command state. Without this, every
   // server restart blindly resets every pet to 'follow' even if its
   // master had ordered it to 'stay' / 'guard' / 'attack'.
   'petCommand',
-  // BUGFIX #53 (FAZA CK): NPC honorific title (`Mira, the healer`).
+  // BUGFIX #53 (PHASE CK): NPC honorific title (`Mira, the healer`).
   // The paperdoll header now renders `${name}, ${title}`; without
   // round-trip persistence the title silently dropped on restart and
   // every NPC became a plain first name.
   'title',
-  // FAZA CX: virtue progression (UO eight virtues). Without this every
+  // PHASE CX: virtue progression (UO eight virtues). Without this every
   // restart would reset compassion / valor / honor accruals to zero.
   'virtues',
-  // FAZA CY: paragon flag + saved originals so the buff round-trips
+  // PHASE CY: paragon flag + saved originals so the buff round-trips
   // and admin commands can un-paragon cleanly.
   'paragon', '_origName', '_origHue', '_origHpMax', '_origStr',
   '_stealableLoot', '_stealablePool',
-  // FAZA DF: pet training xp + level + saved baseline for level-up
+  // PHASE DF: pet training xp + level + saved baseline for level-up
   // resolution. BUGFIX #74: without these on the whitelist, every pet
   // would silently reset to level 0 on save→load and the player's
   // training grind would evaporate.
   'petXp', 'petLevel', '_origPetHpMax', '_origPetStr',
   'petTrainingAbilities', '_petBonusDamage', '_petCaster', '_petFireBreath', '_petPoisonAttack',
   '_petTrainingBaseline',
-  // FAZA DK: pet bond — survives ressurection cost via vet.
+  // PHASE DK: pet bond — survives ressurection cost via vet.
   // BUGFIX (bug-hunt 2026-05-12 A4): `tameSince` is what gates the
   // 7-day bonding promotion; without it, every restart re-stamped
   // `now` and the bonding sweep would never elapse on a shard with
@@ -280,11 +305,11 @@ const MOBILE_EXT_KEYS = [
   'counterAttackUntil', 'lightningStrikeUntil', 'momentumStrikeUntil',
   'honorableExecUntil', 'confidenceUntil', 'confidenceRegen',
   '_focusAttackUntil', '_feintUntil',
-  // FAZA DM: young-player play time + opt-out flag.
+  // PHASE DM: young-player play time + opt-out flag.
   'youngPlayedMs', 'youngOptOut',
-  // FAZA GG: AFK marker (no gameplay effect, just UX).
+  // PHASE GG: AFK marker (no gameplay effect, just UX).
   'afk',
-  // FAZA HK: shield-equipped flag (parry-skill gate).
+  // PHASE HK: shield-equipped flag (parry-skill gate).
   '_hasShield',
   // Audit #32 P1 #2 — Thieves Guild membership. Without persisting,
   // `[joinguild thieves` would re-prompt on every relog.
@@ -327,6 +352,13 @@ const MOBILE_EXT_KEYS = [
   // rate-limit timestamps.
   '_origBody', '_origHue', '_vampFireDelta', '_lastPvPAt',
   '_lastStealthAt',
+  // Hero/Evil ethics alignment, power economy and active combat powers.
+  'ethic', 'ethicPower', 'ethicJoinedAt',
+  'ethicHonorUntil', 'ethicShieldUntil', 'ethicShieldFactor',
+  'ethicAwareUntil', 'ethicRageUntil', 'ethicRageBonus',
+  'ethicRageDefenseMalus', 'ethicDespoilUntil',
+  'ethicCurseUntil', 'ethicCurseMalus',
+  'ethicDreadUntil', 'ethicDreadMissChance',
   // Audit #43 — Evasion parry scalar + Confidence stam-regen reader +
   // Attune Weapon absorb pool (canonical underscore fields, not the
   // dead legacy `attuneShield` names).
@@ -349,7 +381,7 @@ const MOBILE_EXT_KEYS = [
   // Bard debuffs (Discordance leash from #31 + provoke window)
   '_discordedUntil', '_discordPenaltyPct', '_discordSourceSerial',
   '_discordGracedUntil',
-  // FAZA DY: hireling role + wage timer. BUGFIX #93: without these on
+  // PHASE DY: hireling role + wage timer. BUGFIX #93: without these on
   // the whitelist, a player's hired mercenary lost their pay state on
   // restart and immediately wandered off as if unpaid.
   'hireRole', 'paidUntil',
@@ -391,6 +423,7 @@ const MOBILE_EXT_KEYS = [
   'isPlayer', 'accountName', 'spellcraft',
 ];
 const ITEM_EXT_KEYS = [
+  'nodeUOWorldLayer',
   // Stable definition identity is separate from the UO art graphic. artId is
   // persisted explicitly even though itemId remains its wire-compatible alias.
   'definitionId', 'artId',
@@ -436,7 +469,7 @@ const ITEM_EXT_KEYS = [
   // Crafter signature — name + serial (parity #13 #5). Serial gates
   // runic-reforging "only original crafter" check + future engraving.
   'crafter', 'crafterSerial', 'quality', '_engravedName', '_engravedBy',
-  // FAZA BL: boat data + plank back-link. Wave 4: boatKey for boat
+  // PHASE BL: boat data + plank back-link. Wave 4: boatKey for boat
   // ownership tokens (item carries a serial pointing to the parent
   // boat; without it on the whitelist a key on a server restart loses
   // its association and the owner can't pilot anymore).
@@ -445,15 +478,17 @@ const ITEM_EXT_KEYS = [
   // ServUO multi/house placement metadata. Dynamic multis are authored as
   // item sets, so the brand/ACL/deed payload must survive saves.
   '_multi', '_multiInstance', '_multiAnchor', '_multiHouseId', 'multiId',
+  '_multiCollision', '_multiSurfaces', '_multiFootprint', '_multiBounds', '_multiBlueprintHash', '_multiComponentCount',
   '_multiAcl', '_multiOwner', '_multiName',
-  '_customHouseId',
+  '_customHouseId', '_customHouseKind', '_houseId', '_houseAclMode', '_movableBeforeLockdown', '_secureAddedLockdown', 'pairSerial',
   '_deedMulti', '_deedOffset', '_contestHouse', '_previewHouse',
   'miniHouseType', 'isRewardItem', 'rewardItem',
-  'isDecoration', 'decoType', 'decoFacing', 'decoSourceKey', 'height',
-  // FAZA BN: lifecycle scripting fields. `script` names a registered
+  'isDecoration', 'decoType', 'decoFacing', 'decoSourceKey', 'height', 'surface', 'bridge',
+  // PHASE BN: lifecycle scripting fields. `script` names a registered
   // ItemScript; `equipLayer`/`slot`/`clothing` drive paperdoll routing;
   // payload data various scripts read.
   'script', 'equipLayer', 'clothing', 'slot', 'weight', 'stackable',
+  '_sigilTown', '_worldContentSeed',
   'blessed', 'newbied',
   '_xmlAttach', '_xmlData', '_xmlSpawnerEntry',
   'spellSlug', 'linkSerial', 'owner', 'addonName', 'addonNames',
@@ -517,15 +552,15 @@ const ITEM_EXT_KEYS = [
   'bedOfNailsFacing', '_bedOfNailsFacing', '_bedOfNailsTrail',
   'musicId', 'musicTracks', 'musicDurationMs',
   '_musicTracks', '_musicActualSong', '_musicPlayingUntil', '_musicOriginalItemId', '_musicNextAnimAt',
-  // FAZA BU — bulk order deed payload.
+  // PHASE BU — bulk order deed payload.
   'bod',
-  // BUGFIX #38 (FAZA BV): corpse decay timestamp. Without this, every
+  // BUGFIX #38 (PHASE BV): corpse decay timestamp. Without this, every
   // corpse loaded from a save loses its spawnedAt and `sweepDecayedCorpses`
   // resets the timer to NOW, so a corpse 4m59s into its 5m decay window
   // survives the restart with a full 5 more minutes of lifetime. Players
   // exploited this by stop/starting the shard between dungeon runs.
   'spawnedAt',
-  // BUGFIX #48 (FAZA CF): torch / lantern lit-state + captured original
+  // BUGFIX #48 (PHASE CF): torch / lantern lit-state + captured original
   // unlit graphic. Without these the lifecycle script forgets which art
   // id to revert to on snuff after a restart.
   '_lit', '_unlitId', '_burnRemainingMs',
@@ -538,23 +573,23 @@ const ITEM_EXT_KEYS = [
   'target0Serial', 'target1Serial', 'target2Serial',
   '_target0Serial', '_target1Serial', '_target2Serial',
   '_xmlTarget0Serial', '_xmlTarget1Serial', '_xmlTarget2Serial',
-  // FAZA CZ: teleporter destination. Without this dungeon entrances /
+  // PHASE CZ: teleporter destination. Without this dungeon entrances /
   // moongates lose their wiring on restart and become inert tiles.
   'teleportTo', 'creatures', 'message',
-  // FAZA DD: peerless altar's bound arena name.
+  // PHASE DD: peerless altar's bound arena name.
   'arenaName',
-  // FAZA DU: recall rune destination.
+  // PHASE DU: recall rune destination.
   'runeDest',
-  // FAZA EA: per-item durability + max. BUGFIX #95: durability state
+  // PHASE EA: per-item durability + max. BUGFIX #95: durability state
   // would round-trip-evaporate without these on the item whitelist.
   'durability', 'durabilityMax',
-  // FAZA EC: tinker trap state. BUGFIX #97: a player who armed a trap
+  // PHASE EC: tinker trap state. BUGFIX #97: a player who armed a trap
   // and stepped on it would have it un-spring on every server restart
   // (since `_sprung` was a runtime field), explode again, and respawn
   // damage on every restart cycle. Worse, `trapDamage` would zero out
   // and the trap would silently become a decoration. Whitelist both.
   'trapDamage', '_sprung',
-  // FAZA EJ: insurance flag + paying-mob serial.
+  // PHASE EJ: insurance flag + paying-mob serial.
   'insured', 'insuredBy',
   // Wave 7 follow-up: random magic-item & artifact properties produced
   // by the loot generator. Without these on the whitelist, every
@@ -574,41 +609,41 @@ const ITEM_EXT_KEYS = [
   // item; `display:{itemSerial}` lives on the case mob. Without these
   // a server restart frees pinned artifacts and the museum empties.
   '_displayed', 'display',
-  // FAZA ES: newbied flag (LootType.Blessed parity).
+  // PHASE ES: newbied flag (LootType.Blessed parity).
   'newbied',
-  // FAZA EV: soulstone {skillId, value}.
+  // PHASE EV: soulstone {skillId, value}.
   'soulstone',
-  // FAZA EW: slayer tag on weapons.
+  // PHASE EW: slayer tag on weapons.
   'slayer',
-  // FAZA FM: per-weapon combat descriptor {range, ammoId, swingMs}.
+  // PHASE FM: per-weapon combat descriptor {range, ammoId, swingMs}.
   'weapon',
-  // FAZA HK: shield flag (true → equipped to layer 2 sets _hasShield).
+  // PHASE HK: shield flag (true → equipped to layer 2 sets _hasShield).
   'shield',
   'ar', 'strReq', 'twoHanded', 'skill', 'minDamage', 'maxDamage', 'speed', 'range', 'ammoId',
-  // FAZA HP: bard instrument quality (0=Low, 1=Regular, 2=Exceptional).
+  // PHASE HP: bard instrument quality (0=Low, 1=Regular, 2=Exceptional).
   'instrumentQuality',
   // SA armor refinement {resist, amount, paired} — survives restart so
   // a refined armor piece keeps its resist deltas without re-applying.
   '_refinement',
-  // FAZA FX: enchanted tool yield bonus flags.
+  // PHASE FX: enchanted tool yield bonus flags.
   'pickaxeBonus', 'lumberjackBonus',
-  // FAZA EE+: AOE damage state, locked-container key serial.
+  // PHASE EE+: AOE damage state, locked-container key serial.
   'lockKeySerial', 'magicCharges', 'maxCharges', 'magicSpell', 'magicEnchanted',
   'wandSpell', 'wandIdentify', 'defaultCharges',
-  // FAZA EM: container trap payload {damage, level}.
+  // PHASE EM: container trap payload {damage, level}.
   'trapped', 'trapPower',
-  // FAZA FG: treasure-chest loot-once flag + level aliases used by
+  // PHASE FG: treasure-chest loot-once flag + level aliases used by
   // authored scripts and system-spawned treasure-map chests.
   'treasureLooted', 'treasureChestLevel',
-  // FAZA EN: forensic clues on corpses.
+  // PHASE EN: forensic clues on corpses.
   'killerName', 'lootedBy',
-  // FAZA EX: dye tub colour memory.
+  // PHASE EX: dye tub colour memory.
   'dyeTubHue',
-  // FAZA FA: vendor restock timer.
+  // PHASE FA: vendor restock timer.
   'lastRestock',
   // Power scroll payload (skillId, amount). Already implicitly covered
   // by 'powerScroll' which we declared earlier — keep the comment so
-  // future maintainers know FAZA DT relies on it.
+  // future maintainers know PHASE DT relies on it.
   // Decay timer (epoch ms) for movable ground items. Set by `world/decay.js`
   // first time the sweeper sees an item; without persistence the timer
   // would reset on every restart, making expensive items effectively
@@ -727,7 +762,7 @@ function copyExtensions(source, keys) {
   return out;
 }
 
-function serializeMobile(m) {
+export function serializeMobile(m) {
   return {
     serial: m.serial, name: m.name, body: m.body, hue: m.hue,
     x: m.x, y: m.y, z: m.z, direction: m.direction, map: m.map,
@@ -742,7 +777,7 @@ function serializeMobile(m) {
   };
 }
 
-function serializeItem(it) {
+export function serializeItem(it) {
   const dynamicFields = it[PERSISTENT_ITEM_FIELDS] instanceof Set
     ? [...it[PERSISTENT_ITEM_FIELDS]]
     : [];
@@ -772,13 +807,25 @@ function serializeItem(it) {
   };
 }
 
-function serializeWorldMeta(world) {
+export function serializeWorldMeta(world) {
+  const auctionHouse = world._auctionHouse ? {
+    nextLotId: Math.max(1, world._auctionHouse.nextLotId | 0),
+    lots: [...(world._auctionHouse.lots?.values?.() ?? [])].map((lot) => ({
+      ...lot,
+      history: Array.isArray(lot.history) ? lot.history : [],
+      pendingRefunds: Array.isArray(lot.pendingRefunds) ? lot.pendingRefunds : [],
+    })),
+  } : null;
   return {
     createWorldDone: !!world._createWorldDone,
     createWorldVersion: Math.max(0, world._createWorldVersion | 0),
     saveGeneration: Math.max(0, world._saveGeneration | 0),
     xmlSpawnersApplied: [...(world._xmlSpawnersApplied ?? [])],
     treasureChestsApplied: [...(world._treasureChestsApplied ?? [])],
+    // Housing is part of the same SQLite transaction as the entity rows.
+    // The old houses.json writer remains only as a one-time migration source.
+    houses: world._houseRegistry?.snapshot?.() ?? world._persistedHouses ?? null,
+    auctionHouse,
   };
 }
 
@@ -954,6 +1001,45 @@ export function splitSnapshot(world) {
   };
 }
 
+/** Build a complete SQLite reconciliation batch. This is deliberately used
+ * only for bootstrap/tests and an orderly shutdown. Normal autosaves consume
+ * the dirty queue and therefore scale with changes, not world size. */
+function sqliteFullBatch(world) {
+  const { playerSerials, playerOwned } = partitionWorld(world);
+  const rows = [];
+  for (const mobile of world.mobiles.values()) {
+    rows.push({
+      kind: 'mobile',
+      revision: world.interest?.revision?.(mobile.serial) ?? 0,
+      playerOwned: playerSerials.has(mobile.serial),
+      data: serializeMobile(mobile),
+    });
+  }
+  for (const item of world.items.values()) {
+    rows.push({
+      kind: 'item',
+      revision: world.interest?.revision?.(item.serial) ?? 0,
+      playerOwned: playerOwned.has(item.serial),
+      data: serializeItem(item),
+    });
+  }
+  const generation = Math.max(1, (world._saveGeneration | 0) + 1);
+  world._saveGeneration = generation;
+  return {
+    replaceAll: true,
+    rows,
+    generation,
+    meta: {
+      version: SAVE_VERSION,
+      serials: {
+        nextMobile: world.serial.nextMobile,
+        nextItem: world.serial.nextItem,
+      },
+      worldMeta: serializeWorldMeta(world),
+    },
+  };
+}
+
 /**
  * Restore world contents in place from a snapshot. Clears current state first.
  * @param {import('./world.js').World} world
@@ -994,8 +1080,10 @@ export function restoreWorld(world, snap) {
   world._summons?.clear?.();
   world._xmlSpawnersApplied?.clear?.();
   world._treasureChestsApplied?.clear?.();
+  world._auctionHouse = undefined;
   world._corpseIndexReady = false;
   world._summonIndexReady = false;
+  world.multiSpatial?.clear?.();
 
   let droppedMobiles = 0;
   let droppedItems = 0;
@@ -1134,6 +1222,9 @@ export function restoreWorld(world, snap) {
     const acl = multiAclByInstance.get(it._multiInstance >>> 0);
     if (acl != null) it._multiAcl = acl;
   }
+  for (const it of world.items.values()) {
+    if (it._multiAnchor) world.multiSpatial?.register?.(it);
+  }
 
   // Referential-integrity sweep: an item whose parent no longer exists is
   // orphaned. Rather than silently losing it (which used to cause items to
@@ -1168,7 +1259,10 @@ export function restoreWorld(world, snap) {
   // slice; mobs.json and players.json carry the same wrap but with
   // `worldMeta: undefined` so this branch is a no-op for those.
   if (snap.worldMeta && typeof snap.worldMeta === 'object') {
-    if (snap.worldMeta.createWorldDone) world._createWorldDone = true;
+    world._persistedHouses = snap.worldMeta.houses ?? null;
+    if (Object.prototype.hasOwnProperty.call(snap.worldMeta, 'createWorldDone')) {
+      world._createWorldDone = snap.worldMeta.createWorldDone === true;
+    }
     if (Number.isFinite(snap.worldMeta.createWorldVersion)) {
       world._createWorldVersion = Math.max(0, snap.worldMeta.createWorldVersion | 0);
     }
@@ -1180,6 +1274,30 @@ export function restoreWorld(world, snap) {
     }
     for (const id of snap.worldMeta.treasureChestsApplied ?? []) {
       if (typeof id === 'string' && id) world._treasureChestsApplied.add(id);
+    }
+    const auction = snap.worldMeta.auctionHouse;
+    if (auction && Array.isArray(auction.lots)) {
+      const lots = new Map();
+      let maxId = 0;
+      for (const raw of auction.lots) {
+        const id = Math.max(0, raw?.id | 0);
+        if (!id || lots.has(id) || !raw?.item || typeof raw.item !== 'object') continue;
+        const lot = {
+          ...raw,
+          id,
+          status: ['open', 'sold', 'expired'].includes(raw.status) ? raw.status : 'expired',
+          history: Array.isArray(raw.history) ? raw.history : [],
+          pendingRefunds: Array.isArray(raw.pendingRefunds) ? raw.pendingRefunds : [],
+          payoutDelivered: raw.payoutDelivered === true,
+          itemDelivered: raw.itemDelivered === true,
+        };
+        lots.set(id, lot);
+        maxId = Math.max(maxId, id);
+      }
+      world._auctionHouse = {
+        lots,
+        nextLotId: Math.max(maxId + 1, auction.nextLotId | 0, 1),
+      };
     }
   }
   // Re-attach poison tick closures lost in JSON. The actual rebind
@@ -1415,6 +1533,7 @@ export function loadHousesSync(houses, saveDir) {
   // place() call can never collide with a loaded house.
   const explicit = snap.nextHouseId | 0;
   houses.nextHouseId = Math.max(explicit, maxId + 1);
+  houses.rebuildIndexes?.();
   return houses.houses.size;
 }
 
@@ -1531,8 +1650,9 @@ export function loadWorldStateSync(saveDir) {
  * per account), mobs.json scales with population, items.json scales with
  * ground-item count + decays.
  */
-export function saveWorldSync(world, saveDir) {
+export function exportWorldJsonSync(world, saveDir) {
   fs.mkdirSync(saveDir, { recursive: true });
+  const walCutoff = world.mutationJournal?.beginCheckpoint?.() ?? 0;
   const split = splitSnapshot(world);
   const generation = split.items.generation | 0;
   writeSaveJournalSync(saveDir, generation, 'writing');
@@ -1553,6 +1673,7 @@ export function saveWorldSync(world, saveDir) {
   };
   for (const basename of SAVE_BASENAMES) writeOne(basename, split[basename]);
   writeSaveJournalSync(saveDir, generation, 'committed');
+  world.mutationJournal?.commitCheckpoint?.(walCutoff, generation);
   // Retire legacy `world.json` — its content has fully migrated into
   // mobs.json + items.json. Keep a `.legacy` rename so an operator can
   // diff against it before deleting.
@@ -1575,8 +1696,9 @@ export function saveWorldSync(world, saveDir) {
  * @param {string} saveDir
  * @returns {Promise<{bytes:number, ms:number}>}
  */
-export function saveWorldAsync(world, saveDir) {
+export function exportWorldJsonAsync(world, saveDir) {
   const t0 = Date.now();
+  const walCutoff = world.mutationJournal?.beginCheckpoint?.() ?? 0;
   const split = splitSnapshot(world);
   const generation = split.items.generation | 0;
 
@@ -1654,6 +1776,7 @@ export function saveWorldAsync(world, saveDir) {
         saveJournalPayload(generation, 'committed'),
         'utf8',
       );
+      world.mutationJournal?.commitCheckpoint?.(walCutoff, generation);
       // Best-effort retirement of legacy world.json (now fully covered
       // by mobs.json + items.json). Failure is non-fatal — the loader
       // still picks `mobs.json` over `world.json` at boot.
@@ -1682,7 +1805,7 @@ export function saveWorldAsync(world, saveDir) {
  *
  * Per-basename `.bak` / `.gz.bak` fallback covers crash-mid-write.
  */
-export function loadWorldSync(world, saveDir) {
+export function importWorldJsonSync(world, saveDir) {
   const tryRead = (file) => {
     if (!fs.existsSync(file)) return null;
     if (file.endsWith('.gz')) {
@@ -1753,6 +1876,89 @@ export function loadWorldSync(world, saveDir) {
   }
 }
 
+function readLegacyPlayerSnapshotSync(saveDir) {
+  const candidates = [
+    path.join(saveDir, 'players.json.gz'),
+    path.join(saveDir, 'players.json'),
+    path.join(saveDir, 'players.json.gz.bak'),
+    path.join(saveDir, 'players.json.bak'),
+  ];
+  for (const file of candidates) {
+    if (!fs.existsSync(file)) continue;
+    try {
+      const raw = file.includes('.json.gz')
+        ? zlib.gunzipSync(fs.readFileSync(file)).toString('utf8')
+        : fs.readFileSync(file, 'utf8');
+      const snapshot = JSON.parse(raw);
+      return {
+        version: snapshot.version ?? SAVE_VERSION,
+        mobiles: snapshot.mobiles ?? [],
+        items: snapshot.items ?? [],
+        serials: snapshot.serials ?? {},
+        // Deliberately do not import worldMeta. A new SQLite world must be
+        // unpopulated even if the retired JSON world had CreateWorld applied.
+        worldMeta: {},
+      };
+    } catch (error) {
+      console.error(`[persistence] cannot import ${path.basename(file)}: ${error.message}`);
+    }
+  }
+  return null;
+}
+
+/**
+ * Primary persistence path: SQLite with its native write-ahead log.
+ * Existing world population is intentionally not migrated. On the first
+ * SQLite boot only the legacy players bucket (characters, bonded pets and
+ * their complete item chains) is imported once.
+ */
+export function loadWorldSync(world, saveDir) {
+  const stored = loadWorldSnapshotSync(saveDir);
+  if (stored.corruptRows) {
+    throw new Error(`world.sqlite contains ${stored.corruptRows} corrupt entity row(s)`);
+  }
+  if (stored.exists) {
+    restoreWorld(world, stored.snapshot);
+    return true;
+  }
+
+  if (getSchemaValueSync(saveDir, 'legacy_players_imported') !== '1') {
+    const players = readLegacyPlayerSnapshotSync(saveDir);
+    if (players) {
+      restoreWorld(world, players);
+      saveWorldSync(world, saveDir);
+      setSchemaValueSync(saveDir, 'legacy_players_imported', '1');
+      return true;
+    }
+    setSchemaValueSync(saveDir, 'legacy_players_imported', '1');
+  }
+
+  // Materialise an empty, versioned database immediately. This makes first
+  // boot deterministic and prevents retired JSON world files from becoming
+  // active again if the process exits before the first autosave.
+  saveWorldSync(world, saveDir);
+  return false;
+}
+
+/** Complete reconciliation for bootstrap, tests and orderly shutdown. */
+export function saveWorldSync(world, saveDir) {
+  world.mutationJournal?.beginCheckpoint?.();
+  const result = writeWorldBatchSync(saveDir, sqliteFullBatch(world));
+  sqliteCheckpointSync(saveDir, 'PASSIVE');
+  return { ...result, format: 'sqlite-wal' };
+}
+
+/** Incremental save. Only entities dirtied since the previous commit cross
+ * the worker boundary. A world without an attached journal (unit/bootstrap)
+ * falls back to a complete synchronous reconciliation. */
+export function saveWorldAsync(world, saveDir) {
+  if (world.mutationJournal?.flushAllAsync) {
+    return world.mutationJournal.flushAllAsync({ includeMeta: true })
+      .then((result) => ({ ...result, format: 'sqlite-wal' }));
+  }
+  return Promise.resolve(saveWorldSync(world, saveDir));
+}
+
 /**
  * Save queue — coalesces overlapping save requests. Call `requestSave(world, dir)`
  * to enqueue. If a save is already in flight, requests after it collapse
@@ -1773,8 +1979,12 @@ export function persistenceDiagnostics(saveDir) {
   const key = String(saveDir);
   const value = _saveDiagnostics.get(key) ?? { requests: 0, completed: 0, failed: 0, coalesced: 0,
     totalBytes: 0, totalMs: 0, lastBytes: 0, lastMs: 0, lastStartedAt: 0, lastCompletedAt: 0, lastError: null };
-  return { ...value, averageMs: value.completed ? Number((value.totalMs / value.completed).toFixed(2)) : 0,
-    inFlight: _inFlight.has(key), trailing: _trailing.has(key) };
+  let database = null;
+  try { database = sqliteDiagnosticsSync(saveDir); } catch { /* writer may be checkpointing */ }
+  return { ...value, engine: 'sqlite-wal', database,
+    averageMs: value.completed ? Number((value.totalMs / value.completed).toFixed(2)) : 0,
+    inFlight: _inFlight.has(key), trailing: _trailing.has(key),
+    mutationJournal: mutationJournalDiagnostics(saveDir) };
 }
 /** Wait for any in-flight async save to settle. BH #12 B12: shutdown's
  *  `saveWorldSync` raced with a still-streaming `saveWorldAsync` over

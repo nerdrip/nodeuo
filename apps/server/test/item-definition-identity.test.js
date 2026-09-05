@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { World } from '../src/world/world.js';
 import { createItem } from '../src/world/items.js';
 import {
-  getItem, getItemByDefinition, itemVariants, registerItem,
+  getItem, getItemByDefinition, getItemByTag, itemVariants, registerItem, unregisterItem,
 } from '../src/content/items/index.js';
 import { useItem } from '../src/world/templates.js';
 
@@ -63,5 +63,24 @@ describe('canonical item definition identity', () => {
       artId: 0x7A11, itemId: 0x7A11,
     });
     expect(getItem(0x7A11)?.definitionId).toBe('__test-legacy-ticket');
+  });
+
+  it('removes aliases safely and cannot dispose a newer hot-reload generation', () => {
+    const first = registerItem({
+      definitionId: '__test-hot-item', tagId: '__test-hot-old',
+      artId: 0x7A12, name: 'First generation',
+    });
+    const second = registerItem({
+      definitionId: '__test-hot-item', tagId: '__test-hot-new',
+      artId: 0x7A13, name: 'Second generation',
+    });
+
+    expect(getItemByTag('__test-hot-old')).toBeUndefined();
+    expect(unregisterItem(first.definitionId, first)).toBe(false);
+    expect(getItemByDefinition(first.definitionId)).toBe(second);
+    expect(unregisterItem(second.definitionId, second)).toBe(true);
+    expect(getItemByDefinition(second.definitionId)).toBeUndefined();
+    expect(getItemByTag('__test-hot-new')).toBeUndefined();
+    expect(itemVariants(0x7A13)).toEqual([]);
   });
 });

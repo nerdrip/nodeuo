@@ -1,4 +1,4 @@
-// FAZA CH — bugfix #50: party.accept() must remove the joiner from any
+// PHASE CH — bugfix #50: party.accept() must remove the joiner from any
 // pre-existing party before adding them to the new one. Plus the
 // decline path notifies the leader so they know whether to wait or
 // re-invite.
@@ -7,7 +7,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { World } from '../src/world/world.js';
 import { PartyRegistry } from '../src/party.js';
 
-describe('PartyRegistry (FAZA CH)', () => {
+describe('PartyRegistry (PHASE CH)', () => {
   /** @type {World} */ let w;
   /** @type {PartyRegistry} */ let registry;
   /** @type {any} */ let alice;

@@ -1005,7 +1005,7 @@ export default function (api) {
           return;
         }
         if (!mob.client) return;       // disconnect — stop silently
-        // Teleport to tile north of case (same pattern jak [showcasetour
+        // Teleport to the tile north of the case (the same pattern as [showcasetour
         // walk button) — broadcast removeEntity then mobileMoving.
         const preObservers = [];
         for (const m of allMobiles({ world })) {

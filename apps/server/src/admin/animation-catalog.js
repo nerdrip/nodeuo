@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ASSETS = path.resolve(HERE, '..', '..', '..', 'client', 'public', 'assets');
 let manifest = null;
+const loadedShards = new Set();
 
 // Same-family compatibility substitutions used by the web client when a
 // legal UO installation ships an incomplete legacy animation archive. These
@@ -25,8 +26,28 @@ const EXACT_MOUNT_BODIES = new Set([
 ]);
 
 function data() {
-  manifest ??= JSON.parse(fs.readFileSync(path.join(ASSETS, 'mobiles-atlas.json'), 'utf8'));
+  if (!manifest) {
+    const index = path.join(ASSETS, 'mobiles-atlas-index.json');
+    const file = fs.existsSync(index) ? index : path.join(ASSETS, 'mobiles-atlas.json');
+    manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
+    manifest.bodies ??= {};
+  }
   return manifest;
+}
+
+function ensureBodyLoaded(body) {
+  const atlas = data();
+  if (!atlas.shards || !Number.isInteger(atlas.shardSize)) return;
+  const row = atlas.shards[Math.floor((body | 0) / atlas.shardSize)];
+  if (!row?.file || loadedShards.has(row.file)) return;
+  const shard = JSON.parse(fs.readFileSync(path.join(ASSETS, path.basename(row.file)), 'utf8'));
+  if (shard?.schemaVersion !== 1
+    || shard.group !== Math.floor((body | 0) / atlas.shardSize)
+    || shard.shardSize !== atlas.shardSize) {
+    throw new Error(`Invalid mobile animation shard ${row.file}`);
+  }
+  Object.assign(atlas.bodies, shard.bodies ?? {});
+  loadedShards.add(row.file);
 }
 
 function resolveBody(body) {
@@ -34,6 +55,8 @@ function resolveBody(body) {
   const requested = Math.max(0, body | 0);
   const alias = atlas.aliases?.[requested];
   const aliasBody = alias?.body ?? alias?.trueBody;
+  ensureBodyLoaded(requested);
+  if (Number.isInteger(aliasBody)) ensureBodyLoaded(aliasBody);
   const exact = atlas.bodies?.[requested] && (
     atlas.bodyConv?.[requested]
     || (((atlas.mobTypes?.[requested]?.flags | 0) & 0x10000) !== 0)
@@ -53,6 +76,7 @@ function resolveBody(body) {
   }
   const fallback = BODY_FALLBACK[requested];
   if (fallback != null) {
+    ensureBodyLoaded(fallback);
     const fallbackAlias = atlas.aliases?.[fallback];
     const fallbackAliasBody = fallbackAlias?.body ?? fallbackAlias?.trueBody;
     const resolved = fallbackAliasBody != null && atlas.bodies?.[fallbackAliasBody]
@@ -125,6 +149,7 @@ function actionCoverage(entry) {
 export function animationBodySnapshot(body) {
   const atlas = data();
   const resolved = resolveBody(body);
+  ensureBodyLoaded(resolved.resolved);
   const bodyData = atlas.bodies?.[resolved.resolved];
   const info = atlas.mobTypes?.[resolved.requested] ?? atlas.mobTypes?.[resolved.resolved] ?? null;
   if (!bodyData) return { ok: false, ...resolved, info, errors: ['Body is absent from mobiles-atlas.json.'], warnings: [], actions: [] };
@@ -198,7 +223,9 @@ export async function animationFramePng(body, action, direction, frameIndex) {
   const frames = atlas.bodies?.[resolved.resolved]?.actions?.[action]?.dirs?.[direction];
   if (!frames?.length) return null;
   const frame = frames[Math.max(0, frameIndex | 0) % frames.length];
-  const file = path.join(ASSETS, `mobiles-atlas-${String(frame.page).padStart(2, '0')}.png`);
+  const pageFile = atlas.pages?.[frame.page]?.file
+    ?? `mobiles-atlas-${String(frame.page).padStart(2, '0')}.png`;
+  const file = path.join(ASSETS, path.basename(pageFile));
   if (!fs.existsSync(file)) return null;
   return sharp(file).extract({ left: frame.u, top: frame.v, width: frame.w, height: frame.h })
     .extend({ top: 8, bottom: 8, left: 8, right: 8, background: { r: 10, g: 14, b: 20, alpha: 0 } })

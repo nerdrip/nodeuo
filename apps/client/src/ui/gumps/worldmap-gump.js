@@ -17,6 +17,8 @@ import { worldMapEntities } from '../../managers/world-map-entity-manager.js';
 import { packCanvasColor, packedLandRadarColor } from '../../shared/radar-color.js';
 import { acquireSprite, releaseSprite } from '../../renderer/sprite-pool.js';
 import { bus } from '../../core/event-bus.js';
+import { net } from '../../net/net-client.js';
+import { listNodeUOWorldAnnotations, updateNodeUOWorldAnnotation } from '../../net/nodeuo-services.js';
 
 const VIEWPORT_W = 600;
 const VIEWPORT_H = 400;
@@ -155,6 +157,17 @@ export class WorldmapGump extends WindowGump {
     this._centerBtn.setPosition(14, 28 + VIEWPORT_H + 28);
     this._centerBtn.onClick = () => this._centerOnPlayer();
     this.add(this._centerBtn);
+    this._annotationBtn = new Button({
+      normalGumpId: 0x0481, pressedGumpId: 0x0482,
+      width: 140, height: 26, label: 'Add / sync pin', action: ButtonAction.Activate, flat: true,
+    });
+    this._annotationBtn.setPosition(328, 28 + VIEWPORT_H + 28);
+    this._annotationBtn.enabled = !!net.supportsNodeUO?.('world.annotations');
+    this._annotationBtn.onClick = () => {
+      if (!this._annotationBtn.enabled) return;
+      void this._openMarkerEditor(Math.round(this._cx), Math.round(this._cy), true);
+    };
+    this.add(this._annotationBtn);
     this._helpLabel = new Label('Explore: drag to pan · wheel to zoom · routes are visual guides (no auto-walk)', {
       fontSize: 11, hue: 0xc9bea3, stroke: true,
     });
@@ -225,6 +238,11 @@ export class WorldmapGump extends WindowGump {
     }).catch(() => {});
     this._facetReady = false;
     this._ensureFacet(this._mapFacet);
+    if (net.supportsNodeUO?.('world.annotations')) {
+      for (const scope of ['personal', 'party', 'guild']) {
+        void listNodeUOWorldAnnotations(net, scope).catch(() => {});
+      }
+    }
     this._render(true);
     this._updatePlayerOverlay(true);
   }
@@ -359,7 +377,7 @@ export class WorldmapGump extends WindowGump {
   /** Audit rev.4 P2 — minimal marker add/edit dialog. Saves the new
    *  marker to `profile.worldmap.markers`; the overlay tick picks
    *  the array up on the next frame. */
-  _openMarkerEditor(tx, ty) {
+  async _openMarkerEditor(tx, ty, allowSync = false) {
     const cur = Array.isArray(profile.get('worldmap.markers'))
       ? profile.get('worldmap.markers') : [];
 
@@ -370,6 +388,24 @@ export class WorldmapGump extends WindowGump {
 
     const hexInput = window.prompt('Color (hex, e.g. ffd06a):', 'ffd06a');
     const color = parseInt((hexInput || 'ffd06a').replace(/[^0-9a-fA-F]/g, ''), 16) || 0xffd06a;
+    if (allowSync && net.supportsNodeUO?.('world.annotations')) {
+      const selected = window.prompt('Scope: personal, party, guild or local', 'personal');
+      if (selected == null) return;
+      const scope = selected.trim().toLowerCase();
+      if (['personal', 'party', 'guild'].includes(scope)) {
+        try {
+          await updateNodeUOWorldAnnotation(net, 'upsert', {
+            x: tx, y: ty, map: this._mapFacet, label: trimmed, color,
+          }, scope);
+          bus.emit('chat:system', { text: `Synchronized ${scope} map pin.` });
+          return;
+        } catch (error) {
+          bus.emit('chat:system', { text: `Could not synchronize map pin: ${error.message}` });
+          return;
+        }
+      }
+      if (scope !== 'local') return;
+    }
     const next = [...cur, { x: tx, y: ty, label: trimmed, color, facet: this._mapFacet }];
     profile.set('worldmap.markers', next);
   }
@@ -452,6 +488,9 @@ export class WorldmapGump extends WindowGump {
     const ovShowMobiles = this._showMobiles;
     const ovShowGrid = this._showGrid;
     const ovMarkerSize = this._markerSize;
+    const ovPartyMarkerRevision = Number(world.partyMarkers?.revision) || 0;
+    const ovPartyPingRevision = Number(world.partyPings?.revision) || 0;
+    const ovAnnotationRevision = Number(world.worldAnnotations?.revision) || 0;
     const ovMarkersLen = Array.isArray(profile.settings?.worldmap?.markers) ? profile.settings.worldmap.markers.length : 0;
     const ovPlotMode = this._plotMode ? 1 : 0;
     const ovRouteLen = this._route?.length ?? 0;
@@ -472,6 +511,9 @@ export class WorldmapGump extends WindowGump {
         && ovShowMobiles === this._ovShowMobiles
         && ovShowGrid === this._ovShowGrid
         && ovMarkerSize === this._ovMarkerSize
+        && ovPartyMarkerRevision === this._ovPartyMarkerRevision
+        && ovPartyPingRevision === this._ovPartyPingRevision
+        && ovAnnotationRevision === this._ovAnnotationRevision
         && ovMarkersLen === this._ovMarkersLen
         && ovPlotMode === this._ovPlotMode
         && ovRouteLen === this._ovRouteLen
@@ -492,6 +534,9 @@ export class WorldmapGump extends WindowGump {
     this._ovShowMobiles = ovShowMobiles;
     this._ovShowGrid = ovShowGrid;
     this._ovMarkerSize = ovMarkerSize;
+    this._ovPartyMarkerRevision = ovPartyMarkerRevision;
+    this._ovPartyPingRevision = ovPartyPingRevision;
+    this._ovAnnotationRevision = ovAnnotationRevision;
     this._ovMarkersLen = ovMarkersLen;
     this._ovPlotMode = ovPlotMode;
     this._ovRouteLen = ovRouteLen;
@@ -588,6 +633,66 @@ export class WorldmapGump extends WindowGump {
           Math.max(2, blipRadius - 1),
           'circle',
         );
+      }
+    }
+
+    // Negotiated tactical markers decorate authoritative party members. They
+    // never create map entities and therefore cannot reveal hidden players.
+    if (showParty && Array.isArray(world.partyMarkers?.markers)) {
+      for (const marker of world.partyMarkers.markers.slice(0, 32)) {
+        if (marker.kind === 'location') {
+          if ((marker.map | 0) !== (this._mapFacet | 0)) continue;
+          const x = this._screenX(marker.x), y = this._screenY(marker.y);
+          if (!this._inWindow(x, y)) continue;
+          const color = marker.color || 0xb080ff;
+          this._overlay.poly([x, y - markerRadius, x + markerRadius, y,
+            x, y + markerRadius, x - markerRadius, y]).fill({ color, alpha: 0.9 });
+          continue;
+        }
+        const mob = world.mobiles.get(Number(marker.serial) >>> 0);
+        if (!mob || (mob.map | 0) !== (this._mapFacet | 0)) continue;
+        const x = this._screenX(mob.x), y = this._screenY(mob.y);
+        if (!this._inWindow(x, y)) continue;
+        const color = marker.marker === 'danger' ? 0xff5050
+          : marker.marker === 'objective' ? 0xffdc55 : 0xb080ff;
+        this._overlay.circle(x, y, markerRadius + 2).stroke({ width: 2, color, alpha: 0.95 });
+      }
+    }
+
+    // Short-lived tactical pings are server-authoritative party data. Their
+    // expiry uses the synchronized server clock so a slow/local clock cannot
+    // keep stale danger rings on the map.
+    if (showParty && Array.isArray(world.partyPings?.pings)) {
+      const serverNow = Date.now() + (world.nodeUOClock?.offsetMs ?? 0);
+      for (const ping of world.partyPings.pings.slice(0, 64)) {
+        if ((ping.map | 0) !== (this._mapFacet | 0) || Number(ping.expiresAt) <= serverNow) continue;
+        const x = this._screenX(ping.x), y = this._screenY(ping.y);
+        if (!this._inWindow(x, y)) continue;
+        const color = ping.color || (ping.kind === 'danger' ? 0xff4d4d : 0xffd65a);
+        const pulse = markerRadius + 3 + Math.round((Math.sin(performance.now() / 180) + 1) * 2);
+        this._overlay.circle(x, y, pulse).stroke({ width: 2, color, alpha: 0.95 });
+        this._overlay.moveTo(x - markerRadius, y).lineTo(x + markerRadius, y)
+          .moveTo(x, y - markerRadius).lineTo(x, y + markerRadius)
+          .stroke({ width: 1, color, alpha: 0.9 });
+        this.worldMapStats.markerPins++;
+      }
+    }
+
+    // Server-synchronized personal, party and guild notes. These are kept
+    // separate from the local profile pins, but share the same visibility
+    // toggle so a crowded map can be decluttered in one action.
+    if (showMarkers && Array.isArray(world.worldAnnotations?.annotations)) {
+      for (const annotation of world.worldAnnotations.annotations.slice(0, 768)) {
+        if ((annotation.map | 0) !== (this._mapFacet | 0)) continue;
+        const x = this._screenX(annotation.x), y = this._screenY(annotation.y);
+        if (!this._inWindow(x, y)) continue;
+        const color = annotation.color || (annotation.scope === 'guild' ? 0x55e890
+          : annotation.scope === 'party' ? 0x60c0ff : 0xffd06a);
+        const radius = markerRadius + (annotation.kind === 'danger' ? 2 : 0);
+        this._overlay.poly([x, y - radius, x + radius, y, x, y + radius, x - radius, y])
+          .fill({ color, alpha: 0.88 })
+          .stroke({ width: 1, color: 0x20180c, alpha: 0.9 });
+        this.worldMapStats.markerPins++;
       }
     }
 

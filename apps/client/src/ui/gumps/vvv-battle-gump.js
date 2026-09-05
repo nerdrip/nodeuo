@@ -1,7 +1,7 @@
 // VvVBattleGump — minimal Vice-vs-Virtue battle status. ServUO has 6
 // separate gumps (battle list, capture point, statistics, member list,
 // reward, sigil). For our scope a single multi-pane gump suffices.
-// Faza F.3.11.
+// Phase F.3.11.
 //
 // Players see the current battle state: capture point ownership,
 // participant counts, member list, and a quick "claim reward" button

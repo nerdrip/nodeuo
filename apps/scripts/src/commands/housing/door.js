@@ -22,7 +22,7 @@ import { moveItem } from '../../_movement.js';
 import { allItems, sendToClientsNear } from '../../_spatial.js';
 import { itemBySerial } from '../../_entities.js';
 import { createItem } from '../../_items.js';
-// FAZA BF: each door material has FOUR (closedId, openId) pairs — one
+// PHASE BF: each door material has FOUR (closedId, openId) pairs — one
 // per facing direction. Real UO art has these adjacent in tiledata:
 //   facing  closed  open
 //   south   N+0     N+1   (door swings south, hinge on east jamb)
@@ -87,8 +87,7 @@ const AUTO_CLOSE_MS = 30_000;
  *  through the housedata permutation, so opening door A (pieceIdx 2,
  *  closedId 0x675 = ServUO WestCCW idx 0) gets the canonical
  *  (-1,+1) swing instead of the (-1,0) value the old aligned-with-
- *  ServUO table produced. User report 2026-05-19 "drzwi otwarte się
- *  otwierają za daleko" was exactly this off-by-one-row in the
+ *  ServUO table produced. Doors swinging too far exposed this off-by-one row in the
  *  housedata vs ServUO indexing.
  *
  *  housedata pieceIdx → ServUO facing → offset:
@@ -152,7 +151,7 @@ export default function register(api) {
         ctx.state.sendSystemMessage(`Unknown door. Try: ${Object.keys(DOOR_KINDS).join(', ')}`);
         return;
       }
-      // FAZA BF: facing — explicit 2nd arg, else auto-detect. Auto rule:
+      // PHASE BF: facing — explicit 2nd arg, else auto-detect. Auto rule:
       // if the east neighbour tile has a closed-door / wall static, the
       // door faces SOUTH (door panel is the southern edge). Mirror for
       // the south neighbour. Default 'south' covers freestanding doors.
@@ -191,7 +190,7 @@ export default function register(api) {
         serial: item.serial, itemId: item.itemId, hue: item.hue,
         amount: 1, x: item.x, y: item.y, z: item.z, flags: 0x00,
       });
-      // BUGFIX #22 (FAZA BF): the previous version broadcast `worldItemSA`
+      // BUGFIX #22 (PHASE BF): the previous version broadcast `worldItemSA`
       // to EVERY connected client globally — 100 players in different
       // cities each got a packet for every door spawn / toggle / auto-
       // close. Filter to clients within 18-tile UO update range on the
@@ -201,7 +200,7 @@ export default function register(api) {
     },
   });
 
-  // FAZA LA / BUGFIX #140: register a pre-template useItem hook
+  // PHASE LA / BUGFIX #140: register a pre-template useItem hook
   // instead of `api.templates.useItem = wrapper` (read-only ES module
   // export, threw at script init). The hook chain in templates.js
   // short-circuits on the first truthy return.
@@ -279,8 +278,8 @@ export default function register(api) {
     // the partner found on the first scan. Future clicks check the
     // pinned ref first and only fall through to the sector scan if
     // the partner despawned — pins the pair so adjacent shops with
-    // same-facing doors don't shuffle every interaction. User report
-    // 2026-05-19 "drzwi się otwierają z złej strony / przeskakują".
+    // same-facing doors do not shuffle on every interaction or jump to the
+    // wrong side.
     const pinned = item.door.linkSerial
       ? itemBySerial({ world }, item.door.linkSerial)
       : null;
@@ -306,8 +305,8 @@ export default function register(api) {
     //   pieces[6] NorthCW + pieces[7] NorthCCW → east-facing pair
     // The facing STRING differs between the two leaves (WestCW vs
     // EastCCW), so the previous `partnerFacing === item.door.facing`
-    // check rejected every legitimate double-door. User report
-    // 2026-05-19 "trzeba klikać pojedynczo na drzwi". The fix: pair
+    // check rejected every legitimate double door, forcing each leaf to be
+    // clicked separately. The fix pairs
     // by housedata pieceIdx parity instead — leaves whose pieceIdx
     // ^ 1 == partner's pieceIdx form a mirror.
     const ourInfo = api.housedata?.doorPiece?.(item.door.closedId);
@@ -426,8 +425,7 @@ export default function register(api) {
     // Paired-leaf sync — find a partner door (the second leaf of a
     // double-door entrance) and toggle it to the same state. Without
     // this, only one leaf opened: the user clicked door A, A swung
-    // open, B stayed closed → "drzwi się źle układają" / "nie da się
-    // ich zamknąć" because re-clicking the OPEN leaf flipped only
+    // open, and B stayed closed. Re-clicking the open leaf then flipped only
     // itself again. ServUO `BaseDoor.Link` handles this server-side.
     // `_doorPairToggleInFlight` short-circuits the partner's recursion
     // when applyToggle below calls back into this hook indirectly.
@@ -447,7 +445,7 @@ export default function register(api) {
     // window may now be wrong (target hidden behind a now-closed door,
     // or visible through a now-open one). Cheap: drop the whole cache.
     try { api.los?.invalidate?.(); } catch { /* advisory */ }
-    // BUGFIX #17 (FAZA BA): re-look up the item by serial on the
+    // BUGFIX #17 (PHASE BA): re-look up the item by serial on the
     // close timer so a destroyed door short-circuits cleanly.
     // Portcullis stays open until manually closed (or admin retoggle) —
     // skip auto-close entirely.
@@ -470,7 +468,7 @@ export default function register(api) {
     }
     return true;
   };
-  api.templates?.addUseItemHook?.(doorHook);
+  const removeDoorHook = api.templates?.addUseItemHook?.(doorHook) ?? (() => {});
 
   // Diagnostic: target a door, dump its current `door` payload + raw
   // tiledata flags. Useful when "the click does nothing" — output goes
@@ -541,6 +539,7 @@ export default function register(api) {
   });
 
   return () => {
+    removeDoorHook();
     api.commands.unregister('door');
     api.commands.unregister('key');
     api.commands.unregister('doorinfo');
@@ -558,7 +557,7 @@ function userHasKey(api, mob, keyId) {
 }
 
 /**
- * FAZA BF: auto-detect door facing based on adjacent walls. We scan the
+ * PHASE BF: auto-detect door facing based on adjacent walls. We scan the
  * four cardinal neighbours via `api.landProvider.staticsAt` (or the
  * runtime door registry — both the static disk wall and a freshly
  * spawned door count as "wall here"). The rule:

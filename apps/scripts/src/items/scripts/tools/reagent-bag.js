@@ -1,10 +1,10 @@
-// FAZA FA — Reagent Bag of Holding.
+// PHASE FA — Reagent Bag of Holding.
 //
 // ServUO `Items/Containers/PackOfHolding.cs` (Mondain's Legacy reward):
 // auto-stocks reagent stacks from the player's main pack into a sub-bag,
 // auto-fills missing reagents during cast. We expose the bag as a
 // container item with a flag `reagentBag = true`. Cast helpers
-// (FAZA DW findReagent) already walk the parent chain, so reagents
+// (PHASE DW findReagent) already walk the parent chain, so reagents
 // inside this bag count for spell consumption.
 //
 // The lifecycle script's onUse simply lists the bag's reagent contents.

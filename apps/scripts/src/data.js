@@ -41,7 +41,7 @@ function readJson(relPath) {
 export default function register(api) {
   const disposers = [];
 
-  // FAZA BN: register all built-in item lifecycle scripts BEFORE the
+  // PHASE BN: register all built-in item lifecycle scripts BEFORE the
   // template loader runs so items.json `script: 'torch'` references
   // resolve. The disposer pulls them back out on hot-reload.
   const itemScripts = api.itemScripts;

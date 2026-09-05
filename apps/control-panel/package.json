@@ -5,7 +5,9 @@
   "description": "Electron desktop launcher for the UO-Node stack — start/stop server, client, admin, bridge from one window with tabbed logs.",
   "main": "./src/main.cjs",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "test": "node --test ./test/*.test.mjs",
+    "smoke": "node ./test/electron-smoke.cjs"
   },
   "devDependencies": {
     "electron": "^43.2.0"

@@ -146,7 +146,7 @@ export default function (api) {
       // way in — bug-hunt #2 A9: previously the map only grew.
       vendor._haggledBy ??= new Map();
       for (const [k, c] of vendor._haggledBy) {
-        if ((c?.expiresAt | 0) > 0 && now > c.expiresAt) vendor._haggledBy.delete(k);
+        if ((Number(c?.expiresAt) || 0) > 0 && now > c.expiresAt) vendor._haggledBy.delete(k);
       }
       vendor._haggledBy.set(mob.serial, { pct, expiresAt: now + COUPON_TTL_MS });
       ctx.state.sendSystemMessage(

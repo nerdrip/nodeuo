@@ -1,5 +1,6 @@
 import { itemBySerial } from '../../_entities.js';
-// [auction list|consign|bid|info <id>|reclaim — auction house commands.
+import { isInPack } from '../../_inventory.js';
+// [auction list|consign|bid|info <id>|reclaim [id] — auction house commands.
 
 export default function register(api) {
   if (!api.commands || !api.systems?.auctionHouse) return () => {};
@@ -7,7 +8,7 @@ export default function register(api) {
 
   api.commands.register({
     name: 'auction',
-    help: '[auction list|consign <itemHex> <startingBid> [buyoutPrice]|bid <lotId> <amount>|info <lotId>',
+    help: '[auction list|consign <itemHex> <startingBid> [buyoutPrice]|bid <lotId> <amount>|info <lotId>|reclaim [lotId]',
     access: 'Player',
     run(ctx, args) {
       const sub = (args?.[0] ?? 'list').toLowerCase();
@@ -35,7 +36,7 @@ export default function register(api) {
             return;
           }
           const item = itemBySerial(api, itemHex);
-          if (!item || item.parent !== sender.serial) {
+          if (!item || !isInPack(api, item, sender)) {
             ctx.state.sendSystemMessage('Item must be in your pack.');
             return;
           }
@@ -63,10 +64,22 @@ export default function register(api) {
           ctx.state.sendSystemMessage(`  Status:    ${lot.status}`);
           return;
         }
+        case 'reclaim': {
+          const lotId = parseInt(args[1], 10) || 0;
+          const result = A.reclaim(api.world, sender, lotId);
+          if (!result.ok) {
+            ctx.state.sendSystemMessage(`Reclaim failed: ${result.reason}.`);
+            return;
+          }
+          ctx.state.sendSystemMessage(
+            `Auction claims delivered: ${result.items} item(s), ${result.gold} gold.`,
+          );
+          return;
+        }
         default:
-          ctx.state.sendSystemMessage('Usage: [auction list|consign|bid|info');
+          ctx.state.sendSystemMessage('Usage: [auction list|consign|bid|info|reclaim');
       }
     },
   });
-  return () => {};
+  return () => api.commands.unregister('auction');
 }

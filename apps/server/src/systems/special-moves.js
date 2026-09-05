@@ -409,7 +409,6 @@ registerSpecialMove({
     return skill(m, 54) >= 40 || hasWeaponSkill(m, 70);
   },
   apply(_world, mob /* , target */) {
-    mob._dualWield = true;
     mob._dualWieldUntil = Date.now() + 5_000;
     mob.client?.sendSystemMessage?.('You begin striking with both hands.');
   },

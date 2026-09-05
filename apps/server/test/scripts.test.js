@@ -45,6 +45,35 @@ describe('ScriptRuntime', () => {
     expect(api._initCount).toBe(2);
   });
 
+  it('automatically disposes item catalogue definitions owned by a script', async () => {
+    const dir = mkTempDir();
+    fs.writeFileSync(path.join(dir, 'items.js'), `
+      export default (api) => {
+        api.catalog.items.registerItem({ definitionId: 'owned-item', artId: 123, name: 'Owned' });
+      };
+    `);
+    const definitions = new Map();
+    const api = {
+      ...stubApi(),
+      catalog: { items: {
+        registerItem(definition) {
+          const normalized = { ...definition };
+          definitions.set(normalized.definitionId, normalized);
+          return normalized;
+        },
+        unregisterItem(id, expected) {
+          if (definitions.get(id) !== expected) return false;
+          return definitions.delete(id);
+        },
+      } },
+    };
+    const rt = new ScriptRuntime(dir, api);
+    await rt.load();
+    expect(definitions.has('owned-item')).toBe(true);
+    await rt.dispose();
+    expect(definitions.has('owned-item')).toBe(false);
+  });
+
   it('serializes overlapping full reload requests into one queued reload', async () => {
     const dir = mkTempDir();
     const file = path.join(dir, 'slow.js');
@@ -114,6 +143,31 @@ describe('ScriptRuntime', () => {
     }
   });
 
+  it('reloads active dependents with a fresh changed helper module', async () => {
+    const dir = mkTempDir();
+    fs.writeFileSync(path.join(dir, 'helper.js'), 'export const value = 1;');
+    fs.writeFileSync(path.join(dir, 'root.js'), `
+      import { value } from './helper.js';
+      export default (api) => {
+        api._dependencyValue = value;
+        api._dependencyRuns = (api._dependencyRuns ?? 0) + 1;
+        return () => { api._dependencyDisposals = (api._dependencyDisposals ?? 0) + 1; };
+      };
+    `);
+    const api = stubApi();
+    const rt = new ScriptRuntime(dir, api);
+    await rt.load();
+    expect(api._dependencyValue).toBe(1);
+
+    fs.writeFileSync(path.join(dir, 'helper.js'), 'export const value = 2;');
+    const result = await rt.reloadAffected('helper.js');
+
+    expect(result).toMatchObject({ ok: true, affected: ['root.js'] });
+    expect(api._dependencyValue).toBe(2);
+    expect(api._dependencyRuns).toBe(2);
+    expect(api._dependencyDisposals).toBe(1);
+  });
+
   it('isolates errors in a single script', async () => {
     const dir = mkTempDir();
     fs.writeFileSync(path.join(dir, 'bad.js'), 'export default () => { throw new Error("boom"); };');
@@ -127,6 +181,40 @@ describe('ScriptRuntime', () => {
     expect(api._logs.some((l) => /bad\.js.*boom/.test(l))).toBe(true);
     expect(rt.profile).toMatchObject({ loaded: 1, failed: 1, errors: [expect.objectContaining({ file: 'bad.js', phase: 'init', message: 'boom' })] });
     expect(rt.loaded.map((entry) => path.basename(entry.file))).toEqual(['good.js']);
+  });
+
+  it('rolls a failed full reload back to the previous working generation', async () => {
+    const dir = mkTempDir();
+    const file = path.join(dir, 'atomic.js');
+    fs.writeFileSync(file, `
+      export default (api) => {
+        if (api._failNextActivation) {
+          api._failNextActivation = false;
+          throw new Error('candidate failed');
+        }
+        api.commands.register({ name: 'atomic', help: 'test', run() {} });
+        return () => api.commands.unregister('atomic');
+      };
+    `);
+    const registered = new Set();
+    const api = {
+      ...stubApi(),
+      commands: {
+        register(spec) {
+          if (registered.has(spec.name)) throw new Error('duplicate command');
+          registered.add(spec.name);
+        },
+        unregister(name) { registered.delete(name); },
+      },
+    };
+    const rt = new ScriptRuntime(dir, api);
+    await rt.load();
+    api._failNextActivation = true;
+
+    await expect(rt.load({ reason: 'test-broken-reload' })).rejects.toThrow(/activation failed/);
+    expect([...registered]).toEqual(['atomic']);
+    expect(rt.loaded).toHaveLength(1);
+    expect(rt.profile).toMatchObject({ rolledBack: true, loaded: 1, failed: 1 });
   });
 
   it('skips modules without a default export', async () => {
@@ -361,6 +449,61 @@ describe('ScriptRuntime', () => {
 
       expect(api._timerValue).toBe('ok');
       expect(api._logs.some((l) => /lifecycle timeout threw: timer boom/.test(l))).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('opens a circuit after repeated script callback failures', async () => {
+    vi.useFakeTimers();
+    try {
+      const dir = mkTempDir();
+      fs.writeFileSync(path.join(dir, 'broken-timer.js'), `
+        export default (api) => api.lifecycle.setInterval(() => {
+          api._attempts = (api._attempts ?? 0) + 1;
+          throw new Error('repeat boom');
+        }, 10);
+      `);
+      const api = stubApi();
+      const rt = new ScriptRuntime(dir, api);
+      await rt.load();
+
+      vi.advanceTimersByTime(100);
+
+      expect(api._attempts).toBe(3);
+      expect(rt.loaded[0].lifecycle.stats().callbacks[0]).toMatchObject({
+        kind: 'interval', calls: 3, errors: 3, circuitTrips: 1,
+      });
+      expect(rt.loaded[0].lifecycle.stats().callbacks[0].skipped).toBeGreaterThan(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('quarantines and resumes a live script at the common callback gate', async () => {
+    vi.useFakeTimers();
+    try {
+      const dir = mkTempDir();
+      fs.writeFileSync(path.join(dir, 'controlled.js'), `
+        export default (api) => api.lifecycle.setInterval(() => {
+          api._controlledTicks = (api._controlledTicks ?? 0) + 1;
+        }, 10);
+      `);
+      const api = stubApi();
+      const rt = new ScriptRuntime(dir, api);
+      await rt.load();
+      vi.advanceTimersByTime(10);
+      expect(api._controlledTicks).toBe(1);
+
+      expect(await rt.control('controlled.js', 'quarantine')).toMatchObject({ ok: true, action: 'quarantine' });
+      vi.advanceTimersByTime(50);
+      expect(api._controlledTicks).toBe(1);
+      expect(rt.diagnostics().owners[0].resources).toMatchObject({ paused: true, pausedReason: 'quarantine' });
+
+      expect(await rt.control('controlled.js', 'resume')).toMatchObject({ ok: true, action: 'resume' });
+      vi.advanceTimersByTime(10);
+      expect(api._controlledTicks).toBe(2);
+      await rt.dispose();
     } finally {
       vi.useRealTimers();
     }

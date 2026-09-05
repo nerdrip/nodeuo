@@ -1,5 +1,5 @@
 // KrampusLedgerGump — naughty/nice score viewer for the Krampus seasonal
-// event (ServUO `Services/Seasonal Events/Krampus/*.cs`). Faza F.3.11.
+// event (ServUO `Services/Seasonal Events/Krampus/*.cs`). Phase F.3.11.
 //
 // Players see their accumulated nice and naughty scores plus a small
 // summary of expected reward biasing. The server pushes the values via

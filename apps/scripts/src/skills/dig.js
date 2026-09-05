@@ -98,7 +98,7 @@ export default function register(api) {
           parent: chest.serial, name: 'magic scroll',
         });
       }
-      // Broadcast the chest spawn — BUGFIX #65 (FAZA CW): visibility-gate.
+      // Broadcast the chest spawn — BUGFIX #65 (PHASE CW): visibility-gate.
       if (api.protocol?.worldItemSA) {
         const wi = api.protocol.worldItemSA({
           serial: chest.serial, itemId: chest.itemId, hue: chest.hue,

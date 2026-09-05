@@ -1,13 +1,13 @@
-// Masonry — secondary crafting skill (id 31, Stonecrafting). Mirrors
+// Masonry — learned secondary branch of Carpentry (skill id 12). Mirrors
 // ServUO `DefMasonry.cs`. Players need granite blocks (refined from
-// stone via Mining + Stonecrafting talent) to produce paving + stone
+// stone via Mining + the Masonry knowledge book) to produce paving + stone
 // furniture for housing. We focus on the iconic recipes.
 
 
 // --- queue-and-flush loader pattern -------------------------------------
 const __PENDING__ = [];
 
-const SKILL = 31;
+const SKILL = 12;
 
 const ITEM = {
   Granite:           0x1779, // raw granite block
@@ -31,8 +31,10 @@ function recipe(id, name, category, minSkill, output, inputs, opts = {}) {
     id, name, category, skillId: SKILL,
     minSkill, maxSkill: opts.maxSkill ?? minSkill + 200,
     outputItemId: output, outputCount: opts.outputCount ?? 1,
+    toolKind: 'mason',
     inputs: inputs.map(([itemId, count]) => ({ itemId, count })),
     exceptionalChance: opts.exceptionalChance ?? 0.05,
+    requiresRecipe: 'masonry',
   });
 }
 
@@ -60,7 +62,8 @@ export default function register(api) {
   const sys = api.systems?.crafting;
   if (!sys?.registerRecipe) { api.log?.('crafting/masonry: engine missing, skipping'); return () => {}; }
   let count = 0;
-  for (const def of __PENDING__) { try { sys.registerRecipe(def); count++; } catch (e) { api.log?.('crafting/masonry: ' + e.message); } }
+  const owned = [];
+  for (const def of __PENDING__) { try { const registered = sys.registerRecipe(def); if (registered !== false) { owned.push(registered ?? sys.getRecipe?.(def.id) ?? def); count++; } } catch (e) { api.log?.('crafting/masonry: ' + e.message); } }
   api.log?.('crafting/masonry: registered ' + count + ' recipes');
-  return () => {};
+  return () => { for (const def of owned) sys.unregisterRecipe?.(def.id, def); };
 }

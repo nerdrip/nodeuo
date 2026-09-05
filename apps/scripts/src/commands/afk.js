@@ -1,4 +1,4 @@
-// FAZA GG — `[afk` away-from-keyboard toggle.
+// PHASE GG — `[afk` away-from-keyboard toggle.
 //
 // Sets `mob.afk = true` so other players can see "(AFK)" in single-
 // click responses (LookReq). Auto-cleared on movement / speech (caller

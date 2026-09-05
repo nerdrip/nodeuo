@@ -1,6 +1,6 @@
 // Item templates + AI scheduler basic tests.
 
-import { describe, it, expect, afterEach, beforeEach } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import { World } from '../src/world/world.js';
 import { registerTemplate, spawn, useItem, _resetTemplatesForTest, templateNames } from '../src/world/templates.js';
 import { AIScheduler } from '../src/world/ai.js';
@@ -147,5 +147,50 @@ describe('AIScheduler', () => {
     ai.attach(mob, 'x');
     ai.unregisterBehavior('x');
     expect(ai.bindings.has(mob.serial)).toBe(false);
+  });
+
+  it('hibernates distant NPCs and wakes them when a player enters the area', () => {
+    const world = new World();
+    const npc = world.createMobile({ name: 'Sleeper', x: 10, y: 10, map: 1 });
+    const player = world.createMobile({ name: 'Player', x: 200, y: 200, map: 1 });
+    player.client = { send() {} };
+    let ticks = 0;
+    const ai = new AIScheduler(world, {
+      mobileMovingPacket: () => new Uint8Array(), unicodeSpeechPacket: () => new Uint8Array(),
+    });
+    world._ai = ai;
+    ai.registerBehavior({ name: 'lod-counter', tick: () => ticks++ });
+    ai.attach(npc, 'lod-counter');
+
+    ai._tickAll();
+    expect(ticks).toBe(0);
+    expect(ai.inspect(npc.serial)?.status).toBe('hibernating');
+
+    player.x = 11; player.y = 10;
+    world.sectors.moveMobile(player);
+    ai._tickAll();
+    expect(ticks).toBe(1);
+    expect(ai.runtimeSnapshot()).toMatchObject({ wakeups: 1, hibernating: 1 });
+  });
+
+  it('wakes a damaged NPC toward its attacker and isolates a broken behavior', () => {
+    const world = new World();
+    const npc = world.createMobile({ name: 'Broken', x: 10, y: 10, map: 1 });
+    const attacker = world.createMobile({ name: 'Attacker', x: 11, y: 10, map: 1 });
+    const ai = new AIScheduler(world, {
+      mobileMovingPacket: () => new Uint8Array(), unicodeSpeechPacket: () => new Uint8Array(),
+    });
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      ai.registerBehavior({ name: 'always-broken', tick() { throw new Error('AI failed'); } });
+      ai.attach(npc, 'always-broken', {});
+      expect(ai.wake(npc, attacker)).toBe(true);
+      expect(ai.bindings.get(npc.serial).state.targetSerial).toBe(attacker.serial);
+      ai._tickAll(); ai._tickAll(); ai._tickAll(); ai._tickAll();
+      expect(ai.runtimeSnapshot().behaviors['always-broken']).toMatchObject({ calls: 3, errors: 3 });
+      expect(ai.inspect(npc.serial)?.status).toBe('circuit-open');
+    } finally {
+      error.mockRestore();
+    }
   });
 });

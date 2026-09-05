@@ -38,8 +38,7 @@ const DECO_PATH = resolve(__dirname, '..', '..', 'data', 'world', 'decorations.j
 // Sentinel returned by `classifyType` for entries that another bulk
 // command owns end-to-end (doorgen / signgen / telgen / moongate spawner).
 // `applyDecorations` SKIPS these so we don't create a payload-less
-// duplicate at the same coords — the user complaint was "nie wszędzie
-// były drzwi, plus nie dało się ich tworzyć" which traced to decorate
+// duplicate at the same coords. Missing/nonfunctional doors traced to decorate
 // stamping ~2 100 doors as plain decorations BEFORE doorgen ran, leaving
 // every gate as a non-interactive sprite half the time and a working
 // door the other half (depending on which item the click hit first).

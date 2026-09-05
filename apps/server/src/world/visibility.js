@@ -37,6 +37,14 @@ export function inRange(a, b, range = UPDATE_RANGE) {
   return Math.max(dx, dy) <= range;
 }
 
+/** Server-side phase filtering also protects classic clients: they simply
+ * never receive entities from another layer and require no new packet. */
+export function inWorldLayer(observer, entity) {
+  const observerLayer = String(observer?.nodeUOWorldLayer || 'base');
+  const entityLayer = String(entity?.nodeUOWorldLayer || 'base');
+  return observerLayer === '*' || entityLayer === '*' || observerLayer === entityLayer;
+}
+
 /** True when the sectors index has at least one entry per known mobile.
  *  Tests stuff values straight into world.mobiles via `.set()` (bypassing
  *  createMobile, which is what populates sectors), and a stale or empty
@@ -67,16 +75,22 @@ function _itemsSectorsUsable(world) {
 }
 
 function _sectorCandidates(world, kind, center, range) {
-  const revision = world.sectors.revisionForRange?.(center.map | 0, center.x | 0, center.y | 0, range | 0)
+  // All centers inside one 8x8 sector share a conservative candidate set.
+  // Exact `inRange` filtering still happens below, but hundreds of AI mobs
+  // in the same sector no longer allocate identical serial arrays separately.
+  const anchorX = ((center.x | 0) >> 3) * 8 + 3;
+  const anchorY = ((center.y | 0) >> 3) * 8 + 3;
+  const candidateRange = (range | 0) + 8;
+  const revision = world.sectors.revisionForRange?.(center.map | 0, anchorX, anchorY, candidateRange)
     ?? world.sectors.revision ?? 0;
   // The governor cache is process-wide, therefore the world identity must be
   // part of the key (tests and staged world reloads may share revisions).
-  const key = `${_worldCacheId(world)}:${kind}:${center.map | 0}:${center.x | 0}:${center.y | 0}:${range | 0}`;
+  const key = `${_worldCacheId(world)}:${kind}:${center.map | 0}:${anchorX >> 3}:${anchorY >> 3}:${range | 0}`;
   let serials = runtimeGovernor.visibilityCache.get(key, revision);
   if (serials) return serials;
   serials = [...(kind === 'mobile'
-    ? world.sectors.mobileSerialsNear(center.map | 0, center.x, center.y, range)
-    : world.sectors.itemSerialsNear(center.map | 0, center.x, center.y, range))];
+    ? world.sectors.mobileSerialsNear(center.map | 0, anchorX, anchorY, candidateRange)
+    : world.sectors.itemSerialsNear(center.map | 0, anchorX, anchorY, candidateRange))];
   return runtimeGovernor.visibilityCache.set(key, revision, serials);
 }
 
@@ -89,12 +103,14 @@ export function* nearbyClients(world, center, self = null, range = UPDATE_RANGE)
   if (_mobilesSectorsUsable(world)) {
     for (const serial of _sectorCandidates(world, 'mobile', center, range)) {
       const m = world.mobiles.get(serial);
-      if (!m || m === self || !m.client) continue;
+      if (!m || m === self || !m.client || !inWorldLayer(center, m)) continue;
       if (inRange(center, m, range)) yield m;
     }
     return;
   }
-  yield* legacyNearbyClients(world, center, self, range, inRange);
+  for (const mobile of legacyNearbyClients(world, center, self, range, inRange)) {
+    if (inWorldLayer(center, mobile)) yield mobile;
+  }
 }
 
 /**
@@ -109,12 +125,14 @@ export function* nearbyMobiles(world, center, self = null, range = UPDATE_RANGE)
       // dismount, but it is represented on the wire by the rider's Layer 25
       // item. Streaming the backing pet as an ordinary mobile creates the
       // second horse seen a few tiles behind the rider.
-      if (!m || m === self || m.mounted) continue;
+      if (!m || m === self || m.mounted || !inWorldLayer(center, m)) continue;
       if (inRange(center, m, range)) yield m;
     }
     return;
   }
-  yield* legacyNearbyMobiles(world, center, self, range, inRange);
+  for (const mobile of legacyNearbyMobiles(world, center, self, range, inRange)) {
+    if (inWorldLayer(center, mobile)) yield mobile;
+  }
 }
 
 /**
@@ -126,10 +144,12 @@ export function* nearbyItems(world, center, range = UPDATE_RANGE) {
   if (_itemsSectorsUsable(world)) {
     for (const serial of _sectorCandidates(world, 'item', center, range)) {
       const it = world.items.get(serial);
-      if (!it || it.parent || it.visible === false) continue;
+      if (!it || it.parent || it.visible === false || !inWorldLayer(center, it)) continue;
       if (inRange(center, it, range)) yield it;
     }
     return;
   }
-  yield* legacyNearbyItems(world, center, range, inRange);
+  for (const item of legacyNearbyItems(world, center, range, inRange)) {
+    if (inWorldLayer(center, item)) yield item;
+  }
 }

@@ -1,4 +1,4 @@
-// FAZA EW — Slayer weapons (ServUO `Items/Weapons/SlayerEntries.cs`).
+// PHASE EW — Slayer weapons (ServUO `Items/Weapons/SlayerEntries.cs`).
 //
 // Weapons can carry a `slayer` tag that doubles damage against a
 // matching creature kind. Mirrors ServUO's "Silver" (undead),

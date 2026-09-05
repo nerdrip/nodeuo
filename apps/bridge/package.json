@@ -8,10 +8,14 @@
     "start": "node ./src/main.js",
     "start:debug": "node ./src/main.js --debug",
     "dev": "node --watch ./src/main.js",
-    "dev:debug": "node --watch ./src/main.js --debug"
+    "dev:debug": "node --watch ./src/main.js --debug",
+    "test": "vitest run"
   },
   "dependencies": {
     "@uo/protocol": "workspace:*",
     "ws": "^8.21.0"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.10"
   }
 }

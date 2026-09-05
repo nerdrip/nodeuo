@@ -37,6 +37,10 @@ import {
 } from './login-character-creation.js';
 
 const LS_PREFIX = 'uo.login.';
+// Terrain priming is an optional visual optimization. It must never hold the
+// login state machine indefinitely when a range request or texture decode is
+// slow on a cold disk/browser cache.
+const INITIAL_TERRAIN_WARMUP_BUDGET_MS = 4_000;
 let loginProfileCache;
 
 // Login only needs four scalar preferences. Importing the full in-game
@@ -1490,7 +1494,26 @@ export class LoginScene extends Scene {
     this._setLoadingProgress(0.68, 'Shard accepted · warming nearby terrain');
     const { GameScene } = await this._prepareWorld();
     try {
-      await this._warmInitialTerrain();
+      const warmup = this._warmInitialTerrain().then(
+        () => ({ completed: true }),
+        (error) => ({ error }),
+      );
+      let timeoutId;
+      const outcome = await Promise.race([
+        warmup,
+        new Promise((resolve) => {
+          timeoutId = setTimeout(
+            () => resolve({ timedOut: true }),
+            INITIAL_TERRAIN_WARMUP_BUDGET_MS,
+          );
+        }),
+      ]);
+      clearTimeout(timeoutId);
+      if (outcome.error) throw outcome.error;
+      if (outcome.timedOut) {
+        this._setLoadingProgress(0.98, 'Entering world · terrain continues streaming');
+        console.warn(`[login] terrain warm-up exceeded ${INITIAL_TERRAIN_WARMUP_BUDGET_MS}ms; continuing in background`);
+      }
     } catch (error) {
       // Streaming can recover inside GameScene, so a corrupt optional static
       // block must not strand the user on the gateway forever.

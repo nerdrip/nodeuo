@@ -4,6 +4,31 @@
 
 const MIB = 1024 * 1024;
 
+function taskAbortError(reason) {
+  if (reason) return reason;
+  const error = new Error('Aborted'); error.name = 'AbortError'; return error;
+}
+
+/** Run non-frame-critical work through the browser Scheduling API when it is
+ * available. The fallback preserves cancellation and delay semantics without
+ * adding a dependency or changing behavior in older browsers. */
+export function postPrioritizedTask(run, { priority = 'background', delay = 0, signal } = {}) {
+  if (typeof run !== 'function') return Promise.reject(new TypeError('task run must be a function'));
+  if (signal?.aborted) return Promise.reject(taskAbortError(signal.reason));
+  if (globalThis.scheduler?.postTask) return globalThis.scheduler.postTask(run, { priority, delay, signal });
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal?.removeEventListener?.('abort', abort);
+      try { resolve(run()); } catch (error) { reject(error); }
+    }, Math.max(0, Number(delay) || 0));
+    const abort = () => {
+      clearTimeout(timer);
+      reject(taskAbortError(signal.reason));
+    };
+    signal?.addEventListener?.('abort', abort, { once: true });
+  });
+}
+
 export function createClientRuntimeProfile(env = globalThis) {
   const memory = Math.max(1, Math.min(16, Number(env?.navigator?.deviceMemory) || 4));
   const cores = Math.max(2, Math.min(16, Number(env?.navigator?.hardwareConcurrency) || 4));
@@ -37,6 +62,7 @@ export class FrameTaskScheduler {
     this._now = now;
     this.budgetMs = Math.max(0.25, Number(budgetMs) || 4);
     this._queues = [[], [], [], []];
+    this._heads = [0, 0, 0, 0];
     this._byKey = new Map();
     this._baseBudgetMs = this.budgetMs;
     this._frameEmaMs = 16.7;
@@ -113,14 +139,130 @@ export class FrameTaskScheduler {
   }
 
   _take() {
-    for (const queue of this._queues) {
-      while (queue.length) {
-        const task = queue.shift();
+    for (let priority = 0; priority < this._queues.length; priority++) {
+      const queue = this._queues[priority];
+      while (this._heads[priority] < queue.length) {
+        const task = queue[this._heads[priority]++];
+        if (this._heads[priority] > 1024 && this._heads[priority] * 2 >= queue.length) {
+          this._queues[priority] = queue.slice(this._heads[priority]);
+          this._heads[priority] = 0;
+        }
         if (!task.cancelled) return task;
       }
+      queue.length = 0;
+      this._heads[priority] = 0;
     }
     return null;
   }
+}
+
+// Runtime quality is a pressure state layered on top of the hardware profile.
+// It never changes persistent user preferences: renderers consult it only when
+// their option is set to Automatic. Downgrades are immediate; recovery needs
+// several healthy windows to prevent oscillation around a threshold.
+export class AdaptiveQualityController {
+  constructor({ sampleSize = 240, evaluateEvery = 60, recoveryWindows = 3 } = {}) {
+    this.sampleSize = Math.max(60, Math.min(1_200, sampleSize | 0));
+    this.evaluateEvery = Math.max(10, Math.min(this.sampleSize, evaluateEvery | 0));
+    this.recoveryWindows = Math.max(2, Math.min(12, recoveryWindows | 0));
+    this._frames = new Float32Array(this.sampleSize);
+    this._head = 0;
+    this._count = 0;
+    this._sinceEvaluation = 0;
+    this._healthyWindows = 0;
+    this.level = 'nominal';
+    this.transitions = 0;
+    this.lastEvaluation = {
+      level: this.level, samples: 0, p50Ms: 0, p95Ms: 0, p99Ms: 0,
+      longFrameRate: 0, qualityScale: 1, changed: false,
+    };
+  }
+
+  observeFrame(frameMs, at = performance.now()) {
+    const ms = Number(frameMs);
+    if (!Number.isFinite(ms) || ms <= 0) return null;
+    this._frames[this._head] = Math.min(1_000, ms);
+    this._head = (this._head + 1) % this.sampleSize;
+    this._count = Math.min(this.sampleSize, this._count + 1);
+    if (++this._sinceEvaluation < this.evaluateEvery || this._count < this.evaluateEvery) return null;
+    this._sinceEvaluation = 0;
+    return this.evaluate(at);
+  }
+
+  evaluate(at = performance.now()) {
+    const values = [];
+    for (let offset = 0; offset < this._count; offset++) {
+      const index = (this._head - 1 - offset + this.sampleSize) % this.sampleSize;
+      values.push(this._frames[index]);
+    }
+    values.sort((a, b) => a - b);
+    const pick = (fraction) => values.length
+      ? values[Math.max(0, Math.min(values.length - 1, Math.ceil(values.length * fraction) - 1))]
+      : 0;
+    const p50Ms = pick(.5); const p95Ms = pick(.95); const p99Ms = pick(.99);
+    const longFrameRate = values.length ? values.reduce((sum, value) => sum + (value >= 50 ? 1 : 0), 0) / values.length : 0;
+    let desired = 'nominal';
+    if (p95Ms > 40 || p99Ms > 80 || longFrameRate >= .08) desired = 'critical';
+    else if (p95Ms > 23 || p99Ms > 40 || longFrameRate >= .02) desired = 'degraded';
+    const order = { nominal: 0, degraded: 1, critical: 2 };
+    const previous = this.level;
+    if (order[desired] > order[this.level]) {
+      this.level = desired;
+      this._healthyWindows = 0;
+    } else if (desired === 'nominal' && this.level !== 'nominal' && p95Ms < 18 && p99Ms < 25 && longFrameRate === 0) {
+      this._healthyWindows++;
+      if (this._healthyWindows >= this.recoveryWindows) {
+        this.level = this.level === 'critical' ? 'degraded' : 'nominal';
+        this._healthyWindows = 0;
+      }
+    } else if (desired !== 'nominal') {
+      this._healthyWindows = 0;
+    }
+    const changed = previous !== this.level;
+    if (changed) this.transitions++;
+    this.lastEvaluation = {
+      at: Number(at) || 0,
+      level: this.level,
+      previous,
+      samples: values.length,
+      p50Ms: Number(p50Ms.toFixed(2)),
+      p95Ms: Number(p95Ms.toFixed(2)),
+      p99Ms: Number(p99Ms.toFixed(2)),
+      longFrameRate: Number(longFrameRate.toFixed(4)),
+      qualityScale: this.qualityScale(),
+      healthyWindows: this._healthyWindows,
+      transitions: this.transitions,
+      changed,
+    };
+    return this.lastEvaluation;
+  }
+
+  qualityScale() { return this.level === 'critical' ? .4 : this.level === 'degraded' ? .7 : 1; }
+  snapshot() { return { ...this.lastEvaluation, level: this.level, qualityScale: this.qualityScale(), transitions: this.transitions }; }
+}
+
+export const clientPerformanceGovernor = new AdaptiveQualityController();
+
+/** Fill-rate governor for dense scenes. Resolution changes are deliberately
+ * rare and hysteretic; nominal mode always returns to pixel-perfect 1×. */
+export class AdaptiveRenderScale {
+  constructor({ minScale = .75, changeCooldownMs = 2000 } = {}) {
+    this.minScale = Math.max(.5, Math.min(1, Number(minScale) || .75));
+    this.changeCooldownMs = Math.max(250, changeCooldownMs | 0);
+    this.scale = 1;
+    this.lastChangedAt = 0;
+    this.transitions = 0;
+  }
+
+  observe(level, at = performance.now()) {
+    const desired = level === 'critical' ? this.minScale : level === 'degraded' ? Math.max(.9, this.minScale) : 1;
+    if (desired === this.scale || at - this.lastChangedAt < this.changeCooldownMs) return null;
+    const previous = this.scale;
+    this.scale = desired; this.lastChangedAt = at; this.transitions++;
+    return { previous, scale: this.scale, level, transitions: this.transitions };
+  }
+
+  snapshot() { return { scale: this.scale, minScale: this.minScale, transitions: this.transitions }; }
 }
 
 export class ResourceTelemetry {
@@ -170,20 +312,22 @@ export class AsyncWorkPool {
   constructor(limit = clientRuntimeProfile.decodeConcurrency) {
     this.limit = Math.max(1, Math.min(16, limit | 0 || 1));
     this.active = 0;
-    this._queue = [];
+    this._queues = [[], [], [], []];
+    this._heads = [0, 0, 0, 0];
     this._byKey = new Map();
     this.stats = { queued: 0, active: 0, completed: 0, failed: 0, cancelled: 0, maxActive: 0 };
   }
 
-  run(key, job) {
+  run(key, job, { priority = 2 } = {}) {
     const normalized = String(key);
     const existing = this._byKey.get(normalized);
     if (existing) return existing.promise;
     let resolve; let reject;
     const promise = new Promise((ok, fail) => { resolve = ok; reject = fail; });
-    const entry = { key: normalized, job, resolve, reject, promise, cancelled: false, started: false };
+    const entry = { key: normalized, job, resolve, reject, promise, cancelled: false, started: false,
+      priority: Math.max(0, Math.min(3, priority | 0)) };
     this._byKey.set(normalized, entry);
-    this._queue.push(entry);
+    this._queues[entry.priority].push(entry);
     this._refreshStats();
     this._pump();
     return promise;
@@ -201,8 +345,9 @@ export class AsyncWorkPool {
   }
 
   _pump() {
-    while (this.active < this.limit && this._queue.length) {
-      const entry = this._queue.shift();
+    while (this.active < this.limit) {
+      const entry = this._take();
+      if (!entry) break;
       if (entry.cancelled || this._byKey.get(entry.key) !== entry) continue;
       entry.started = true;
       this.active++;
@@ -219,6 +364,23 @@ export class AsyncWorkPool {
       });
     }
     this._refreshStats();
+  }
+
+  _take() {
+    for (let priority = 0; priority < this._queues.length; priority++) {
+      const queue = this._queues[priority];
+      while (this._heads[priority] < queue.length) {
+        const entry = queue[this._heads[priority]++];
+        if (this._heads[priority] > 1024 && this._heads[priority] * 2 >= queue.length) {
+          this._queues[priority] = queue.slice(this._heads[priority]);
+          this._heads[priority] = 0;
+        }
+        if (!entry.cancelled) return entry;
+      }
+      queue.length = 0;
+      this._heads[priority] = 0;
+    }
+    return null;
   }
 
   _refreshStats() {
@@ -269,12 +431,14 @@ export function migrateLayoutScale(rect, fromScale, toScale, viewport) {
   }, viewport);
 }
 
-export function buildClientQualityReport({ profile = clientRuntimeProfile, assets, scheduler, scene } = {}) {
+export function buildClientQualityReport({ profile = clientRuntimeProfile, assets, scheduler, scene,
+  performanceGovernor = clientPerformanceGovernor } = {}) {
   return {
     generatedAt: new Date().toISOString(),
     runtime: { ...profile, cacheLimits: { ...profile.cacheLimits } },
     assets: assets?.diagnosticsSnapshot?.() ?? assets?.atlasPageStats ?? null,
     scheduler: scheduler?.stats ? { ...scheduler.stats } : null,
+    performance: performanceGovernor?.snapshot?.() ?? null,
     scene: scene ? {
       listeners: scene._unsubs?.length ?? 0,
       timers: scene._timers?.size ?? 0,

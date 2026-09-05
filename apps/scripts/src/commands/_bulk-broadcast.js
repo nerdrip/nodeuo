@@ -5,9 +5,8 @@
 // path is INTENTIONALLY silent — broadcasting one
 // `worldItemSA` packet per item × N players would emit millions of frames
 // for a single command (and the player only sees ~18 tiles around them
-// anyway). But the user complaint was "wszystko się załadowało, musiałem
-// się przelogować żeby to zobaczyć" — they couldn't see any of it without
-// reconnecting.
+// anyway). The original failure required reconnecting before any generated
+// content became visible.
 //
 // `broadcastBulkPlacement` walks every connected player ONCE after the
 // bulk apply finishes and resends every item within their 18-tile UO

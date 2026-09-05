@@ -1,14 +1,14 @@
-// FAZA DD — peerless altar registry + key-presentation flow.
+// PHASE DD — peerless altar registry + key-presentation flow.
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
-  registerArena, getArena, listArenas, tryUnlock,
+  registerArena, getArena, listArenas, tryUnlock, validateUnlock, commitUnlock,
   isOnCooldown, markFinished, _resetArenasForTest,
 } from '../src/systems/bosses/peerless.js';
 import { World } from '../src/world/world.js';
 import { createItem } from '../src/world/items.js';
 
-describe('peerless arena registry (FAZA DD)', () => {
+describe('peerless arena registry (PHASE DD)', () => {
   beforeEach(() => _resetArenasForTest());
 
   it('registerArena + getArena + listArenas round-trip', () => {
@@ -64,6 +64,25 @@ describe('peerless arena registry (FAZA DD)', () => {
     expect(r.def.bossKind).toBe('effusion');
     // Key consumed.
     expect(w.items.has(key.serial)).toBe(false);
+  });
+
+  it('supports validate-then-commit so a failed boss spawn cannot eat offerings', () => {
+    const w = new World();
+    registerArena({
+      name: 'transactional', requiredKeys: ['peerless key'], bossKind: 'boss',
+      spawnAt: { x: 10, y: 10, z: 0, map: 1 },
+      teleportTo: { x: 8, y: 10, z: 0, map: 1 },
+    });
+    const altar = createItem(w, { itemId: 1, x: 0, y: 0, z: 0, map: 1 });
+    altar.arenaName = 'transactional';
+    const key = createItem(w, { itemId: 2, name: 'peerless key', parent: altar.serial });
+
+    const validation = validateUnlock(w, altar);
+    expect(validation.ok).toBe(true);
+    expect(w.items.has(key.serial)).toBe(true);
+    expect(commitUnlock(w, validation)).toBe(true);
+    expect(w.items.has(key.serial)).toBe(false);
+    expect(commitUnlock(w, validation)).toBe(false);
   });
 
   it('cooldown blocks re-unlock until expiry', () => {

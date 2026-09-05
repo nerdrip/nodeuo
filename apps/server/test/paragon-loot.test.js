@@ -1,4 +1,4 @@
-// FAZA DD / bugfix #72 — paragon kills must drop 1.5× gold + table
+// PHASE DD / bugfix #72 — paragon kills must drop 1.5× gold + table
 // amounts. Before the fix, paragon mobs dropped vanilla loot — the
 // whole loot-multiplier hook in paragons.js was unwired.
 

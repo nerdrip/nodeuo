@@ -121,9 +121,6 @@ export default function (api) {
         rects: [{ x1: 3650, y1: 2050, x2: 3780, y2: 2180 }] });
 
   return () => {
-    // Region registry is append-only — disposer is best-effort
-    // (no-op in practice). Hot-reload re-runs init which appends a
-    // fresh copy; primary() returns the latest by insertion order so
-    // duplicates are harmless during dev.
+    regions.regions = regions.regions.filter((r) => !registered.includes(r));
   };
 }

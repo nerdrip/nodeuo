@@ -182,6 +182,7 @@ function extraSpellDef(api, row) {
     };
   }
   if (!row.mastery) return null;
+  const mastery = api.systems?.masteryAbilities?.getMastery?.(row.mastery);
   return {
     id: row.spellId,
     name: row.servuoClass.replace(/Spell$/i, '').replace(/([a-z])([A-Z])/g, '$1 $2'),
@@ -190,8 +191,9 @@ function extraSpellDef(api, row) {
     minSkill: 0,
     mana: 0,
     delayMs: 0,
-    requiresTarget: ['CalledShot', 'Conduit', 'DeathRay', 'FocusedEye', 'Onslaught', 'Stagger', 'Thrust'].includes(row.mastery),
-    targetKind: row.mastery === 'Conduit' ? 'location' : 'object',
+    requiresTarget: mastery?.requiresTarget ?? ['CalledShot', 'Conduit', 'DeathRay', 'Onslaught', 'Stagger', 'Thrust', 'Rejuvinate'].includes(row.mastery),
+    targetKind: mastery?.targetKind === 'mobile' ? 'object'
+      : (mastery?.targetKind ?? (row.mastery === 'Conduit' ? 'location' : 'object')),
     servuoClass: row.servuoClass,
     servuoClasses: [row.servuoClass],
     servuoRegistryId: row.servuoRegistryId,

@@ -23,6 +23,7 @@ import path from 'node:path';
 import url from 'node:url';
 import { resolveStandingZ } from '../_movement.js';
 import { allMobiles } from '../_spatial.js';
+import { destroyMobileBySerial } from '../_mobiles.js';
 
 const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const DATA = path.resolve(HERE, '../data/world/regional-npcs.json');
@@ -132,8 +133,11 @@ export function placeRegionalNpcs(api, entries = null) {
       const standZ = resolveStandingZ(api, pos.map ?? 1, pos.x, pos.y, 0);
       if (Number.isFinite(standZ)) z = standZ;
     } catch { /* fall back to provided z */ }
-    const target = { x: pos.x, y: pos.y, z, map: pos.map ?? 1,
-                     name: entry.name, title: entry.title };
+    const target = {
+      x: pos.x, y: pos.y, z, map: pos.map ?? 1,
+      name: entry.name, title: entry.title,
+      body: entry.body, hue: entry.hue,
+    };
     if (alreadyPlaced(api.world, entry, target)) { out.skipped++; continue; }
 
     // Fall back to a generic vendorKind when entry omits it (NPC is
@@ -166,6 +170,16 @@ export function placeRegionalNpcs(api, entries = null) {
   return out;
 }
 
+export function deleteRegionalNpcs(api) {
+  const victims = [...allMobiles(api)].filter((mobile) => mobile._regionalId).map((mobile) => mobile.serial);
+  let removed = 0;
+  for (const serial of victims) {
+    try { destroyMobileBySerial(api, serial); removed++; }
+    catch { /* already removed */ }
+  }
+  return { removed };
+}
+
 export default function register(api) {
   if (!api.vendors?.spawnAt) {
     api.log?.('spawn/regional-npcs: vendors.spawnAt unavailable, deferring');
@@ -173,6 +187,9 @@ export default function register(api) {
   }
   // Expose for `[createworld` stage hook to reach.
   api.regionalNpcs = { place: () => placeRegionalNpcs(api) };
+  if (api.world?._createWorldDone === false) {
+    return () => { delete api.regionalNpcs; };
+  }
   // A cold world creates ~141 NPCs and several hundred worn items. Doing all
   // of that inside the script initializer made startup depend on single-core
   // speed (roughly 200-450 ms) and could trip the runtime's 250 ms safety

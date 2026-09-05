@@ -9,7 +9,7 @@ export default {
     const caster = ctx.sender;
     if ((caster.hp ?? 0) < 30) return ctx.state.sendSystemMessage('You are too weak to make the sacrifice.');
     caster.hp = Math.max(1, Math.floor((caster.hp ?? 0) * 0.2));
-    // BUGFIX #69 (FAZA DA): broadcast caster's HP drop so observers'
+    // BUGFIX #69 (PHASE DA): broadcast caster's HP drop so observers'
     // bars register the sacrifice immediately.
     broadcastHealthUpdate(api, api.world, caster);
     broadcastEffect(api, api.world, caster, aura(api, caster, { itemId: 0x376A, hue: 0x4FE, duration: 40 }));

@@ -75,3 +75,35 @@ export function removeEntity(serial) {
   w.writeU32(serial);
   return w.bytes();
 }
+
+/**
+ * 0xF6 BoatMoving — atomic hull + deck movement used by SA-era clients.
+ * Sending the hull and its passengers together avoids one-frame separation
+ * between 0xF3/0x77 updates while preserving the classic UO wire protocol.
+ */
+export function boatMoving({
+  serial, speed = 0, direction = 0, facing = 0, x, y, z,
+  passengers = [],
+}) {
+  const count = Math.min(0xffff, passengers.length | 0);
+  const length = 18 + count * 10;
+  const w = new PacketWriter(length);
+  w.writeU8(0xF6);
+  w.writeU16(length);
+  w.writeU32(serial >>> 0);
+  w.writeU8(speed & 0xff);
+  w.writeU8(direction & 0xff);
+  w.writeU8(facing & 0xff);
+  w.writeU16(x & 0xffff);
+  w.writeU16(y & 0xffff);
+  w.writeI16(z | 0);
+  w.writeU16(count);
+  for (let i = 0; i < count; i++) {
+    const passenger = passengers[i];
+    w.writeU32(passenger.serial >>> 0);
+    w.writeU16(passenger.x & 0xffff);
+    w.writeU16(passenger.y & 0xffff);
+    w.writeI16(passenger.z | 0);
+  }
+  return w.bytes();
+}

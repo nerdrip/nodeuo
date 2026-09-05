@@ -1,5 +1,5 @@
 import { spawnNPC } from './_spawn.js';
-import { moveMobile } from '../../_movement.js';
+import { allMobiles } from '../../_spatial.js';
 
 // Town crier: a very simple NPC that wanders a short distance and periodically
 // calls out one of a list of messages.
@@ -46,14 +46,7 @@ export default function register(api) {
         const [dx, dy] = deltas[dir];
         if (Math.abs((mob.x + dx) - state.home.x) <= 5 &&
             Math.abs((mob.y + dy) - state.home.y) <= 5) {
-          moveMobile(api, mob, {
-            x: (mob.x + dx) & 0xFFFF,
-            y: (mob.y + dy) & 0xFFFF,
-            z: mob.z,
-            map: mob.map,
-          });
-          mob.direction = dir;
-          ctx.broadcastMove(mob);
+          if (api.ai.stepMobile?.(mob, dir)) ctx.broadcastMove(mob);
         } else {
           mob.direction = dir;
         }
@@ -69,12 +62,20 @@ export default function register(api) {
     },
   });
 
+  // Civic restoration may have temporarily attached the generic vendor
+  // behavior before this later-loading module existed. Restore the intended
+  // behavior without a shard-wide recurring scan.
+  for (const mobile of allMobiles(api)) {
+    if (mobile.aiBehavior !== 'townCrier') continue;
+    try { api.ai.attach(mobile, 'townCrier'); } catch { /* ignore corrupt rows */ }
+  }
+
   // `[crier` — spawn a town crier at the sender's feet.
   api.commands.register({
     name: 'crier',
     help: '[crier — spawn a wandering town crier at your feet',
     run(ctx) {
-      // FAZA CB — route through spawnNPC so the crier comes dressed.
+      // PHASE CB — route through spawnNPC so the crier comes dressed.
       const npc = spawnNPC(api, ctx.sender, {
         name: 'Town Crier',
         body: 0x0190, hue: 0x83EA,

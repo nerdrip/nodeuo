@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "quick": {
+    "movesPerSecond": 500000,
+    "heapMiB": 8
+  },
+  "tolerance": {
+    "throughputRatio": 0.7,
+    "heapRatio": 1.75,
+    "heapSlackMiB": 8
+  }
+}

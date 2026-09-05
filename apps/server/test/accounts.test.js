@@ -18,6 +18,22 @@ describe('password hashing', () => {
 });
 
 describe('AccountDB', () => {
+  it('imports a legacy accounts.json exactly once into SQLite', () => {
+    const dir = tmpDir();
+    fs.writeFileSync(path.join(dir, 'accounts.json'), JSON.stringify([{
+      username: 'legacy', hash: hashPassword('pw'), created: new Date(0).toISOString(),
+      accessLevel: 'GM', banned: false,
+    }]));
+    const db = new AccountDB(dir);
+    db.load();
+    expect(db.authenticate('legacy', 'pw').ok).toBe(true);
+
+    fs.writeFileSync(path.join(dir, 'accounts.json'), '[]');
+    const restarted = new AccountDB(dir);
+    restarted.load();
+    expect(restarted.authenticate('legacy', 'pw').ok).toBe(true);
+  });
+
   it('replaces an existing accounts snapshot repeatedly on Windows-safe paths', () => {
     const dir = tmpDir();
     const db = new AccountDB(dir);
@@ -57,6 +73,19 @@ describe('AccountDB', () => {
     // Wrong password fails without auto-create.
     const res4 = db.authenticate('alice', 'wrong');
     expect(res4.ok).toBe(false);
+  });
+
+  it('creates a durable first-run Admin only when an explicit bootstrap secret is provided', () => {
+    const dir = tmpDir();
+    const db = new AccountDB(dir);
+    db.load();
+    const created = db.ensureBootstrapAdmin({ username: 'operator', password: 'strong-test-secret' });
+    expect(created).toMatchObject({ username: 'operator', accessLevel: 'Admin' });
+
+    const loaded = new AccountDB(dir);
+    loaded.load();
+    expect(loaded.authenticate('operator', 'strong-test-secret').ok).toBe(true);
+    expect(loaded.ensureBootstrapAdmin({ username: 'second', password: 'ignored' })).toBeNull();
   });
 
   it('persists to disk and reloads', () => {

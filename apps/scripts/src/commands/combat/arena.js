@@ -32,6 +32,7 @@ export default function register(api) {
     corpse: api.corpse,
     partyRegistry: api.party,
     itemsApi: api.items,
+    scheduler: api.ctx?.scheduler,
   });
 
   api.commands.register({
@@ -57,7 +58,7 @@ export default function register(api) {
           return;
         }
         if (arg1 === '2v2') {
-          const party = api.party?.getParty?.(ctx.sender);
+          const party = api.party?.partyOf?.(ctx.sender.serial);
           if (!party) { ctx.state.sendSystemMessage('You need a party for 2v2.'); return; }
           const ok = arena.enrol2v2(party);
           ctx.state.sendSystemMessage(
@@ -71,7 +72,7 @@ export default function register(api) {
 
       if (sub === 'leave') {
         arena.leave(ctx.sender);
-        const party = api.party?.getParty?.(ctx.sender);
+        const party = api.party?.partyOf?.(ctx.sender.serial);
         if (party) arena.leaveParty(party);
         ctx.state.sendSystemMessage('You have left the arena queues.');
         return;

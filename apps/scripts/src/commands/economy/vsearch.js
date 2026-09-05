@@ -25,7 +25,7 @@ export default function register(api) {
     run(ctx, args) {
       const argv = args ?? [];
       if ((argv[0] ?? '').toLowerCase() === 'gump') {
-        // Faza H.2 — emit sentinel; the client gump builds the query
+        // Phase H.2 — emit sentinel; the client gump builds the query
         // form and re-issues `[vsearch <text> filters` on submit.
         ctx.state.sendSystemMessage?.('@@OPEN_VENDORSEARCH_GUMP@@');
         return;

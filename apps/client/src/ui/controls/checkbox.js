@@ -8,7 +8,7 @@ import { GumpPic } from './gump-pic.js';
 
 export class Checkbox extends Control {
   /** @param {object} p
-   *  @param {number}  [p.uncheckedGump]  gump.mul id (placeholder until FAZA 2)
+   *  @param {number}  [p.uncheckedGump]  gump.mul id (placeholder until PHASE 2)
    *  @param {number}  [p.checkedGump]
    *  @param {number}  [p.switchId]       server response switch id
    *  @param {boolean} [p.checked]

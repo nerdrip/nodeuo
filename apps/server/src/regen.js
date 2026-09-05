@@ -20,10 +20,19 @@ const SKILL_FOCUS      = 51;
 
 let _hpFn = null, _manaFn = null, _stamFn = null;
 
-export function setFormulas({ hpPerSecond: hp, manaPerSecond: mp, stamPerSecond: sp } = {}) {
-  if (typeof hp === 'function') _hpFn = hp;
-  if (typeof mp === 'function') _manaFn = mp;
-  if (typeof sp === 'function') _stamFn = sp;
+export function setFormulas(formulas = {}) {
+  // Hot-reload cleanup passes explicit nulls. The old implementation only
+  // accepted functions, so unloading the script left closures from the old
+  // module installed forever.
+  if (Object.hasOwn(formulas, 'hpPerSecond')) {
+    _hpFn = typeof formulas.hpPerSecond === 'function' ? formulas.hpPerSecond : null;
+  }
+  if (Object.hasOwn(formulas, 'manaPerSecond')) {
+    _manaFn = typeof formulas.manaPerSecond === 'function' ? formulas.manaPerSecond : null;
+  }
+  if (Object.hasOwn(formulas, 'stamPerSecond')) {
+    _stamFn = typeof formulas.stamPerSecond === 'function' ? formulas.stamPerSecond : null;
+  }
 }
 
 /**
@@ -35,20 +44,23 @@ function hpPerSecondDefault(mob) {
   if ((mob.hp ?? 0) <= 0 || mob.ghost) return 0;
   const max = mob.hpMax ?? 50;
   if (mob.hp >= max) return 0;
-  // FAZA DP: Camping "rested" buff doubles HP regen for the duration.
-  // FAZA DS: 'sated' (food) also doubles regen. Stacking with rested
+  // PHASE DP: Camping "rested" buff doubles HP regen for the duration.
+  // PHASE DS: 'sated' (food) also doubles regen. Stacking with rested
   // multiplies — players who eat AND camp get 4× regen, the canonical
   // ServUO "well-prepared adventurer" combo.
   let mult = 1;
   if (hasEffect(mob, 'rested')) mult *= 2;
   if (hasEffect(mob, 'sated'))  mult *= 2;
-  return Math.max(0.1, (max / 100) * mult);
+  const toughness = (mob._toughnessUntil ?? 0) > Date.now()
+    ? ((mob._toughnessRegen | 0) || 2) : 0;
+  const resilience = (mob._resilienceUntil ?? 0) > Date.now() ? 5 : 0;
+  return Math.max(0.1, (max / 100) * mult + toughness + resilience);
 }
 
 function hasEffect(mob, name) {
   const fx = mob?.effects;
   if (!fx) return false;
-  // BUGFIX #87 (FAZA DS): regen ticks at 1 Hz but the status-effect
+  // BUGFIX #87 (PHASE DS): regen ticks at 1 Hz but the status-effect
   // sweeper runs less often (every few seconds). Between sweeps an
   // expired effect would still be in `mob.effects` — players got a
   // few extra ticks of food/rest regen after the buff really should
@@ -71,7 +83,8 @@ function stamPerSecondDefault(mob) {
   if ((mob.hp ?? 0) <= 0 || mob.ghost) return 0;
   const max = mob.stamMax ?? mob.dex ?? 50;
   if ((mob.stam ?? 0) >= max) return 0;
-  return Math.max(0.5, (mob.dex ?? 50) / 50);
+  const resilience = (mob._resilienceUntil ?? 0) > Date.now() ? 5 : 0;
+  return Math.max(0.5, (mob.dex ?? 50) / 50 + resilience);
 }
 
 function manaPerSecondDefault(mob) {
@@ -81,7 +94,8 @@ function manaPerSecondDefault(mob) {
   const base = (mob.int ?? 50) / 50;
   const med = effectiveSkill(mob, SKILL_MEDITATION) / 100;
   const focus = effectiveSkill(mob, SKILL_FOCUS) / 200;
-  return Math.max(0.2, base * (1 + med + focus) * racialManaRegenMul(mob));
+  const resilience = (mob._resilienceUntil ?? 0) > Date.now() ? 5 : 0;
+  return Math.max(0.2, base * (1 + med + focus) * racialManaRegenMul(mob) + resilience);
 }
 
 // Dispatchers — call script-supplied formula if registered, else default.
@@ -127,11 +141,22 @@ export function regenTick(world, elapsedMs) {
         && (mob.stam ?? 0) >= stMax
         && !mob._regenAcc
         && !mob._bleedUntil && !mob._burnUntil
+        && !mob._despairUntil && !mob._etherealBurstUntil && !mob._shadowUntil
+        && !mob._invigorateUntil
         && !mob._mortalStrikeUntil
         && !mob.effects) {
       continue;
     }
     const acc = mob._regenAcc ?? (mob._regenAcc = { hp: 0, mana: 0, stam: 0 });
+
+    if ((mob._etherealBurstUntil ?? 0) > now && (mob._etherealBurstPool ?? 0) > 0) {
+      const burst = Math.min(mob._etherealBurstPool, (100 / 6) * seconds);
+      acc.mana += burst;
+      mob._etherealBurstPool = Math.max(0, mob._etherealBurstPool - burst);
+    } else if (mob._etherealBurstUntil) {
+      mob._etherealBurstUntil = 0;
+      mob._etherealBurstPool = 0;
+    }
 
     // Mortal Strike — Bushido / Necromancy effect that blocks all
     // hp regen for `mob._mortalStrikeUntil` ms (ServUO StatusEffect.cs:
@@ -144,6 +169,35 @@ export function regenTick(world, elapsedMs) {
     if (!mortalActive && mob._mortalStrikeUntil) mob._mortalStrikeUntil = 0;
 
     let changed = { hp: false, mana: false, stam: false };
+
+    if ((mob._despairUntil ?? 0) > now && (mob.hp | 0) > 0) {
+      if ((mob._despairNextTickAt ?? 0) <= now) {
+        const despair = Math.max(1, (mob._despairDmg | 0) || 10);
+        mob.hp = Math.max(0, (mob.hp | 0) - despair);
+        mob._despairNextTickAt = now + 2_000;
+        changed.hp = true;
+        try { _onDoTDamage?.(world, mob, despair); } catch { /* advisory */ }
+      }
+    } else if (mob._despairUntil) {
+      mob._despairUntil = 0;
+      mob._despairDmg = 0;
+      mob._despairNextTickAt = 0;
+    }
+    if (mob._shadowUntil && mob._shadowUntil <= now) {
+      mob._shadowUntil = 0;
+      mob.hidden = false;
+    }
+    if ((mob._invigorateUntil ?? 0) > now) {
+      if ((mob._invigorateNextHealAt ?? 0) <= now && (mob.hp | 0) > 0) {
+        const before = mob.hp | 0;
+        mob.hp = Math.min(mob.hpMax ?? 50, before + 10);
+        mob._invigorateNextHealAt = now + 4_000;
+        if (mob.hp !== before) changed.hp = true;
+      }
+    } else if (mob._invigorateUntil) {
+      mob._invigorateUntil = 0;
+      mob._invigorateNextHealAt = 0;
+    }
 
     if (acc.hp >= 1) {
       const gain = Math.floor(acc.hp);
@@ -191,7 +245,7 @@ export function regenTick(world, elapsedMs) {
     // grants 4-6 HP per second for 8 s. Was dead-code before; bug-hunt
     // #4 A2 fix. Counter-Attack / Evasion already have read-paths in
     // combat-formulas, so only Confidence needed a tick consumer.
-    if ((mob.confidenceUntil | 0) > now) {
+    if ((Number(mob.confidenceUntil) || 0) > now) {
       const heal = mob.confidenceRegen | 0;
       if (heal > 0 && (mob.hp | 0) > 0) {
         const max = mob.hpMax ?? 50;
@@ -253,6 +307,7 @@ export function regenTick(world, elapsedMs) {
         }));
       }
     }
+    if (changed.hp || changed.mana || changed.stam) world.markMobileVitals?.(mob);
   }
 }
 

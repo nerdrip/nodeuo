@@ -1,4 +1,4 @@
-// FAZA BY — `[faction <name|leave|status>` user command.
+// PHASE BY — `[faction <name|leave|status>` user command.
 //
 // Joining is intentionally a single-step operation; ServUO has a 3-day
 // recruit waiting period that we deliberately skip for MVP. Leaving

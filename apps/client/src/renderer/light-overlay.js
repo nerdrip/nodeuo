@@ -66,8 +66,7 @@ export function darknessOverlayColor(level, useAlternativeLights = false) {
 // a localized additive disc anchored to the player's tile, NOT a
 // uniform reduction of the global darkness rect. Earlier our overlay
 // subtracted `personalLightLevel` from `overall` (line ~135), which
-// brightened the ENTIRE viewport when a torch was lit — user report
-// 2026-05-19 "pochodnia ... rozświetla cały obszar gry". Personal
+// brightened the ENTIRE viewport when a torch was lit. Personal
 // light is now handled by `light-points.js#syncPersonalLight` which
 // attaches a moving disc to the player serial; this module no longer
 // modifies darkness based on it. The variable below is kept (and

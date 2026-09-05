@@ -1,4 +1,4 @@
-// FAZA BP — `applyOutfit()` smoke test.
+// PHASE BP — `applyOutfit()` smoke test.
 //
 // Exercises the preset → equipped-items pipeline directly (without going
 // through the [outfit command). Covers:
@@ -15,7 +15,7 @@ import {
 } from '../src/world/templates.js';
 import { applyOutfit, _PRESETS_FOR_TEST } from '../../scripts/src/items/behaviors/clothing-presets.js';
 
-describe('applyOutfit (FAZA BP)', () => {
+describe('applyOutfit (PHASE BP)', () => {
   beforeEach(() => {
     _resetTemplatesForTest();
     // Register stubs for each template the presets reference.

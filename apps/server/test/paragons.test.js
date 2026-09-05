@@ -1,4 +1,4 @@
-// FAZA CY — paragon mob templates. ServUO ML elite-creature flag with
+// PHASE CY — paragon mob templates. ServUO ML elite-creature flag with
 // ×4 HP, ×2 str, orange hue, "a paragon …" name prefix.
 
 import { describe, it, expect } from 'vitest';
@@ -8,7 +8,7 @@ import {
 } from '../src/systems/paragons.js';
 import { World } from '../src/world/world.js';
 
-describe('paragons (FAZA CY)', () => {
+describe('paragons (PHASE CY)', () => {
   it('paragonize sets the orange hue + name prefix + stat multipliers', () => {
     // Audit #43 P2-2 — paragons now use ServUO canon scalars
     // (HP×5, Str×1.05, Dex×1.20, Int×1.20, ...). Was HP×4/Str×2.
@@ -65,7 +65,7 @@ describe('paragons (FAZA CY)', () => {
     expect(paragonLootMultiplier(null)).toBe(1.0);
   });
 
-  // FAZA DB / bugfix #70: retroactive paragonize must re-broadcast
+  // PHASE DB / bugfix #70: retroactive paragonize must re-broadcast
   // mobileIncoming so observer clients see the new orange hue + name
   // immediately. Without this the change only became visible after the
   // mob's next movement packet.

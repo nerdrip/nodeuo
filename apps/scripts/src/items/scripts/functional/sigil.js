@@ -11,10 +11,21 @@
 import {
   dropSigil,
   getSigil,
-  listSigils,
   pickupSigil,
   registerSigil,
+  resetSigils,
 } from '../../../_sigils.js';
+import { allItems } from '../../../_spatial.js';
+import { canCreateItem, createItem, destroyItemBySerial } from '../../../_items.js';
+import { itemBySerial } from '../../../_entities.js';
+
+const STANDARD_SIGILS = [
+  ['britain',  1495, 1629, 1],
+  ['magincia', 3713, 2113, 1],
+  ['minoc',    2479,  439, 1],
+  ['trinsic',  1846, 2745, 1],
+  ['yew',       633,  858, 1],
+];
 
 export default function buildSigilScript(api) {
   return {
@@ -48,19 +59,50 @@ export default function buildSigilScript(api) {
   };
 }
 
-// Convenience export — main.js / `[createworld` decorate pass can call
-// this to pre-register the 5 standard sigil coordinates at boot.
-export function registerStandardSigils(api) {
-  if (listSigils(api).length > 0) return;
-  // Coordinates approximate town squares (Felucca facet, map=0).
-  const coords = [
-    ['britain',  1496, 1626, 0],
-    ['magincia', 3713, 2113, 0],
-    ['minoc',    2479,  439, 0],
-    ['trinsic',  1846, 2745, 0],
-    ['yew',       633,  858, 0],
-  ];
-  for (const [t, x, y, m] of coords) {
-    if (!getSigil(api, t)) registerSigil(api, t, x, y, m);
+// Create/restore the five standard physical sigils and bind their runtime
+// ownership state. Called by `[createworld` and populated-world restart.
+export function registerStandardSigils(api, opts = {}) {
+  const facets = opts.facets ? new Set(opts.facets) : null;
+  if (!canCreateItem(api, api.world)) return { added: 0, failed: 1 };
+  let added = 0; let skipped = 0;
+  for (const [town, x, y, map] of STANDARD_SIGILS) {
+    if (facets && !facets.has(map)) continue;
+    if (!getSigil(api, town)) registerSigil(api, town, x, y, map);
+    let item = [...allItems(api)].find((candidate) =>
+      (candidate._sigilTown === town || candidate.name === `Sigil of ${town}`) &&
+      candidate.map === map && candidate.x === x && candidate.y === y);
+    if (!item) {
+      item = createItem(api, api.world, {
+        itemId: 0x1869, hue: 0x44, x, y, z: 0, map,
+        name: `Sigil of ${town}`, movable: true, script: 'sigil',
+      });
+      added++;
+    } else skipped++;
+    item._sigilTown = town;
+    item._worldContentSeed = 'faction-sigils';
   }
+  return { added, skipped };
+}
+
+export function deleteStandardSigils(api, opts = {}) {
+  const facets = opts.facets ? new Set(opts.facets) : null;
+  if (facets && !STANDARD_SIGILS.some((entry) => facets.has(entry[3]))) return { removed: 0 };
+  const towns = new Set(STANDARD_SIGILS.map(([town]) => town));
+  const serials = [];
+  for (const item of allItems(api)) {
+    const town = item._sigilTown ?? String(item.name ?? '').replace(/^Sigil of /, '');
+    const canonical = STANDARD_SIGILS.some(([id, x, y, map]) =>
+      id === town && item.map === map && item.x === x && item.y === y);
+    if ((item._worldContentSeed === 'faction-sigils' || canonical) && towns.has(town) &&
+        (!facets || facets.has(item.map))) serials.push(item.serial >>> 0);
+  }
+  let removed = 0;
+  for (const serial of serials) {
+    try { if (itemBySerial(api, serial)) { destroyItemBySerial(api, serial); removed++; } }
+    catch (error) { api.log?.(`[sigils] remove failed: ${error.message}`); }
+  }
+  // All canonical sigils currently share the Felucca facet. A matching
+  // partial removal therefore clears the complete logical singleton set.
+  if (!facets || STANDARD_SIGILS.some((entry) => facets.has(entry[3]))) resetSigils(api);
+  return { removed };
 }

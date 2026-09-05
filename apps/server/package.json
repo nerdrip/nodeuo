@@ -8,9 +8,10 @@
     "start": "node ./src/main.js",
     "dev": "node ./src/main.js",
     "watch": "set UO_SCRIPT_WATCH=1&& node --watch ./src/main.js",
-    "test": "vitest run"
+    "test": "vitest run --maxWorkers=1"
   },
   "dependencies": {
+    "@uo/nodeuo-protocol": "workspace:*",
     "@uo/protocol": "workspace:*",
     "sharp": "^0.35.3",
     "ws": "^8.21.0"

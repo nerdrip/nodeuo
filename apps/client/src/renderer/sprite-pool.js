@@ -100,7 +100,8 @@ class SpritePool {
     for (let i = this._free.length - 1; i >= 0; i--) {
       if (this._free[i].reusableAt > now) continue;
       sp = this._free[i].sprite;
-      this._free.splice(i, 1);
+      this._free[i] = this._free[this._free.length - 1];
+      this._free.pop();
       break;
     }
     if (sp) {
@@ -226,7 +227,8 @@ class LandMeshPool {
       const entry = this._free[i];
       if (entry.reusableAt > now) continue;
       mesh = entry.mesh;
-      this._free.splice(i, 1);
+      this._free[i] = this._free[this._free.length - 1];
+      this._free.pop();
       break;
     }
     if (!mesh) {

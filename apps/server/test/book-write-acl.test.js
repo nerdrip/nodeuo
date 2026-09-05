@@ -1,4 +1,4 @@
-// BUGFIX #40 (FAZA BX): book write packets used to apply page/title
+// BUGFIX #40 (PHASE BX): book write packets used to apply page/title
 // edits using only the book serial — anyone with the serial could
 // scribble in someone else's tome. The new `bookWriteAllowed` gate
 // requires the writer to either carry the book, stand within 3 tiles
@@ -20,7 +20,7 @@ function makeState(world, mob) {
   };
 }
 
-describe('bookWriteAllowed (FAZA BX bugfix #40)', () => {
+describe('bookWriteAllowed (PHASE BX bugfix #40)', () => {
   it('rejects unknown serials', () => {
     const w = new World();
     const mob = w.createMobile({ name: 'a', body: 0x190, x: 0, y: 0, z: 0, map: 1 });

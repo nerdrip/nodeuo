@@ -1,8 +1,7 @@
 // Lightning Strike — Bushido offensive ability that primes the samurai's
 // next melee swing for a guaranteed crit. ServUO uses
 // `Engines/Bushido/LightningStrike.cs`. We tag a single-use status-effect
-// the combat tick can read; for MVP the buff just expires after 5s with
-// no consumption hook, so it's currently flavour + visual.
+// the combat tick consumes after the next resolved swing.
 
 import { aura, broadcastEffect, broadcastSound } from '../_helpers.js';
 

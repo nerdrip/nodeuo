@@ -70,7 +70,7 @@ export class ChampionAltar {
 
   stop() {
     this.active = false;
-    // BUGFIX #36 (FAZA BT): the previous stop() deleted serials from
+    // BUGFIX #36 (PHASE BT): the previous stop() deleted serials from
     // world.mobiles directly without broadcasting `removeEntity`, so
     // every nearby client kept the despawned mob's sprite on screen
     // until they walked 18+ tiles away. Now we ask the dependency
@@ -190,7 +190,7 @@ export class ChampionAltar {
   }
 
   /**
-   * FAZA BT: send the current status to every nearby client. Wired by
+   * PHASE BT: send the current status to every nearby client. Wired by
    * the script-side script (apps/scripts/src/spawns/champions.js) which
    * provides `deps.broadcastStatus(world, cfg, status)` so this module
    * doesn't have to import the protocol layer.

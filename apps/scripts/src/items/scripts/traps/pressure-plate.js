@@ -2,7 +2,7 @@
 // (item.linkSerial). The door must declare `door: { closedId, openId,
 // isOpen, ... }` (set up by the door scripts).
 //
-// BUGFIX #33 (FAZA BQ): the previous onWalkOff retracted the door the
+// BUGFIX #33 (PHASE BQ): the previous onWalkOff retracted the door the
 // moment ANY mob stepped off, ignoring other mobs still on the plate.
 // Two-player tandem dungeons (one player holding the plate while the
 // second slips through the door) immediately slammed shut the moment

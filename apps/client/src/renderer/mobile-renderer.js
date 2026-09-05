@@ -433,8 +433,7 @@ class MobileSprite {
 
     // Footstep sound on full-tile crossings (CUO `Mobile.PlayFootstepSounds`).
     // Throttled to 1 sound per 280 ms so a running player (200 ms/step)
-    // doesn't fire 5 sounds per second — Marcin reported the cadence
-    // was "za często względem animacji". Throttle gives ~3.5 footsteps
+    // does not fire 5 sounds per second. The limit gives ~3.5 footsteps
     // per second max, which matches the sprite's walk-cycle pacing
     // (8-frame run anim @ 70ms/frame = 560ms full cycle, 2 footsteps
     // per cycle ≈ 280ms apart). Hidden mobs / dead mobs stay silent.
@@ -574,8 +573,7 @@ class MobileSprite {
         // body context resolves to a war variant (7 idleWar / 15
         // walkWar / 8 idleWar2H) we'd otherwise leave the cloak
         // sprite stuck on the previous frame because there is no
-        // war-group texture for it. Marcin: "peleryna już się nie
-        // zmienia" when war mode flips. Mirror CUO's behaviour and
+        // war-group texture for it when war mode flips. Mirror CUO's behaviour and
         // fall back to the peaceful equivalent so the cloak swings
         // along with the body even if the wardrobe lacks a war pose.
         if (!eqTex) {

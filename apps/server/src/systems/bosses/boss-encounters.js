@@ -31,7 +31,7 @@ function ensureBossIndex(world) {
 export function tickBossEncounters(world, ctx) {
   if (!world?.mobiles) return;
   const idx = ensureBossIndex(world);
-  for (const serial of [...idx]) {
+  for (const serial of idx) {
     const mob = world.mobiles.get(serial);
     if (!mob || !mob.boss?.encounter) { idx.delete(serial); continue; }
     if ((mob.hp ?? 0) <= 0) continue;

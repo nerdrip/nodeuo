@@ -16,7 +16,7 @@ const SPELL_NAME_TO_ID = {
   'flame-strike': 51,
 };
 const SELF_CAST_SPELLS = new Set([4, 29, 13, 14]);
-// FAZA FB / FP — Magic Wand. ServUO `Items/Wands/BaseWand.cs` carries
+// PHASE FB / FP — Magic Wand. ServUO `Items/Wands/BaseWand.cs` carries
 // a stored spell + N charges. Player double-clicks the wand to cast
 // the bound spell (no mana / reagent cost). Charges decrement; wand
 // crumbles to dust at 0.
@@ -85,7 +85,7 @@ export default function buildMagicWandScript(api) {
       user?.client?.sendSystemMessage?.(
         `The wand pulses with the spell of ${spell}. (${charges - 1} charges remaining)`,
       );
-      // BUGFIX #122 (FAZA HH): the previous `dispatch('cast', ctx, [spell])`
+      // BUGFIX #122 (PHASE HH): the previous `dispatch('cast', ctx, [spell])`
       // call was off-by-one — CommandRegistry.dispatch takes a single
       // `line` string and parses tokens from it, not (name, ctx, args).
       // The third arg silently dropped, the dispatch saw the bare

@@ -76,7 +76,7 @@ export default function (api) {
       state.send(protocol.displayContainer(box.serial, box.gumpId));
       state.send(protocol.containerContents(box.serial, []));
       state.openContainers?.add?.(box.serial);
-      // Faza H.1.4 — also push the BankerGump sentinel with the live
+      // Phase H.1.4 — also push the BankerGump sentinel with the live
       // balance so the client overlay shows the bank's gold total and
       // exposes the check-writer button.
       let balance = 0;

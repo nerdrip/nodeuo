@@ -152,9 +152,8 @@ export class TopBarGump extends Gump {
 
     // Continuous bar background — Graphics rounded rect. We used to
     // stretch the 0x0BB9 UO ribbon over the full bar AND mount per-
-    // button 0x098D ribbons on top, which produced "ribbon end-cap
-    // curls" between every button label. Marcin: "kreski jak
-    // cudzyslowy". Replacing with a single dark-brass strip + per-
+    // button 0x098D ribbons on top, which produced ribbon end-cap
+    // curls between every button label. Replacing them with a single dark-brass strip + per-
     // button hover-only highlight removes the visual fragmentation.
     this._chrome = new Graphics();
     this.node.addChild(this._chrome);

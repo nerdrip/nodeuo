@@ -317,8 +317,7 @@ export class SpellbookGump extends Gump {
     this.add(book);
 
     // Close-X removed — RMB anywhere on the spellbook closes it via the
-    // universal UIManager dispatch. Marcin: "wywal x bo zamykamy
-    // kliknieciem". Without it the top-right corner is clean for the
+    // universal UIManager dispatch. This keeps the top-right corner clean for the
     // page-flip curl.
 
     /** @type {SpellIcon[]} */ this._icons = [];

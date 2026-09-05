@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="pl">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -25,37 +25,38 @@
 </head>
 <body>
 <header class="topbar">
-  <button class="mobile-menu" id="menu" aria-label="Otwórz nawigację">☰</button>
+  <button class="mobile-menu" id="menu" aria-label="Open navigation">☰</button>
   <div class="brand"><div class="brand-mark">UO</div><div><b>NODEUO SCRIPTBOOK</b><small>Authoring documentation</small></div></div>
-  <div class="top-search"><span class="search-icon">⌕</span><input id="search" aria-label="Szukaj w dokumentacji" placeholder="Szukaj API, configu, przykładu…" autocomplete="off"><span class="key">Ctrl K</span></div>
-  <div class="top-actions"><a href="/studio">Content Studio</a><a href="/" class="admin-link">← Admin</a></div>
+  <div class="top-search"><span class="search-icon">⌕</span><input id="search" aria-label="Search documentation" placeholder="Search the API, config, or examples…" autocomplete="off"><span class="key">Ctrl K</span></div>
+  <div class="top-actions"><a href="/script-studio">Script Studio</a><a href="/studio">Content Studio</a><a href="/" class="admin-link">← Admin</a></div>
 </header>
 <div id="search-results" class="search-results" hidden></div>
 <div class="shell">
   <aside class="sidebar" id="sidebar">
-    <p class="side-label">Przewodniki</p>
-    <nav class="page-nav" id="page-nav" aria-label="Rozdziały dokumentacji"></nav>
-    <p class="side-label">Narzędzia</p>
-    <div class="quick"><b>Edytuj zawartość wizualnie</b><p>Itemy, mobile, czary, AI, gumpy i dane świata.</p><a href="/studio">Otwórz Content Studio →</a></div>
-    <div class="quick"><b>Pełna regresja</b><p>Po zmianach skryptów uruchom testy serwera.</p><code>pnpm --filter @uo/server test</code></div>
+    <p class="side-label">Guides</p>
+    <nav class="page-nav" id="page-nav" aria-label="Documentation chapters"></nav>
+    <p class="side-label">Tools</p>
+    <div class="quick"><b>Edit content visually</b><p>Items, mobiles, spells, AI, gumps, and world data.</p><a href="/studio">Open Content Studio →</a></div>
+    <div class="quick"><b>Author live behavior</b><p>Generate, validate, publish, and profile executable scripts.</p><a href="/script-studio">Open Script Studio →</a></div>
+    <div class="quick"><b>Full regression</b><p>Run the server tests after script changes.</p><code>pnpm --filter @uo/server test</code></div>
   </aside>
   <main class="content">
     <section class="hero">
       <div class="eyebrow">NodeUO · scripts API</div>
-      <h1>Buduj świat bez zgadywania.</h1>
-      <p>Jedno miejsce dla publicznego API, lifecycle, konfiguracji, gumpów i sprawdzonych wzorców skryptów.</p>
-      <div class="metrics" id="metrics"><span class="metric">Ładowanie katalogu…</span></div>
+      <h1>Build the world without guesswork.</h1>
+      <p>One place for the public API, lifecycle, configuration, gumps, and proven script patterns.</p>
+      <div class="metrics" id="metrics"><span class="metric">Loading catalog…</span></div>
     </section>
-    <article class="article" id="article"><div class="loading">Ładowanie dokumentacji…</div></article>
+    <article class="article" id="article"><div class="loading">Loading documentation…</div></article>
   </main>
-  <aside class="toc"><h3>Na tej stronie</h3><nav class="toc-links" id="toc"></nav><div class="source-meta" id="source-meta"></div></aside>
+  <aside class="toc"><h3>On this page</h3><nav class="toc-links" id="toc"></nav><div class="source-meta" id="source-meta"></div></aside>
 </div>
 <script>
 'use strict';
 const state={pages:[],active:null,toc:[],search:[]};
 const $=(id)=>document.getElementById(id);
 const esc=(value)=>String(value??'').replace(/[&<>"']/g,(char)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
-const icons={start:'◆',api:'⌘',gumps:'▣',config:'◇',examples:'λ',data:'≡'};
+const icons={start:'◆',api:'⌘',studio:'λ',gumps:'▣',config:'◇',examples:'λ',data:'≡'};
 function slug(value){return String(value).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'section'}
 function safeHref(value){const href=String(value??'').trim();return /^(?:https?:|\/|#|\.\.\/|\.\/)/i.test(href)?href:'#'}
 function inline(raw){
@@ -73,8 +74,8 @@ function renderMarkdown(markdown){
   const special=(line,index)=>!line.trim()||/^#{1,4}\s/.test(line)||/^```/.test(line)||/^>\s?/.test(line)||/^\s*[-*+]\s+/.test(line)||/^\s*\d+\.\s+/.test(line)||/^\s*---+\s*$/.test(line)||(line.includes('|')&&isTableDivider(lines[index+1]??''));
   while(i<lines.length){const line=lines[i];
     if(!line.trim()){i++;continue}
-    if(/^```/.test(line)){const language=line.slice(3).trim();const body=[];i++;while(i<lines.length&&!/^```/.test(lines[i]))body.push(lines[i++]);if(i<lines.length)i++;html+=`<pre><button class="copy" type="button">Kopiuj</button><code data-language="${esc(language)}">${esc(body.join('\n'))}</code></pre>`;continue}
-    const heading=/^(#{1,4})\s+(.+)$/.exec(line);if(heading){const depth=heading[1].length;const title=heading[2].replace(/\s+#+$/,'');let id=slug(title);const count=seen.get(id)||0;seen.set(id,count+1);if(count)id+=`-${count+1}`;if(depth<=3)toc.push({depth,title,id});html+=`<h${depth} id="${id}">${inline(title)}${depth>1?`<a class="heading-anchor" href="#${esc(state.active?.id??'')}/${id}" aria-label="Link do sekcji">#</a>`:''}</h${depth}>`;i++;continue}
+    if(/^```/.test(line)){const language=line.slice(3).trim();const body=[];i++;while(i<lines.length&&!/^```/.test(lines[i]))body.push(lines[i++]);if(i<lines.length)i++;html+=`<pre><button class="copy" type="button">Copy</button><code data-language="${esc(language)}">${esc(body.join('\n'))}</code></pre>`;continue}
+    const heading=/^(#{1,4})\s+(.+)$/.exec(line);if(heading){const depth=heading[1].length;const title=heading[2].replace(/\s+#+$/,'');let id=slug(title);const count=seen.get(id)||0;seen.set(id,count+1);if(count)id+=`-${count+1}`;if(depth<=3)toc.push({depth,title,id});html+=`<h${depth} id="${id}">${inline(title)}${depth>1?`<a class="heading-anchor" href="#${esc(state.active?.id??'')}/${id}" aria-label="Link to section">#</a>`:''}</h${depth}>`;i++;continue}
     if(line.includes('|')&&isTableDivider(lines[i+1]??'')){const headers=tableCells(line);i+=2;const rows=[];while(i<lines.length&&lines[i].includes('|')&&lines[i].trim())rows.push(tableCells(lines[i++]));html+='<div class="table-wrap"><table><thead><tr>'+headers.map((cell)=>`<th>${inline(cell)}</th>`).join('')+'</tr></thead><tbody>'+rows.map((row)=>'<tr>'+headers.map((_h,index)=>`<td>${inline(row[index]??'')}</td>`).join('')+'</tr>').join('')+'</tbody></table></div>';continue}
     if(/^>\s?/.test(line)){const body=[];while(i<lines.length&&/^>\s?/.test(lines[i]))body.push(lines[i++].replace(/^>\s?/,''));html+=`<blockquote><p>${inline(body.join(' '))}</p></blockquote>`;continue}
     const unordered=/^\s*[-*+]\s+/.test(line),ordered=/^\s*\d+\.\s+/.test(line);if(unordered||ordered){const tag=ordered?'ol':'ul',pattern=ordered?/^\s*\d+\.\s+/:/^\s*[-*+]\s+/;const items=[];while(i<lines.length&&pattern.test(lines[i])){let item=lines[i++].replace(pattern,'');while(i<lines.length&&/^\s{2,}\S/.test(lines[i])&&!pattern.test(lines[i]))item+=` ${lines[i++].trim()}`;items.push(item)}html+=`<${tag}>${items.map((item)=>`<li>${inline(item)}</li>`).join('')}</${tag}>`;continue}
@@ -88,17 +89,17 @@ function renderNav(){
   $('page-nav').querySelectorAll('[data-page]').forEach((button)=>button.onclick=()=>openPage(button.dataset.page));
 }
 function openPage(id,anchor='',push=true){
-  const page=state.pages.find((entry)=>entry.id===id)||state.pages[0];if(!page)return;state.active=page;const rendered=renderMarkdown(page.content);state.toc=rendered.toc;$('article').innerHTML=rendered.html;$('toc').innerHTML=rendered.toc.filter((entry)=>entry.depth>1).map((entry)=>`<a class="depth-${entry.depth}" href="#${esc(page.id)}/${entry.id}" data-anchor="${esc(entry.id)}">${esc(entry.title)}</a>`).join('')||'<span style="color:#657284;font-size:11px">Brak podrozdziałów</span>';
-  $('source-meta').innerHTML=`Źródło<br>${esc(page.source)}<br>Aktualizacja: ${esc(new Date(page.updatedAt).toLocaleString('pl-PL'))}`;renderNav();wireArticle();if(push)history.replaceState(null,'',`#${page.id}${anchor?`/${anchor}`:''}`);requestAnimationFrame(()=>{const target=anchor&&document.getElementById(anchor);if(target)target.scrollIntoView();else scrollTo({top:0})});$('sidebar').classList.remove('open');
+  const page=state.pages.find((entry)=>entry.id===id)||state.pages[0];if(!page)return;state.active=page;const rendered=renderMarkdown(page.content);state.toc=rendered.toc;$('article').innerHTML=rendered.html;$('toc').innerHTML=rendered.toc.filter((entry)=>entry.depth>1).map((entry)=>`<a class="depth-${entry.depth}" href="#${esc(page.id)}/${entry.id}" data-anchor="${esc(entry.id)}">${esc(entry.title)}</a>`).join('')||'<span style="color:#657284;font-size:11px">No subsections</span>';
+  $('source-meta').innerHTML=`Source<br>${esc(page.source)}<br>Updated: ${esc(new Date(page.updatedAt).toLocaleString('en-US'))}`;renderNav();wireArticle();if(push)history.replaceState(null,'',`#${page.id}${anchor?`/${anchor}`:''}`);requestAnimationFrame(()=>{const target=anchor&&document.getElementById(anchor);if(target)target.scrollIntoView();else scrollTo({top:0})});$('sidebar').classList.remove('open');
 }
 function wireArticle(){
-  $('article').querySelectorAll('.copy').forEach((button)=>button.onclick=async()=>{const text=button.nextElementSibling?.textContent??'';await navigator.clipboard.writeText(text);button.textContent='Skopiowano';setTimeout(()=>button.textContent='Kopiuj',1200)});
+  $('article').querySelectorAll('.copy').forEach((button)=>button.onclick=async()=>{const text=button.nextElementSibling?.textContent??'';await navigator.clipboard.writeText(text);button.textContent='Copied';setTimeout(()=>button.textContent='Copy',1200)});
   $('article').querySelectorAll('a[href^="#"]').forEach((link)=>link.addEventListener('click',(event)=>{const value=link.getAttribute('href').slice(1);if(value.includes('/')){event.preventDefault();const [page,...parts]=value.split('/');openPage(page,parts.join('/'))}}));
 }
-function buildSearch(){state.search=state.pages.flatMap((page)=>{const heads=[...page.content.matchAll(/^#{1,3}\s+(.+)$/gm)].map((match)=>match[1]);return[{page:page.id,title:page.title,section:'Cała strona',text:page.content},...heads.map((heading)=>({page:page.id,title:page.title,section:heading,text:heading}))]})}
-function doSearch(query){const host=$('search-results'),q=query.trim().toLowerCase();if(!q){host.hidden=true;return}const tokens=q.split(/\s+/);const results=state.search.map((entry)=>{const hay=`${entry.title} ${entry.section} ${entry.text}`.toLowerCase();const score=tokens.reduce((sum,token)=>sum+(hay.includes(token)?(entry.section.toLowerCase().includes(token)?5:1):-20),0);return{...entry,score}}).filter((entry)=>entry.score>=tokens.length).sort((a,b)=>b.score-a.score).slice(0,12);host.innerHTML=results.map((entry)=>`<button class="result" data-result-page="${esc(entry.page)}" data-result-anchor="${esc(entry.section==='Cała strona'?'':slug(entry.section))}"><b>${esc(entry.section)}</b><small>${esc(entry.title)}</small></button>`).join('')||'<div class="result">Brak wyników.</div>';host.hidden=false;host.querySelectorAll('[data-result-page]').forEach((button)=>button.onclick=()=>{openPage(button.dataset.resultPage,button.dataset.resultAnchor);host.hidden=true;$('search').value=''})}
+function buildSearch(){state.search=state.pages.flatMap((page)=>{const heads=[...page.content.matchAll(/^#{1,3}\s+(.+)$/gm)].map((match)=>match[1]);return[{page:page.id,title:page.title,section:'Full page',text:page.content},...heads.map((heading)=>({page:page.id,title:page.title,section:heading,text:heading}))]})}
+function doSearch(query){const host=$('search-results'),q=query.trim().toLowerCase();if(!q){host.hidden=true;return}const tokens=q.split(/\s+/);const results=state.search.map((entry)=>{const hay=`${entry.title} ${entry.section} ${entry.text}`.toLowerCase();const score=tokens.reduce((sum,token)=>sum+(hay.includes(token)?(entry.section.toLowerCase().includes(token)?5:1):-20),0);return{...entry,score}}).filter((entry)=>entry.score>=tokens.length).sort((a,b)=>b.score-a.score).slice(0,12);host.innerHTML=results.map((entry)=>`<button class="result" data-result-page="${esc(entry.page)}" data-result-anchor="${esc(entry.section==='Full page'?'':slug(entry.section))}"><b>${esc(entry.section)}</b><small>${esc(entry.title)}</small></button>`).join('')||'<div class="result">No results.</div>';host.hidden=false;host.querySelectorAll('[data-result-page]').forEach((button)=>button.onclick=()=>{openPage(button.dataset.resultPage,button.dataset.resultAnchor);host.hidden=true;$('search').value=''})}
 async function boot(){
-  try{const response=await fetch('/api/docs/scripting',{credentials:'same-origin'});if(response.status===401){location.href='/login';return}if(!response.ok)throw new Error(`HTTP ${response.status}`);const data=await response.json();state.pages=data.pages??[];buildSearch();$('metrics').innerHTML=[['stron',data.pages?.length],['skryptów JS',data.inventory?.scripts],['configów JSON',data.inventory?.configs],['gumpów klienta',data.inventory?.clientGumps],['gumpów serwera',data.inventory?.serverGumps]].filter(([,value])=>Number.isFinite(value)).map(([label,value])=>`<span class="metric"><b>${value}</b> ${label}</span>`).join('');const [page,...anchor]=location.hash.slice(1).split('/');openPage(page||state.pages[0]?.id,anchor.join('/'),false)}catch(error){$('article').innerHTML=`<div class="error"><b>Nie udało się wczytać dokumentacji.</b><br>${esc(error.message)}</div>`}}
+  try{const response=await fetch('/api/docs/scripting',{credentials:'same-origin'});if(response.status===401){location.href='/login';return}if(!response.ok)throw new Error(`HTTP ${response.status}`);const data=await response.json();state.pages=data.pages??[];buildSearch();$('metrics').innerHTML=[['pages',data.pages?.length],['JS scripts',data.inventory?.scripts],['JSON configs',data.inventory?.configs],['client gumps',data.inventory?.clientGumps],['server gumps',data.inventory?.serverGumps]].filter(([,value])=>Number.isFinite(value)).map(([label,value])=>`<span class="metric"><b>${value}</b> ${label}</span>`).join('');const [page,...anchor]=location.hash.slice(1).split('/');openPage(page||state.pages[0]?.id,anchor.join('/'),false)}catch(error){$('article').innerHTML=`<div class="error"><b>Could not load the documentation.</b><br>${esc(error.message)}</div>`}}
 $('search').addEventListener('input',(event)=>doSearch(event.target.value));$('search').addEventListener('keydown',(event)=>{if(event.key==='Escape'){$('search-results').hidden=true;$('search').blur()}});document.addEventListener('keydown',(event)=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='k'){event.preventDefault();$('search').focus()}else if(event.key==='/'&&!/input|textarea/i.test(document.activeElement?.tagName)){event.preventDefault();$('search').focus()}});document.addEventListener('click',(event)=>{if(!event.target.closest('.top-search')&&!event.target.closest('.search-results'))$('search-results').hidden=true});$('menu').onclick=()=>$('sidebar').classList.toggle('open');window.addEventListener('hashchange',()=>{const [page,...anchor]=location.hash.slice(1).split('/');if(page&&page!==state.active?.id)openPage(page,anchor.join('/'),false)});boot();
 </script>
 </body>

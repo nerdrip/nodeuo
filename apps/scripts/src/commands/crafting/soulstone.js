@@ -1,4 +1,4 @@
-// FAZA EV — Soulstone skill transfer.
+// PHASE EV — Soulstone skill transfer.
 //
 // ServUO `Items/SBInfo/SBProvisioner.cs` ships soulstones as account-
 // bound items that store one skill at a time. Players use `[ss save

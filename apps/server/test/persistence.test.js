@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { World } from '../src/world/world.js';
 import { createItem } from '../src/world/items.js';
 import { snapshotWorld, restoreWorld, saveWorldSync, loadWorldSync } from '../src/world/persistence.js';
@@ -22,6 +23,16 @@ describe('world persistence', () => {
     expect(w2._createWorldVersion).toBe(3);
     expect([...w2._xmlSpawnersApplied]).toEqual(['xml-1-100-200-7']);
     expect([...w2._treasureChestsApplied]).toEqual(['xml-treasure-1-101-201-3-8']);
+  });
+
+  it('round-trips an explicitly clean CreateWorld gate', () => {
+    const source = new World();
+    source._createWorldDone = false;
+    source._createWorldVersion = 0;
+    const restored = new World();
+    restoreWorld(restored, JSON.parse(JSON.stringify(snapshotWorld(source))));
+    expect(restored._createWorldDone).toBe(false);
+    expect(restored._createWorldVersion).toBe(0);
   });
 
   it('snapshot + restore round-trips mobiles and items', () => {
@@ -157,22 +168,22 @@ describe('world persistence', () => {
     expect(w.items.has(0x40000004)).toBe(true);
   });
 
-  it('recovers the last committed generation after an interrupted save', () => {
+  it('recovers the last committed SQLite transaction after an interrupted write', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nodeuo-save-chaos-'));
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     try {
       const first = new World();
       first.createMobile({ name: 'Committed', x: 10, y: 20, z: 0, map: 1 });
       saveWorldSync(first, dir);
-      const second = new World();
-      second.createMobile({ name: 'Interrupted', x: 30, y: 40, z: 0, map: 1 });
-      saveWorldSync(second, dir); // leaves the committed generation in .bak
-      fs.writeFileSync(path.join(dir, 'save-journal.json'), JSON.stringify({ generation: 3, status: 'writing' }));
+      const db = new DatabaseSync(path.join(dir, 'world.sqlite'));
+      db.exec('BEGIN IMMEDIATE; DELETE FROM entities;');
+      // Closing with an open transaction models a process dying before
+      // COMMIT. SQLite rolls it back when the database is opened again.
+      db.close();
 
       const recovered = new World();
       expect(loadWorldSync(recovered, dir)).toBe(true);
       expect([...recovered.mobiles.values()].map((mob) => mob.name)).toContain('Committed');
-      expect([...recovered.mobiles.values()].map((mob) => mob.name)).not.toContain('Interrupted');
     } finally {
       warn.mockRestore();
       fs.rmSync(dir, { recursive: true, force: true });

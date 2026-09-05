@@ -12,10 +12,95 @@
 //   4 "charList"        0xA9 sent, awaiting 0x5D/0xF8
 //   5 "inWorld"         logged in, accepting gameplay opcodes
 
-import { frameIncoming, opcodeInfo, huffmanCompress, unicodeMessage, worldItemSA, removeEntity } from '@uo/protocol';
+import {
+  extHouseRevision,
+  frameIncoming,
+  opcodeInfo,
+  huffmanCompress,
+  unicodeMessage,
+  worldItemSA,
+  removeEntity,
+} from '@uo/protocol';
+import {
+  isNodeUOMessageExpired,
+  NODEUO_JSON_SUBPROTOCOL,
+  NodeUODelivery,
+  NodeUOPriority,
+  serializeNodeUOFrame,
+  serializeNodeUOMessage,
+} from '@uo/nodeuo-protocol';
 import * as chatChannels from '../chat-channels.js';
 import { nearbyClients } from '../world/visibility.js';
 import * as diagnostics from '../systems/operational-diagnostics.js';
+import { sharedPacketTemplates } from './packet-template-cache.js';
+import { checkpointNodeUOResume, sendNodeUOFeature, trySendNodeUOEntityDelta, trySendNodeUOEntityRemoved } from './handlers/nodeuo-modern.js';
+import { ConnectionBandwidthBudget, nodeUOTrafficClass } from './connection-bandwidth.js';
+
+/** Convert historical script-side UI sentinels into a typed JSON command.
+ * Classic UO peers receive a human-readable compatibility notice instead. */
+function privateUiCommand(text) {
+  if (typeof text !== 'string' || !text.startsWith('@@')) return null;
+  const open = /^@@OPEN_([A-Z0-9]+)_GUMP@@([\s\S]*)$/.exec(text);
+  if (open) return {
+    feature: open[1] === 'CRAFT' ? 'crafting.workbench' : 'ui.rich-gumps',
+    payload: { operation: 'open-gump', name: open[1].toLowerCase(), payload: open[2] },
+  };
+  const action = /^@@OPEN_([A-Z0-9_]+)@@([\s\S]*)$/.exec(text);
+  if (action) return {
+    feature: 'ui.rich-gumps',
+    payload: { operation: 'open-action', name: action[1].toLowerCase(), payload: action[2] },
+  };
+  const progress = /^@@CRAFT_PROGRESS@@(-?\d+)\|(-?\d+)\|(-?\d+)\|([^|]*)\|([\s\S]*)$/.exec(text);
+  if (progress) return {
+    feature: 'crafting.workbench',
+    payload: {
+      operation: 'progress', recipeId: Number(progress[1]) | 0,
+      done: Number(progress[2]) | 0, total: Number(progress[3]) | 0,
+      status: progress[4], message: progress[5], messageEncoding: 'uri-component',
+    },
+  };
+  return null;
+}
+
+function isPrivateUiSentinel(text) {
+  return typeof text === 'string' && /^@@[A-Z0-9_]+@@/.test(text);
+}
+
+const DEFAULT_COMPATIBILITY_NOTICE = '{label} requires the NodeUO client with the negotiated {feature} feature. You can keep playing normally; only this optional enhanced interface is unavailable.{fallback}';
+const PRIVATE_UI_COMPATIBILITY = Object.freeze({
+  craft: ['The visual crafting workbench', 'Use the text crafting commands instead.'],
+  help: ['The visual help browser', 'Use [help to list the available commands.'],
+  admin: ['The visual administration panel', 'Use the standard staff commands instead.'],
+  banker: ['The enhanced banking panel', 'Your standard bank box remains available.'],
+  death: ['The enhanced death screen', 'Normal ghost, healer, shrine and resurrection mechanics remain available.'],
+  resurrect: ['The enhanced resurrection prompt', 'Use the standard [accept or [decline response shown in your journal.'],
+  house: ['The enhanced house manager', 'The standard house controls remain available.'],
+  house_custom: ['The visual house designer', 'Standard housing remains available.'],
+  stable: ['The enhanced stable manager', 'Use the stable master conversation and commands instead.'],
+  guild: ['The enhanced guild manager', 'Use the standard guild commands instead.'],
+  mappins: ['The visual map-pin editor', 'Standard maps remain available.'],
+  mlquests: ['The enhanced quest journal', 'Quest conversations and journal messages remain available.'],
+  imbuing: ['The visual imbuing workbench', 'Use the text workflow instead.'],
+});
+
+function compatibilityDescription(command) {
+  const rawName = String(command?.payload?.name ?? '').toLowerCase();
+  const [label, fallback] = PRIVATE_UI_COMPATIBILITY[rawName] ?? [];
+  const readableName = rawName
+    ? rawName.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
+    : 'This enhanced interface';
+  return {
+    key: rawName ? `${command.feature}/${rawName}` : command.feature,
+    label: label ?? `The ${readableName} interface`,
+    fallback: fallback ?? 'The compatible standard UO gameplay path remains available.',
+  };
+}
+
+function cancelTimer(handle, interval = false) {
+  if (typeof handle?.cancel === 'function') return handle.cancel();
+  if (handle) (interval ? clearInterval : clearTimeout)(handle);
+  return false;
+}
 
 // ServUO bounds each NetState send queue. WebSocket.bufferedAmount is the
 // browser/Node equivalent; an ordered game stream cannot safely drop packets,
@@ -61,17 +146,20 @@ export class NetState {
     this.backpressureLimits = this.transportKind === 'tcp'
       ? { soft: TCP_SOFT_PENDING_SEND_BYTES, hard: TCP_MAX_PENDING_SEND_BYTES }
       : { soft: SOFT_PENDING_SEND_BYTES, hard: MAX_PENDING_SEND_BYTES };
+    const networkSettings = ctx.nodeUOSettings?.value?.network ?? {};
+    this.nodeUOBandwidth = new ConnectionBandwidthBudget(networkSettings);
     this.stage = Stage.LoginSeed;
     /** Source IP (or `null` for in-process tests). Surfaced to handlers
      *  so AccountAttackLimiter can compose per-IP × per-account keys. */
     this.remoteAddress = ctx.remoteAddress ?? null;
-    /** True only when the WebSocket handshake selected `nodeuo.v1`.
-     *  Private packets remain unavailable on classic TCP and generic WS. */
-    this.nodeUOTransport = ctx.nodeUOTransport === true;
+    /** Private features exist only on the explicitly selected JSON
+     * subprotocol. Every binary frame remains an original UO packet. */
+    this.nodeUOTransportVersion = String(ctx.nodeUOTransportVersion ?? '');
+    this.nodeUOJsonTransport = this.nodeUOTransportVersion === NODEUO_JSON_SUBPROTOCOL;
     this.nodeUOProtocol = null;
-    this.nodeUOCapabilities = 0;
-    this._nodeUOCapabilityOffer = null;
-    this._nodeUOCapabilityTimer = null;
+    this.nodeUOFeatures = new Map();
+    this._nodeUOSessionOffer = null;
+    this._nodeUOSessionTimer = null;
     /** @type {string | null} */
     this.accountName = null;
     /** @type {import('./accounts.js').Account | null} */
@@ -103,14 +191,41 @@ export class NetState {
     this._rttTimer = null;
     this._deferredCosmetic = new Map();
     this._cosmeticFlushTimer = null;
+    this._lastEntityDelta = new Map();
+    /** Last advertised classic custom-house revision by foundation serial. */
+    this._houseRevisions = new Map();
+    this._nodeUOJsonDeferred = new Map();
+    this._nodeUOJsonReliableQueue = [];
+    this._nodeUOJsonReliableHead = 0;
+    this._nodeUOJsonReliableBytes = 0;
+    this._nodeUOJsonFlushTimer = null;
+    this.nodeUOJsonStats = { sent: 0, received: 0, bytesSent: 0, bytesReceived: 0,
+      deferred: 0, coalesced: 0, dropped: 0, expired: 0, rejected: 0,
+      framesSent: 0, framesReceived: 0, batchedMessages: 0, reliableQueued: 0 };
     this.backpressureStats = { deferred: 0, coalesced: 0, flushed: 0, dropped: 0,
-      staleDropped: 0, cappedTurns: 0, totalWaitMs: 0, maxWaitMs: 0 };
+      staleDropped: 0, cappedTurns: 0, totalWaitMs: 0, maxWaitMs: 0, duplicateDeltas: 0 };
+    this._admissionAcquired = ctx.admission?.acquire?.(this.id) ?? true;
+    if (!this._admissionAcquired) {
+      this._closed = true;
+      this._closing = true;
+      try { ws.close(1013, 'server overloaded'); } catch { /* transport may already be gone */ }
+      return;
+    }
     this.ctx.connections?.add?.(this);
     diagnostics.connectionOpened(this);
 
     ws.binaryType = 'arraybuffer';
     ws.on('message', (data, isBinary) => {
-      if (!isBinary && typeof data === 'string') return; // ignore text
+      if (!isBinary) {
+        if (!this.nodeUOJsonTransport) return;
+        const text = typeof data === 'string' ? data : data?.toString?.('utf8');
+        if (typeof text !== 'string') return;
+        this.nodeUOJsonStats.received++;
+        this.nodeUOJsonStats.framesReceived++;
+        this.nodeUOJsonStats.bytesReceived += Buffer.byteLength(text);
+        this.ctx.handleNodeUOText?.(this, text);
+        return;
+      }
       this._feed(new Uint8Array(data instanceof ArrayBuffer ? data : data.buffer, data.byteOffset ?? 0, data.byteLength ?? data.length));
     });
     ws.on('close', (code, reason) => {
@@ -142,11 +257,14 @@ export class NetState {
         this._rttPingSentAt = 0;
         diagnostics.connectionUpdated(this);
       });
-      this._rttTimer = setInterval(() => {
+      const ping = () => {
         if (this._closed || this.ws.readyState !== 1 || this._rttPingSentAt) return;
         this._rttPingSentAt = performance.now();
         try { this.ws.ping(); } catch { this._rttPingSentAt = 0; }
-      }, 10_000);
+      };
+      this._rttTimer = ctx.scheduler?.every
+        ? ctx.scheduler.every(`net-rtt:${this.id}`, 10_000, ping)
+        : setInterval(ping, 10_000);
       this._rttTimer.unref?.();
     }
   }
@@ -158,9 +276,19 @@ export class NetState {
   _feed(chunk) {
     if (this._closed) return;
     // Append.
-    let merged = new Uint8Array(this._rx.length + chunk.length);
-    merged.set(this._rx);
-    merged.set(chunk, this._rx.length);
+    // The common case is one or more complete packets in a fresh transport
+    // read. Reuse that view directly; allocate only when a prior partial
+    // packet really has to be joined with new bytes.
+    let merged;
+    if (this._rx.length === 0) {
+      merged = chunk;
+    } else if (chunk.length === 0) {
+      merged = this._rx;
+    } else {
+      merged = new Uint8Array(this._rx.length + chunk.length);
+      merged.set(this._rx);
+      merged.set(chunk, this._rx.length);
+    }
     // Bug-hunt #11 #3 (DoS): cap accumulated unframed bytes. A malicious
     // client could open a variable-length packet header with size=0xFFFF
     // and never send the payload, pinning ~64KB per repeat forever.
@@ -235,6 +363,8 @@ export class NetState {
 
     for (const pkt of packets) {
       const op = pkt[0];
+      diagnostics.recordPacketReplay('rx', pkt, this);
+      diagnostics.recordSimulationInput(this, pkt);
       const info = opcodeInfo(op);
       if (this.ctx.config.logPackets) {
         console.log(`[net#${this.id}] << 0x${op.toString(16).padStart(2, '0')} ${info?.name ?? '?'} (${pkt.length} bytes) stage=${this.stage}`);
@@ -292,6 +422,11 @@ export class NetState {
       this.close('send queue overflow');
       return;
     }
+    if (priority === 'cosmetic'
+        && this.ctx.admission?.shouldDropCosmetic?.(pending, this.backpressureLimits.soft)) {
+      this.backpressureStats.dropped++;
+      return;
+    }
     if (priority === 'cosmetic' && pending > this.backpressureLimits.soft) {
       const key = String(coalesceKey ?? `opcode:${packet[0]}`);
       if (this._deferredCosmetic.has(key)) this.backpressureStats.coalesced++;
@@ -310,7 +445,8 @@ export class NetState {
     const inGamePhase = this.stage === Stage.CharList || this.stage === Stage.InWorld;
     const useHuffman = this.ctx.config.huffmanOutgoing && inGamePhase;
     const payload = useHuffman ? huffmanCompress(packet) : packet;
-    this.ws.send(payload, { binary: true });
+    this.ws.send(payload, { binary: true, compress: false });
+    diagnostics.recordPacketReplay('tx', packet, this);
     diagnostics.packet('tx', packet[0], payload.length, 0, false, this);
     diagnostics.connectionUpdated(this);
   }
@@ -319,9 +455,275 @@ export class NetState {
     return this.send(packet, { priority: 'cosmetic', coalesceKey });
   }
 
+  /** Send one NodeUO v2 text envelope. This never writes to raw TCP and never
+   * puts private bytes inside the UO opcode stream. */
+  sendNodeUOMessage(message, { allowBeforeNegotiation = false } = {}) {
+    if (!this.nodeUOJsonTransport || this._closed || this.ws.readyState !== 1) return false;
+    if (!allowBeforeNegotiation && !this.nodeUOProtocol) return false;
+    if (!allowBeforeNegotiation && message?.feature !== 'protocol.session'
+        && !this.supportsNodeUO(message?.feature)) return false;
+    const costStarted = performance.now();
+    if (isNodeUOMessageExpired(message)) {
+      this.nodeUOJsonStats.expired++;
+      return this._recordNodeUOCost(message?.feature, 0, costStarted, 'rejected', false);
+    }
+    let text;
+    try { text = serializeNodeUOMessage(message); }
+    catch (error) {
+      this.nodeUOJsonStats.rejected++;
+      if (this.ctx.config?.logPackets) console.warn(`[net#${this.id}] NodeUO JSON rejected: ${error.message}`);
+      return this._recordNodeUOCost(message?.feature, 0, costStarted, 'rejected', false);
+    }
+    const pending = Number(this.ws.bufferedAmount) || 0;
+    if (pending + Buffer.byteLength(text) > this.backpressureLimits.hard) {
+      this.close('NodeUO send queue overflow');
+      return this._recordNodeUOCost(message?.feature, Buffer.byteLength(text), costStarted, 'dropped', false);
+    }
+    const delivery = message.delivery ?? NodeUODelivery.Reliable;
+    const priority = message.priority ?? NodeUOPriority.Normal;
+    const textBytes = Buffer.byteLength(text);
+    const trafficClass = nodeUOTrafficClass(message);
+    if (delivery === NodeUODelivery.Reliable && priority !== NodeUOPriority.Critical
+        && this._nodeUOJsonReliableHead < this._nodeUOJsonReliableQueue.length) {
+      const queued = this._queueNodeUOReliable({ text, bytes: textBytes, count: 1, trafficClass });
+      return this._recordNodeUOCost(message.feature, textBytes, costStarted, queued ? 'deferred' : 'dropped', queued);
+    }
+    let budgetDecision = this.nodeUOBandwidth.admit(textBytes, {
+      trafficClass, delivery,
+    });
+    if (budgetDecision === 'allow') {
+      budgetDecision = this.ctx.globalTrafficGovernor?.admit?.(this.id, textBytes, { trafficClass, delivery }) ?? 'allow';
+    }
+    if (budgetDecision === 'drop') {
+      this.nodeUOJsonStats.dropped++;
+      return this._recordNodeUOCost(message.feature, textBytes, costStarted, 'dropped', false);
+    }
+    if (pending > this.backpressureLimits.soft
+        && (delivery === NodeUODelivery.LossTolerant || priority === NodeUOPriority.Background)) {
+      this.nodeUOJsonStats.dropped++;
+      return this._recordNodeUOCost(message.feature, textBytes, costStarted, 'dropped', false);
+    }
+    if ((pending > this.backpressureLimits.soft || budgetDecision === 'defer')
+        && delivery === NodeUODelivery.Latest) {
+      const key = String(message.replace ?? `${message.feature}:${message.payload?.serial ?? message.payload?.target ?? ''}`);
+      if (this._nodeUOJsonDeferred.has(key)) this.nodeUOJsonStats.coalesced++;
+      else this.nodeUOJsonStats.deferred++;
+      this._nodeUOJsonDeferred.set(key, { message, queuedAt: Date.now() });
+      this._scheduleNodeUOJsonFlush();
+      return this._recordNodeUOCost(message.feature, textBytes, costStarted, 'deferred', true);
+    }
+    if (budgetDecision === 'defer' && delivery === NodeUODelivery.Reliable) {
+      const queued = this._queueNodeUOReliable({ text, bytes: textBytes, count: 1, trafficClass });
+      return this._recordNodeUOCost(message.feature, textBytes, costStarted, queued ? 'deferred' : 'dropped', queued);
+    }
+    const sent = this._writeNodeUOText(text, textBytes, 1);
+    return this._recordNodeUOCost(message.feature, textBytes, costStarted, sent ? 'handled' : 'dropped', sent);
+  }
+
+  _recordNodeUOCost(feature, bytes, started, outcome, result) {
+    this.ctx.protocolCosts?.record?.(feature, 'outbound', {
+      bytes, ms: performance.now() - started, outcome,
+    });
+    return result;
+  }
+
+  /** Send a bounded group in one JSON text frame. Every member remains an
+   * independently versioned/validated envelope. */
+  sendNodeUOBatch(messages) {
+    if (!this.nodeUOJsonTransport || !this.nodeUOProtocol || this._closed
+        || this.ws.readyState !== 1 || !this.supportsNodeUO('protocol.batch')) return false;
+    const active = (messages ?? []).filter((message) => !isNodeUOMessageExpired(message)
+      && (message.feature === 'protocol.session' || this.supportsNodeUO(message.feature)));
+    if (!active.length) return false;
+    if (active.length === 1) return this.sendNodeUOMessage(active[0]);
+    const costStarted = performance.now();
+    let text;
+    try { text = serializeNodeUOFrame(active); }
+    catch { return this._recordNodeUOBatchCost(active, 0, costStarted, 'error', false); }
+    const bytes = Buffer.byteLength(text);
+    if ((Number(this.ws.bufferedAmount) || 0) + bytes > this.backpressureLimits.hard) {
+      this.close('NodeUO send queue overflow');
+      return this._recordNodeUOBatchCost(active, bytes, costStarted, 'dropped', false);
+    }
+    const reliable = active.some((message) => (message.delivery ?? NodeUODelivery.Reliable) === NodeUODelivery.Reliable);
+    const trafficClass = active.some((message) => message.priority === NodeUOPriority.Critical)
+      ? 'critical' : active.some((message) => message.priority === NodeUOPriority.High) ? 'interactive' : 'state';
+    if (reliable && trafficClass !== 'critical'
+        && this._nodeUOJsonReliableHead < this._nodeUOJsonReliableQueue.length) {
+      const queued = this._queueNodeUOReliable({ text, bytes, count: active.length, trafficClass });
+      return this._recordNodeUOBatchCost(active, bytes, costStarted, queued ? 'deferred' : 'dropped', queued);
+    }
+    let decision = this.nodeUOBandwidth.admit(bytes, {
+      trafficClass, delivery: reliable ? NodeUODelivery.Reliable : NodeUODelivery.Latest,
+    });
+    if (decision === 'allow') decision = this.ctx.globalTrafficGovernor?.admit?.(this.id, bytes, {
+      trafficClass, delivery: reliable ? NodeUODelivery.Reliable : NodeUODelivery.Latest,
+    }) ?? 'allow';
+    if (decision === 'defer' && reliable) {
+      const queued = this._queueNodeUOReliable({ text, bytes, count: active.length, trafficClass });
+      return this._recordNodeUOBatchCost(active, bytes, costStarted, queued ? 'deferred' : 'dropped', queued);
+    }
+    if (decision !== 'allow') return this._recordNodeUOBatchCost(active, bytes, costStarted, 'dropped', false);
+    const sent = this._writeNodeUOText(text, bytes, active.length);
+    return this._recordNodeUOBatchCost(active, bytes, costStarted, sent ? 'handled' : 'dropped', sent);
+  }
+
+  _recordNodeUOBatchCost(messages, bytes, started, outcome, result) {
+    const count = Math.max(1, messages.length);
+    const baseBytes = Math.floor(bytes / count);
+    const remainder = bytes - baseBytes * count;
+    const elapsed = (performance.now() - started) / count;
+    for (let index = 0; index < messages.length; index++) {
+      this.ctx.protocolCosts?.record?.(messages[index]?.feature, 'outbound', {
+        bytes: baseBytes + (index < remainder ? 1 : 0), ms: elapsed, outcome,
+      });
+    }
+    return result;
+  }
+
+  _writeNodeUOText(text, bytes, count = 1) {
+    if (this._closed || this.ws.readyState !== 1) return false;
+    this.ws.send(text, { binary: false, compress: text.length > 1024 });
+    this.nodeUOJsonStats.sent += count;
+    this.nodeUOJsonStats.framesSent++;
+    if (count > 1) this.nodeUOJsonStats.batchedMessages += count;
+    this.nodeUOJsonStats.bytesSent += bytes;
+    diagnostics.connectionUpdated(this);
+    return true;
+  }
+
+  _queueNodeUOReliable(row) {
+    if (this._closed) return false;
+    const pending = (Number(this.ws.bufferedAmount) || 0) + this._nodeUOJsonReliableBytes + row.bytes;
+    if (pending > this.backpressureLimits.hard) {
+      this.close('NodeUO reliable queue overflow');
+      return false;
+    }
+    // Keep dequeue O(1). Compact only occasionally so a throttled connection
+    // cannot make every reliable frame pay Array#shift's linear copy cost.
+    if (this._nodeUOJsonReliableHead >= 256
+        && this._nodeUOJsonReliableHead * 2 >= this._nodeUOJsonReliableQueue.length) {
+      this._nodeUOJsonReliableQueue = this._nodeUOJsonReliableQueue
+        .slice(this._nodeUOJsonReliableHead);
+      this._nodeUOJsonReliableHead = 0;
+    }
+    this._nodeUOJsonReliableQueue.push(row);
+    this._nodeUOJsonReliableBytes += row.bytes;
+    this.nodeUOJsonStats.deferred += row.count;
+    this.nodeUOJsonStats.reliableQueued += row.count;
+    this._scheduleNodeUOJsonFlush();
+    return true;
+  }
+
+  _scheduleNodeUOJsonFlush() {
+    if (this._nodeUOJsonFlushTimer || this._closed) return;
+    const flush = () => {
+      this._nodeUOJsonFlushTimer = null;
+      if (this._closed || this.ws.readyState !== 1) return;
+      if ((Number(this.ws.bufferedAmount) || 0) > this.backpressureLimits.soft) {
+        this._scheduleNodeUOJsonFlush();
+        return;
+      }
+      while (this._nodeUOJsonReliableHead < this._nodeUOJsonReliableQueue.length) {
+        const row = this._nodeUOJsonReliableQueue[this._nodeUOJsonReliableHead];
+        let decision = this.nodeUOBandwidth.admit(row.bytes, {
+          trafficClass: row.trafficClass ?? 'state', delivery: NodeUODelivery.Reliable,
+        });
+        if (decision === 'allow') decision = this.ctx.globalTrafficGovernor?.admit?.(this.id, row.bytes, {
+          trafficClass: row.trafficClass ?? 'state', delivery: NodeUODelivery.Reliable,
+        }) ?? 'allow';
+        if (decision !== 'allow') {
+          this._scheduleNodeUOJsonFlush();
+          return;
+        }
+        this._nodeUOJsonReliableHead++;
+        this._nodeUOJsonReliableBytes -= row.bytes;
+        if (!this._writeNodeUOText(row.text, row.bytes, row.count)) return;
+      }
+      this._nodeUOJsonReliableQueue.length = 0;
+      this._nodeUOJsonReliableHead = 0;
+      const queued = [...this._nodeUOJsonDeferred.values()];
+      this._nodeUOJsonDeferred.clear();
+      const active = [];
+      for (const row of queued) {
+        if (isNodeUOMessageExpired(row.message)) { this.nodeUOJsonStats.expired++; continue; }
+        active.push(row.message);
+      }
+      for (let offset = 0; offset < active.length; offset += 32) {
+        const group = active.slice(offset, offset + 32);
+        if (group.length < 2 || !this.sendNodeUOBatch(group)) {
+          for (const message of group) this.sendNodeUOMessage(message);
+        }
+      }
+    };
+    this._nodeUOJsonFlushTimer = this.ctx.scheduler?.once
+      ? this.ctx.scheduler.once(`nodeuo-json:${this.id}`, 25, flush)
+      : setTimeout(flush, 25);
+    this._nodeUOJsonFlushTimer.unref?.();
+  }
+
+  /** Encode several already-built UO packets into one transport write. Packet
+   * boundaries remain in the UO byte stream; only WS/syscall overhead changes. */
+  sendBatch(packets) {
+    const rows = (packets ?? []).filter((packet) => packet?.length);
+    if (rows.length === 0) return false;
+    if (rows.length === 1) { this.send(rows[0]); return true; }
+    if (this._closed || this.ws.readyState !== 1) return false;
+    const pending = Number(this.ws.bufferedAmount) || 0;
+    const bytes = rows.reduce((sum, packet) => sum + packet.length, 0);
+    if (pending + bytes > this.backpressureLimits.hard) {
+      this.close('send queue overflow');
+      return false;
+    }
+    const inGamePhase = this.stage === Stage.CharList || this.stage === Stage.InWorld;
+    const useHuffman = this.ctx.config.huffmanOutgoing && inGamePhase;
+    if (!useHuffman && typeof this.ws.sendBatch === 'function') {
+      // Raw TCP can pass the packet views to Node's cork/_writev path. UO
+      // framing remains byte-for-byte identical and Buffer.concat disappears.
+      this.ws.sendBatch(rows);
+    } else {
+      const joined = Buffer.concat(
+        rows.map((packet) => Buffer.from(packet.buffer, packet.byteOffset, packet.byteLength)), bytes,
+      );
+      const payload = useHuffman ? huffmanCompress(joined) : joined;
+      this.ws.send(payload, { binary: true, compress: false });
+    }
+    for (const packet of rows) {
+      diagnostics.recordPacketReplay('tx', packet, this);
+      diagnostics.packet('tx', packet[0], packet.length, 0, false, this);
+    }
+    diagnostics.connectionUpdated(this);
+    return true;
+  }
+
+  /** Send the latest authoritative state for one entity. Identical deltas
+   * are suppressed per viewer; under socket pressure the existing cosmetic
+   * queue keeps only the newest packet for the same entity/field mask. */
+  sendEntityDelta(serialLike, fieldMask, packet) {
+    const serial = Number(serialLike) >>> 0;
+    if (!serial || !packet?.length) return this.send(packet);
+    if (trySendNodeUOEntityDelta(this, serial, fieldMask)) return true;
+    let signature = 2166136261;
+    for (let index = 0; index < packet.length; index++) {
+      signature ^= packet[index];
+      signature = Math.imul(signature, 16777619);
+    }
+    signature >>>= 0;
+    const key = `${serial}:${Number(fieldMask) >>> 0}`;
+    if (this._lastEntityDelta.get(key) === signature) {
+      this.backpressureStats.duplicateDeltas++;
+      return false;
+    }
+    this._lastEntityDelta.delete(key);
+    this._lastEntityDelta.set(key, signature);
+    while (this._lastEntityDelta.size > 4096) this._lastEntityDelta.delete(this._lastEntityDelta.keys().next().value);
+    this.sendCosmetic(packet, `entity:${key}`);
+    return true;
+  }
+
   _scheduleCosmeticFlush() {
     if (this._cosmeticFlushTimer || this._closed) return;
-    this._cosmeticFlushTimer = setTimeout(() => {
+    const flush = () => {
       this._cosmeticFlushTimer = null;
       if (this._closed || this.ws.readyState !== 1) return;
       if ((Number(this.ws.bufferedAmount) || 0) > this.backpressureLimits.soft) {
@@ -331,6 +733,7 @@ export class NetState {
       const now = performance.now();
       const pending = [...this._deferredCosmetic.entries()];
       let sent = 0;
+      const batch = [];
       for (const [key, row] of pending) {
         const wait = now - row.queuedAt;
         if (wait > COSMETIC_MAX_AGE_MS) {
@@ -347,11 +750,15 @@ export class NetState {
         this.backpressureStats.totalWaitMs += wait;
         this.backpressureStats.maxWaitMs = Math.max(this.backpressureStats.maxWaitMs, wait);
         this.backpressureStats.flushed++;
-        this.send(row.packet);
+        batch.push(row.packet);
         sent++;
       }
+      if (batch.length) this.sendBatch(batch);
       if (this._deferredCosmetic.size) this._scheduleCosmeticFlush();
-    }, 25);
+    };
+    this._cosmeticFlushTimer = this.ctx.scheduler?.once
+      ? this.ctx.scheduler.once(`net-cosmetic:${this.id}`, 25, flush)
+      : setTimeout(flush, 25);
     this._cosmeticFlushTimer.unref?.();
   }
 
@@ -377,18 +784,74 @@ export class NetState {
    *  protocol helper). Pass `0x59` for the blue skill-advance line
    *  ServUO/CUO render in the journal. */
   sendSystemMessage(text, hue) {
+    const command = privateUiCommand(text);
+    if (command) {
+      if (this.nodeUOJsonTransport && this.nodeUOProtocol?.major === 2
+          && sendNodeUOFeature(this, command)) return;
+      const description = compatibilityDescription(command);
+      this.notifyNodeUORequirement(description.key, description);
+      return;
+    } else if (isPrivateUiSentinel(text)) {
+      this.notifyNodeUORequirement('ui.unknown-private-marker', {
+        label: 'This enhanced interface',
+        fallback: 'The compatible standard UO gameplay path remains available.',
+      });
+      return;
+    }
     if (hue == null) this.send(unicodeMessage({ text }));
     else this.send(unicodeMessage({ text, hue }));
   }
 
+  /** Tell a classic/incompatible client that an optional visual feature is
+   * unavailable without turning repeated progress markers into journal/log
+   * spam. Core gameplay fallbacks are owned by the calling system and are not
+   * changed by this notice. */
+  notifyNodeUORequirement(feature, { label, fallback } = {}) {
+    if (this._closed) return false;
+    const key = String(feature ?? 'enhanced-ui').toLowerCase().slice(0, 160);
+    const settings = this.ctx.nodeUOSettings?.value?.compatibility ?? {};
+    if (settings.noticesEnabled === false) {
+      diagnostics.compatibilityNotice(key, false);
+      return false;
+    }
+    const now = Date.now();
+    const cooldownMs = Math.max(5_000, Math.min(60 * 60_000,
+      Number(settings.noticeCooldownMs) || 300_000));
+    this._nodeUOCompatibilityNotices ??= new Map();
+    const lastShownAt = this._nodeUOCompatibilityNotices.get(key) ?? 0;
+    if ((now - lastShownAt) < cooldownMs) {
+      diagnostics.compatibilityNotice(key, false);
+      return false;
+    }
+    this._nodeUOCompatibilityNotices.delete(key);
+    this._nodeUOCompatibilityNotices.set(key, now);
+    while (this._nodeUOCompatibilityNotices.size > 64) {
+      this._nodeUOCompatibilityNotices.delete(this._nodeUOCompatibilityNotices.keys().next().value);
+    }
+
+    const fallbackText = String(fallback ?? '').trim();
+    const template = String(settings.noticeTemplate ?? DEFAULT_COMPATIBILITY_NOTICE);
+    const message = template
+      .replaceAll('{feature}', key)
+      .replaceAll('{label}', String(label ?? 'This enhanced interface').trim())
+      .replaceAll('{fallback}', fallbackText ? ` ${fallbackText}` : '')
+      .slice(0, 1000);
+    this.send(unicodeMessage({ text: message, hue: 0x03b2 }));
+    diagnostics.compatibilityNotice(key, true);
+    const safeLog = (value, fallbackValue) => String(value ?? fallbackValue)
+      .replace(/[\u0000-\u001f\u007f]/g, '?').slice(0, 160);
+    console.info(`[compat#${this.id}] optional NodeUO feature unavailable; account=${safeLog(this.accountName, '-')} client=${safeLog(this.clientVersionString, 'unknown')} transport=${safeLog(this.nodeUOTransportVersion || this.transportKind, 'unknown')} feature=${safeLog(key, 'unknown')}; standard UO session continues`);
+    return true;
+  }
+
   /** Convenience: emit a 0xF3 WorldItemSA for an item. */
-  sendItem(item) {
+  packetForItem(item) {
     if (!item || item.visible === false) {
       if (item?.serial != null && this._visibleItems?.has?.(item.serial >>> 0)) {
         this.sendRemove(item.serial);
         this._visibleItems.delete(item.serial >>> 0);
       }
-      return false;
+      return null;
     }
     // Propagate `item.movable` into the on-wire flags byte. The default
     // worldItemSA flag is 0x20 ("movable" in our protocol, despite a
@@ -399,38 +862,95 @@ export class NetState {
     // spam on every door click. Match the existing convention used by
     // `_onClose` (line 219) — 0x20 movable, 0x00 fixed.
     const isMulti = item._multiAnchor === true || item.multiId != null || item.boat != null;
-    this.send(worldItemSA({
-      serial: item.serial,
-      itemId: isMulti ? (item.multiId ?? item.itemId) : item.itemId,
-      dataType: isMulti ? 2 : 0,
-      hue: item.hue,
-      amount: item.amount, x: item.x, y: item.y, z: item.z,
-      flags: (item.movable === false) ? 0x00 : 0x20,
+    const itemId = isMulti ? (item.multiId ?? item.itemId) : item.itemId;
+    const flags = item.movable === false ? 0x00 : 0x20;
+    const key = `item:${item.serial >>> 0}:${itemId | 0}:${item.hue | 0}:${item.amount | 0}:${item.x | 0}:${item.y | 0}:${item.z | 0}:${flags}:${isMulti ? 2 : 0}`;
+    return sharedPacketTemplates.get(key, () => worldItemSA({
+      serial: item.serial, itemId, dataType: isMulti ? 2 : 0,
+      hue: item.hue, amount: item.amount, x: item.x, y: item.y, z: item.z, flags,
     }));
+  }
+
+  sendItem(item) {
+    const packet = this.packetForItem(item);
+    if (!packet) return false;
+    this.send(packet);
+    // Standard clients discover custom designs through BF/1D and answer with
+    // BF/1E. Advertise only when a foundation first enters visibility or its
+    // revision changes; ordinary static houses and boats pay no extra packet.
+    if (item?._multiAnchor === true || item?.multiId != null) {
+      const houses = this.ctx.houses ?? this.ctx.systems?.houses;
+      const house = houses?.houseByMultiSerial?.(item.serial) ?? null;
+      if (house?.customizable) {
+        const serial = item.serial >>> 0;
+        const revision = house.revision >>> 0;
+        if (this._houseRevisions.get(serial) !== revision) {
+          this._houseRevisions.set(serial, revision);
+          this.send(extHouseRevision({ serial, revision }));
+        }
+      }
+    }
     return true;
   }
 
   supportsNodeUO(capability) {
-    return this.nodeUOTransport
-      && this.nodeUOProtocol?.major === 1
-      && (((this.nodeUOCapabilities >>> 0) & (capability >>> 0)) === (capability >>> 0));
+    if (!this.nodeUOJsonTransport || this.nodeUOProtocol?.major !== 2
+        || typeof capability !== 'string') return false;
+    const feature = capability.trim().toLowerCase();
+    return !!feature && !this._nodeUODisabledFeatures?.has?.(feature)
+      && this.nodeUOFeatures.has(feature)
+      && this.ctx.featureRollouts?.allowed?.(this, feature) !== false;
   }
 
   /** Convenience: emit 0x1D RemoveEntity for a serial. */
   sendRemove(serial) {
-    this.send(removeEntity(serial));
+    const prefix = `${Number(serial) >>> 0}:`;
+    for (const key of this._lastEntityDelta.keys()) if (key.startsWith(prefix)) this._lastEntityDelta.delete(key);
+    const normalized = Number(serial) >>> 0;
+    this._houseRevisions.delete(normalized);
+    if (!trySendNodeUOEntityRemoved(this, normalized)) {
+      this.send(sharedPacketTemplates.get(`remove:${normalized}`, () => removeEntity(normalized)));
+    }
   }
 
   _onClose() {
     if (this._cleanupDone) return;
     this._cleanupDone = true;
+    checkpointNodeUOResume(this);
+    this.ctx.cleanupNodeUOFeatureState?.(this);
     this.ctx.connections?.delete?.(this);
-    if (this._rttTimer) clearInterval(this._rttTimer);
+    if (this._admissionAcquired) this.ctx.admission?.release?.(this.id);
+    this._admissionAcquired = false;
+    this.ctx.world?.clearPropertyObserver?.(this);
+    cancelTimer(this._rttTimer, true);
     this._rttTimer = null;
-    if (this._cosmeticFlushTimer) clearTimeout(this._cosmeticFlushTimer);
+    cancelTimer(this._cosmeticFlushTimer);
     this._cosmeticFlushTimer = null;
+    cancelTimer(this._nodeUOJsonFlushTimer);
+    this._nodeUOJsonFlushTimer = null;
+    cancelTimer(this._nodeUOReplicationTimer);
+    this._nodeUOReplicationTimer = null;
+    this._nodeUOReplicationPending?.clear?.();
+    this.nodeUOJsonStats.dropped += this._nodeUOJsonDeferred.size;
+    this._nodeUOJsonDeferred.clear();
+    this.nodeUOJsonStats.dropped += this._nodeUOJsonReliableQueue
+      .slice(this._nodeUOJsonReliableHead)
+      .reduce((count, row) => count + row.count, 0);
+    this._nodeUOJsonReliableQueue.length = 0;
+    this._nodeUOJsonReliableHead = 0;
+    this._nodeUOJsonReliableBytes = 0;
+    this._nodeUOPendingAcks?.clear?.();
+    this._nodeUOIdempotency?.clear?.();
+    this._nodeUOInFlight?.clear?.();
+    this._nodeUOFeatureRevisions?.clear?.();
+    this._nodeUOSubscriptions?.clear?.();
+    this._nodeUOWorldKnown?.clear?.();
+    this._nodeUOChannelAcks?.clear?.();
+    this._nodeUOSequences?.clear?.();
+    this._nodeUOCompatibilityNotices?.clear?.();
     this.backpressureStats.dropped += this._deferredCosmetic.size;
     this._deferredCosmetic.clear();
+    this._lastEntityDelta.clear();
     this._closed = true;
     diagnostics.connectionClosed(this, 'socket closed');
     if (this.mobile) {
@@ -454,7 +974,7 @@ export class NetState {
           x: it.x, y: it.y, z: it.z, hue: it.hue,
           flags: (it.movable ?? true) ? 0x20 : 0x00,
         });
-        // BUGFIX #65 (FAZA CW): visibility-gate. A logout on Felucca
+        // BUGFIX #65 (PHASE CW): visibility-gate. A logout on Felucca
         // doesn't need to ping every player in Trammel about the
         // backpack item drop.
         for (const other of nearbyClients(this.ctx.world, it, mob)) {
@@ -522,13 +1042,13 @@ export class NetState {
     // and, worse, a reconnecting player could inherit a dangling callback
     // from the previous login.
     for (const entry of this.targetCallbacks?.values?.() ?? []) {
-      if (entry?.timer) clearTimeout(entry.timer);
+      cancelTimer(entry?.timer);
     }
     this.targetCallbacks?.clear?.();
-    if (this._nodeUOCapabilityTimer) clearTimeout(this._nodeUOCapabilityTimer);
-    this._nodeUOCapabilityTimer = null;
+    cancelTimer(this._nodeUOSessionTimer);
+    this._nodeUOSessionTimer = null;
     this.activeGumps?.clear?.();
-    if (this._gumpExpiryTimer) clearTimeout(this._gumpExpiryTimer);
+    cancelTimer(this._gumpExpiryTimer);
     this._gumpExpiryTimer = null;
     this.activePrompts?.clear?.();
     this.openContainers?.clear?.();

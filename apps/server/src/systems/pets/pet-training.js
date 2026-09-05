@@ -1,4 +1,4 @@
-// FAZA DF — pet training milestones.
+// PHASE DF — pet training milestones.
 //
 // Tamed pets gain experience for kills (and only for kills they
 // actually landed — the killer slot in `killMobile`). Each level
@@ -80,6 +80,12 @@ export function trainPet(pet, abilityKey) {
 export function awardPetXp(pet, amount) {
   if (!pet || amount <= 0) return 0;
   if (!pet.controlMaster) return 0;       // not actually a pet
+  if ((pet._whisperingUntil ?? 0) > Date.now()) {
+    amount = Math.max(1, Math.ceil(amount * (1 + Math.max(0, Number(pet._whisperingGainBonus) || 0.25))));
+  } else if (pet._whisperingUntil) {
+    pet._whisperingUntil = 0;
+    pet._whisperingGainBonus = 0;
+  }
   const lvl = pet.petLevel | 0;
   if (lvl >= MAX_LEVEL) return pet.petXp | 0;
   const before = pet.petXp | 0;

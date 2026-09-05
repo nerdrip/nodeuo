@@ -15,6 +15,13 @@ import {
   NetState,
   Stage,
 } from '../src/net/net-state.js';
+import {
+  createNodeUOMessage,
+  NODEUO_JSON_SUBPROTOCOL,
+  NodeUODelivery,
+  parseNodeUOFrame,
+  parseNodeUOMessage,
+} from '@uo/nodeuo-protocol';
 
 class FakeWs extends EventEmitter {
   constructor() {
@@ -37,7 +44,163 @@ function makeCtx() {
   };
 }
 
+function unicodePacketText(packet) {
+  let text = '';
+  for (let offset = 48; offset + 1 < packet.length; offset += 2) {
+    const code = (packet[offset] << 8) | packet[offset + 1];
+    if (!code) break;
+    text += String.fromCharCode(code);
+  }
+  return text;
+}
+
 describe('NetState._onClose', () => {
+  it('advertises a classic custom-house revision once per streamed revision', () => {
+    const ws = new FakeWs();
+    const house = { customizable: true, revision: 7 };
+    const state = new NetState(ws, {
+      ...makeCtx(),
+      houses: { houseByMultiSerial: () => house },
+    });
+    const foundation = {
+      serial: 0x40000123, itemId: 0, multiId: 0x13EC,
+      x: 100, y: 100, z: 0, map: 1, hue: 0, amount: 1,
+      movable: false, _multiAnchor: true,
+    };
+
+    expect(state.sendItem(foundation)).toBe(true);
+    expect(ws.send).toHaveBeenCalledTimes(2);
+    expect([...ws.send.mock.calls[1][0].subarray(0, 5)]).toEqual([0xBF, 0, 13, 0, 0x1D]);
+
+    state.sendItem(foundation);
+    expect(ws.send).toHaveBeenCalledTimes(3); // item update only
+
+    house.revision = 8;
+    state.sendItem(foundation);
+    expect(ws.send).toHaveBeenCalledTimes(5);
+    const revisionPacket = ws.send.mock.calls[4][0];
+    expect([...revisionPacket.subarray(9, 13)]).toEqual([0, 0, 0, 8]);
+  });
+
+  it('moves private UI sentinels to typed JSON on v2 and keeps ordinary UO messages binary', () => {
+    const ws = new FakeWs();
+    const state = new NetState(ws, {
+      ...makeCtx(), nodeUOTransport: true, nodeUOTransportVersion: NODEUO_JSON_SUBPROTOCOL,
+    });
+    state.nodeUOProtocol = { major: 2, minor: 0, json: true };
+    state.nodeUOFeatures.set('crafting.workbench', 1);
+
+    state.sendSystemMessage('@@OPEN_CRAFT_GUMP@@smithing|100.0');
+    expect(ws.send).toHaveBeenCalledTimes(1);
+    expect(typeof ws.send.mock.calls[0][0]).toBe('string');
+    expect(parseNodeUOMessage(ws.send.mock.calls[0][0])).toMatchObject({
+      feature: 'crafting.workbench',
+      payload: { operation: 'open-gump', name: 'craft', payload: 'smithing|100.0' },
+    });
+
+    state.sendSystemMessage('A normal UO system message.');
+    expect(ws.send).toHaveBeenCalledTimes(2);
+    expect(ws.send.mock.calls[1][1]).toMatchObject({ binary: true });
+  });
+
+  it('replaces private UI sentinels with a rate-limited classic-client fallback notice', () => {
+    const ws = new FakeWs();
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const state = new NetState(ws, { ...makeCtx(), nodeUOSettings: { value: {
+      compatibility: { noticeCooldownMs: 300_000 },
+    } } });
+    state.accountName = 'classic-player';
+    state.clientVersionString = '7.0.100.0';
+
+    try {
+      state.sendSystemMessage('@@OPEN_BANKER_GUMP@@1250');
+      state.sendSystemMessage('@@OPEN_BANKER_GUMP@@1250');
+      expect(ws.send).toHaveBeenCalledOnce();
+      const message = unicodePacketText(ws.send.mock.calls[0][0]);
+      expect(message).toContain('requires the NodeUO client');
+      expect(message).toContain('standard bank box remains available');
+      expect(message).not.toContain('@@');
+      expect(info).toHaveBeenCalledOnce();
+      expect(info.mock.calls[0][0]).toContain('standard UO session continues');
+    } finally {
+      info.mockRestore();
+    }
+  });
+
+  it('does not revive historical private UI sentinels for retired v1 state', () => {
+    const ws = new FakeWs();
+    const state = new NetState(ws, { ...makeCtx(), nodeUOTransport: true });
+    state.nodeUOProtocol = { major: 1, minor: 0 };
+
+    state.sendSystemMessage('@@OPEN_CRAFT_GUMP@@smithing|100.0');
+
+    expect(ws.send).toHaveBeenCalledOnce();
+    expect(unicodePacketText(ws.send.mock.calls[0][0])).toContain('requires the NodeUO client');
+  });
+
+  it('never leaks an unknown future private marker to a classic UO journal', () => {
+    const ws = new FakeWs();
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const state = new NetState(ws, makeCtx());
+
+    try {
+      state.sendSystemMessage('@@FUTURE_WIDGET@@opaque-data');
+      expect(ws.send).toHaveBeenCalledOnce();
+      const message = unicodePacketText(ws.send.mock.calls[0][0]);
+      expect(message).toContain('requires the NodeUO client');
+      expect(message).not.toContain('FUTURE_WIDGET');
+      expect(message).not.toContain('opaque-data');
+    } finally {
+      info.mockRestore();
+    }
+  });
+
+  it('batches negotiated JSON envelopes into one bounded text frame', () => {
+    const ws = new FakeWs();
+    const state = new NetState(ws, {
+      ...makeCtx(), nodeUOTransport: true, nodeUOTransportVersion: NODEUO_JSON_SUBPROTOCOL,
+    });
+    state.nodeUOProtocol = { major: 2, minor: 0, json: true };
+    state.nodeUOFeatures = new Map([['protocol.batch', 1], ['flow.qos', 1]]);
+    const messages = [1, 2].map((seq) => createNodeUOMessage({
+      feature: 'flow.qos', seq, payload: { seq },
+    }));
+
+    expect(state.sendNodeUOBatch(messages)).toBe(true);
+    expect(ws.send).toHaveBeenCalledOnce();
+    expect(typeof ws.send.mock.calls[0][0]).toBe('string');
+    expect(parseNodeUOFrame(ws.send.mock.calls[0][0])).toMatchObject([
+      { feature: 'flow.qos', seq: 1 }, { feature: 'flow.qos', seq: 2 },
+    ]);
+    expect(state.nodeUOJsonStats).toMatchObject({ sent: 2, framesSent: 1, batchedMessages: 2 });
+  });
+
+  it('queues rate-limited reliable JSON in FIFO order and flushes it within a hard bound', () => {
+    vi.useFakeTimers();
+    const ws = new FakeWs();
+    const state = new NetState(ws, {
+      ...makeCtx(), nodeUOTransport: true, nodeUOTransportVersion: NODEUO_JSON_SUBPROTOCOL,
+    });
+    state.nodeUOProtocol = { major: 2, minor: 1, json: true };
+    state.nodeUOFeatures.set('flow.qos', 1);
+    state.nodeUOBandwidth.tokens = -state.nodeUOBandwidth.criticalReserveBytes;
+    const first = createNodeUOMessage({ feature: 'flow.qos', delivery: NodeUODelivery.Reliable,
+      payload: { order: 1 } });
+    const second = createNodeUOMessage({ feature: 'flow.qos', delivery: NodeUODelivery.Reliable,
+      payload: { order: 2 } });
+    expect(state.sendNodeUOMessage(first)).toBe(true);
+    expect(state.sendNodeUOMessage(second)).toBe(true);
+    expect(ws.send).not.toHaveBeenCalled();
+    expect(state._nodeUOJsonReliableQueue).toHaveLength(2);
+    state.nodeUOBandwidth.tokens = state.nodeUOBandwidth.burstBytes;
+    vi.advanceTimersByTime(25);
+    expect(ws.send).toHaveBeenCalledTimes(2);
+    expect(ws.send.mock.calls.map(([text]) => parseNodeUOMessage(text).payload.order)).toEqual([1, 2]);
+    expect(state._nodeUOJsonReliableQueue).toHaveLength(0);
+    state.close('test');
+    vi.useRealTimers();
+  });
+
   it('clears every per-session interaction map on disconnect', () => {
     const ws = new FakeWs();
     const state = new NetState(ws, makeCtx());
@@ -46,6 +209,7 @@ describe('NetState._onClose', () => {
     state.targetCallbacks = new Map([[1, () => {}]]);
     state.activeGumps = new Map([[2, {}]]);
     state.activePrompts = new Map([[3, () => {}]]);
+    state._nodeUOCompatibilityNotices = new Map([['ui.rich-gumps/banker', Date.now()]]);
     state.openContainers.add(0x40000001);
 
     ws.emit('close');
@@ -53,6 +217,7 @@ describe('NetState._onClose', () => {
     expect(state.targetCallbacks.size).toBe(0);
     expect(state.activeGumps.size).toBe(0);
     expect(state.activePrompts.size).toBe(0);
+    expect(state._nodeUOCompatibilityNotices.size).toBe(0);
     expect(state.openContainers.size).toBe(0);
   });
 
@@ -118,6 +283,24 @@ describe('NetState._onClose', () => {
     expect(state.backpressureStats.flushed).toBe(1);
     state.close('test');
     vi.useRealTimers();
+  });
+
+  it('batches packet boundaries into one unchanged transport stream', () => {
+    const ws = new FakeWs();
+    const state = new NetState(ws, makeCtx());
+    state.sendBatch([new Uint8Array([0x73, 1]), new Uint8Array([0x73, 2])]);
+    expect(ws.send).toHaveBeenCalledOnce();
+    expect(Buffer.from(ws.send.mock.calls[0][0])).toEqual(Buffer.from([0x73, 1, 0x73, 2]));
+  });
+
+  it('suppresses identical entity deltas per viewer without suppressing changes', () => {
+    const ws = new FakeWs();
+    const state = new NetState(ws, makeCtx());
+    expect(state.sendEntityDelta(7, 1, new Uint8Array([0x77, 1]))).toBe(true);
+    expect(state.sendEntityDelta(7, 1, new Uint8Array([0x77, 1]))).toBe(false);
+    expect(state.sendEntityDelta(7, 1, new Uint8Array([0x77, 2]))).toBe(true);
+    expect(ws.send).toHaveBeenCalledTimes(2);
+    expect(state.backpressureStats.duplicateDeltas).toBe(1);
   });
 });
 

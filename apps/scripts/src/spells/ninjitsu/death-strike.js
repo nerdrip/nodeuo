@@ -1,10 +1,7 @@
 // Death Strike — Ninjitsu delayed-damage ability. The struck target
-// takes a chunk of damage 5 seconds later, which doubles if they take
-// any other damage in that window (ServUO `DeathStrike.cs`).
-//
-// MVP: just schedule the delayed tick via status-effects (single onTick
-// at the end of duration). The "extra damage on movement" rider is
-// FAZA Q part 2.
+// takes a chunk of damage 5 seconds later, doubled when they move during
+// the countdown (ServUO `DeathStrike.cs`). The central status scheduler owns
+// the delay so script reload/shutdown does not leave an orphaned raw timer.
 
 import { aura, broadcastEffect, broadcastSound, skillValue } from '../_helpers.js';
 
@@ -22,13 +19,29 @@ export default {
     broadcastSound(api, api.world, target, 0x21F);
 
     const ninjitsu = skillValue(caster, 54);
-    const dmg = 12 + Math.floor(ninjitsu / 8); // 12..27
-    setTimeout(() => {
-      if ((target.hp ?? 0) <= 0) return;
-      api.combat.damage(api.world, target, dmg, caster);
-      api.combat.animate(api.world, target, 0x14, { frameCount: 3 });
-      if (target.client) target.client.sendSystemMessage('A killing blow lands on your back.');
-    }, 5000);
+    const baseDamage = 12 + Math.floor(ninjitsu / 8); // 12..27
+    const appliedAt = Date.now();
+    let resolved = false;
+    api.statusEffects?.apply?.(target, {
+      name: 'death-strike', durationMs: 30_000, tickIntervalMs: 5_000,
+      data: { casterSerial: caster.serial >>> 0, baseDamage, appliedAt },
+      onTick(mob, world) {
+        if (resolved) return;
+        resolved = true;
+        const activeWorld = world ?? api.world;
+        if ((mob.hp ?? 0) > 0 && activeWorld?.mobiles?.has?.(mob.serial)) {
+          const moved = (mob._lastMoveAt ?? 0) > appliedAt;
+          const damage = moved ? baseDamage * 2 : baseDamage;
+          api.combat.damage(activeWorld, mob, damage, caster);
+          api.combat.animate(activeWorld, mob, 0x14, { frameCount: 3 });
+          mob.client?.sendSystemMessage?.(
+            moved ? 'Your movement unleashes a devastating Death Strike.'
+              : 'A killing blow lands on your back.',
+          );
+        }
+        api.statusEffects?.remove?.(mob, 'death-strike', activeWorld);
+      },
+    });
     ctx.state.sendSystemMessage('Your Death Strike is set.');
   },
 };

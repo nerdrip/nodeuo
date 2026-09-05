@@ -45,14 +45,14 @@ export default function register(api) {
         sharedDispatch(state, spell.id);
         return;
       }
-      // FAZA AI — Chivalry uses Tithing Points instead of mana. Each
+      // PHASE AI — Chivalry uses Tithing Points instead of mana. Each
       // chiv spell carries a `tithe` cost (default 5); when the school
       // is 'chivalry' we consume from `caster.tithingPoints`. Other
       // schools fall through to the mana check.
-      // FAZA FP: magic wand bypass — wand-driven casts skip mana,
+      // PHASE FP: magic wand bypass — wand-driven casts skip mana,
       // tithing, and reagent gates. The lifecycle script sets
       // `_wandCast` on the caster for one tick.
-      // FAZA HA: GM+ bypass — GameMasters and Admins skip every cost
+      // PHASE HA: GM+ bypass — GameMasters and Admins skip every cost
       // check (mana, tithing, reagents). Mirrors ServUO `Mobile.cs::
       // CheckResources` short-circuit when AccessLevel >= GameMaster.
       // Allows staff to demo spells / debug without farming reagents.

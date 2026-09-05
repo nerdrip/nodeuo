@@ -122,4 +122,130 @@ describe('Spawner', () => {
     expect([...reloaded.spawnedSerials]).toEqual([serial]);
     expect(spawner.validateIndex()).toMatchObject({ ok: true });
   });
+
+  it('adopts persisted spawned mobiles on boot instead of duplicating them', () => {
+    const world = new World();
+    const restored = world.createMobile({ name: 'restored rat', x: 1, y: 1, z: 0, map: 1 });
+    restored.spawnerId = 'persisted-group';
+    let created = 0;
+    const spawner = new Spawner(world, (w, kind, pos) => {
+      created++;
+      return w.createMobile({ name: kind, ...pos });
+    });
+    const group = spawner.add({
+      id: 'persisted-group', map: 1, rect: { x1: 0, y1: 0, x2: 2, y2: 2 },
+      maxCount: 1, respawnMs: [0, 0], kinds: ['rat'], nextSpawnAt: 0,
+    });
+
+    expect([...group.spawnedSerials]).toEqual([restored.serial]);
+    spawner.tick();
+    expect(created).toBe(0);
+    expect(spawner.runtimeSnapshot().trackedMobiles).toBe(1);
+  });
+
+  it('despawns tracked mobiles when a generated definition is removed', () => {
+    const world = new World();
+    const spawner = new Spawner(world, (w, kind, pos) => w.createMobile({ name: kind, ...pos }));
+    const group = spawner.add({
+      id: 'generated', map: 1, rect: { x1: 1, y1: 1, x2: 2, y2: 2 },
+      maxCount: 1, respawnMs: [0, 0], kinds: ['vendor'],
+    });
+    group.nextSpawnAt = 0;
+    spawner.tick();
+    const serial = [...group.spawnedSerials][0];
+    const pack = world.createItem({ itemId: 0x0e75, parent: serial });
+    const nested = world.createItem({ itemId: 0x0eed, parent: pack.serial });
+
+    spawner.remove('generated', { despawn: true });
+
+    expect(world.mobiles.has(serial)).toBe(false);
+    expect(world.items.has(pack.serial)).toBe(false);
+    expect(world.items.has(nested.serial)).toBe(false);
+    expect(spawner.groups.has('generated')).toBe(false);
+    expect(spawner._mobileToGroup.has(serial)).toBe(false);
+    expect(spawner.validateIndex()).toMatchObject({ ok: true });
+  });
+
+  it('despawns selected facets without deleting their definitions', () => {
+    const world = new World();
+    const spawner = new Spawner(world, (w, kind, pos) => w.createMobile({ name: kind, ...pos }));
+    const first = spawner.add({ id: 'fel', map: 1, rect: { x1: 1, y1: 1, x2: 2, y2: 2 }, maxCount: 1, respawnMs: [0, 0], kinds: ['rat'] });
+    const second = spawner.add({ id: 'tram', map: 2, rect: { x1: 1, y1: 1, x2: 2, y2: 2 }, maxCount: 1, respawnMs: [0, 0], kinds: ['rat'] });
+    first.nextSpawnAt = 0; second.nextSpawnAt = 0;
+    spawner.tick();
+    const survivor = [...second.spawnedSerials][0];
+
+    expect(spawner.despawnWhere((group) => group.map === 1)).toEqual({ groupsMatched: 1, mobilesRemoved: 1 });
+    expect(spawner.groups.size).toBe(2);
+    expect(first.spawnedSerials.size).toBe(0);
+    expect(world.mobiles.has(survivor)).toBe(true);
+    expect(second.spawnedSerials.size).toBe(1);
+  });
+
+  it('checks only due groups and immediately refills a released slot', () => {
+    const world = new World();
+    let created = 0;
+    const spawner = new Spawner(world, (w, kind, pos) => {
+      created++;
+      return w.createMobile({ name: kind, ...pos });
+    });
+    const sleeping = spawner.add({
+      id: 'sleeping', map: 1, rect: { x1: 1, y1: 1, x2: 2, y2: 2 },
+      maxCount: 1, respawnMs: [60_000, 60_000], kinds: ['rat'],
+      nextSpawnAt: 90_000,
+    });
+    const due = spawner.add({
+      id: 'due', map: 1, rect: { x1: 3, y1: 3, x2: 4, y2: 4 },
+      maxCount: 1, respawnMs: [60_000, 60_000], kinds: ['orc'],
+      nextSpawnAt: 1_000,
+    });
+
+    spawner.tick(1_000);
+    expect(created).toBe(1);
+    expect(sleeping.spawnedSerials.size).toBe(0);
+    const serial = [...due.spawnedSerials][0];
+    expect(spawner.runtimeSnapshot()).toMatchObject({ groupsChecked: 1, trackedMobiles: 1 });
+
+    world.removeMobile(serial);
+    spawner.tick(61_000);
+    expect(created).toBe(2);
+    expect(due.spawnedSerials.size).toBe(1);
+  });
+
+  it('supports real direct spawns, listings and runtime density changes', () => {
+    const world = new World();
+    const spawner = new Spawner(world, (w, kind, pos) => w.createMobile({ name: kind, ...pos }));
+    const direct = spawner.spawn('banker', { x: 10, y: 20, z: 0, map: 1 });
+    expect(direct).toMatchObject({ name: 'banker', kind: 'banker', x: 10, y: 20 });
+
+    const group = spawner.add({
+      id: 'density', map: 1, rect: { x1: 1, y1: 1, x2: 2, y2: 2 },
+      maxCount: 2, respawnMs: [0, 0], kinds: ['rat'],
+    });
+    expect(spawner.list()).toContain(group);
+    expect(spawner.setDensity(2)).toBe(2);
+    for (let i = 0; i < 5; i++) { group.nextSpawnAt = 0; spawner.tick(); }
+    expect(group.spawnedSerials.size).toBe(4);
+    expect(spawner.runtimeSnapshot()).toMatchObject({ densityFactor: 2 });
+  });
+
+  it('does not scan thousands of sleeping spawn definitions', () => {
+    const world = new World();
+    const spawner = new Spawner(world, (w, kind, pos) => w.createMobile({ name: kind, ...pos }));
+    let due = null;
+    for (let i = 0; i < 7_000; i++) {
+      const group = spawner.add({
+        id: `bulk-${i}`, map: 1, rect: { x1: 0, y1: 0, x2: 1, y2: 1 },
+        maxCount: 1, respawnMs: [60_000, 60_000], kinds: ['rat'],
+        nextSpawnAt: 100_000,
+      });
+      if (i === 6_999) due = group;
+    }
+
+    spawner.tick(1_000);
+    expect(spawner.runtimeSnapshot()).toMatchObject({ groups: 7_000, groupsChecked: 0 });
+    due.nextSpawnAt = 0;
+    spawner.tick(1_000);
+    expect(spawner.runtimeSnapshot()).toMatchObject({ groupsChecked: 1, groupsSpawned: 1 });
+  });
 });

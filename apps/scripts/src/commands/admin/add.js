@@ -31,7 +31,7 @@ export default function register(api) {
         itemId, hue, x: ctx.sender.x, y: ctx.sender.y, z: ctx.sender.z, map: ctx.sender.map,
       });
       api.log(`[add] ${ctx.sender.name} spawned 0x${itemId.toString(16)} as 0x${item.serial.toString(16)} at (${item.x},${item.y},${item.z})`);
-      // BUGFIX #65 (FAZA CW): the original loop fanned the `sendItem`
+      // BUGFIX #65 (PHASE CW): the original loop fanned the `sendItem`
       // out to EVERY connected client. A single `[add` in Britain
       // pinged every player on the shard, including those on Felucca
       // / a different facet. Filter by map + 18-tile visibility, the

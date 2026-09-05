@@ -6,6 +6,6 @@ export default {
   name: 'onslaught',
   cast(api, ctx) {
     const caster = ctx.sender;
-    caster.onslaughtCharge = 1;
+    caster._onslaughtCharge = 1;
   },
 };

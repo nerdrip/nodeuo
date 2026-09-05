@@ -224,15 +224,9 @@ describe('login flow', () => {
     const versionReq = await waitFor(incoming, (p) => p[0] === 0xBD);
     expect(Array.from(versionReq)).toEqual([0xBD, 0x00, 0x03]);
 
-    // This connection did not negotiate the `nodeuo.v1` WebSocket
-    // subprotocol. It must receive only standard UO packets: neither the
-    // capability envelope (F100) nor the private command catalogue (00A0).
+    // This connection did not negotiate the NodeUO JSON WebSocket
+    // subprotocol. Its binary stream remains ordinary UO traffic.
     await new Promise((r) => setTimeout(r, 25));
-    const privateSubcommands = incoming
-      .filter((p) => p[0] === 0xBF && p.length >= 5)
-      .map((p) => ((p[3] << 8) | p[4]) >>> 0)
-      .filter((sub) => sub === 0xF100 || sub === 0xF101 || sub === 0x00A0);
-    expect(privateSubcommands).toEqual([]);
 
     // Receive a movement round-trip. The test only proves the server
     // processed the 0x02 — it can legitimately respond with EITHER

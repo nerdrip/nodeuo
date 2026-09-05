@@ -1,4 +1,4 @@
-// FAZA CF — torch script preserves the items.json default unlit graphic
+// PHASE CF — torch script preserves the items.json default unlit graphic
 // across toggle cycles (BUGFIX #48). The previous implementation
 // hard-coded the toggle pair as 0x0A25 ↔ 0x0A12, but 0x0A25 is the
 // LANTERN-lit graphic and 0x0F6B is the unlit torch graphic items.json
@@ -17,7 +17,7 @@ import buildTorchScript from '../../scripts/src/items/scripts/lights/torch.js';
 const TORCH_UNLIT_DEFAULT = 0x0F6B;
 const TORCH_LIT = 0x0A12;
 
-describe('torch script (FAZA CF)', () => {
+describe('torch script (PHASE CF)', () => {
   let preExistingScripts;
   /** @type {*} */
   let api;

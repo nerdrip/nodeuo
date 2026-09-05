@@ -22,6 +22,12 @@
 const TIER_THRESHOLDS_MONTHS = [0, 1, 12, 24, 36, 48, 60, 84];
 const MS_PER_MONTH = 30 * 24 * 60 * 60 * 1000;
 
+function accountCreationTime(account, now = Date.now()) {
+  const raw = account?.createdAt ?? account?.created;
+  const value = typeof raw === 'number' ? raw : Date.parse(raw ?? '');
+  return Number.isFinite(value) ? value : now;
+}
+
 const REWARDS_BY_TIER = {
   // Tier 1 (1+ months) — basic dyes, deeds, common mounts
   1: [
@@ -176,9 +182,13 @@ export function tierFromAge(ageMs) {
   return tier;
 }
 
+export function tierForAccount(account, now = Date.now()) {
+  return tierFromAge(Math.max(0, now - accountCreationTime(account, now)));
+}
+
 /** How many reward credits this account has earned in total (lifetime). */
 export function lifetimeCredits(account, now = Date.now()) {
-  const created = account?.createdAt ?? now;
+  const created = accountCreationTime(account, now);
   const age = Math.max(0, now - created);
   const months = Math.floor(age / MS_PER_MONTH);
   // 1 credit per qualifying anniversary month: 1, 12, 24, 36, 48, 60, 84.
@@ -199,7 +209,7 @@ export function availableCredits(account, now = Date.now()) {
 
 /** All reward names this account is eligible to choose. */
 export function eligibleRewards(account, now = Date.now()) {
-  const tier = tierFromAge((now - (account?.createdAt ?? now)));
+  const tier = tierForAccount(account, now);
   const out = [];
   for (let t = 1; t <= tier; t++) out.push(...(REWARDS_BY_TIER[t] ?? []));
   return out;
@@ -229,6 +239,16 @@ export function redeem(account, rewardName, now = Date.now()) {
   }
   account.veteran.redeemed.push(rewardName);
   return { ok: true, reward: rewardName };
+}
+
+/** Roll back a credit reservation when item delivery fails. */
+export function rollbackRedemption(account, rewardName) {
+  const redeemed = account?.veteran?.redeemed;
+  if (!Array.isArray(redeemed)) return false;
+  const index = redeemed.lastIndexOf(rewardName);
+  if (index < 0) return false;
+  redeemed.splice(index, 1);
+  return true;
 }
 
 export const VETERAN_CONST = Object.freeze({

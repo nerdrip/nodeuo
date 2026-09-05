@@ -100,7 +100,7 @@ export function tickAllMobileScripts(world, dt) {
   if (_tickCacheDirty) refreshTickCache();
   if (!_anyScriptHasTick) return;
   const index = world._tickingMobiles;
-  const candidates = index ? [...index] : world.mobiles.values();
+  const candidates = index ?? world.mobiles.values();
   for (const candidate of candidates) {
     const mob = index ? world.mobiles.get(candidate) : candidate;
     if (!mob) { index?.delete?.(candidate); continue; }

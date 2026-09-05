@@ -1,11 +1,11 @@
-# Wzorce i kompletne przykłady
+# Patterns and complete examples
 
-Poniższe przykłady pokazują preferowane granice API. Są celowo małe — logikę
-domenową należy składać z helperów, zamiast rozbudowywać jeden globalny skrypt.
+These examples demonstrate the preferred API boundaries. They are deliberately
+small: compose domain logic from helpers instead of growing a global script.
 
 ## Item lifecycle
 
-Definicja w `items.json`:
+Definition in `items.json`:
 
 ```json
 {
@@ -17,7 +17,7 @@ Definicja w `items.json`:
 }
 ```
 
-Implementacja:
+Implementation:
 
 ```js
 export default function register(api) {
@@ -32,9 +32,9 @@ export default function register(api) {
         name: 'gold',
       }, { randomGrid: true });
 
-      if (!reward) return state?.sendSystemMessage?.('Potrzebujesz plecaka.');
+      if (!reward) return state?.sendSystemMessage?.('You need a backpack.');
       api.game.item.destroy(item);
-      state?.sendSystemMessage?.('Nagroda odebrana.');
+      state?.sendSystemMessage?.('Reward claimed.');
     },
   });
 
@@ -42,7 +42,7 @@ export default function register(api) {
 }
 ```
 
-## Targetowanie i teleport
+## Targeting and teleportation
 
 ```js
 export default function register(api) {
@@ -50,25 +50,25 @@ export default function register(api) {
     name: 'blink',
     access: 'Player',
     run(ctx) {
-      ctx.state.sendSystemMessage('Wskaż miejsce.');
+      ctx.state.sendSystemMessage('Choose a location.');
       api.targeting.request(ctx.state, (target) => {
-          if (!target) return;
-          api.game.mobile.teleport(ctx.sender, {
-            x: target.x,
-            y: target.y,
-            z: target.z,
-            map: target.map ?? ctx.sender.map,
-          }, { state: ctx.state, refresh: true });
+        if (!target) return;
+        api.game.mobile.teleport(ctx.sender, {
+          x: target.x,
+          y: target.y,
+          z: target.z,
+          map: target.map ?? ctx.sender.map,
+        }, { state: ctx.state, refresh: true });
       }, { allowGround: true });
     },
   });
 }
 ```
 
-Sygnatura to `api.targeting.request(state, callback, options)`. Target zawsze
-ponownie waliduj po stronie serwera.
+The signature is `api.targeting.request(state, callback, options)`. Always
+revalidate the selected target on the server.
 
-## Bezpieczny timer wydarzenia
+## Safe event timer
 
 ```js
 import { defineScript } from './_script.js';
@@ -86,10 +86,10 @@ export default defineScript({
 });
 ```
 
-Timer zostanie usunięty podczas hot reloadu. Nie trzymaj w closure obiektów
-mobile przez wiele minut; jeżeli potrzebujesz trwałej referencji, zachowaj serial.
+The timer is removed during hot reload. Do not retain mobile objects in a
+closure for many minutes; retain the serial when a durable reference is needed.
 
-## Indeksowane zapytania
+## Indexed queries
 
 ```js
 const enemies = api.game.mobilesNear(caster, { range: 8, self: caster })
@@ -100,9 +100,9 @@ for (const enemy of enemies) {
 }
 ```
 
-Nie skanuj `api.world.mobiles.values()` dla każdego castu lub ticka AI.
+Do not scan `api.world.mobiles.values()` for every cast or AI tick.
 
-## Komenda administratora z ACL
+## Administrator command with ACL
 
 ```js
 export default function register(api) {
@@ -118,16 +118,16 @@ export default function register(api) {
 }
 ```
 
-Uprawnienie komendy jest sprawdzane przez registry. Operacje mutujące świat
-powinny dodatkowo walidować cel, region i aktualny stan encji.
+The command registry checks access. World-mutating operations should also
+validate the target, region, and current entity state.
 
-## Checklist przed publikacją
+## Pre-publication checklist
 
-- publiczne API zamiast prywatnego importu z silnika;
-- lifecycle/disposer dla każdej rejestracji;
-- `definitionId` oddzielone od `artId` i `body`;
-- serializowalne dane bez socketów, timerów i funkcji;
-- indeksowane zapytania przestrzenne i inventory;
-- ACL i ponowna walidacja targetu/odpowiedzi gumpa;
-- test regresyjny dla inventory, persistence, targetowania albo protokołu;
-- pełny test serwera przed publikacją większej zmiany.
+- use the public API instead of private engine imports;
+- provide a lifecycle/disposer for every registration;
+- keep `definitionId` separate from `artId` and `body`;
+- persist serializable data without sockets, timers, or functions;
+- use indexed spatial and inventory queries;
+- enforce ACL and revalidate targeting/gump responses;
+- add a regression test for inventory, persistence, targeting, or protocol behavior;
+- run the full server test suite before publishing a larger change.

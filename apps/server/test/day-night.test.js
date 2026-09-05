@@ -32,7 +32,7 @@ describe('DayNightCycle', () => {
     cycle.tick();
     expect(cycle.weatherKind).toBe(2);
     expect(cycle.weatherTemperature).toBe(-12);
-    expect(broadcast).toHaveBeenCalledWith(2, expect.any(Number), -12);
+    expect(broadcast).toHaveBeenCalledWith(2, expect.any(Number), -12, expect.any(Array));
     vi.restoreAllMocks();
   });
 
@@ -44,5 +44,46 @@ describe('DayNightCycle', () => {
     restored.deserialize(cycle.serialize());
     expect(restored.currentLevel()).toBe(17);
     expect(restored.weatherTemperature).toBe(-20);
+  });
+
+  it('broadcasts through the online subscription index and emits phase changes', () => {
+    const indexedSend = vi.fn();
+    const offlineSend = vi.fn();
+    const emit = vi.fn();
+    const indexed = { client: { send: indexedSend } };
+    const world = {
+      mobiles: new Map([[1, indexed], [2, { client: { send: offlineSend } }]]),
+      *subscribedMobiles(channel) {
+        expect(channel).toBe('weather');
+        yield indexed;
+      },
+      events: { emit },
+    };
+    const cycle = new DayNightCycle(world, { cyclePeriodMs: 24_000 });
+    cycle._startedAt = 1_000;
+    cycle._nextWeatherAt = Number.MAX_SAFE_INTEGER;
+
+    cycle.tick(3_000); // 02:00, night
+    cycle.tick(8_000); // 07:00, day
+
+    expect(indexedSend).toHaveBeenCalledTimes(2);
+    expect(offlineSend).not.toHaveBeenCalled();
+    expect(emit).toHaveBeenCalledWith('time:phase-changed', expect.objectContaining({ phase: 'night' }));
+    expect(emit).toHaveBeenCalledWith('time:phase-changed', expect.objectContaining({ phase: 'day', previous: 'night' }));
+  });
+
+  it('emits a weather event carrying the actual randomized state', () => {
+    const emit = vi.fn();
+    const world = { mobiles: new Map(), events: { emit } };
+    const cycle = new DayNightCycle(world, { cyclePeriodMs: 24_000 });
+    cycle._startedAt = 0;
+    cycle._nextWeatherAt = 1;
+    vi.spyOn(Math, 'random').mockReturnValue(0.7);
+    cycle.tick(2);
+    vi.restoreAllMocks();
+
+    expect(emit).toHaveBeenCalledWith('weather:changed', expect.objectContaining({
+      at: 2, kind: 0, intensity: expect.any(Number), temperature: 8,
+    }));
   });
 });

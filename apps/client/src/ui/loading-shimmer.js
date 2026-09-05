@@ -1,9 +1,8 @@
 // LoadingShimmer — shared placeholder painter used by every UI control /
 // renderer that has to show SOMETHING while a real texture is in flight.
 //
-// Marcin's brief: "podczas ładowania gumpów byl shiver i nadal chcę ale
-// szarego/srebrnego koloru. Wogóle gdziekolwiek coś ładujesz to dawaj
-// shivery szare/srebne." — the existing per-call hash-coloured rect /
+// Loading placeholders use a consistent gray/silver shimmer. The previous
+// per-call hash-colored rectangle /
 // rounded fill was distracting (every loading patch a different bright
 // hue) AND only some controls had it. We unify on a calm gray-silver
 // gradient that pulses softly so the user knows "this is loading,

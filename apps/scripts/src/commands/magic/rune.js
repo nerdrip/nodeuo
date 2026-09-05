@@ -1,4 +1,4 @@
-// FAZA DU — `[mark` and `[recall` rune system.
+// PHASE DU — `[mark` and `[recall` rune system.
 //
 // ServUO `Spells/Magery/Sixth/Mark.cs` writes a destination into a
 // blank rune item; `Spells/Magery/Fourth/Recall.cs` reads the rune

@@ -82,7 +82,8 @@ templates/
   ClassicUO/ServUO reference code, for comparison only
 
 saves/
-  local world/account saves
+  world.sqlite            world and account database (SQLite WAL)
+  auxiliary JSON files    houses, map edits and small subsystem state
 ```
 
 ## Requirements
@@ -320,9 +321,21 @@ and it lets the server be tested with native clients.
 Local saves live in:
 
 ```text
-saves/world.json
-saves/accounts.json
+saves/world.sqlite
+saves/world.sqlite-wal
+saves/world.sqlite-shm
 ```
+
+The server keeps gameplay state in memory and commits only dirty entities in
+batched SQLite transactions on a persistence worker. The `-wal` and `-shm`
+files are part of a live database; use a graceful shutdown/checkpoint or the
+admin backup operation instead of copying only `world.sqlite` while running.
+The first SQLite boot imports legacy accounts plus player characters and their
+complete inventory/pet chains, but intentionally discards legacy NPCs and
+generated world objects. A new shard therefore starts clean and is populated
+explicitly with `createworld`. When the account table is empty, set
+`UO_BOOTSTRAP_ADMIN_PASSWORD` (and optionally `UO_ADMIN_USER`) to create the
+first durable Admin account; the server never invents a default password.
 
 Locally generated assets live in:
 

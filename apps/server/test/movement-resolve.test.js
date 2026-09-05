@@ -30,11 +30,13 @@ vi.mock('../src/world/land-provider.js', () => ({
 // Simplest: we only assert on pure-land behaviour (no statics) where the
 // rule depends only on land and diagonal-cardinal connectivity.
 
-const { resolveStep } = await import('../src/world/movement.js');
+const { resolveStep, setRuntimeSurfaceAt, setRuntimeSolidAt } = await import('../src/world/movement.js');
 
 beforeEach(() => {
   land.clear();
   statics.clear();
+  setRuntimeSurfaceAt(null);
+  setRuntimeSolidAt(null);
 });
 
 describe('resolveStep', () => {
@@ -50,6 +52,14 @@ describe('resolveStep', () => {
     // same way, so we stay in sync.
     land.set('10,10', { z: 5 });
     expect(resolveStep(1, 10, 10, 5, 11, 10)).toBe(5);
+  });
+
+  it('uses an authored runtime floor even when the map chunk is absent', () => {
+    land.set('10,10', { z: 0, tileId: 3 });
+    setRuntimeSurfaceAt((_facet, x, y) => x === 11 && y === 10
+      ? [{ z: 0, height: 0, surface: true }]
+      : []);
+    expect(resolveStep(1, 10, 10, 0, 11, 10)).toBe(0);
   });
 
   it('diagonal step: both cardinals walkable → diagonal allowed', () => {

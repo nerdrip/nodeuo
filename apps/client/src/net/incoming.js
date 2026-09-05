@@ -880,10 +880,114 @@ export function decodePersonalLight(pkt) {
   return { serial, level };
 }
 
-/** 0xD8 CustomHouse (VAR). For now just emits raw payload — UI-side
- *  parsing of house components lands in a follow-up. */
-export function decodeCustomHouse(pkt) {
-  return { raw: pkt };
+/** 0xD8 CustomHouse (VAR).
+ *
+ * Classic custom-house data is split into independently deflated planes.
+ * Mode 0 carries explicit relative XYZ coordinates, mode 1 carries XY at a
+ * floor-derived Z, and mode 2 is a dense graphic grid whose dimensions come
+ * from the foundation multi. Returned tile coordinates remain relative to the
+ * foundation; HouseCustomizationManager turns them into world coordinates.
+ *
+ * The limits are deliberately tighter than the 12-bit wire fields. They keep
+ * an untrusted shard from turning a tiny frame into an excessive allocation.
+ */
+export async function decodeCustomHouse(pkt, { bounds = null } = {}) {
+  if (!(pkt instanceof Uint8Array) || pkt.length < 18) {
+    throw new RangeError('custom-house packet is truncated');
+  }
+  const r = packetReader(pkt);
+  if (r.readU8() !== 0xD8) throw new RangeError('not a custom-house packet');
+  const packetLength = r.readU16();
+  if (packetLength !== pkt.length) throw new RangeError('custom-house packet length mismatch');
+  const compressed = r.readU8() === 0x03;
+  const response = r.readU8() !== 0;
+  const serial = r.readU32();
+  const revision = r.readU32();
+  const tileCount = r.readU16();
+  const bufferLength = r.readU16();
+  const planeCount = r.readU8();
+  if (!compressed) throw new RangeError('unsupported uncompressed custom-house packet');
+  if (tileCount > 10_000 || planeCount > 32 || bufferLength > 128 * 1024) {
+    throw new RangeError('custom-house packet exceeds safety limits');
+  }
+  if (bufferLength !== pkt.length - 17 || planeCount > Math.floor(r.remaining / 4)) {
+    throw new RangeError('invalid custom-house plane envelope');
+  }
+
+  const planes = [];
+  let inflatedTotal = 0;
+  for (let index = 0; index < planeCount; index++) {
+    if (r.remaining < 4) throw new RangeError('truncated custom-house plane header');
+    const type = r.readU8();
+    const rawLow = r.readU8();
+    const compressedLow = r.readU8();
+    const lengthHigh = r.readU8();
+    const rawLength = rawLow | ((lengthHigh & 0xF0) << 4);
+    const compressedLength = compressedLow | ((lengthHigh & 0x0F) << 8);
+    const zPlane = type & 0x0F;
+    const mode = (type >> 4) & 0x0F;
+    if (rawLength > 0x0FFF || compressedLength <= 0 || compressedLength > r.remaining) {
+      throw new RangeError('invalid custom-house plane length');
+    }
+    inflatedTotal += rawLength;
+    if (inflatedTotal > 256 * 1024) throw new RangeError('custom-house design is too large');
+    planes.push({
+      mode, zPlane, rawLength,
+      bytes: r.readBytes(compressedLength).slice(),
+    });
+  }
+  if (r.remaining !== 0) throw new RangeError('custom-house packet has trailing data');
+
+  const decoded = await Promise.all(planes.map(async (plane) => {
+    const data = await inflate(plane.bytes, plane.rawLength);
+    if (data.length !== plane.rawLength) throw new RangeError('custom-house inflate length mismatch');
+    return { ...plane, data };
+  }));
+
+  const tiles = [];
+  for (const plane of decoded) {
+    const pr = new PacketReader(plane.data);
+    const floorZ = plane.zPlane > 0 ? ((plane.zPlane - 1) % 4) * 20 + 7 : 0;
+    if (plane.mode === 0) {
+      if ((plane.rawLength % 5) !== 0) throw new RangeError('invalid explicit custom-house plane');
+      while (pr.remaining >= 5) {
+        const graphic = pr.readU16();
+        const x = pr.readI8(), y = pr.readI8(), z = pr.readI8();
+        if (graphic) tiles.push({ graphic, x, y, z });
+      }
+    } else if (plane.mode === 1) {
+      if ((plane.rawLength % 4) !== 0) throw new RangeError('invalid sparse custom-house plane');
+      while (pr.remaining >= 4) {
+        const graphic = pr.readU16();
+        const x = pr.readI8(), y = pr.readI8();
+        if (graphic) tiles.push({ graphic, x, y, z: floorZ });
+      }
+    } else if (plane.mode === 2) {
+      if ((plane.rawLength % 2) !== 0 || !bounds) {
+        throw new RangeError('dense custom-house plane requires foundation bounds');
+      }
+      const minX = bounds.minX | 0, minY = bounds.minY | 0, maxY = bounds.maxY | 0;
+      const offX = plane.zPlane <= 0 ? minX : plane.zPlane <= 4 ? minX + 1 : minX;
+      const offY = plane.zPlane <= 0 ? minY : plane.zPlane <= 4 ? minY + 1 : minY;
+      const height = plane.zPlane <= 0
+        ? maxY - minY + 2
+        : plane.zPlane <= 4 ? maxY - minY : maxY - minY + 1;
+      if (height <= 0 || height > 255) throw new RangeError('invalid dense custom-house dimensions');
+      let cell = 0;
+      while (pr.remaining >= 2) {
+        const graphic = pr.readU16();
+        const x = Math.floor(cell / height) + offX;
+        const y = (cell % height) + offY;
+        if (graphic) tiles.push({ graphic, x, y, z: floorZ });
+        cell++;
+      }
+    } else {
+      throw new RangeError(`unsupported custom-house plane mode ${plane.mode}`);
+    }
+    if (tiles.length > 10_000) throw new RangeError('custom-house tile limit exceeded');
+  }
+  if (tiles.length > tileCount) throw new RangeError('custom-house tile count overflow');
+  return { raw: pkt, compressed, response, serial, revision, tileCount, tiles };
 }
 
 /** 0x93 OpenBookLegacy (99B, fixed) — pre-Unicode book header. CUO
@@ -1438,16 +1542,39 @@ export async function decodeCompressedGump(pkt) {
 }
 
 /** zlib-inflate via the browser's DecompressionStream (Chromium 80+, FF 113+,
- * Safari 16+). Returns a Uint8Array of exactly `expectedLen` bytes (the caller
- * already knows the size). Falls back to manual inflate later if needed. */
-async function inflate(bytes, _expectedLen) {
+ * Safari 16+). The stream is consumed incrementally and cancelled as soon as
+ * it exceeds the advertised length, preventing compressed gumps/designs from
+ * becoming unbounded client allocations. */
+async function inflate(bytes, expectedLen) {
   if (typeof DecompressionStream === 'undefined') {
     throw new Error('DecompressionStream not available — browser unsupported (Chromium 80+, FF 113+, Safari 16+)');
   }
+  if (!Number.isInteger(expectedLen) || expectedLen < 0 || expectedLen > 8 * 1024 * 1024) {
+    throw new RangeError('invalid compressed payload length');
+  }
   const ds = new DecompressionStream('deflate');
-  const stream = new Blob([bytes]).stream().pipeThrough(ds);
-  const ab = await new Response(stream).arrayBuffer();
-  return new Uint8Array(ab);
+  const reader = new Blob([bytes]).stream().pipeThrough(ds).getReader();
+  const chunks = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > expectedLen) {
+        await reader.cancel('inflated payload exceeds advertised length');
+        throw new RangeError('inflated payload exceeds advertised length');
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  if (total !== expectedLen) throw new RangeError('inflated payload length mismatch');
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) { out.set(chunk, offset); offset += chunk.byteLength; }
+  return out;
 }
 
 function decodeUnicodeLines(buf, count) {

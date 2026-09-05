@@ -1,5 +1,5 @@
 import { itemBySerial } from '../../_entities.js';
-// FAZA EP — `[dye <hue>` dye tub.
+// PHASE EP — `[dye <hue>` dye tub.
 //
 // ServUO `Items/Resource/DyeTub.cs`: lets players hue clothing items
 // to a fixed colour. We expose a player command — given a target

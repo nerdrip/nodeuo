@@ -1,5 +1,5 @@
 import { allMobiles } from '../../_spatial.js';
-// FAZA EH — `[massres` mass-resurrect.
+// PHASE EH — `[massres` mass-resurrect.
 //
 // ServUO has a `[ResAll` GM command. We expose a player-side variant
 // that requires high virtue rank in Compassion AND a steep cost (500

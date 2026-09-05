@@ -1,4 +1,4 @@
-// FAZA BY — Faction system (Felucca PvP).
+// PHASE BY — Faction system (Felucca PvP).
 //
 // ServUO reference: Scripts/Engines/Factions/. The full faction stack
 // (sigils, towns, town-buy menus, ranking ladders) is gigantic; this
@@ -9,7 +9,7 @@
 //     player while you're flagged)
 //   - rank tier derived from kill count
 //
-// `notoriety.viewerNotoriety` already consults `mob.faction`; FAZA BY
+// `notoriety.viewerNotoriety` already consults `mob.faction`; PHASE BY
 // only had to add the same-faction Ally branch (bugfix #41).
 
 /** Canonical UO factions and their banner hues. */

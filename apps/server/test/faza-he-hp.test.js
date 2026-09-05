@@ -10,7 +10,7 @@ import {
   registerSigil, pickup, tickCorruption, _resetForTest,
 } from '../src/systems/pvp/sigils.js';
 
-describe('Magery Circle 3 missing spells (FAZA HJ / #124)', () => {
+describe('Magery Circle 3 missing spells (PHASE HJ / #124)', () => {
   it('Telekinesis (id 21) is registered', () => {
     expect(getSpell(21)?.name).toBe('Telekinesis');
   });
@@ -49,14 +49,14 @@ describe('Magery Circle 3 missing spells (FAZA HJ / #124)', () => {
   });
 });
 
-describe('Polymorph form library (FAZA HI)', () => {
+describe('Polymorph form library (PHASE HI)', () => {
   it('exports 13 canonical forms', async () => {
     const mod = await import('../../scripts/src/commands/combat/polymorph.js');
     expect(Object.keys(mod._POLYMORPH_FORMS_FOR_TEST).length).toBe(13);
   });
 });
 
-describe('Sigil corruption broadcast (FAZA HM / #127)', () => {
+describe('Sigil corruption broadcast (PHASE HM / #127)', () => {
   beforeEach(() => _resetForTest());
 
   it('tickCorruption fires broadcast callback per corrupted sigil', () => {
@@ -76,7 +76,7 @@ describe('Sigil corruption broadcast (FAZA HM / #127)', () => {
   });
 });
 
-describe('GM [set] command whitelist (FAZA HF / #120)', () => {
+describe('GM [set] command whitelist (PHASE HF / #120)', () => {
   it('exposes a hardened editable field allowlist', async () => {
     const mod = await import('../../scripts/src/commands/admin/set.js');
     const allow = mod._SET_ALLOWED_FIELDS_FOR_TEST;

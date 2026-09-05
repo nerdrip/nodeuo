@@ -3,7 +3,7 @@
 // unequipping snuffs the flame so the player doesn't carry a magical
 // glowing wand around in their pack.
 //
-// BUGFIX #48 (FAZA CF): the previous implementation hard-coded the toggle
+// BUGFIX #48 (PHASE CF): the previous implementation hard-coded the toggle
 // pair as 0x0A25 ↔ 0x0A12 — but 0x0A25 is the LIT LANTERN graphic, not
 // an unlit torch (real UO art id 0x0F6B / 3947 is the unlit torch we
 // declare in items.json). On first use the torch flipped to the wrong
@@ -30,7 +30,7 @@ export default function buildTorchScript(api) {
       // Capture the natural unlit graphic on first use so subsequent
       // toggles return to the correct items.json default. _unlitId is
       // persisted via ITEM_EXT_KEYS by the persistence whitelist —
-      // FAZA CF adds it there so server restarts don't lose the round
+      // PHASE CF adds it there so server restarts don't lose the round
       // trip.
       item._unlitId ??= item.itemId === TORCH_LIT_ID ? 0x0F6B : item.itemId;
       const goingLit = !item._lit;

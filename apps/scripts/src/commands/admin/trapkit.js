@@ -1,4 +1,4 @@
-// FAZA EC — `[trapkit` Tinkering activity. Players craft a deployable
+// PHASE EC — `[trapkit` Tinkering activity. Players craft a deployable
 // trap from ingots that, when placed, explodes on the next mobile to
 // step on it. Mirrors ServUO `Engines/Tinkering/Trapkit.cs`. We reuse
 // the existing pressure-plate lifecycle script as the trap's runtime.

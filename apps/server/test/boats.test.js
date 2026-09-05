@@ -106,10 +106,29 @@ describe('boat system parity', () => {
     expect(cannon.y).toBe(before.cannonY - 1);
   });
 
+  it('prunes stale rider registrations instead of teleporting characters back to deck', () => {
+    const api = makeApi();
+    const boat = placeGalleon(api, { kind: 'small', x: 200, y: 200, z: 0, map: 1 });
+    const ashore = api.world.createMobile({ x: 240, y: 240, z: 0, map: 1 });
+    ashore._boardedBoat = boat.serial;
+    boat.boat.riders.add(ashore.serial);
+    boat.boat.anchored = false;
+    const boats = startBoatSystem(api);
+    running.push(boats);
+
+    expect(boats.sailOnce(boat)).toBe(true);
+    expect(ashore).toMatchObject({ x: 240, y: 240 });
+    expect(ashore._boardedBoat).toBeUndefined();
+    expect(boat.boat.riders.has(ashore.serial)).toBe(false);
+  });
+
   it('dry-docking removes hull attachments and returns a named deed', () => {
     const api = makeApi();
-    const owner = api.world.createMobile({ x: 300, y: 300, z: 0, map: 1 });
-    owner._packSerial = 0x4000_1234;
+    const owner = api.world.createMobile({ x: 310, y: 300, z: 0, map: 1 });
+    const backpack = createItem(api.world, {
+      itemId: 0x0E75, x: 0, y: 0, z: 0, map: 1,
+      parent: owner.serial, layer: 21, gumpId: 0x003C,
+    });
     const boat = placeGalleon(api, {
       kind: 'gargish',
       x: 300,
@@ -119,6 +138,11 @@ describe('boat system parity', () => {
       ownerSerial: owner.serial,
       name: 'Glass Wake',
     });
+    const oldKey = createItem(api.world, {
+      itemId: 0x1010, x: 0, y: 0, z: 0, map: 1,
+      parent: backpack.serial, boatKey: boat.serial,
+    });
+    boat.boat.keys.push(oldKey.serial);
     const tiller = api.world.createMobile({ name: 'a tillerman', x: 300, y: 299, z: 0, map: 1 });
     const boats = startBoatSystem(api);
     running.push(boats);
@@ -133,14 +157,35 @@ describe('boat system parity', () => {
       expect(api.world.items.has(serial)).toBe(false);
     }
     expect(api.world.mobiles.has(tiller.serial)).toBe(false);
+    expect(api.world.items.has(oldKey.serial)).toBe(false);
     const deed = api.world.items.get(r.deedSerial);
     expect(deed.script).toBe('servuo-boat-deed');
-    expect(deed.parent).toBe(owner._packSerial);
+    expect(deed.parent).toBe(backpack.serial);
     expect(deed.boatDeed).toMatchObject({
       hullKind: 'gargish',
       name: 'Glass Wake',
       ownerSerial: owner.serial,
     });
+  });
+
+  it('refuses to dry-dock while even an unregistered owner stands on deck', () => {
+    const api = makeApi();
+    const owner = api.world.createMobile({ x: 300, y: 300, z: 0, map: 1 });
+    createItem(api.world, {
+      itemId: 0x0E75, x: 0, y: 0, z: 0, map: 1,
+      parent: owner.serial, layer: 21, gumpId: 0x003C,
+    });
+    const boat = placeGalleon(api, {
+      kind: 'small', x: 300, y: 300, z: 0, map: 1,
+      ownerSerial: owner.serial,
+    });
+    const boats = startBoatSystem(api);
+    running.push(boats);
+
+    expect(boats.dryDockGalleon(api, boat, owner)).toMatchObject({
+      ok: false, reason: 'passengers-aboard',
+    });
+    expect(api.world.items.has(boat.serial)).toBe(true);
   });
 
   it('pilot rights accept owners and carried key items, including nested keys', () => {
@@ -149,8 +194,8 @@ describe('boat system parity', () => {
     const crew = api.world.createMobile({ x: 1, y: 1, map: 1 });
     const boat = placeGalleon(api, {
       kind: 'galleon',
-      x: 1,
-      y: 1,
+      x: 20,
+      y: 20,
       z: 0,
       map: 1,
       ownerSerial: owner.serial,
@@ -174,6 +219,29 @@ describe('boat system parity', () => {
     boat.boat.keys.push(key.serial);
 
     expect(boats.hasPilotRights(boat, crew)).toBe(true);
+  });
+
+  it('checks the complete hull footprint and never carries immovable structures', () => {
+    const api = makeApi();
+    createItem(api.world, {
+      itemId: 0x1000, x: 102, y: 100, z: 0, map: 1,
+      solid: true, movable: false,
+    });
+    expect(() => placeGalleon(api, {
+      kind: 'small', x: 100, y: 100, z: 0, map: 1, facing: 'N',
+    })).toThrow(/collides with an item/i);
+
+    const clearApi = makeApi();
+    const boat = placeGalleon(clearApi, { kind: 'small', x: 200, y: 200, z: 0, map: 1 });
+    const wall = createItem(clearApi.world, {
+      itemId: 0x1000, x: 201, y: 200, z: 0, map: 1,
+      solid: true, movable: false,
+    });
+    boat.boat.anchored = false;
+    const boats = startBoatSystem(clearApi);
+    running.push(boats);
+    expect(boats.sailOnce(boat)).toBe(false);
+    expect(wall).toMatchObject({ x: 201, y: 200 });
   });
 
   it('applies hull armor, exposes condition stats, and slows a damaged hull', () => {

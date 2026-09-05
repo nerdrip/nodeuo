@@ -7,7 +7,7 @@ export const SKILL_TO_COMMAND = Object.freeze({
   8: 'craft gump smithing',
   9: 'craft gump fletching',
   12: 'craft gump carpentry',
-  13: 'map',
+  13: 'craft gump cartography',
   14: 'craft gump cooking',
   24: 'craft gump inscription',
   35: 'craft gump tailoring',

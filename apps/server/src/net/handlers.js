@@ -1,9 +1,4 @@
-// Opcode handlers. Each handler takes (netState, rawPacket) and consumes it.
-//
-// Handlers registered here implement the login flow and bring a player
-// into the world; gameplay opcodes (movement, speech, etc.) are registered
-// alongside and gated by NetState.stage.
-
+// Login/gameplay opcode handlers, each gated by NetState.stage.
 import {
   PacketReader,
   serverList,
@@ -30,27 +25,11 @@ import {
   LoginRejectReason,
   clientVersionRequest,
   playSound,
-  extNodeUOCapabilities,
-  NODEUO_CAPABILITIES_ALL,
-  NODEUO_EXT_SUBCOMMAND,
-  NODEUO_SPELL_COMPOSER_SUBCOMMAND,
-  NODEUO_SPECIALIZATION_SUBCOMMAND,
-  NODEUO_HOUSE_TOOLS_SUBCOMMAND,
-  NODEUO_PROTOCOL_MAJOR,
-  NODEUO_PROTOCOL_MINOR,
-  NodeUOCapabilityMessage,
-  NodeUOSpellComposerMessage,
-  NodeUOSpecializationMessage,
-  NodeUOCooldownMessage,
-  NodeUOHouseToolsMessage,
-  NodeUOCapability,
-  extNodeUOMovementHint,
-  extNodeUOCooldown,
-  extNodeUOHouseTools,
-  extNodeUOSkillInsights,
-  extNodeUOTradeAudit,
-  extNodeUOVendorInsights,
 } from '@uo/protocol';
+import {
+  NodeUOCooldownMessage,
+  NodeUOFeature,
+} from '@uo/nodeuo-protocol';
 import * as specializations from '../systems/specializations.js';
 import {
   attachSkillTarget,
@@ -109,7 +88,7 @@ import {
   worldItemSA, removeEntity, dropAck, bounce,
   displayContainer, containerContents, containerContentUpdate,
   mobileStatus, healthUpdate, manaUpdate, staminaUpdate,
-  openPaperdoll, sendSkills, readTargetResponse, targetRequest,
+  sendSkills, readTargetResponse, targetRequest,
   displayGump, readGumpResponse,
   equipUpdate, readWearItem,
   displayContextMenu,
@@ -125,6 +104,7 @@ import {
 } from '@uo/protocol';
 import { attackLimiter } from './attack-limiter.js';
 import { buildEquipmentByOwner, equipmentFor } from './handlers/equipment-visibility.js';
+import { publishCombatTelegraph } from './handlers/nodeuo-wave3.js';
 import {
   GUMP_LIMITS,
   allowHeavyGump,
@@ -148,6 +128,7 @@ import {
   STARTER_CITIES,
   validateCharacterName,
 } from './handlers/character-creation.js';
+
 import {
   handleBulletinBoardReq,
   handleChannelCommand,
@@ -165,6 +146,7 @@ import {
   handleEquipMacro,
   handleGMSingle,
   handleHouseCustomization,
+  handleHouseDesignRequest,
   handleHuePickerResponse,
   handleKrriosRequest,
   handleMobileNameRequest,
@@ -172,8 +154,52 @@ import {
   handleUnequipMacro,
 } from './handlers/client-extensions.js';
 import { _findBankRoot, _isInsideBank } from './handlers/bank-containers.js';
+import { createNpcDialogController } from './handlers/npc-dialog.js';
+import { pushCommandCatalogue, pushCommandCatalogueToAll } from './handlers/command-catalogue.js';
+import {
+  broadcastNodeUOSemanticAnimation,
+  sendNodeUOEvent,
+  sendNodeUOFeature,
+  trySendNodeUOCombatDamage,
+  trySendNodeUOContainer,
+} from './handlers/nodeuo-modern.js';
+import { cleanupNodeUOFeatureState, handleNodeUOFeatureRequest as handleAdvancedNodeUOFeatureRequest } from './handlers/nodeuo-features.js';
+import { handleNodeUOSessionText, NODEUO_NEGOTIATION_TIMEOUT_MS as NODEUO_SESSION_NEGOTIATION_TIMEOUT_MS, offerNodeUOSession } from './handlers/nodeuo-session.js';
+
+function cancelScheduled(handle) {
+  if (typeof handle?.cancel === 'function') return handle.cancel();
+  if (handle) clearTimeout(handle);
+  return false;
+}
+
+function sendPacketBatch(state, packets) {
+  if (typeof state.sendBatch === 'function') state.sendBatch(packets);
+  else for (const packet of packets) state.send(packet);
+}
+function appendItemPacket(state, item, packets) {
+  if (typeof state.packetForItem === 'function') packets.push(state.packetForItem(item));
+  else state.sendItem(item); // Compatibility with classic adapters and lightweight test states.
+}
+
+function scheduleStateOnce(state, name, delayMs, callback) {
+  return state?.ctx?.scheduler?.once
+    ? state.ctx.scheduler.once(`${name}:${state.id}`, delayMs, callback)
+    : setTimeout(callback, delayMs);
+}
 
 export { effects, properties, quest };
+
+let npcDialogController = null;
+
+function npcDialogs() {
+  return npcDialogController ??= createNpcDialogController({
+    vendors,
+    hasVendor: (serial) => vendorRegistry.has(serial >>> 0),
+  });
+}
+
+export { cleanupNodeUOFeatureState };
+export { pushCommandCatalogue, pushCommandCatalogueToAll };
 
 /** @typedef {(state: import('./net-state.js').NetState, pkt: Uint8Array) => void} Handler */
 /** @typedef {Record<number, Handler>} HandlerTable */
@@ -434,11 +460,11 @@ function handleLookReq(state, pkt) {
     name = clilocText(target.labelNumber);
   }
   if (!name) name = target.tileId ? `item #${target.tileId}` : `mobile #${serial.toString(16)}`;
-  // FAZA DB: paragon mobs render their single-click name in the same
+  // PHASE DB: paragon mobs render their single-click name in the same
   // gold hue ServUO uses for `paragon` PropertyList headers (0x0035).
   // Visual cue so a paragon's bright orange body isn't the only tell.
   const hue = target.paragon ? 0x0035 : 0x03B2;
-  // FAZA DL: append karma title for player mobiles. ServUO ranks
+  // PHASE DL: append karma title for player mobiles. ServUO ranks
   // karma in 6 brackets; the heroic + dread brackets (≥10000 / ≤-10000)
   // earn "the Glorious Lord" / "the Dread Lord" suffixes that ride on
   // PropertyList headers. We splice them into the single-click line so
@@ -447,7 +473,7 @@ function handleLookReq(state, pkt) {
     const karmaTitle = karmaTitleFor(target);
     if (karmaTitle) name = `${name}, ${karmaTitle}`;
   }
-  // FAZA GG: AFK marker in single-click. Pure UX — no gameplay effect.
+  // PHASE GG: AFK marker in single-click. Pure UX — no gameplay effect.
   if (target.client && target.afk) name = `${name} (AFK)`;
   state.send(unicodeMessage({
     serial: serial >>> 0,
@@ -492,7 +518,7 @@ function clilocText(num) {
   return _clilocTable[String(num | 0)] ?? null;
 }
 
-// FAZA DL: karma → suffix. Mirrors ServUO `Notoriety` / `Titles` brackets.
+// PHASE DL: karma → suffix. Mirrors ServUO `Notoriety` / `Titles` brackets.
 function karmaTitleFor(mob) {
   const k = mob.karma | 0;
   if (k >=  10000) return 'the Glorious Lord';
@@ -609,18 +635,18 @@ export function dispatchCastFromMacro(state, spellId) {
   // Custom graph spells may carry a longer server-approved cooldown.
   const recoveryMs = Math.max(250, 1000 - fcr * 150, def.cooldownMs | 0);
   if (state.mobile) state.mobile._castReadyAt = Date.now() + scaledDelay + recoveryMs;
-  if (state.supportsNodeUO?.(NodeUOCapability.CooldownBars)) {
-    state.send(extNodeUOCooldown({
-      kind: NodeUOCooldownMessage.Start,
-      requestId: spellId >>> 0,
-      payload: {
+  if (state.supportsNodeUO?.(NodeUOFeature.CooldownBars)) {
+    const payload = {
         id: `spell:${spellId}`,
         label: def.name ?? `Spell ${spellId}`,
         category: 'spell',
         durationMs: scaledDelay + recoveryMs,
         serverEndsAt: Date.now() + scaledDelay + recoveryMs,
-      },
-    }));
+      };
+    sendNodeUOEvent(state, {
+      feature: NodeUOFeature.CooldownBars, eventKind: NodeUOCooldownMessage.Start,
+      requestId: spellId >>> 0, payload,
+    });
   }
 
   if (def.requiresTarget) {
@@ -706,7 +732,7 @@ function handleTextCommand(state, pkt) {
   }
   switch (type) {
     case 0x24: {
-      // BUGFIX #9 (FAZA AS): "Skill use by numeric id" — when the player
+      // BUGFIX #9 (PHASE AS): "Skill use by numeric id" — when the player
       // drags a skill icon to their CUO action bar and double-clicks it,
       // the client sends 0x12 type 0x24 with the skill id as ASCII
       // text. The previous code printed a TODO stub, so action bars
@@ -746,17 +772,17 @@ function handleTextCommand(state, pkt) {
         if (state._activeSkillUse === started.use && started.use.status === 'dispatching') {
           completeSkillUse(state, handled ? 'completed' : 'cancelled');
         }
-        if (state.supportsNodeUO?.(NodeUOCapability.SkillInsights)) {
+        if (state.supportsNodeUO?.(NodeUOFeature.SkillInsights)) {
           const base = Number(state.mobile.skills?.[skillId] ?? 0);
           const cap = Number(state.mobile.skillCaps?.[skillId] ?? 100);
-          state.send(extNodeUOSkillInsights({
-            requestId: started.use.id,
-            payload: {
+          const payload = {
               skillId, base, cap,
               lock: state.mobile.skillLocks?.[skillId] ?? 'up',
               lifecycle: skillUseSnapshot(skillId)[0] ?? null,
-            },
-          }));
+            };
+          sendNodeUOEvent(state, {
+            feature: NodeUOFeature.SkillInsights, requestId: started.use.id, payload,
+          });
         }
       } else if (Number.isFinite(skillId)) {
         state.sendSystemMessage?.(
@@ -920,12 +946,12 @@ function handleAccountLogin(state, pkt) {
   const limiterKey = `${user.toLowerCase()}|${state.remoteAddress ?? '?'}`;
   const throttle = attackLimiter.shouldThrottle(limiterKey);
   if (throttle) {
-    setTimeout(() => {
+    scheduleStateOnce(state, 'auth-throttle', throttle.delayMs, () => {
       try {
         state.send(loginReject(LoginRejectReason.Invalid));
         state.close();
       } catch { /* socket already gone */ }
-    }, throttle.delayMs);
+    });
     return;
   }
 
@@ -1044,10 +1070,11 @@ function handlePing(state, pkt) {
   // could amplify by sending fat ping frames. Plus a soft rate limit
   // (≤8 pings/s) so the echo path can't be used as a CPU lever either.
   const now = Date.now();
-  if ((state._pingCount | 0) >= 8 && (now - (state._pingWindowStart | 0)) < 1000) {
+  const windowStart = Number(state._pingWindowStart) || 0;
+  if ((state._pingCount | 0) >= 8 && (now - windowStart) < 1000) {
     return;     // silently drop excess pings
   }
-  if (now - (state._pingWindowStart | 0) >= 1000) {
+  if (now - windowStart >= 1000) {
     state._pingWindowStart = now;
     state._pingCount = 0;
   }
@@ -1129,7 +1156,7 @@ function skillLockFor(mob, skillId) {
 // sends this when the player clicks the up/down/lock arrow on the
 // skills gump. Layout: u8 op, u16 len(=6), u16 skillId, u8 newLock.
 //
-// BUGFIX #13 (FAZA AW): without this handler the lock click hit the
+// BUGFIX #13 (PHASE AW): without this handler the lock click hit the
 // server's "no handler for 0x3A" log and the gump's optimistic update
 // stuck only client-side. After a relog the lock state revealed it
 // was never persisted. Now we update `mob.skillLocks[id]` server-side
@@ -1284,43 +1311,28 @@ export function refreshSurroundings(state, { priority = 0 } = {}) {
   for (const other of nearbyMobSnapshot) nextMobiles.add(other.serial >>> 0);
   for (const item of items) nextItems.add(item.serial >>> 0);
   for (const serial of previousItems) {
-    if (!nextItems.has(serial)) state.send(removeEntity(serial));
+    if (!nextItems.has(serial)) typeof state.sendRemove === 'function' ? state.sendRemove(serial) : state.send(removeEntity(serial));
   }
   for (const serial of previousMobiles) {
-    if (!nextMobiles.has(serial)) state.send(removeEntity(serial));
+    if (!nextMobiles.has(serial)) typeof state.sendRemove === 'function' ? state.sendRemove(serial) : state.send(removeEntity(serial));
   }
-  // Keep only items the client already knew and that remain in range. Newly
-  // discovered items enter the cache after their batch packet is actually
-  // sent. If movement cancels this batch, streamVisibilityDelta will then
-  // see the unsent serials as new and deliver them instead of losing them.
+  // Only retain known in-range items; cancelled batches remain discoverable.
   state._visibleItems = new Set(
     Array.from(previousItems).filter((serial) => nextItems.has(serial)),
   );
   state._visibleMobiles = nextMobiles;
-  // Unlike initial login (which only streams other players), resync also
-  // needs NPCs — the client may have discarded a skeleton's sprite while
-  // stalled and there's no movement packet to re-seed it. `nearbyMobiles`
-  // yields every in-range mobile regardless of whether it has a client.
+  // Resync includes NPCs, which may have no movement packet to restore them.
   for (const other of nearbyMobSnapshot) {
-    state.send(mobileIncoming({
+    const incoming = mobileIncoming({
       serial: other.serial, body: other.body, x: other.x, y: other.y, z: other.z,
       direction: other.direction, hue: other.hue, flags: other.flags, notoriety: other.notoriety,
       equipment: equipmentFor(state.ctx.world, other, equipByOwner),
-    }));
-    state.send(healthUpdate({ serial: other.serial, current: other.hp ?? 50, max: other.hpMax ?? 50 }));
+    });
+    const health = healthUpdate({ serial: other.serial, current: other.hp ?? 50, max: other.hpMax ?? 50 });
+    sendPacketBatch(state, [incoming, health]);
   }
-  // Item streaming — BATCHED via setImmediate to prevent the client
-  // from freezing on a TP into a busy area. Britain Bank has 200+
-  // grounded items + statics; blasting all 200 in one synchronous
-  // tick floods the WS frame, the client's net handler runs each
-  // 0xF3 sync (decode + emit + ensureItem) and queues an async
-  // _mountItem chain per packet. Result: ~1000+ microtasks queued
-  // in one go → animation frames starve → "po teleportacji blokuje
-  // cala gre". Yielding every BATCH_SIZE items via setImmediate lets
-  // the WS write drain, the libuv loop service other I/O, and on
-  // the client side gives the renderer's RAF a chance to fire
-  // between bursts. 30 was picked empirically — well under one
-  // typical WS frame, two-digit ms of CPU each.
+  // Yield busy-area item streams between bounded batches so network I/O and
+  // client rendering keep progressing during teleport/resync bursts.
   if (items.length === 0) return;
   const BATCH_SIZE = 30;
   let cursor = 0;
@@ -1329,13 +1341,15 @@ export function refreshSurroundings(state, { priority = 0 } = {}) {
     if (state._closed || state.stage !== Stage.InWorld
         || state._visibilityGeneration !== generation) return;
     const end = Math.min(cursor + BATCH_SIZE, items.length);
+    const packets = [];
     for (; cursor < end; cursor++) {
       try {
-        state.sendItem(items[cursor]);
+        appendItemPacket(state, items[cursor], packets);
         state._visibleItems?.add(items[cursor].serial >>> 0);
       }
       catch { /* per-item failure shouldn't kill the batch */ }
     }
+    if (packets.length) sendPacketBatch(state, packets);
     if (cursor < items.length) setImmediate(flushBatch);
   };
   flushBatch();
@@ -1376,6 +1390,7 @@ function streamVisibilityDelta(state, mob, prevX, prevY) {
   const seenM = state._visibleMobiles;
   const nextI = new Set();
   const nextM = new Set();
+  const itemPackets = [];
   let itemStreamErrors = 0;
   const visibilityRange = adaptiveVisibilityRange(state, { priority: 2 });
   try {
@@ -1383,7 +1398,9 @@ function streamVisibilityDelta(state, mob, prevX, prevY) {
       const s = item.serial >>> 0;
       nextI.add(s);
       if (!seenI.has(s)) {
-        try { state.sendItem(item); }
+        try {
+          appendItemPacket(state, item, itemPackets);
+        }
         catch {
           itemStreamErrors++;
           if (itemStreamErrors <= 3) {
@@ -1393,31 +1410,33 @@ function streamVisibilityDelta(state, mob, prevX, prevY) {
       }
     }
   } catch (e) { console.warn('[visibility] item stream threw:', e?.message); }
+  if (itemPackets.length) sendPacketBatch(state, itemPackets);
   try {
     for (const other of nearbyMobiles(world, mob, mob, visibilityRange)) {
       const s = other.serial >>> 0;
       nextM.add(s);
       if (!seenM.has(s)) {
-        state.send(mobileIncoming({
+        const incoming = mobileIncoming({
           serial: other.serial, body: other.body,
           x: other.x, y: other.y, z: other.z,
           direction: other.direction, hue: other.hue,
           flags: other.flags, notoriety: other.notoriety,
           equipment: equipmentFor(world, other),
-        }));
-        state.send(healthUpdate({
+        });
+        const health = healthUpdate({
           serial: other.serial, current: other.hp ?? 50, max: other.hpMax ?? 50,
-        }));
+        });
+        sendPacketBatch(state, [incoming, health]);
       }
     }
   } catch (e) { console.warn('[visibility] mob stream threw:', e?.message); }
   // Drop entries that left the window.
   let dropI = 0, dropM = 0;
   for (const s of seenI) {
-    if (!nextI.has(s)) { state.send(removeEntity(s)); dropI++; }
+    if (!nextI.has(s)) { typeof state.sendRemove === 'function' ? state.sendRemove(s) : state.send(removeEntity(s)); dropI++; }
   }
   for (const s of seenM) {
-    if (!nextM.has(s)) { state.send(removeEntity(s)); dropM++; }
+    if (!nextM.has(s)) { typeof state.sendRemove === 'function' ? state.sendRemove(s) : state.send(removeEntity(s)); dropM++; }
   }
   const newI = nextI.size - (seenI.size - dropI);
   const newM = nextM.size - (seenM.size - dropM);
@@ -1485,7 +1504,7 @@ function handleCreateCharacter70160(state, pkt) {
 }
 
 /**
- * FAZA BR — parse the 0x00 / 0xF8 CreateCharacter packet beyond the bare
+ * PHASE BR — parse the 0x00 / 0xF8 CreateCharacter packet beyond the bare
  * name. We extract the user's selections (sex, skin hue, hair + facial hair
  * art ids and hues, profession, four skills) so the character actually
  * reflects what was chosen on the creator screen instead of always being
@@ -1611,95 +1630,6 @@ function _rebindAccount(state, mob) {
   try { state.ctx.accounts?.saveSync(); } catch { /* ignore */ }
 }
 
-/**
- * Push the shard's command catalogue (`0xBF` subop `0xA0`) to a single
- * state. Filtered by the player's accessLevel. Called at LoginComplete
- * and again after every script hot-reload so the right-edge command
- * panel never falls out of sync.
- *
- * @param {*} state
- */
-export function pushCommandCatalogue(state) {
-  // No stage gate: at LoginComplete the catalogue is pushed BEFORE
-  // `state.stage = Stage.InWorld` (set after the surround stream).
-  if (!state?.send) {
-    console.warn('[cmd-catalog] refused: state.send missing');
-    return;
-  }
-  // 0xBF/0x00A0 is private to NodeUO. Classic UO extended commands keep
-  // flowing normally; only this catalogue requires the negotiated bit.
-  if (!state.supportsNodeUO?.(NodeUOCapability.RichGumps)) return;
-  try {
-    const reg = state.ctx?.commands ?? state.ctx?.commandRegistry;
-    if (!reg?.commands) {
-      console.warn('[cmd-catalog] refused: ctx.commands missing on state');
-      return;
-    }
-    // Defensive re-promote — recheck UO_ADMINS env every push so an
-    // accidental in-session demotion (or a fresh account-DB load that
-    // reset the cached object) gets corrected before we filter commands.
-    // User report 2026-05-18: "po raz kolejny moje konto jest traktowane
-    // jako player" after `[createworld`.
-    try {
-      const refreshed = state.ctx?.accounts?.recheckPromotion?.(state.accountName);
-      if (refreshed) state.account = refreshed;
-    } catch { /* advisory — fall through to whatever state.account has */ }
-    const acc = state.account?.accessLevel ?? 'Player';
-    const ACCESS_ORDER = {
-      Player: 0, Counselor: 1, Counsellor: 1, Seer: 2,
-      GM: 3, GameMaster: 3, Admin: 4, Administrator: 4,
-    };
-    const myLevel = ACCESS_ORDER[acc] ?? 0;
-    const list = [];
-    let skipped = 0;
-    const catalogueCommands = typeof reg.list === 'function'
-      ? reg.list()
-      : [...reg.commands.values()].filter((c) => !c?.aliasOf && c?.hidden !== true);
-    const hiddenOrAliases = Math.max(0, reg.commands.size - catalogueCommands.length);
-    const seenNames = new Set();
-    for (const c of catalogueCommands) {
-      if (!c || typeof c.name !== 'string' || c.name === '') { skipped++; continue; }
-      const canonicalName = c.name.toLowerCase();
-      if (seenNames.has(canonicalName)) { skipped++; continue; }
-      const reqd = ACCESS_ORDER[c.access ?? 'Admin'] ?? 4;
-      if (reqd > myLevel) { skipped++; continue; }
-      seenNames.add(canonicalName);
-      list.push({ name: canonicalName, help: c.help ?? '', access: c.access ?? 'Admin' });
-    }
-    list.sort((a, b) => a.name.localeCompare(b.name));
-    console.log(`[cmd-catalog] push to ${state.account?.username ?? '?'} (${acc}): ${list.length} commands (registry total: ${reg.commands.size}, hidden/aliases: ${hiddenOrAliases}, access-skipped: ${skipped})`);
-    // Surface the count to the player so they can immediately tell
-    // whether the push went through (no need to inspect server logs).
-    try {
-      state.sendSystemMessage?.(`Commands available: ${list.length} (access: ${acc}).`);
-    } catch { /* sendSystemMessage optional */ }
-    const json = JSON.stringify({ accessLevel: acc, commands: list });
-    const bytes = Buffer.from(json, 'utf8');
-    const pkt = Buffer.alloc(5 + 2 + bytes.length);
-    pkt[0] = 0xBF;
-    pkt.writeUInt16BE(5 + 2 + bytes.length, 1);   // total len
-    pkt.writeUInt16BE(0x00A0, 3);                  // subop
-    pkt.writeUInt16BE(bytes.length, 5);            // payload len
-    bytes.copy(pkt, 7);
-    state.send(pkt);
-  } catch (e) { console.warn('[cmd-catalog] push failed:', e?.message, e?.stack); }
-}
-
-/** Broadcast the command catalogue to every in-world connected state.
- *  Called after script hot-reload so newly-registered (or unregistered)
- *  commands surface in the player's panel without requiring a relog. */
-export function pushCommandCatalogueToAll(world) {
-  if (!world?.mobiles) return;
-  for (const mob of world.mobiles.values()) {
-    if (mob.client) pushCommandCatalogue(mob.client);
-  }
-}
-
-/**
- * Drive the create-character / login → in-world transition.
- * @param {*} state
- * @param {string | ReturnType<typeof parseCreateCharacter>} nameOrChoice
- */
 function bringIntoWorld(state, nameOrChoice) {
   // Backwards compat: tests / older callers may still pass a bare name.
   const isCreateRequest = typeof nameOrChoice === 'object' && nameOrChoice !== null;
@@ -1748,7 +1678,7 @@ function bringIntoWorld(state, nameOrChoice) {
     // bugs (or any future cleanup) could have stripped it; without one the
     // user has nowhere to stash items they pick up.
     ensureBackpack(world, mob);
-    // BUGFIX #138 (FAZA JG): if the existing mobile is naked (any of
+    // BUGFIX #138 (PHASE JG): if the existing mobile is naked (any of
     // a few canonical clothing layers missing), re-equip the default
     // newbie outfit. Without this, players whose initial creator outfit
     // never landed (cold-boot before scripts registered, save round-
@@ -1771,7 +1701,7 @@ function bringIntoWorld(state, nameOrChoice) {
     }
     if (!hasAnyWearable) outfitFreshMobile(world, mob);
   } else {
-    // FAZA BR — apply the user's selections from the CreateCharacter packet.
+    // PHASE BR — apply the user's selections from the CreateCharacter packet.
     // Profession seeds default skills only when the user picked a preset
     // (profession > 0); the "Advanced" path (profession 0) lets the player
     // choose skills directly, which we honour via choice.skills.
@@ -1917,8 +1847,8 @@ function bringIntoWorld(state, nameOrChoice) {
         // 0x004A is the canonical "BankBox" gump art in CUO
         // (Gumps.cs `Bankbox`). Was 0x003C (default backpack) so every
         // [bank command opened a backpack-shaped gump for what is
-        // visually a wooden chest. Marcin: "skrzynia bankowa wygląda
-        // jak plecak". Also see the layer-0x1D override at open-time
+        // visually a wooden chest. The previous bank box looked like a
+        // backpack. Also see the layer-0x1D override at open-time
         // (handleDoubleClick) which back-fills the same gumpId for
         // pre-migration legacy banks already in `saves/`.
         gumpId: 0x004A,
@@ -2038,9 +1968,9 @@ function bringIntoWorld(state, nameOrChoice) {
   }
   state.send(loginComplete());
   // Private features are offered only to a browser transport that selected
-  // the `nodeuo.v1` WebSocket subprotocol. Desktop/OSI/ServUO-compatible
-  // sessions stay on the classic packet set and never receive 0xF100.
-  offerNodeUOCapabilities(state);
+  // `nodeuo.json.v2`. Desktop/OSI/ServUO-compatible sessions stay on the
+  // unmodified classic UO packet set.
+  offerNodeUOSession(state);
   state.send(clientVersionRequest());
   state.send(unicodeMessage({ text: `Welcome to ${state.ctx.config.shardName}!` }));
 
@@ -2086,7 +2016,7 @@ function bringIntoWorld(state, nameOrChoice) {
   }
 
   state.stage = Stage.InWorld;
-  // FAZA DC: push virtue snapshot so the Ctrl+V gump renders the
+  // PHASE DC: push virtue snapshot so the Ctrl+V gump renders the
   // persisted values (otherwise it shows 0 on every login until the
   // next awardVirtue call).
   try {
@@ -2145,178 +2075,16 @@ function bringIntoWorld(state, nameOrChoice) {
   console.log(`[net#${state.id}] ${mob.name} (${mob.serial.toString(16)}) entered world`);
 }
 
-export const NODEUO_NEGOTIATION_TIMEOUT_MS = 5000;
+export const NODEUO_NEGOTIATION_TIMEOUT_MS = NODEUO_SESSION_NEGOTIATION_TIMEOUT_MS;
 
-/** Offer private features only on the explicitly selected NodeUO transport. */
-export function offerNodeUOCapabilities(state, now = Date.now()) {
-  if (!state?.nodeUOTransport || state._closed) return false;
-  if (state._nodeUOCapabilityTimer) clearTimeout(state._nodeUOCapabilityTimer);
-  state.nodeUOProtocol = null;
-  state.nodeUOCapabilities = 0;
-  state._nodeUOCapabilityOffer = {
-    offered: NODEUO_CAPABILITIES_ALL >>> 0,
-    sentAt: now,
-    expiresAt: now + NODEUO_NEGOTIATION_TIMEOUT_MS,
-    acceptedAt: null,
-  };
-  state.send(extNodeUOCapabilities({ capabilities: NODEUO_CAPABILITIES_ALL }));
-  state._nodeUOCapabilityTimer = setTimeout(() => {
-    state._nodeUOCapabilityTimer = null;
-    const offer = state._nodeUOCapabilityOffer;
-    if (offer && offer.acceptedAt == null) {
-      // Standard UO is already active. Timeout merely leaves all private
-      // capabilities disabled; it never disconnects or changes packet flow.
-      state.nodeUOProtocol = null;
-      state.nodeUOCapabilities = 0;
-      offer.expired = true;
-      diagnostics.connectionUpdated(state);
-    }
-  }, NODEUO_NEGOTIATION_TIMEOUT_MS);
-  state._nodeUOCapabilityTimer.unref?.();
-  return true;
+export function handleNodeUOText(state, text) { return handleNodeUOSessionText(state, text, { vendors, pushCommandCatalogue, pushMovementHint }); }
+export function handleNodeUOFeatureRequest(state, message, rpcContext = {}) {
+  return handleAdvancedNodeUOFeatureRequest(state, message, { npcDialogs, ...rpcContext });
 }
-
 function handleExtendedCommand(state, pkt) {
   const r = new PacketReader(pkt);
   r.readU8(); r.readU16(); // opcode + length
   const sub = r.readU16();
-  if (sub === NODEUO_EXT_SUBCOMMAND) {
-    // Never turn on private behaviour based on UO payload alone. A classic
-    // TCP client can spoof this packet, but only the negotiated WS transport
-    // is allowed to activate extensions.
-    if (!state.nodeUOTransport || r.remaining < 8) return;
-    const kind = r.readU8();
-    const major = r.readU8();
-    const minor = r.readU8();
-    r.readU8(); // reserved
-    const requested = r.readU32() >>> 0;
-    const offer = state._nodeUOCapabilityOffer;
-    const now = Date.now();
-    if (kind !== NodeUOCapabilityMessage.Accept
-      || major !== NODEUO_PROTOCOL_MAJOR
-      || !offer
-      || offer.acceptedAt != null
-      || offer.expired
-      || now > offer.expiresAt) return;
-    offer.acceptedAt = now;
-    if (state._nodeUOCapabilityTimer) clearTimeout(state._nodeUOCapabilityTimer);
-    state._nodeUOCapabilityTimer = null;
-    state.nodeUOProtocol = { major, minor: Math.min(NODEUO_PROTOCOL_MINOR, minor) };
-    state.nodeUOCapabilities = (requested & offer.offered & NODEUO_CAPABILITIES_ALL) >>> 0;
-    diagnostics.connectionUpdated(state);
-    pushCommandCatalogue(state);
-    pushMovementHint(state);
-    return;
-  }
-  if (sub === NODEUO_SPELL_COMPOSER_SUBCOMMAND) {
-    if (!state.supportsNodeUO?.(NodeUOCapability.SpellComposer) || r.remaining < 7) return;
-    const kind = r.readU8();
-    const requestId = r.readU32();
-    const length = r.readU16();
-    if ((kind !== NodeUOSpellComposerMessage.Save
-      && kind !== NodeUOSpellComposerMessage.Publish
-      && kind !== NodeUOSpellComposerMessage.Scribe)
-      || length > 32 * 1024 || length > r.remaining) return;
-    try {
-      const json = new TextDecoder().decode(r.readBytes(length));
-      const payload = JSON.parse(json);
-      if (kind === NodeUOSpellComposerMessage.Scribe) {
-        state.ctx?.spellComposer?.scribeDraft?.(state, requestId, payload);
-      } else if (kind === NodeUOSpellComposerMessage.Publish) {
-        state.ctx?.spellComposer?.publishDraft?.(state, requestId, payload);
-      } else {
-        state.ctx?.spellComposer?.acceptDraft?.(state, requestId, payload);
-      }
-    } catch (error) {
-      console.warn(`[spell-composer] rejected malformed draft: ${error?.message ?? error}`);
-    }
-    return;
-  }
-  if (sub === NODEUO_SPECIALIZATION_SUBCOMMAND) {
-    if (!state.supportsNodeUO?.(NodeUOCapability.Specializations) || !state.mobile || r.remaining < 7) return;
-    const kind = r.readU8();
-    const requestId = r.readU32();
-    const length = r.readU16();
-    if ((kind !== NodeUOSpecializationMessage.Allocate && kind !== NodeUOSpecializationMessage.Reset)
-      || length > 32 * 1024 || length > r.remaining) return;
-    try {
-      const payload = length > 0
-        ? JSON.parse(new TextDecoder().decode(r.readBytes(length))) : {};
-      if (kind === NodeUOSpecializationMessage.Reset) {
-        const refunded = specializations.reset(state.mobile);
-        specializations.sendResult(state, requestId, { ok: true, message: `Refunded ${refunded} point(s).` });
-      } else {
-        const result = specializations.allocate(state.mobile, payload?.nodeId);
-        specializations.sendResult(state, requestId, {
-          ok: result.ok,
-          message: result.ok ? `Learned ${result.node.label}.` : result.error,
-        });
-      }
-    } catch (error) {
-      specializations.sendResult(state, requestId, { ok: false, message: 'Malformed specialization request.' });
-      console.warn(`[specializations] rejected request: ${error?.message ?? error}`);
-    }
-    return;
-  }
-  if (sub === NODEUO_HOUSE_TOOLS_SUBCOMMAND) {
-    if (!state.supportsNodeUO?.(NodeUOCapability.HouseTools) || !state.mobile || r.remaining < 7) return;
-    const kind = r.readU8();
-    const requestId = r.readU32();
-    const length = r.readU16();
-    const allowed = new Set([
-      NodeUOHouseToolsMessage.Undo, NodeUOHouseToolsMessage.Redo,
-      NodeUOHouseToolsMessage.Validate, NodeUOHouseToolsMessage.Copy,
-      NodeUOHouseToolsMessage.Paste, NodeUOHouseToolsMessage.SaveTemplate,
-      NodeUOHouseToolsMessage.ApplyTemplate,
-    ]);
-    if (!allowed.has(kind) || length > 32 * 1024 || length > r.remaining) return;
-    const registry = state.ctx.houses ?? state.ctx.systems?.houses;
-    const house = registry?.activeHouseFor?.(state.mobile, state._activeHouseId)
-      ?? registry?.housesOf?.(state.mobile.serial)?.[0] ?? null;
-    const respond = (payload) => state.send(extNodeUOHouseTools({
-      kind: NodeUOHouseToolsMessage.Result, requestId, payload: {
-        ...payload,
-        history: house ? registry.customHistory?.(house) : null,
-        templates: house ? Object.values(house.customTemplates ?? {}).map((template) => ({
-          name: template.name, savedAt: template.savedAt, tileCount: template.tiles?.length ?? 0,
-        })) : [],
-      },
-    }));
-    if (!house) {
-      respond({ ok: false, message: 'You do not own a house to customize.' });
-      return;
-    }
-    if (!house.editing) registry.beginEditing?.(house, state.mobile);
-    try {
-      const payload = length ? JSON.parse(new TextDecoder().decode(r.readBytes(length))) : {};
-      if (kind === NodeUOHouseToolsMessage.Undo) {
-        const ok = registry.undoCustom?.(house) ?? false;
-        respond({ ok, message: ok ? 'Undid the last house edit.' : 'Nothing to undo.' });
-      } else if (kind === NodeUOHouseToolsMessage.Redo) {
-        const ok = registry.redoCustom?.(house) ?? false;
-        respond({ ok, message: ok ? 'Redid the house edit.' : 'Nothing to redo.' });
-      } else if (kind === NodeUOHouseToolsMessage.Validate) {
-        const validation = registry.validateCustom?.(house);
-        respond({ ok: !!validation?.ok, message: validation?.ok ? 'House design is valid.' : 'House design has errors.', validation });
-      } else if (kind === NodeUOHouseToolsMessage.Copy) {
-        const count = registry.copyCustomArea?.(house, payload.x1, payload.y1, payload.x2, payload.y2, payload.zMin, payload.zMax) ?? 0;
-        respond({ ok: count > 0, message: count ? `Copied ${count} tile(s).` : 'No tiles in that area.' });
-      } else if (kind === NodeUOHouseToolsMessage.Paste) {
-        const count = registry.pasteCustomArea?.(house, payload.x, payload.y, payload.zOffset, { replace: !!payload.replace }) ?? 0;
-        respond({ ok: count > 0, message: count ? `Pasted ${count} tile(s).` : 'Clipboard is empty.' });
-      } else if (kind === NodeUOHouseToolsMessage.SaveTemplate) {
-        const result = registry.saveCustomTemplate?.(house, payload.name, payload.rect);
-        respond({ ok: !!result?.ok, message: result?.ok ? `Saved template ${result.name}.` : result?.error ?? 'Could not save template.' });
-      } else if (kind === NodeUOHouseToolsMessage.ApplyTemplate) {
-        const count = registry.applyCustomTemplate?.(house, payload.name, payload.x, payload.y, payload.zOffset, { replace: !!payload.replace }) ?? 0;
-        respond({ ok: count > 0, message: count ? `Applied ${count} template tile(s).` : 'Template not found or empty.' });
-      }
-    } catch (error) {
-      respond({ ok: false, message: 'Malformed house-tool request.' });
-      console.warn(`[house-tools] rejected request: ${error?.message ?? error}`);
-    }
-    return;
-  }
   if (sub === 0x0015) {
     // Context menu request — dispatch via the contextMenus registry.
     const serial = r.readU32();
@@ -2805,7 +2573,54 @@ function handleExtendedCommand(state, pkt) {
     return;
   }
   if (sub === 0x0033) {
-    // ServerOpenedQueryHelp — client confirming the help dialog opened.
+    // MultiBoatMoveRequest — modern UO clients steer a boarded multi through
+    // this encoded command. Keep it on the classic protocol path; NodeUO's
+    // optional channel is not required for sailing.
+    if (r.remaining < 7 || !state.mobile) return;
+    const playerSerial = r.readU32() >>> 0;
+    const direction = r.readU8() & 0x07;
+    const speedCode = r.readU8() & 0xff;
+    r.readU8(); // protocol pad / movement sequence
+    if (playerSerial && playerSerial !== (state.mobile.serial >>> 0)) return;
+
+    const controller = state.ctx.boats ?? state.ctx.systems?.boatsRuntime;
+    const world = state.ctx.world;
+    let boat = state.mobile._boardedBoat
+      ? world.items.get(state.mobile._boardedBoat >>> 0)
+      : null;
+    if (!boat?.boat) {
+      for (const serial of world._boats ?? []) {
+        const candidate = world.items.get(serial >>> 0);
+        if (candidate?.boat?.riders?.has?.(state.mobile.serial >>> 0)) {
+          boat = candidate;
+          break;
+        }
+      }
+    }
+    if (!boat?.boat || !controller) {
+      state.sendSystemMessage?.('You are not aboard a controllable boat.');
+      return;
+    }
+    if (!controller.hasPilotRights?.(boat, state.mobile)) {
+      state.sendSystemMessage?.('You lack the right to pilot this boat.');
+      return;
+    }
+    state._supportsBoatMoving = true;
+    const facing = ['N', 'N', 'E', 'E', 'S', 'S', 'W', 'W'][direction];
+    if (!controller.setFacing?.(boat, facing)) {
+      state.sendSystemMessage?.('The boat cannot turn in that space.');
+      return;
+    }
+    if (speedCode === 4) return; // turn-only request
+    const sailState = ({ 0: 'stop', 1: 'slow', 2: 'medium', 3: 'full' })[speedCode];
+    if (!sailState || !controller.setSailState?.(boat, sailState)) {
+      state.sendSystemMessage?.('Raise the anchor before making sail.');
+    }
+    return;
+  }
+  if (sub === 0x001E) {
+    if (r.remaining < 4) return;
+    handleHouseDesignRequest(state, r.readU32());
     return;
   }
   if (sub === 0x0040) {
@@ -2827,12 +2642,35 @@ function handleExtendedCommand(state, pkt) {
 const handleWearItemForce = null;
 
 function pushMovementHint(state, load = null) {
-  if (!state?.mobile || !state.supportsNodeUO?.(NodeUOCapability.MovementHints)) return;
+  if (!state?.mobile || !state.supportsNodeUO?.(NodeUOFeature.MovementHints)) return;
   const next = load ?? encumbrance(state.ctx.world, state.mobile, false);
   const signature = `${next.weight}:${next.capacity}:${Math.round(next.paceMultiplier * 1000)}:${next.overloaded ? 1 : 0}`;
   if (state._lastMovementHint === signature) return;
   state._lastMovementHint = signature;
-  state.send(extNodeUOMovementHint(next));
+  sendNodeUOEvent(state, {
+    feature: NodeUOFeature.MovementHints, payload: next,
+  });
+}
+
+function movementResolution(state, sequence, accepted, reason = '') {
+  const mob = state.mobile;
+  if (!mob) return false;
+  return sendNodeUOFeature(state, {
+    feature: 'movement.reconciliation', delivery: 'latest', ttlMs: 1500,
+    replace: 'movement-reconciliation',
+    payload: {
+      inputSequence: sequence & 0xff, accepted: !!accepted,
+      reason: String(reason).slice(0, 48), serverAt: Date.now(),
+      position: { x: mob.x | 0, y: mob.y | 0, z: mob.z | 0,
+        map: mob.map | 0, direction: mob.direction | 0 },
+    },
+  });
+}
+
+function rejectMovement(state, sequence, reason) {
+  const mob = state.mobile;
+  state.send(movementRej({ sequence, x: mob.x, y: mob.y, z: mob.z, direction: mob.direction }));
+  movementResolution(state, sequence, false, reason);
 }
 
 function handleMovementReq(state, pkt) {
@@ -2869,8 +2707,9 @@ function handleMovementReq(state, pkt) {
   const facing = direction & 0x07;
 
   const mob = state.mobile;
+  const isGhost = !!mob.ghost;
   const load = encumbrance(state.ctx.world, mob, running);
-  pushMovementHint(state, load);
+  if (!isGhost) pushMovementHint(state, load);
 
   // Movement sequence ring-counter — ServUO uses an 8-bit sequence
   // number that increments per step (wraps 1..255, skip 0). We track
@@ -2882,7 +2721,7 @@ function handleMovementReq(state, pkt) {
     // Out-of-order seq → snap-back + reset the counter. Don't disconnect
     // (a brief packet reorder over jittery WiFi can trip this).
     trace('move', `net#${state.id} REJECT seq: got=${sequence} expected=${expected}`);
-    state.send(movementRej({ sequence, x: mob.x, y: mob.y, z: mob.z, direction: mob.direction }));
+    rejectMovement(state, sequence, 'sequence');
     // Recover to the incoming sequence so follow-up packets can continue
     // from `sequence + 1` instead of getting stuck in a permanent reject loop.
     state._lastMoveSeq = sequence;
@@ -2904,12 +2743,20 @@ function handleMovementReq(state, pkt) {
     const mounted = !!mob.mountedFrom;
     const sprinting = mounted && running && (mob._mountSprintUntil ?? 0) > now;
     const baseDelta = mounted ? (running ? (sprinting ? 65 : 90) : 180) : (running ? 180 : 380);
-    const pace = state.supportsNodeUO?.(NodeUOCapability.MovementHints)
+    const pace = !isGhost && state.supportsNodeUO?.(NodeUOFeature.MovementHints)
       ? load.paceMultiplier : 1;
-    const minDelta = Math.round(baseDelta * pace);
+    let minDelta = Math.round(baseDelta * pace);
+    const slowedUntil = Math.max(
+      Number(mob._slowedUntil) || 0,
+      Number(mob.slowedUntil) || 0,
+    );
+    if (slowedUntil > now) minDelta = Math.round(minDelta * 1.5);
+    if ((Number(mob._chillSlowUntil) || 0) > now) {
+      minDelta = Math.max(minDelta, Number(mob._chillStepMs) || 600);
+    }
     if (last && (now - last) < minDelta) {
       trace('move', `net#${state.id} REJECT speed-hack: dt=${now - last}ms minDelta=${minDelta}ms`);
-      state.send(movementRej({ sequence, x: mob.x, y: mob.y, z: mob.z, direction: mob.direction }));
+      rejectMovement(state, sequence, 'speed');
       return;
     }
     mob._lastMoveAt = now;
@@ -2918,22 +2765,23 @@ function handleMovementReq(state, pkt) {
   // Paralyzed players can't turn or move. Reject the request so the client
   // snaps back to its last known tile; the status-effects sweeper removes
   // 'paralyze' on expiry (or the player is cured).
-  if (mob.effects?.some((e) => e.name === 'paralyze')) {
+  if (mob.effects?.some((e) => e.name === 'paralyze')
+      || Math.max(Number(mob._paralyzedUntil) || 0, Number(mob.paralyzedUntil) || 0) > Date.now()) {
     trace('move', `net#${state.id} REJECT paralyzed`);
-    state.send(movementRej({ sequence, x: mob.x, y: mob.y, z: mob.z, direction: mob.direction }));
+    rejectMovement(state, sequence, 'paralyzed');
     return;
   }
   // Whispering Rose daze (Mastery passive) — short 4 s mobility lock.
   // Unlike paralyze, daze doesn't block spell casting — only walking.
   if ((mob._dazedUntil ?? 0) > Date.now()) {
     trace('move', `net#${state.id} REJECT dazed`);
-    state.send(movementRej({ sequence, x: mob.x, y: mob.y, z: mob.z, direction: mob.direction }));
+    rejectMovement(state, sequence, 'dazed');
     return;
   }
   // GM `[freeze` toggle — same wire effect as paralyze (rejection snaps
   // the client back) but persists until manually thawed by `[unfreeze`.
   if (mob.frozen) {
-    state.send(movementRej({ sequence, x: mob.x, y: mob.y, z: mob.z, direction: mob.direction }));
+    rejectMovement(state, sequence, 'frozen');
     return;
   }
   // Audit #36 P1 #3 — ServUO `Spell.cs:346 CheckMovement` returns false
@@ -2946,7 +2794,7 @@ function handleMovementReq(state, pkt) {
                || state.account?.accessLevel === 'Admin';
   if (!isStaff && mob._castTimer && (mob.direction & 0x07) === facing) {
     trace('move', `net#${state.id} REJECT casting`);
-    state.send(movementRej({ sequence, x: mob.x, y: mob.y, z: mob.z, direction: mob.direction }));
+    rejectMovement(state, sequence, 'casting');
     state.sendSystemMessage?.('You cannot move while casting.');
     return;
   }
@@ -2955,6 +2803,7 @@ function handleMovementReq(state, pkt) {
   if ((mob.direction & 0x07) !== facing) {
     mob.direction = direction;
     state.send(movementAck(sequence, mob.notoriety));
+    movementResolution(state, sequence, true, 'turn');
     trace('move', `net#${state.id} ACK turn-only: now facing ${facing}`);
     return;
   }
@@ -2962,12 +2811,12 @@ function handleMovementReq(state, pkt) {
   // ServUO WeightOverloading: an overloaded player pays a steep stamina
   // cost per attempted step and cannot move when that would reach zero.
   // At ordinary load SA drains one stamina every ten accepted steps.
-  if (!isStaff) {
+  if (!isStaff && !isGhost) {
     const overloadCost = specializations.staminaCost(mob, load.staminaCost);
     if (load.overloaded && ((mob.stam ?? 0) - overloadCost) <= 0) {
       mob.stam = 0;
       state.send(staminaUpdate({ serial: mob.serial, current: 0, max: mob.stamMax ?? 50 }));
-      state.send(movementRej({ sequence, x: mob.x, y: mob.y, z: mob.z, direction: mob.direction }));
+      rejectMovement(state, sequence, 'overloaded');
       if (!mob._overloadMessageAt || Date.now() - mob._overloadMessageAt > 3000) {
         state.sendSystemMessage?.(`You are too fatigued to move under this load (${load.weight}/${load.capacity} stones).`);
         mob._overloadMessageAt = Date.now();
@@ -2975,7 +2824,7 @@ function handleMovementReq(state, pkt) {
       return;
     }
     if (!load.overloaded && (mob.stam ?? 0) <= 0) {
-      state.send(movementRej({ sequence, x: mob.x, y: mob.y, z: mob.z, direction: mob.direction }));
+      rejectMovement(state, sequence, 'fatigued');
       state.sendSystemMessage?.(mob.mountedFrom
         ? 'Your mount is too fatigued to move.'
         : 'You are too fatigued to move.');
@@ -2992,11 +2841,29 @@ function handleMovementReq(state, pkt) {
   const nz = resolveStep(mob.map, mob.x, mob.y, mob.z, nx, ny);
   if (nz == null) {
     trace('move', `net#${state.id} REJECT walkability: target=(${nx},${ny}) from=(${mob.x},${mob.y},${mob.z}) blocked`);
-    state.send(movementRej({ sequence, x: mob.x, y: mob.y, z: mob.z, direction: mob.direction }));
+    rejectMovement(state, sequence, 'blocked');
     return;
   }
+  // Region precondition gates must run before committing the step. Running
+  // them from onEnter was too late: the player had already moved, streamed
+  // visibility and triggered tile scripts. Only check an actual boundary
+  // crossing so ordinary movement inside a gated region stays O(1).
+  const regionRegistry = state.ctx?.regions;
+  const accessGates = state.ctx?.systems?.preventInaccess;
+  if (regionRegistry?.primary && accessGates?.check) {
+    const currentRegion = regionRegistry.primary(mob.map, mob.x, mob.y);
+    const destinationRegion = regionRegistry.primary(mob.map, nx, ny);
+    if (destinationRegion && destinationRegion !== currentRegion) {
+      const access = accessGates.check(mob, destinationRegion);
+      if (access !== true && access?.ok === false) {
+        rejectMovement(state, sequence, 'region-access');
+        if (access.reason) state.sendSystemMessage?.(access.reason);
+        return;
+      }
+    }
+  }
   trace('move', `net#${state.id} ACK step: (${mob.x},${mob.y},${mob.z}) -> (${nx},${ny},${nz})`);
-  // FAZA BQ: capture pre-step tile so the lifecycle dispatcher can fire
+  // PHASE BQ: capture pre-step tile so the lifecycle dispatcher can fire
   // onWalkOff for the source and onWalkOn for the destination — the
   // hooks that drive spike-traps, pressure plates, teleporter pads.
   const fromTile = { x: mob.x, y: mob.y, z: mob.z, map: mob.map };
@@ -3011,7 +2878,9 @@ function handleMovementReq(state, pkt) {
   // Archery draw reset — ServUO `BaseRanged.OnSwingMobile` re-arms the
   // draw timer whenever the wielder moves. Combat tick gates ranged
   // swings on `_archeryDrawUntil`. Cheap stamp, no allocation.
-  if ((mob._weapon?.range ?? 1) > 1) {
+  if ((mob._weapon?.range ?? 1) > 1
+      && state.queuedAbility !== 'moving-shot'
+      && (Number(mob._movingShotUntil) || 0) <= Date.now()) {
     mob._archeryDrawUntil = Date.now() + 1000;
   }
   // Re-bucket the mobile in the sector index. No-op when staying in the
@@ -3022,12 +2891,13 @@ function handleMovementReq(state, pkt) {
   // that backlog made clients hit their 3s movement watchdog even though
   // the step was already committed server-side.
   state.send(movementAck(sequence, mob.notoriety));
+  movementResolution(state, sequence, true, 'step');
   // Stream items + mobs newly entering visibility range, and 0x1D
   // removeEntity for those leaving. Without this, items spawned past
   // the initial visibility window (e.g. `[createworld` decorations on
   // the horizon after a fresh login or `[go` teleport) never reach the
-  // client until they teleport away and back — user report 2026-05-18
-  // "jak idziemy dalej to już nie ma drzwi ani znaków ani dekoracji".
+  // client until they teleport away and back, which made doors, signs, and
+  // decorations disappear while walking beyond the initial view.
   streamVisibilityDelta(state, mob, prevX, prevY);
   // Region OnEnter / OnLeave dispatch — ServUO `Region.OnEnter` is the
   // canonical hook for town guards, region greetings, anti-PvP zones,
@@ -3061,7 +2931,7 @@ function handleMovementReq(state, pkt) {
   }
   // ServUO/SA cadence: ordinary travel costs one stamina per ten steps;
   // overload uses WeightOverloading.GetStamLoss on every step.
-  if (!isStaff && (mob.stam ?? 0) > 0) {
+  if (!isStaff && !isGhost && (mob.stam ?? 0) > 0) {
     mob._stepsTaken = ((mob._stepsTaken | 0) + 1) >>> 0;
     const baseCost = load.overloaded
       ? load.staminaCost
@@ -3108,7 +2978,8 @@ function handleMovementReq(state, pkt) {
     direction: mob.direction, hue: mob.hue, flags: mob.flags, notoriety: mob.notoriety,
   });
   for (const other of nearbyClients(state.ctx.world, mob, mob)) {
-    other.client.send(movingPkt);
+    if (typeof other.client.sendEntityDelta === 'function') other.client.sendEntityDelta(mob.serial, 1, movingPkt);
+    else other.client.send(movingPkt);
   }
 }
 
@@ -3164,7 +3035,10 @@ function vendorSpeechIntent(text, vendor) {
 
 function tryOpenVendorFromSpeech(state, speaker, text, hue = 0x03B2) {
   const world = state.ctx?.world;
-  if (!world) return 0;
+  // Living vendors cannot understand ghost speech and a dead player must not
+  // be able to invoke the direct buy/sell fast path. NPCs which explicitly
+  // understand ghosts still receive the (per-listener) speech queue below.
+  if (!world || speaker?.ghost || speaker?.dead || (speaker?.hp ?? 1) <= 0) return 0;
   let best = null;
   let bestIntent = null;
   let bestDist = Infinity;
@@ -3199,11 +3073,40 @@ function tryOpenVendorFromSpeech(state, speaker, text, hue = 0x03B2) {
   return best.serial >>> 0;
 }
 
+function speechRange(type) {
+  switch (type & 0x3f) {
+    case 8: return 1;  // whisper
+    case 9: return 18; // yell
+    default: return 15;
+  }
+}
+
+function mutateGhostSpeech(text, seed = 0) {
+  let out = '';
+  let index = seed | 0;
+  for (const ch of String(text ?? '')) {
+    if (/\s/u.test(ch)) out += ch;
+    else out += ((index++ & 1) === 0 ? 'O' : 'o');
+  }
+  return out;
+}
+
+function canHearGhostSpeech(listener, now = Date.now()) {
+  if (!listener) return false;
+  if (listener.ghost || listener.dead || (listener.hp ?? 1) <= 0) return true;
+  if (listener.canHearGhosts || (listener._spiritSpeakUntil ?? 0) > now) return true;
+  if (hasEffect(listener, 'spiritspeak')) return true;
+  const access = listener.client?.account?.accessLevel ?? listener.accessLevel;
+  return access === 'GM' || access === 'Admin' || access === 'Seer';
+}
+
 function processPlayerSpeech(state, { type = 0, hue = 0x03B2, font = 3, lang = 'ENU', text = '' } = {}) {
   void font; void lang;
   text = String(text ?? '').slice(0, 256);
 
   const mob = state.mobile;
+  const ghostSpeaker = !!(mob?.ghost || mob?.dead || (mob?.hp ?? 1) <= 0);
+  const range = speechRange(type);
 
   // Command prefix: `[cmd args` (GM) or `.cmd args` (user). Dispatch instead
   // of broadcasting as speech.
@@ -3248,9 +3151,16 @@ function processPlayerSpeech(state, { type = 0, hue = 0x03B2, font = 3, lang = '
         if (!npc || npc.map !== mob.map) continue;
         const d = Math.max(Math.abs(npc.x - mob.x), Math.abs(npc.y - mob.y));
         if (d > 4) continue;
+        if (ghostSpeaker && !canHearGhostSpeech(npc)) continue;
         const payload = convo.advanceConversation({ playerState: state, npc, input: text });
         if (payload?.text) {
-          state.sendSystemMessage?.(payload.text);
+          const rich = state._nodeUONpcDialog;
+          if (rich?.npcSerial === (npc.serial >>> 0)
+              && state.supportsNodeUO?.(NodeUOFeature.NpcDialog)) {
+            npcDialogs().refreshConversation(state, npc, payload, rich.requestId);
+          } else {
+            state.sendSystemMessage?.(payload.text);
+          }
           break;
         }
       }
@@ -3261,7 +3171,7 @@ function processPlayerSpeech(state, { type = 0, hue = 0x03B2, font = 3, lang = '
   // attack" etc. Routes to the same `[pet <cmd>` admin command so
   // there's a single code path. We still broadcast the speech so
   // bystanders see "<player> says: all follow".
-  if (text && /^all\s+(follow|stay|guard|attack|release|come)\s*$/i.test(text)) {
+  if (!ghostSpeaker && text && /^all\s+(follow|stay|guard|attack|release|come)\s*$/i.test(text)) {
     const sub = text.toLowerCase().split(/\s+/)[1];
     state.ctx.commands.dispatch?.(`pet ${sub}`, {
       sender: mob, state, world: state.ctx.world,
@@ -3271,10 +3181,21 @@ function processPlayerSpeech(state, { type = 0, hue = 0x03B2, font = 3, lang = '
   const msg = unicodeMessage({
     serial: mob.serial, graphic: mob.body, type: type & 0x3F, hue, name: mob.name, text,
   });
-  // Echo to self + anyone nearby.
+  // Echo the original to the speaker. Every listener gets a packet chosen by
+  // the server: dead listeners and living Spirit Speak users understand it;
+  // other living clients receive only cadence-preserving ghost syllables.
+  // Keeping this decision server-side also preserves compatibility with
+  // unmodified UO clients and external emulators.
   state.send(msg);
-  for (const other of nearbyClients(state.ctx.world, mob, mob)) {
-    other.client.send(msg);
+  let ghostMsg = null;
+  let ghostText = null;
+  const getGhostText = () => ghostText ??= mutateGhostSpeech(text, mob.serial);
+  const getGhostMessage = () => ghostMsg ??= unicodeMessage({
+    serial: mob.serial, graphic: mob.body, type: type & 0x3F, hue,
+    name: mob.name, text: getGhostText(),
+  });
+  for (const other of nearbyClients(state.ctx.world, mob, mob, range)) {
+    other.client.send(ghostSpeaker && !canHearGhostSpeech(other) ? getGhostMessage() : msg);
   }
   try {
     state.ctx?.events?.emit?.('speech', { speaker: mob, state, text, hue, type });
@@ -3282,25 +3203,44 @@ function processPlayerSpeech(state, { type = 0, hue = 0x03B2, font = 3, lang = '
   transmitCommunicationCrystals(state, mob, text);
   const handledVendorSerial = tryOpenVendorFromSpeech(state, mob, text, hue);
 
-  // FAZA AG/AY/BH — push speech into nearby NPCs' `_heardSpeech` queue
+  // PHASE AG/AY/BH — push speech into nearby NPCs' `_heardSpeech` queue
   // so AI behaviours can react on their next tick.
   //
   // Three layers of filtering keep the broadcast cheap:
   //   1. `_listensToSpeech === true` — flag set by banker/trainer/etc
   //      to opt in. Without this, EVERY non-client mob (orcs, rats,
-  //      dragons) accumulated chat with no consumer (FAZA AY #15).
+  //      dragons) accumulated chat with no consumer (PHASE AY #15).
   //   2. Optional keyword subscription — `_speechKeywords` array on
   //      the mob. When set, the speech is pushed only when the
   //      lower-cased text contains at least one entry (substring
   //      match). Behaviours that already do their own keyword scan
-  //      can skip this by leaving the field undefined; FAZA BH wires
+  //      can skip this by leaving the field undefined; PHASE BH wires
   //      banker/trainer/town-crier to declare their keywords so we
   //      stop pushing pure noise.
   //   3. Distance + map filter — same 18-tile bound as visibility.
   //
-  // Drop OLDEST when overflowing (FAZA AT #10): AI consumes via
+  // Drop OLDEST when overflowing (PHASE AT #10): AI consumes via
   // shift(), so keeping the latest 16 utterances mirrors the FIFO.
-  const lcText = (text ?? '').toLowerCase();
+  const queueForNpc = (other) => {
+    if (!other || other === mob || other.client) return;
+    if ((other.serial >>> 0) === handledVendorSerial) return;
+    if (!other._listensToSpeech) return;
+    if (other.map !== mob.map) return;
+    if (Math.abs(other.x - mob.x) > range || Math.abs(other.y - mob.y) > range) return;
+    const heardText = ghostSpeaker && !canHearGhostSpeech(other) ? getGhostText() : text;
+    const lcText = String(heardText ?? '').toLowerCase();
+    const keywords = other._speechKeywords;
+    if (Array.isArray(keywords) && keywords.length > 0) {
+      let hit = false;
+      for (const k of keywords) {
+        if (typeof k === 'string' && lcText.includes(k)) { hit = true; break; }
+      }
+      if (!hit) return;
+    }
+    other._heardSpeech ??= [];
+    other._heardSpeech.push({ speaker: mob, text: heardText, hue });
+    while (other._heardSpeech.length > 16) other._heardSpeech.shift();
+  };
   // Sector-aware fan-out — walks only mobile buckets in the 18-tile
   // earshot radius instead of all 11.7k mobiles. Speech is one of the
   // highest-frequency events (player chat + NPC barks); the old full
@@ -3308,44 +3248,13 @@ function processPlayerSpeech(state, { type = 0, hue = 0x03B2, font = 3, lang = '
   const w = state.ctx.world;
   const sectors = w.sectors;
   if (sectors?.mobileSerialsNear) {
-    for (const s of sectors.mobileSerialsNear(mob.map, mob.x, mob.y, 18)) {
-      const other = w.mobiles.get(s);
-      if (!other || other === mob || other.client) continue;
-      if ((other.serial >>> 0) === handledVendorSerial) continue;
-      if (!other._listensToSpeech) continue;
-      if (other.map !== mob.map) continue;
-      if (Math.abs(other.x - mob.x) > 18 || Math.abs(other.y - mob.y) > 18) continue;
-      const keywords = other._speechKeywords;
-      if (Array.isArray(keywords) && keywords.length > 0) {
-        let hit = false;
-        for (const k of keywords) {
-          if (typeof k === 'string' && lcText.includes(k)) { hit = true; break; }
-        }
-        if (!hit) continue;
-      }
-      other._heardSpeech ??= [];
-      other._heardSpeech.push({ speaker: mob, text, hue });
-      while (other._heardSpeech.length > 16) other._heardSpeech.shift();
+    for (const s of sectors.mobileSerialsNear(mob.map, mob.x, mob.y, range)) {
+      queueForNpc(w.mobiles.get(s));
     }
     return;
   }
   for (const other of w.mobiles.values()) {
-    if (other === mob || other.client) continue;
-    if ((other.serial >>> 0) === handledVendorSerial) continue;
-    if (!other._listensToSpeech) continue;
-    if (other.map !== mob.map) continue;
-    if (Math.abs(other.x - mob.x) > 18 || Math.abs(other.y - mob.y) > 18) continue;
-    const keywords = other._speechKeywords;
-    if (Array.isArray(keywords) && keywords.length > 0) {
-      let hit = false;
-      for (const k of keywords) {
-        if (typeof k === 'string' && lcText.includes(k)) { hit = true; break; }
-      }
-      if (!hit) continue;
-    }
-    other._heardSpeech ??= [];
-    other._heardSpeech.push({ speaker: mob, text, hue });
-    while (other._heardSpeech.length > 16) other._heardSpeech.shift();
+    queueForNpc(other);
   }
 }
 
@@ -3429,6 +3338,7 @@ function nudgeItemProperties(state, item) {
   const provider = state?.ctx?.propertyProvider;
   if (!provider || !item) return;
   try {
+    state.ctx?.world?.observeProperties?.(state, item.serial);
     const result = provider(item.serial, state);
     if (result?.entries) properties.nudge(state, item.serial, properties.computeHash(result.entries));
   } catch { /* OPL refresh is advisory; mutation already committed */ }
@@ -3734,7 +3644,7 @@ function handlePickUp(state, pkt) {
     }
   }
   if (isWornBySelf) {
-    // FAZA BN: dispatch onUnequip BEFORE clearing the layer so the
+    // PHASE BN: dispatch onUnequip BEFORE clearing the layer so the
     // script can still see what slot it left from.
     dispatchItemEvent(state.ctx.world, item, 'onUnequip', state.mobile);
     removeEquippedIndexItem(state.mobile, item);
@@ -3748,7 +3658,7 @@ function handlePickUp(state, pkt) {
   state.heldItem = item;
   nudgeItemProperties(state, item);
   if (splitRemainder) nudgeItemProperties(state, splitRemainder);
-  // FAZA BN: lifecycle hook for ground / container pickup.
+  // PHASE BN: lifecycle hook for ground / container pickup.
   dispatchItemEvent(state.ctx.world, item, 'onPickUp', state.mobile);
   // Wave 13: auto-identify magic items at high ItemIdentification skill.
   //   skill <70 → never auto (must run [identify)
@@ -3881,7 +3791,7 @@ function handleDrop(state, pkt) {
     for (const other of nearbyClients(state.ctx.world, state.mobile, state.mobile)) {
       other.client.send(pkt2);
     }
-    // FAZA BN: ground-drop lifecycle hook.
+    // PHASE BN: ground-drop lifecycle hook.
     dispatchItemEvent(state.ctx.world, item, 'onDrop', null, state.mobile);
     nudgeItemProperties(state, item);
     return;
@@ -4158,7 +4068,7 @@ function handleDrop(state, pkt) {
     }
   }
 
-  // BUGFIX #62 (FAZA CT): auto-stack stackable items into an existing
+  // BUGFIX #62 (PHASE CT): auto-stack stackable items into an existing
   // pile in the same container. The previous handler always created a
   // separate slot — players ended up with twelve gold piles in their
   // pack, twelve "Iron Ingot 1" entries from a single buy session, etc.
@@ -4247,7 +4157,7 @@ function handleDrop(state, pkt) {
     gridX: item.gridX, gridY: item.gridY, gridLocation: item.gridLocation,
     hue: item.hue,
   }, container);
-  state.send(updPkt);
+  if (!trySendNodeUOContainer(state, { container, upserted: [item] })) state.send(updPkt);
   nudgeItemProperties(state, item);
   nudgeItemProperties(state, target);
   // Other players who have this same container open (corpse loot, shared
@@ -4255,12 +4165,12 @@ function handleDrop(state, pkt) {
   // their UI shows stale contents until they re-open the container.
   for (const m of state.ctx.world.mobiles.values()) {
     if (!m.client || m === state.mobile) continue;
-    if (m.client.openContainers?.has?.(container)) m.client.send(updPkt);
+    if (m.client.openContainers?.has?.(container)
+        && !trySendNodeUOContainer(m.client, { container, upserted: [item] })) m.client.send(updPkt);
   }
 }
 
 // ---- Use / Double-click (0x06) --------------------------------------------
-//
 // Minimal container-open support. For an item with `gumpId` set we send the
 // 0x24 DisplayContainer + 0x3C ContainerContents pair and record the serial
 // on the client so subsequent pickups/drops can be authorized.
@@ -4298,6 +4208,14 @@ function handleUseSerial(state, serial) {
       });
       return;
     }
+    // Our negotiated browser client gets one server-authored interaction
+    // surface instead of guessing whether this NPC is a vendor, banker,
+    // trainer or quest giver. Other servers and classic clients never
+    // negotiate NpcDialog, so their 0x06 behaviour remains untouched.
+    if (mob !== state.mobile
+        && state.supportsNodeUO?.(NodeUOFeature.NpcDialog)
+        && npcDialogs().isScripted(state, mob)
+        && npcDialogs().open(state, mob)) return;
     if (vendorRegistry.has(mob.serial)) {
       // Shopkeeper — open their buy window first; double-clicking a
       // vendor in canon UO is the "buy" gesture, not a paperdoll open.
@@ -4349,28 +4267,11 @@ function handleUseSerial(state, serial) {
     // paperdoll for a daemon/dragon made the client render a default naked
     // human and visually changed the creature on double-click.
     if (!isPaperdollBody(mob.body)) return;
-    const isSelf = mob === state.mobile;
     // Re-seed the paperdoll from one authoritative equipment snapshot before
     // opening it. 0x88 carries only serial/title; relying solely on whatever
     // 0x78 happened to arrive earlier let a missed/partial equipment update
     // produce a naked body or a missing backpack on subsequent opens.
-    state.send(mobileIncoming({
-      serial: mob.serial,
-      body: mob.body,
-      x: mob.x,
-      y: mob.y,
-      z: mob.z,
-      direction: mob.direction,
-      hue: mob.hue,
-      flags: mob.flags,
-      notoriety: mob.notoriety,
-      equipment: equipmentFor(state.ctx.world, mob),
-    }));
-    state.send(openPaperdoll({
-      serial: mob.serial,
-      title: mob.title ? `${mob.name}, ${mob.title}` : (mob.name ?? ''),
-      flags: isSelf ? 0x02 : 0x00,
-    }));
+    npcDialogs().sendPaperdoll(state, mob);
     return;
   }
 
@@ -4389,7 +4290,7 @@ function handleUseSerial(state, serial) {
   // Spellweaving=601, Mysticism=678).
   ensureSpellbookRegisteredFromItem(item);
   if (spellbookRegistry.has(item.serial)) {
-    // BUGFIX #137 (FAZA JF): the previous code sent BOTH 0xBF 0x1B
+    // BUGFIX #137 (PHASE JF): the previous code sent BOTH 0xBF 0x1B
     // (NewSpellbookContent) AND 0x24 DisplayContainer, so the client
     // opened the parchment spellbook gump AND a container window for
     // the same serial — Marcin's screenshot showed the bag gump
@@ -4414,7 +4315,7 @@ function handleUseSerial(state, serial) {
     return;
   }
 
-  // BUGFIX #129 (FAZA HO): the open-container path opened locked
+  // BUGFIX #129 (PHASE HO): the open-container path opened locked
   // chests anyway — the `locked` flag was set by Magic Lock /
   // treasure spawns but nothing in the dispatch read it. Players
   // popped open every chest they double-clicked. Refuse the open
@@ -4567,12 +4468,7 @@ function springContainerTrap(state, item) {
 }
 
 function openContainerFor(state, container) {
-  // Back-fill the canonical bank-box gump for legacy save files. Every
-  // pre-migration bank was created with gumpId=0x003C (the default
-  // backpack art) — fix one-time on open so the operator doesn't have
-  // to wipe saves to get the correct chest art. Layer 0x1D = Bank,
-  // which mob.equipment indexes when the character is created. Same
-  // pattern we use for "container.gumpId missing" defaults elsewhere.
+  // Repair legacy backpack art on old bank boxes during their first open.
   if ((container.layer | 0) === 0x1D && (container.gumpId | 0) === 0x003C) {
     container.gumpId = 0x004A;
   }
@@ -4597,12 +4493,13 @@ function openContainerFor(state, container) {
       hue: child.hue ?? 0,
     });
   }
-  state.send(containerContents(container.serial, entries));
+  if (!trySendNodeUOContainer(state, { container: container.serial, snapshot: true, items: entries })) {
+    state.send(containerContents(container.serial, entries));
+  }
   state.openContainers.add(container.serial);
 }
 
 // ---- Status request (0x34) -----------------------------------------------
-//
 // The classic client sends 0x34 when the player double-clicks their own
 // paperdoll's status button. We respond with 0x11 MobileStatus.
 
@@ -4649,7 +4546,7 @@ function handleStatusReq(state, pkt) {
     return;
   }
 
-  // BUGFIX #54 (FAZA CL): non-self status requests get the "brief"
+  // BUGFIX #54 (PHASE CL): non-self status requests get the "brief"
   // version (name + HP/hpMax only). Sending the full extended payload
   // for any mobile leaked stats / gold / stam / mana to anyone who
   // dragged out a status bar. ServUO does the same gate.
@@ -4721,7 +4618,7 @@ function handleTargetResponse(state, pkt) {
   if (!entry) return;
   state.targetCallbacks.delete(parsed.id);
   const cb = typeof entry === 'function' ? entry : entry.callback;
-  if (entry?.timer) clearTimeout(entry.timer);
+  cancelScheduled(entry?.timer);
   if (typeof entry !== 'function') {
     if (entry.sessionToken != null && entry.sessionToken !== state.interactionToken) return;
     if (Date.now() > entry.expiresAt) {
@@ -4808,7 +4705,7 @@ export const targeting = {
     while (state.targetCallbacks.size >= 16) {
       const [oldestId, oldest] = state.targetCallbacks.entries().next().value ?? [];
       if (oldestId == null) break;
-      if (oldest?.timer) clearTimeout(oldest.timer);
+      cancelScheduled(oldest?.timer);
       state.targetCallbacks.delete(oldestId);
     }
     const id = (state._nextTargetId = (state._nextTargetId ?? 1) + 1);
@@ -4822,12 +4719,12 @@ export const targeting = {
       sessionToken: state.interactionToken,
       timer: null,
     };
-    entry.timer = setTimeout(() => {
+    entry.timer = scheduleStateOnce(state, `target:${id}`, timeoutMs, () => {
       if (state.targetCallbacks?.get(id) !== entry) return;
       state.targetCallbacks.delete(id);
       if (entry.skillUseId) interruptSkillUse(state, 'target timeout');
       else state.sendSystemMessage?.('Target request timed out.');
-    }, timeoutMs);
+    });
     entry.timer.unref?.();
     state.targetCallbacks.set(id, entry);
     state.send(targetRequest({ id, kind: opts.kind ?? 0, flags: opts.flags ?? 0 }));
@@ -4839,7 +4736,7 @@ export const targeting = {
 // ---------------------------------------------------------------------------
 
 function scheduleGumpExpiry(state) {
-  if (state._gumpExpiryTimer) clearTimeout(state._gumpExpiryTimer);
+  cancelScheduled(state._gumpExpiryTimer);
   state._gumpExpiryTimer = null;
   let next = Infinity;
   for (const entry of state.activeGumps?.values?.() ?? []) {
@@ -4847,12 +4744,12 @@ function scheduleGumpExpiry(state) {
   }
   if (!Number.isFinite(next)) return;
   const delay = Math.max(1, next - Date.now());
-  state._gumpExpiryTimer = setTimeout(() => {
+  state._gumpExpiryTimer = scheduleStateOnce(state, 'gump-expiry', delay, () => {
     state._gumpExpiryTimer = null;
     const removed = pruneActiveGumps(state);
     if (removed) diagnostics.gumpExpired(removed);
     scheduleGumpExpiry(state);
-  }, delay);
+  });
   state._gumpExpiryTimer.unref?.();
 }
 
@@ -5172,18 +5069,18 @@ function handleWearItem(state, pkt) {
   item.layer = targetLayer;
   delete item.gridX; delete item.gridY; delete item.gridLocation;
   state.heldItem = null;
-  // FAZA BN: dispatch onEquip AFTER fields settle so the script sees
+  // PHASE BN: dispatch onEquip AFTER fields settle so the script sees
   // the final layer/parent state. Returning truthy means handled but
   // we still broadcast the equip-update so observers see the layer
   // change — the script can't gate paperdoll display.
   dispatchItemEvent(world, item, 'onEquip', mob);
   syncMobileEquipmentIndex(world, mob);
   nudgeItemProperties(state, item);
-  // FAZA FM: when the equipped item is a weapon, copy its combat
+  // PHASE FM: when the equipped item is a weapon, copy its combat
   // descriptor onto the mob so combat-formulas / ranged-arrow consume
   // / slayer matrix pick it up. Layer 1 (right hand) is the primary
   // weapon slot in UO. We read `item.weapon` payload — set by the
-  // weapon templates (FAZA FN below).
+  // weapon templates (PHASE FN below).
   if (item.layer === 1 || item.layer === 2) {
     if (item.weapon) {
       mob._resetEquipUntil = Date.now() + 500; // ServUO BaseWeapon.ResetEquipTimer.
@@ -5202,14 +5099,14 @@ function handleWearItem(state, pkt) {
       }
     }
   }
-  // FAZA HK: shield slot (layer 2) sets `_hasShield` for the parry
+  // PHASE HK: shield slot (layer 2) sets `_hasShield` for the parry
   // skill gate. Two-handed weapons clear it — they occupy layer 2
   // but aren't shields. ServUO `BaseShield.OnEquip` does the same.
   if (item.layer === 2) {
     if (item.shield) mob._hasShield = true;
     else if (item.weapon) mob._hasShield = false;
   }
-  // FAZA HL: dual-wield detection. After this equip, scan for both
+  // PHASE HL: dual-wield detection. After this equip, scan for both
   // hand slots filled with weapons (no shield in either) and tag the
   // mob accordingly so combat-formulas can apply the swing penalty.
   // Bug-hunt #3 A3: reverse parent index — ~10 worn slots instead of
@@ -5377,6 +5274,9 @@ function outfitFreshMobile(world, mob) {
  * @property {number} responseId
  * @property {number} cliloc
  * @property {number} [flags]
+ * @property {string} [label]       plain-text fallback for rich NodeUO UI
+ * @property {string} [nodeUOLabel] optional rich-UI label override
+ * @property {'talk'|'trade'|'service'|'character'} [nodeUOKind]
  * @property {() => void} onPick
  */
 
@@ -5486,7 +5386,9 @@ const VENDOR_MAX_LINES = 100;
 function vendorInRange(state, serial) {
   const actor = state.mobile;
   const vendor = state.ctx.world.mobiles.get(serial >>> 0);
-  return !!(actor && vendor && actor.map === vendor.map && !actor.dead && !vendor.dead
+  return !!(actor && vendor && actor.map === vendor.map
+    && !actor.dead && !actor.ghost && (actor.hp ?? 1) > 0
+    && !vendor.dead && !vendor.ghost && (vendor.hp ?? 1) > 0
     && Math.max(Math.abs(actor.x - vendor.x), Math.abs(actor.y - vendor.y)) <= VENDOR_USE_RANGE);
 }
 
@@ -5531,6 +5433,7 @@ export const vendors = {
   register(cfg) { vendorRegistry.set(cfg.vendorSerial, cfg); },
   unregister(serial) { vendorRegistry.delete(serial); },
   get(serial) { return vendorRegistry.get(serial); },
+  entries() { return vendorRegistry.entries(); },
   /**
    * Open the buy window on `state` for the vendor identified by `serial`.
    */
@@ -5540,7 +5443,7 @@ export const vendors = {
     const stock = cfg.listStock().filter((e) => Number(e.amount) > 0
       && Number.isFinite(e.price) && e.price >= 0).slice(0, 255);
     startVendorSession(state, serial, 'buy', stock);
-    if (state.supportsNodeUO?.(NodeUOCapability.VendorInsights)) {
+    if (state.supportsNodeUO?.(NodeUOFeature.VendorInsights)) {
       const previous = vendorPriceHistory.get(serial >>> 0) ?? new Map();
       const entries = stock.map((entry) => ({
         serial: entry.serial >>> 0,
@@ -5550,10 +5453,11 @@ export const vendors = {
         available: Number.isFinite(entry.amount) ? entry.amount | 0 : null,
       }));
       vendorPriceHistory.set(serial >>> 0, new Map(stock.map((entry) => [entry.itemId | 0, entry.price | 0])));
-      state.send(extNodeUOVendorInsights({
-        requestId: ((state._vendorInsightRequestId = ((state._vendorInsightRequestId ?? 0) + 1) >>> 0)),
-        payload: { vendorSerial: serial >>> 0, entries },
-      }));
+      const requestId = ((state._vendorInsightRequestId = ((state._vendorInsightRequestId ?? 0) + 1) >>> 0));
+      const payload = { vendorSerial: serial >>> 0, entries };
+      sendNodeUOEvent(state, {
+        feature: NodeUOFeature.VendorInsights, requestId, payload,
+      });
     }
     // Standard vendor flow sends the display container first, then 0x74.
     // This lets ClassicUO/browser clients pair each price/name row with the
@@ -5686,7 +5590,7 @@ export const books = {
 };
 
 /**
- * BUGFIX #40 (FAZA BX): the previous handlers happily applied a book
+ * BUGFIX #40 (PHASE BX): the previous handlers happily applied a book
  * write to whichever serial the client supplied, with no proximity or
  * ownership check. Any logged-in account that knew (or guessed) a
  * book's serial could overwrite its pages and title. Now we validate
@@ -5941,6 +5845,10 @@ function handleAttackReq(state, pkt) {
   if (Math.max(dx, dy) > 12) { state.combatant = 0; return; }
   state.combatant = serial;
   state.nextSwingAt = Date.now() + 500; // brief wind-up before first swing
+  publishCombatTelegraph(state.ctx, {
+    source: state.mobile, target, shape: 'target', radius: 1,
+    startsAt: Date.now(), durationMs: 500, label: 'Melee wind-up', danger: 'normal',
+  });
 }
 
 // Pick the skill id of the mob's *strongest* weapon skill — that's the
@@ -6202,7 +6110,7 @@ export const combat = {
     const damageTypeName = normalized.damageTypeName ?? 'physical';
     const damageOptions = normalized.options;
     if (!mob) return 0;
-    // BUGFIX #81 (FAZA DM): clamp damage at 0. Negative amounts would
+    // BUGFIX #81 (PHASE DM): clamp damage at 0. Negative amounts would
     // have HEALED the victim (hp - (-5) = hp + 5) — every damage path
     // that ever passed a stale negative number (e.g. armor reduction
     // wrapping below zero) was a healing exploit waiting to happen.
@@ -6221,7 +6129,7 @@ export const combat = {
     // `Blessed = true`; we mirror via the existing `invulnerable` field
     // (already set by `[guards`, boat tillermen, vendors).
     if (mob.invulnerable) return 0;
-    // FAZA DM: Young player PK immunity.
+    // PHASE DM: Young player PK immunity.
     if (attacker && !canDamageYoung(attacker, mob)) {
       attacker.client?.sendSystemMessage?.('You may not harm a Young player.');
       return 0;
@@ -6289,6 +6197,10 @@ export const combat = {
     if (attacker && attacker !== mob) {
       mob._lastDamageBy = attacker.serial | 0;
       mob._lastDamageAt = Date.now();
+      // Damage is an event-driven AI wake-up. This closes the old gap where
+      // a ranged player could hurt a hibernating creature without ever
+      // entering its periodic perception radius.
+      world?._ai?.wake?.(mob, attacker);
     }
     // Server audit #28 P1 #2 — criminal flag on any harmful action
     // against an innocent. ServUO `Mobile.DoHarmful` is called from
@@ -6316,7 +6228,7 @@ export const combat = {
       try { stampAggression(world, attacker, mob); }
       catch { /* aggression is advisory — never fatal */ }
     }
-    // FAZA DX: stealth break-on-attack. Hidden attackers reveal the
+    // PHASE DX: stealth break-on-attack. Hidden attackers reveal the
     // moment they land a hit — mirrors ServUO `Mobile.OnDamage` calling
     // `RevealingAction()`. Without this, a hidden mage could fire a
     // chain of mind-blasts from invisibility, which broke combat
@@ -6337,7 +6249,7 @@ export const combat = {
       }
       attacker.client?.sendSystemMessage?.('You are no longer hidden.');
     }
-    // FAZA item-system 2026-05-05: record the hit on the victim's damage
+    // PHASE item-system 2026-05-05: record the hit on the victim's damage
     // ledger BEFORE we apply the HP delta. The entry is needed even when
     // this swing is the killing blow — corpse / loot-ownership code reads
     // damageEntries to decide who earns the kill credit.
@@ -6348,11 +6260,15 @@ export const combat = {
     // Mana Shield (mastery 702): mana absorbs damage at 1:1 until empty.
     // ServUO `Spells/SkillMasteries/ManaShield`. Drain mana first; only
     // overflow hits HP. Auto-expires when mana hits 0.
-    const manaShieldUntil = Math.max(mob.manaShieldUntil | 0, mob._manaShieldUntil | 0);
+    const manaShieldUntil = Math.max(
+      Number(mob.manaShieldUntil) || 0,
+      Number(mob._manaShieldUntil) || 0,
+    );
     if (manaShieldUntil > Date.now() && (mob.mana | 0) > 0) {
       const absorbed = Math.min(amount, mob.mana | 0);
       mob.mana -= absorbed;
       amount -= absorbed;
+      world?.markMobileVitals?.(mob);
       if (mob.client && typeof manaUpdate === 'function') {
         mob.client.send(manaUpdate({
           serial: mob.serial, current: mob.mana, max: mob.manaMax ?? 50,
@@ -6365,7 +6281,10 @@ export const combat = {
       if (amount <= 0) return 0;
     }
     // Body Guard (mastery 710): -30 % incoming damage while active.
-    if (Math.max(mob.bodyGuardUntil | 0, mob._bodyGuardUntil | 0) > Date.now()) {
+    if (Math.max(
+      Number(mob.bodyGuardUntil) || 0,
+      Number(mob._bodyGuardUntil) || 0,
+    ) > Date.now()) {
       amount = Math.max(1, Math.floor(amount * 0.7));
     }
     mob._lastDamageType = damageType;
@@ -6381,6 +6300,7 @@ export const combat = {
       options: damageOptions,
     });
     mob.hp = Math.max(0, (mob.hp ?? 0) - amount);
+    world?.markMobileVitals?.(mob);
     if (mob.hp > 0 && mob.mountedFrom) {
       const threshold = Math.max(1, Math.floor((mob.hpMax ?? 50) * 0.2));
       if (mob.hp <= threshold) forceDamageDismount(world, mob);
@@ -6405,7 +6325,7 @@ export const combat = {
     // pursue them. Without this an orc/dragon/whatever just stands
     // still while a mage 10 tiles away nukes it (because findNearestPlayer
     // gates on cfg.aggroRange ~6 tiles, far below typical spell range).
-    // Marcin: "puścilem kilka zaklęć które mu zżerały HP i nadal stał".
+    // This previously let a player damage the NPC repeatedly while it stood still.
     if (attacker && attacker !== mob && (mob.hp | 0) > 0) {
       const aiBindings = world._ai?.bindings;
       const binding = aiBindings?.get?.(mob.serial);
@@ -6443,7 +6363,7 @@ export const combat = {
         }
       }
     }
-    // BUGFIX #55 (FAZA CM): broadcast 0xA1 healthUpdate to nearby
+    // BUGFIX #55 (PHASE CM): broadcast 0xA1 healthUpdate to nearby
     // observers as well as the victim — earlier code only sent it to
     // mob.client, so overhead bars and dragged-out status bars on
     // other players' screens kept the previous HP value while the
@@ -6454,13 +6374,14 @@ export const combat = {
       serial: mob.serial, current: mob.hp, max: mob.hpMax ?? 50,
     });
     const dmg = damagePacket({ serial: mob.serial, amount });
-    for (const c of nearbyClients(world, mob)) {
-      c.client.send(dmg);
-      c.client.send(hp);
+    for (const c of nearbyClients(world, mob, mob)) {
+      if (!trySendNodeUOCombatDamage(c.client, { target: mob, source: attacker, amount, damageType: damageTypeName })) {
+        c.client.send(dmg); c.client.send(hp);
+      }
     }
-    if (mob.client) {
-      mob.client.send(hp);
-    }
+    if (mob.client && !trySendNodeUOCombatDamage(mob.client, {
+      target: mob, source: attacker, amount, damageType: damageTypeName,
+    })) mob.client.send(hp);
     // ServUO `Mobile.OnDamage` calls `Kill()` from inside the Hits
     // setter whenever HP drops to ≤0. We have no setter-driven hook —
     // every call site of `combat.damage` would otherwise need to
@@ -6605,7 +6526,7 @@ export const combat = {
       const dx = Math.abs(target.x - mob.x);
       const dy = Math.abs(target.y - mob.y);
       if (Math.max(dx, dy) > 18) { state.combatant = 0; continue; }
-      // BUGFIX #106 (FAZA FJ): the previous adjacency gate blocked
+      // BUGFIX #106 (PHASE FJ): the previous adjacency gate blocked
       // every ranged weapon — the only way to hit was to be on a tile
       // adjacent to the target. ServUO `BaseRanged.cs` checks the
       // wielded weapon's MaxRange before the combat tick. Read the
@@ -6637,6 +6558,13 @@ export const combat = {
           if (!lineOfSight(mob.map, mob, target)) continue;
         } catch { /* LOS module optional */ }
       }
+      // Gate before ammunition lookup/consumption. Previously each 200 ms
+      // scheduler poll consumed ammo while the actual swing was cooling down.
+      const attackReadyAt = Math.max(
+        Number(state.nextSwingAt) || 0,
+        Number(mob._nextAttackAt) || 0,
+      );
+      if (attackReadyAt > now) continue;
       // Ranged weapons require ammunition. Consume one arrow/bolt
       // from the wielder's pack; if none, abort the swing.
       if (weaponRange > 1) {
@@ -6645,7 +6573,9 @@ export const combat = {
         // fires. The move handler stamps `_archeryDrawUntil`; reject
         // the swing while it's in the future, but DON'T tick
         // `nextSwingAt` so the shot fires the moment the draw ends.
-        if ((mob._archeryDrawUntil ?? 0) > now) continue;
+        if ((mob._archeryDrawUntil ?? 0) > now
+            && state.queuedAbility !== 'moving-shot'
+            && (mob._movingShotUntil ?? 0) <= now) continue;
         const ammoId = mob._weapon.ammoId ?? 0x0F3F;   // arrow default
         let ammo = null;
         // Find arrows / bolts. ServUO BaseWeapon.OnSwing pulls ammo
@@ -6730,8 +6660,7 @@ export const combat = {
           catch { /* item already gone */ }
         }
       }
-      if ((state.nextSwingAt ?? 0) > now) continue;
-      // BUGFIX #107 (FAZA FK): swings used to be free of stamina cost.
+      // BUGFIX #107 (PHASE FK): swings used to be free of stamina cost.
       // ServUO drains 1-3 stamina per swing. Without it, exhausted
       // players could swing indefinitely. Abort if below 3.
       if ((mob.stam ?? 0) < 3) {
@@ -6745,7 +6674,7 @@ export const combat = {
         }));
       }
       state.nextSwingAt = now + swingDelayMs(mob, mob._weapon?.speed ?? 30);
-      // BUGFIX #128 (FAZA HN): every weapon swung the Attack1H frame
+      // BUGFIX #128 (PHASE HN): every weapon swung the Attack1H frame
       // (0x09) — even bows. ServUO uses 0x12 (ShootBow) / 0x13
       // (ShootCrossbow). Pick the right animation from the wielded
       // weapon's range so observers see the proper draw-and-fire.
@@ -6870,8 +6799,8 @@ export const combat = {
         const masteriesMod = state.ctx?.systems?.skillMasteries;
         masteriesMod?.firePassive?.(mob, 'onHit', { defender: target, dmg });
       } catch { /* advisory */ }
-      // BUGFIX #96 (FAZA EB): combat swings called damage() without the
-      // attacker parameter, so the FAZA DM young-PK guard and FAZA DX
+      // BUGFIX #96 (PHASE EB): combat swings called damage() without the
+      // attacker parameter, so the PHASE DM young-PK guard and PHASE DX
       // stealth-break-on-attack hook never fired during real combat —
       // they only ran for spell damage paths that happened to pass it.
       const appliedDamage = this.damage(world, target, dmg, mob) | 0;
@@ -6885,6 +6814,11 @@ export const combat = {
           damageType: target._lastDamageType ?? null,
           damageTypeName: target._lastDamageTypeName ?? null,
         });
+      }
+      if (appliedDamage > 0 && (Number(mob._doubleStrikeUntil) || 0) > now
+          && (target.hp ?? 0) > 0) {
+        mob._doubleStrikeUntil = 0;
+        this.damage(world, target, Math.max(1, Math.floor(appliedDamage * 0.8)), mob);
       }
       // Durability decay (ServUO `BaseWeapon.OnHit` + `BaseArmor.OnHit`).
       // ~25% chance per hit to drop one durability point on the
@@ -6913,7 +6847,7 @@ export const combat = {
           tick: (m) => { this.damage(world, m, tickDmg, mob); },
         });
       }
-      // FAZA ED: Wraith Form mana-vamp. ServUO `Necromancy/WraithForm`
+      // PHASE ED: Wraith Form mana-vamp. ServUO `Necromancy/WraithForm`
       // drains 5..15% of victim's mana to the attacker on every hit.
       const wraith = (mob.effects ?? []).find?.((e) => e?.name === 'wraith-form');
       if (wraith && (target.mana ?? 0) > 0) {
@@ -6932,7 +6866,7 @@ export const combat = {
         }
       }
       this.animate(world, target, 0x14 /* TakeHit */, { frameCount: 5 });
-      // FAZA EB: parry skill gain when defender's parry was the active
+      // PHASE EB: parry skill gain when defender's parry was the active
       // defensive skill (and the defender survived the swing). The
       // gain only fires on hits (a miss already ran the weapon-skill
       // award above); attribution to parry mirrors ServUO's
@@ -6941,7 +6875,7 @@ export const combat = {
         awardSkill(target, SKILL_PARRYING, difficulty);
       }
 
-      // FAZA CV: weapon special-ability queue. `state.queuedAbility`
+      // PHASE CV: weapon special-ability queue. `state.queuedAbility`
       // is set by the [wpn command (and a future client packet); on
       // a successful hit we charge the mana cost and run the ability
       // handler which may apply bonus damage / debuff. Cleared whether
@@ -6981,10 +6915,10 @@ export const combat = {
         }
       }
 
-      // On-hit riders (FAZA AF) — read the buff/debuff plan, mutate the
+      // On-hit riders (PHASE AF) — read the buff/debuff plan, mutate the
       // attacker's HP for lifesteal and reflect-on-self for blood-oath,
       // then broadcast the resulting health updates.
-      // BUGFIX #64 (FAZA CV): same fix as #55 in combat.damage —
+      // BUGFIX #64 (PHASE CV): same fix as #55 in combat.damage —
       // healthUpdate must broadcast to nearby observers, not just the
       // affected mob. Without it overhead bars + dragged-out status
       // bars stayed stale on lifesteal / reflect HP swings.
@@ -7075,6 +7009,9 @@ export const combat = {
 export function buildScriptCombatApi(defaultWorld, baseCombat = combat) {
   return {
     ...baseCombat,
+    animateSemantic(mob, action, options) {
+      return broadcastNodeUOSemanticAnimation(defaultWorld, mob, action, options);
+    },
     damage(...args) {
       if (isWorldLike(args[0])) return baseCombat.damage(...args);
       return baseCombat.damage(defaultWorld, ...args);
@@ -7203,11 +7140,11 @@ let nextTradeRequestId = 0;
 
 function sendTradeAudit(session, status, extra = {}) {
   for (const state of [session.a, session.b]) {
-    if (!state.supportsNodeUO?.(NodeUOCapability.TradeAudit)) continue;
-    state.send(extNodeUOTradeAudit({
-      requestId: session.requestId,
-      payload: { transactionId: session.transactionId, status, ...extra },
-    }));
+    if (!state.supportsNodeUO?.(NodeUOFeature.TradeAudit)) continue;
+    const payload = { transactionId: session.transactionId, status, ...extra };
+    sendNodeUOEvent(state, {
+      feature: NodeUOFeature.TradeAudit, requestId: session.requestId, payload,
+    });
   }
 }
 
@@ -7255,7 +7192,7 @@ function handleTradeCommand(state, pkt) {
   catch { return; }
   const session = tradeByContainer.get(cmd.containerSerial);
   if (!session) return;
-  // BUGFIX #52 (FAZA CJ): the previous handler routed `close` straight
+  // BUGFIX #52 (PHASE CJ): the previous handler routed `close` straight
   // through without checking that `state` is one of the trade
   // participants. A third party that learned the container serial
   // (e.g. via packet sniff or a leaked debug print) could spam close
@@ -7335,7 +7272,7 @@ export const trade = {
       containerSerial: containerB, otherSerial: a.mobile.serial,
       ourSerial: b.mobile.serial, partnerName: a.mobile.name,
     }));
-    // BUGFIX #57 (FAZA CO): the trade containers are virtual (no entry
+    // BUGFIX #57 (PHASE CO): the trade containers are virtual (no entry
     // in world.items) so the existing container-ui visualisation never
     // tracked them. Items dropped via handleTradeDrop got reparented
     // and the 0x25 update was sent — but with no `_ensureWindow` ever

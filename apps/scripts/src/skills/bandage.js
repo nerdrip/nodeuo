@@ -124,7 +124,7 @@ export default function register(api) {
   function consumeOne(caster, stack) {
     stack.amount = (stack.amount | 0) - 1;
     if (stack.amount <= 0) {
-      // BUGFIX #63 (FAZA CU): the previous path used
+      // BUGFIX #63 (PHASE CU): the previous path used
       // `world.items.delete(serial)` directly, bypassing `destroyItem`
       // — same class of bug as #30 in lifecycle scripts. onDestroy
       // hooks (and any future cleanup added to destroyItem) silently
@@ -274,6 +274,12 @@ export default function register(api) {
       return;
     }
 
+    if ((patient._mortalStrikeUntil ?? 0) > Date.now()
+        || patient.effects?.some?.((effect) => effect?.name === 'mortal-strike')) {
+      state?.sendSystemMessage?.('A mortal wound prevents the healing.');
+      return;
+    }
+
     // (d) Standard heal — only after the above filters miss.
     if ((patient.hp ?? 0) >= (patient.hpMax ?? 50)) {
       state?.sendSystemMessage?.('That being is not in need of healing.');
@@ -291,7 +297,7 @@ export default function register(api) {
       : healAmount(caster, healingBonus);
     patient.hp = Math.min(patient.hpMax ?? 50, (patient.hp ?? 0) + heal);
     // ServUO `BandageContext.EndHeal` plays the heal SFX 0x057 on success.
-    // User report 2026-05-19 "brakuje dźwięków jak ratuje się z kalectwa".
+    // Successful healing and resurrection must not be silent.
     try { api.combat?.playSoundNear?.(api.world, patient, 0x057); } catch { /* sfx advisory */ }
     if (patient.client) {
       patient.client.send(api.protocol.healthUpdate({

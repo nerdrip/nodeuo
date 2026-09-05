@@ -60,10 +60,15 @@ for (const sourceRoot of [
     const stem = localRel.replace(/\.(?:js|mjs)$/i, '');
     const suffix = owner || `send-${occurrence + 1}`;
     const window = source.slice(position, position + 900);
+    const generatedDefinitionId = `${sourceRoot.namespace}:${kebab(stem)}:${kebab(suffix)}${sendSites.length > 1 ? `-${occurrence + 1}` : ''}`;
+    // When the call already carries a literal runtime key, catalogue that
+    // exact key. A synthetic inventory-only ID would appear editable in
+    // Content Studio but could never be selected by the runtime resolver.
+    const definitionIdLiteral = window.match(/\bdefinitionId\s*:\s*(['"`])([^'"`]+)\1/)?.[2] ?? null;
     const gumpIdLiteral = window.match(/\bgumpId\s*:\s*(0x[\da-f]+|\d+)/i)?.[1] ?? null;
     const gumpId = gumpIdLiteral ? Number(gumpIdLiteral) : null;
     records.push({
-      definitionId: `${sourceRoot.namespace}:${kebab(stem)}:${kebab(suffix)}${sendSites.length > 1 ? `-${occurrence + 1}` : ''}`,
+      definitionId: definitionIdLiteral || generatedDefinitionId,
       scope: 'server',
       mode: 'source-linked',
       name: humanize(owner || `${rel.split('/').at(-1).replace(/\.(?:js|mjs)$/i, '')} ${occurrence + 1}`),

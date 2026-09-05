@@ -1,4 +1,4 @@
-// FAZA BY — faction membership + bugfix #41 (same-faction Ally).
+// PHASE BY — faction membership + bugfix #41 (same-faction Ally).
 
 import { describe, it, expect } from 'vitest';
 import { World } from '../src/world/world.js';
@@ -11,7 +11,7 @@ function makeMob(world, name) {
   return world.createMobile({ name, body: 0x190, x: 0, y: 0, z: 0, map: 1 });
 }
 
-describe('factions (FAZA BY)', () => {
+describe('factions (PHASE BY)', () => {
   it('joinFaction validates the key', () => {
     const w = new World();
     const a = makeMob(w, 'a');

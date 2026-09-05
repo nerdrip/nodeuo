@@ -171,7 +171,14 @@ function scriptFor(className) {
   if (className === 'GreenThornsSHTeleporter') return 'green-thorns-solen-hole';
   if (className === 'GenderChangeToken') return 'gender-change-token';
   if (className === 'RaceChangeToken') return 'race-change-token';
+  if (className === 'GlassblowingBook' || className === 'MasonryBook') return 'imbue-recipe-scroll';
   return null;
+}
+
+function runtimeFieldsFor(className) {
+  if (className === 'GlassblowingBook') return { recipeUnlock: 'glassblowing' };
+  if (className === 'MasonryBook') return { recipeUnlock: 'masonry' };
+  return {};
 }
 
 function run() {
@@ -246,6 +253,7 @@ function run() {
       ...(descriptor.movable === false ? { movable: false } : {}),
       ...(descriptor.stackable ? { stackable: true } : {}),
       ...(descriptor.artId == null ? { inheritedArt: true } : {}),
+      ...runtimeFieldsFor(className),
     };
   }
   mkdirSync(dirname(OUT), { recursive: true });

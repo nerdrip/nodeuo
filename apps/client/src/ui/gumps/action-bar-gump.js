@@ -6,7 +6,7 @@ import { Label } from '../controls/label.js';
 import { Button } from '../controls/button.js';
 import { net } from '../../net/net-client.js';
 import { buildTextCommand, buildUseSkill } from '../../net/outgoing.js';
-import { NodeUOCooldownMessage } from '@uo/protocol';
+import { NodeUOCooldownMessage } from '@uo/nodeuo-protocol';
 import { bus } from '../../core/event-bus.js';
 import { tooltips } from '../../managers/tooltip-manager.js';
 import { camera } from '../../renderer/camera.js';

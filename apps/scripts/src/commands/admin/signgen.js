@@ -68,8 +68,7 @@ function remapLegacyShape(arr) {
 // ServUO signs.cfg drops `itemId: 0` for entries where the C# source
 // pulls the graphic from the parent Sign subclass at runtime
 // (NSWoodSign, HangingShingle, BoneSign, …). Without substituting a
-// real graphic the placed item is invisible — Marcin reported "nie
-// pojawily sie tabliczki przy drzwiach". Use a sensible default:
+// real graphic the placed item is invisible. Use a sensible default:
 //   - 0x0BD8 = NW-facing wooden sign (canonical "shop sign" art)
 //   - hue forced to 0 if the catalog stamped -1 (mojibake from extract)
 const DEFAULT_SIGN_GRAPHIC = 0x0BD8;

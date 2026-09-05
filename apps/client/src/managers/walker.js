@@ -34,7 +34,7 @@ const RUN_DELAY  = 200;          // CUO MovementSpeed.STEP_DELAY_RUN
 // these the client throttled mounted runs at 200 ms but the server
 // expected 100 ms steps; every burst of mounted movement collided with
 // stale `_lastStepAt` and the next 0x22 ack arrived early, triggering
-// 0x21 reject thrash. Marcin: "mounted run feels jerky".
+// 0x21 reject thrash.
 const MOUNT_WALK_DELAY = 200;    // CUO MovementSpeed.STEP_DELAY_MOUNT_WALK
 const MOUNT_RUN_DELAY  = 100;    // CUO MovementSpeed.STEP_DELAY_MOUNT_RUN
 

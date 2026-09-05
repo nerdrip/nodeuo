@@ -7,7 +7,7 @@ beforeAll(async () => { await loadSpells(); });
 import { castSpell, getSpell } from '../src/systems/spells/index.js';
 import { World } from '../src/world/world.js';
 
-describe('GM+ bypass spell costs (FAZA HA / #115)', () => {
+describe('GM+ bypass spell costs (PHASE HA / #115)', () => {
   it('GM caster pays 0 mana / 0 tithing on cast', () => {
     const w = new World();
     const c = w.createMobile({ name: 'gm', body: 0x190, x: 0, y: 0, z: 0, map: 1, mana: 0, manaMax: 50, hp: 100, hpMax: 100, skills: { 26: 100 } });
@@ -99,7 +99,7 @@ describe('Chivalry tithing cost parity', () => {
   });
 });
 
-describe('[go landmark library (FAZA HB)', () => {
+describe('[go landmark library (PHASE HB)', () => {
   it('exports 60+ canonical destinations', async () => {
     const mod = await import('../../scripts/src/commands/go.js');
     const locs = mod._LOCATIONS_FOR_TEST;

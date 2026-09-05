@@ -51,7 +51,7 @@ export default function register(api) {
           ctx.state.sendSystemMessage('That is too far away.');
           return;
         }
-        // BUGFIX #110 (FAZA FY): same defensive null fix as fish/mine —
+        // BUGFIX #110 (PHASE FY): same defensive null fix as fish/mine —
         // staticsAt can return null for unloaded chunks; the previous
         // code would throw "cannot read 'some' of null" silently, the
         // targeting callback aborted, and the player got no message.
@@ -70,7 +70,7 @@ export default function register(api) {
           api.skillGain?.tryGain?.(mob, SKILL_LUMBERJACKING, 50);
           return;
         }
-        // FAZA FY: enchanted-axe bonus (+2 logs) — `lumberjackBonus`
+        // PHASE FY: enchanted-axe bonus (+2 logs) — `lumberjackBonus`
         // flag on any item in the pack triggers it.
         const bonus = findInPack(api, mob, (it) => it.lumberjackBonus) ? 2 : 0;
         const yieldAmt = 2 + Math.floor(skill / 20) + bonus;

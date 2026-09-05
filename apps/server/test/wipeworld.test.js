@@ -56,10 +56,20 @@ describe('wipeworld', () => {
 
     let command;
     let refreshes = 0;
+    const houses = { reset: vi.fn(() => 1) };
+    const systems = {
+      maginciaBazaar: { deserializeStalls: vi.fn() },
+      bulletinBoard: { deserializeBoards: vi.fn() },
+      itemHistory: { clearAll: vi.fn() },
+      playerVendor: { rebuildVendorIndex: vi.fn() },
+    };
+    const requestAuxiliarySave = vi.fn(() => Promise.resolve());
     const api = {
       world,
       ops: createWorldOpsApi(world),
       spawner,
+      houses,
+      systems,
       commands: {
         register(spec) { command = spec; },
         unregister() {},
@@ -69,7 +79,7 @@ describe('wipeworld', () => {
         mobileUpdate: (mobile) => ({ type: 'mobile-update', ...mobile }),
       },
       ctx: { handlers: { refreshSurroundings() { refreshes++; } } },
-      persistence: { requestSave: () => null, saveDir: 'unused' },
+      persistence: { requestSave: () => null, requestAuxiliarySave, saveDir: 'unused' },
       log: vi.fn(),
     };
     registerWipeWorld(api);
@@ -104,6 +114,12 @@ describe('wipeworld', () => {
       { type: 'remove', serial: rat.serial },
     ]));
     expect(refreshes).toBe(1);
+    expect(houses.reset).toHaveBeenCalledOnce();
+    expect(systems.maginciaBazaar.deserializeStalls).toHaveBeenCalledWith([]);
+    expect(systems.bulletinBoard.deserializeBoards).toHaveBeenCalledWith({ nextPostSerial: 1, boards: [] });
+    expect(systems.itemHistory.clearAll).toHaveBeenCalledOnce();
+    expect(systems.playerVendor.rebuildVendorIndex).toHaveBeenCalledWith(world);
+    expect(requestAuxiliarySave).toHaveBeenCalledWith('wipeworld');
     expect(messages.at(-1)).toContain('residual world=0 items/0 mobs');
   });
 });

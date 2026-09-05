@@ -14,7 +14,7 @@ export default {
     const caster = ctx.sender;
     radius(api, caster, 8, (m) => {
           if (m === caster || m.notoriety > 2) return;
-          m.curseImmuneUntil = Date.now() + 30_000;
+          m._resilienceUntil = Date.now() + 30_000;
         });
   },
 };

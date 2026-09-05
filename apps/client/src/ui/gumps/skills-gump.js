@@ -280,9 +280,7 @@ export class SkillsGump extends WindowGump {
         // etc.) and RMB or the small lock-arrow column cycle the
         // up/down/locked state. The previous code had it inverted:
         // every plain click cycled the lock and the invoke was hidden
-        // behind right-click. User report 2026-05-17 — "skille klik na
-        // niebieskie kropki tylko zmienialy lock" + "po kilku
-        // zamknieciach przestaly sie wyswietlac".
+        // behind right-click and repeated reopen cycles could stop rendering rows.
         //
         // We keep the lock-cycle wired but move it to the lock glyph
         // column at the end of the row — see the `lockHit` rect below.

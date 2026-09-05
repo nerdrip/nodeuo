@@ -1,4 +1,4 @@
-// FAZA BU — Bulk Order Deeds: generation, progress tracking, exceptional
+// PHASE BU — Bulk Order Deeds: generation, progress tracking, exceptional
 // gating; plus bugfix #37 (craft() resolves the crafter's backpack from
 // world.items instead of relying on a non-existent `mob.backpack`).
 
@@ -12,7 +12,7 @@ import {
 } from '../src/systems/economy/bods.js';
 import { craft, registerRecipe } from '../src/systems/crafting/index.js';
 
-describe('BOD generation (FAZA BU)', () => {
+describe('BOD generation (PHASE BU)', () => {
   it('produces a deed with quantity in {10,15,20} and a target itemId', () => {
     const bod = makeRandomBOD(8); // smithy
     expect(bod).toBeTruthy();
@@ -138,7 +138,7 @@ describe('BUGFIX #73 — material gate on recordCraftForBods', () => {
   });
 });
 
-describe('Large BODs (FAZA DE)', () => {
+describe('Large BODs (PHASE DE)', () => {
   it('makeLargeBOD builds the right slot list', () => {
     const lb = makeLargeBOD('plate-set');
     expect(lb).toBeTruthy();
@@ -220,7 +220,7 @@ describe('BUGFIX #37 — craft() resolves backpack from world.items', () => {
       id: 99001, name: 'Test', category: 'Test', skillId: 8,
       minSkill: 0, maxSkill: 100,
       outputItemId: 0xCAFE, outputCount: 1,
-      inputs: [], exceptionalChance: 0,
+      inputs: [], exceptionalChance: 0, toolKind: 'smith',
     });
 
     let resolvedContainer = undefined;

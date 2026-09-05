@@ -15,7 +15,6 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { composePaperdoll, extractGumpTile } from './paperdoll.js';
 import { landProvider } from '../world/land-provider.js';
 import { invalidateLosCache } from '../world/los.js';
-import { NODEUO_CAPABILITIES_CURRENT, NodeUOCapability } from '@uo/protocol';
 import { simulateCombat } from '../systems/combat-simulator.js';
 import { animationBodySnapshot, animationFramePng, validateMonsterAnimations } from './animation-catalog.js';
 import { staticArtPng, staticArtStatus } from './static-art.js';
@@ -25,9 +24,24 @@ import {
 } from './world-authoring.js';
 import * as operational from '../systems/operational-diagnostics.js';
 import { CURRENT_SNAPSHOT_VERSION, migrateSnapshot, planSnapshotMigration } from '../world/persistence-migrations.js';
+import { createWorldDatabaseBackup, verifyWorldDatabaseFileSync } from '../world/sqlite-store.js';
 import { buildServerQualityReport, runtimeGovernor } from '../systems/runtime-governor.js';
+import { runtimeServiceLevels } from '../systems/service-levels.js';
+import {
+  applyEngineBudgets, DEFAULT_ADMIN_PERFORMANCE_BUDGETS, normalizeClientBudgets,
+  normalizeEngineBudgets, normalizePerformanceBudgets,
+} from './performance-budgets.js';
 import { registerEntityRoutes } from './entity-routes.js';
 import { registerWorldEditRoutes } from './world-edit-routes.js';
+import { registerAssetRoutes } from './asset-routes.js';
+import { registerNodeUORoutes } from './nodeuo-routes.js';
+import { registerScriptStudioRoutes } from './script-studio-routes.js';
+import { registerOperationsInsightRoutes } from './operations-insights.js';
+import { registerAlertRoutes } from './alert-routes.js';
+import { registerVerificationRoutes } from './verification-routes.js';
+import { registerPlatformRoutes } from './platform-routes.js';
+import { resolveAdminCharacters } from './admin-characters.js';
+import { notifyNodeUOAssetChanged } from '../net/handlers/nodeuo-modern.js';
 import {
   flattenScriptTree, getLogTail, parseSerial, safeJoin, validateStudioDraft, walkScriptTree,
 } from './route-helpers.js';
@@ -57,64 +71,9 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
     return Math.max(min, Math.min(max, value));
   }
 
-  /** Resolve the admin's character mobile(s). Returns array sorted by
-   *  slot. Used by every "teleport me" flow so the server picks the
-   *  character from the logged-in account, not from a UI-passed serial.
-   *
-   *  Lookup chain (first hit wins):
-   *    1. account.characters[] entries — only populated AFTER the player
-   *       finished a CharCreate / CharSelect cycle. Brand-new admin
-   *       accounts that only ever logged in via the panel have this
-   *       empty.
-   *    2. live mobile with matching `mob.accountName` — covers
-   *       accounts that played in-game once (mob is stamped at login)
-   *       even when the character slot wasn't persisted yet.
-   *    3. ANY player-flag mobile owned by an Admin (catches dev / GM
-   *       accounts that haven't been bound to an account yet).
-   *  We always rank online characters first so prompts default to
-   *  whatever the admin is actively playing. */
-  function adminCharacters(sessionAccount, preferredSlot) {
-    if (!sessionAccount) return [];
-    const out = [];
-    const seen = new Set();
-    const lower = String(sessionAccount).toLowerCase();
-    // Path 1 — explicit character slots on the account.
-    const acc = accounts?.accounts?.get?.(lower);
-    if (acc) {
-      for (let i = 0; i < (acc.characters?.length ?? 0); i++) {
-        const c = acc.characters[i];
-        if (!c) continue;
-        const mob = world?.mobiles?.get?.(c.mobileSerial >>> 0);
-        out.push({
-          slot: i, name: c.name ?? mob?.name ?? '?',
-          mobileSerial: c.mobileSerial, mob, online: !!mob?.client,
-        });
-        seen.add(c.mobileSerial >>> 0);
-      }
-    }
-    // Path 2 — scan world.mobiles for any mob carrying this account name.
-    // Helps the very common "I logged in once via the bat, never via
-    // CharCreate, but my mob still exists" edge case.
-    let seq = out.length;
-    for (const mob of (world?.mobiles?.values?.() ?? [])) {
-      if (seen.has(mob.serial >>> 0)) continue;
-      if (!mob.isPlayer) continue;
-      if (String(mob.accountName ?? '').toLowerCase() !== lower) continue;
-      out.push({
-        slot: seq++, name: mob.name ?? '?',
-        mobileSerial: mob.serial >>> 0, mob, online: !!mob.client,
-      });
-      seen.add(mob.serial >>> 0);
-    }
-    // Sort online-first so the picker default + auto-tp picks the
-    // currently-logged-in character.
-    out.sort((a, b) => (b.online ? 1 : 0) - (a.online ? 1 : 0));
-    if (Number.isFinite(preferredSlot)) {
-      const found = out.find((c) => c.slot === preferredSlot);
-      if (found) return [found];
-    }
-    return out;
-  }
+  const adminCharacters = (sessionAccount, preferredSlot) => resolveAdminCharacters(
+    { world, accounts }, sessionAccount, preferredSlot,
+  );
 
   const routes = [];
   const repoRoot = path.resolve(scriptsDir, '../../..');
@@ -124,18 +83,22 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
   // inventory below to describe the active scripts directory.
   const sourceRepoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
   const featureFile = path.join(saveDir, 'admin-feature-flags.json');
-  const alertFile = path.join(saveDir, 'admin-alert-thresholds.json');
+  const performanceBudgetFile = path.join(saveDir, 'admin-performance-budgets.json');
   const preferencesFile = path.join(saveDir, 'admin-preferences.json');
   const readJsonState = (file, fallback) => { try { return { ...fallback, ...JSON.parse(fs.readFileSync(file, 'utf8')) }; } catch { return structuredClone(fallback); } };
   const writeJsonState = (file, value) => { fs.mkdirSync(path.dirname(file), { recursive: true }); const temp = `${file}.tmp`; fs.writeFileSync(temp, JSON.stringify(value, null, 2)); fs.renameSync(temp, file); };
   let featureFlags = readJsonState(featureFile, { revision: 1, flags: {} });
-  let alertThresholds = readJsonState(alertFile, { eventLoopLagMs: 100, tickMs: 50, memoryMB: 2048, protocolErrors: 10, parserErrors: 5 });
+  let performanceBudgets = normalizePerformanceBudgets(
+    readJsonState(performanceBudgetFile, DEFAULT_ADMIN_PERFORMANCE_BUDGETS),
+  );
+  applyEngineBudgets(sharedCtx, performanceBudgets.engine);
   let administratorPreferences = readJsonState(preferencesFile, { users: {} });
   const testJobs = new Map();
   const adminClientMetrics = new Map();
   let testJobSequence = 0;
   const clientAssetsDir = path.join(repoRoot, 'apps/client/public/assets');
   const studioAssetCatalogCache = new Map();
+
 
   function readClientAssetJson(name) {
     const file = path.join(clientAssetsDir, name);
@@ -174,7 +137,9 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
         width: tile.w, height: tile.h, preview: `/api/studio/gump-art/${Number(id)}`,
       }));
     } else if (kind === 'body') {
-      const atlas = readClientAssetJson('mobiles-atlas.json');
+      let atlas;
+      try { atlas = readClientAssetJson('mobiles-atlas-index.json'); }
+      catch { atlas = readClientAssetJson('mobiles-atlas.json'); }
       const names = new Map();
       for (const relative of ['config/monsters.json', 'config/npcs.json']) {
         try {
@@ -187,7 +152,10 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
           }
         } catch { /* optional authoring data */ }
       }
-      entries = Object.keys(atlas.bodies ?? {}).map((id) => {
+      const bodyIds = atlas.shards
+        ? Object.values(atlas.shards).flatMap((row) => row.bodyIds ?? [])
+        : Object.keys(atlas.bodies ?? {}).map(Number);
+      entries = bodyIds.map((id) => {
         const body = Number(id);
         const type = atlas.mobTypes?.[id]?.type;
         return { id: body, name: names.get(body) ?? `${type ? `${type.toLowerCase()} ` : ''}body 0x${body.toString(16)}`,
@@ -230,12 +198,13 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
   ];
 
   const scriptingDocPages = [
-    { id:'start', title:'Start', icon:'start', kicker:'model i pierwszy skrypt', source:'docs/scripting/getting-started.md' },
-    { id:'api', title:'Server API', icon:'api', kicker:'pełny przewodnik API', source:'docs/server-scripting.md' },
-    { id:'gumps', title:'Gumpy', icon:'gumps', kicker:'serwer, klient i JSON', source:'docs/scripting/gumps.md' },
-    { id:'config', title:'Konfiguracje', icon:'config', kicker:'tożsamość i publikowanie', source:'docs/scripting/configuration.md' },
-    { id:'examples', title:'Przykłady', icon:'examples', kicker:'gotowe wzorce', source:'docs/scripting/examples.md' },
-    { id:'data', title:'Katalog danych', icon:'data', kicker:'pełna taksonomia plików', source:'apps/scripts/src/data/README.md' },
+    { id:'start', title:'Start', icon:'start', kicker:'model and first script', source:'docs/scripting/getting-started.md' },
+    { id:'api', title:'Server API', icon:'api', kicker:'complete API guide', source:'docs/server-scripting.md' },
+    { id:'studio', title:'Script Studio', icon:'studio', kicker:'generate, validate, and hot reload', source:'docs/scripting/script-studio.md' },
+    { id:'gumps', title:'Gumps', icon:'gumps', kicker:'server, client, and JSON', source:'docs/scripting/gumps.md' },
+    { id:'config', title:'Configuration', icon:'config', kicker:'identity and publishing', source:'docs/scripting/configuration.md' },
+    { id:'examples', title:'Examples', icon:'examples', kicker:'complete patterns', source:'docs/scripting/examples.md' },
+    { id:'data', title:'Data catalog', icon:'data', kicker:'complete file taxonomy', source:'apps/scripts/src/data/README.md' },
   ];
 
   const countFiles = (root, extension) => {
@@ -264,7 +233,7 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
           const stat = fs.statSync(full);
           return { ...page, updatedAt: stat.mtimeMs, content: fs.readFileSync(full, 'utf8') };
         } catch {
-          return { ...page, updatedAt: 0, content: `# ${page.title}\n\nDokument \`${page.source}\` nie jest dostępny w tej instalacji.` };
+          return { ...page, updatedAt: 0, content: `# ${page.title}\n\nDocument \`${page.source}\` is unavailable in this installation.` };
         }
       });
       const readArrayLength = (full) => {
@@ -294,7 +263,7 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
       domains: studioDomains.map((domain) => ({
         ...domain,
         files: domain.files.filter((rel) => rel === '@client/client-gumps.json'
-          ? fs.existsSync(path.join(repoRoot, 'apps/client/public/client-gumps.json'))
+          ? fs.existsSync(path.join(sourceRepoRoot, 'apps/client/public/client-gumps.json'))
           : fs.existsSync(path.join(scriptsDir, 'data', rel))),
       })),
       capabilities: {
@@ -476,7 +445,7 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
         spells: [...spells.values()].sort((a, b) => a.school.localeCompare(b.school) || a.name.localeCompare(b.name)),
         files: files.filter((entry) => /\.(?:js|mjs)$/i.test(entry.path)),
         clientGumps: (() => {
-          const dir = path.join(repoRoot, 'apps/client/src/ui/gumps');
+          const dir = path.join(sourceRepoRoot, 'apps/client/src/ui/gumps');
           try {
             return fs.readdirSync(dir, { withFileTypes: true })
               .filter((entry) => entry.isFile() && entry.name.endsWith('.js'))
@@ -529,6 +498,38 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
   routes.push({ method: 'GET', path: '/api/health/live', run: () => ({ live: runtimeGovernor.health.snapshot().live }) });
   routes.push({ method: 'GET', path: '/api/health/ready', run: () => runtimeGovernor.health.snapshot() });
   routes.push({ method: 'GET', path: '/api/operations/profile', run: ({ query }) => operational.runtimeSnapshot(queryInt(query, 'windowMs', 60_000, 1000, 300_000)) });
+  routes.push({ method: 'GET', path: '/api/operations/profiler', run: () => operational.profilerSnapshot() });
+  routes.push({ method: 'GET', path: '/api/operations/admission', run: () => operational.admissionSnapshot() });
+  routes.push({ method: 'GET', path: '/api/operations/replay', run: ({ query }) => operational.replaySnapshot(queryInt(query, 'limit', 256, 1, 5000)) });
+  routes.push({ method: 'GET', path: '/api/operations/simulation-replay', run: ({ query }) => operational.simulationReplaySnapshot(queryInt(query, 'limit', 256, 1, 5000)) });
+  routes.push({ method: 'GET', path: '/api/operations/simulation-replay/export', run: ({ query }) => operational.exportSimulationReplay(queryInt(query, 'limit', 5000, 1, 50_000)) });
+  routes.push({
+    method: 'PUT', path: '/api/operations/simulation-replay',
+    run: ({ body }) => operational.configureSimulationReplay({ enabled: body?.enabled === true,
+      captureInputs: body?.captureInputs === true }),
+  });
+  routes.push({ method: 'POST', path: '/api/operations/simulation-replay/clear', run: () => operational.clearSimulationReplay() });
+  routes.push({ method: 'GET', path: '/api/operations/replay/export', run: ({ query }) => operational.exportReplay(queryInt(query, 'limit', 5000, 1, 20_000)) });
+  routes.push({
+    method: 'PUT', path: '/api/operations/replay',
+    run: ({ body }) => operational.configureReplay({ enabled: body?.enabled === true,
+      capturePayloads: body?.capturePayloads === true }),
+  });
+  routes.push({ method: 'POST', path: '/api/operations/replay/clear', run: () => operational.clearReplay() });
+  routes.push({
+    method: 'POST', path: '/api/operations/cpu-profile',
+    run: async ({ body }) => {
+      const durationMs = Math.max(25, Math.min(30_000, Number(body?.durationMs) || 1000));
+      const result = await operational.captureCpuProfile({ durationMs, reason: 'admin' });
+      return { ok: true, id: result.id, startedAt: result.startedAt, durationMs: result.durationMs,
+        nodes: result.profile?.nodes?.length ?? 0 };
+    },
+  });
+  routes.push({
+    method: 'GET', path: '/api/operations/cpu-profile/:id',
+    run: ({ params }) => operational.cpuProfile(params.id) ?? { error: 'CPU profile not found' },
+  });
+  routes.push({ method: 'GET', path: '/api/operations/service-levels', run: () => operational.serviceLevelSnapshot() });
   routes.push({ method: 'GET', path: '/api/operations/runtime-governor', run: () => ({
     health: runtimeGovernor.health.snapshot(),
     queues: { visibility: runtimeGovernor.visibility.snapshot(), background: runtimeGovernor.background.snapshot() },
@@ -628,7 +629,7 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
   });
   routes.push({
     method: 'POST', path: '/api/operations/integrity',
-    run: () => operational.scanWorldIntegrity(world, { spawner: sharedCtx?.spawner }),
+    run: () => operational.scanWorldIntegrityAsync(world, { spawner: sharedCtx?.spawner }),
   });
   routes.push({
     method: 'POST', path: '/api/operations/save-check',
@@ -639,34 +640,23 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
     },
   });
   routes.push({
-    method: 'GET', path: '/api/operations/features',
-    run: () => ({
-      protocol: 'standard UO + negotiated nodeuo.v1',
-      currentMask: NODEUO_CAPABILITIES_CURRENT,
-      capabilities: Object.entries(NodeUOCapability).map(([name, bit]) => ({ name, bit, enabled: (NODEUO_CAPABILITIES_CURRENT & bit) === bit })),
-      server: {
-        huffmanOutgoing: !!sharedCtx?.config?.huffmanOutgoing,
-        protocolMode: sharedCtx?.config?.protocolMode,
-        scriptWatch: /^(1|true|yes)$/i.test(String(process.env.UO_SCRIPT_WATCH ?? '')),
-      },
-    }),
-  });
-  routes.push({
     method: 'GET', path: '/api/operations/scripts',
     run: () => ({
-      loaded: scriptRuntime?.loaded?.length ?? 0,
-      profile: scriptRuntime?.profile ?? null,
-      reloadHistory: scriptRuntime?.reloadHistory?.slice?.(-100)?.reverse?.() ?? [],
-      files: (scriptRuntime?.loaded ?? []).filter((entry) => entry?.file)
-        .map((entry) => path.relative(scriptsDir, entry.file).replace(/\\/g, '/')),
+      ...(scriptRuntime?.diagnostics?.() ?? {}),
       commandCollisions: sharedCtx?.commands?.collisions?.map((entry) => ({ name: entry.name, aliasFor: entry.aliasFor })) ?? [],
       aiGraphs: sharedCtx?.aiGraphs?.list?.()?.length ?? 0,
     }),
   });
   routes.push({
+    method: 'POST', path: '/api/operations/scripts/control',
+    run: async ({ body }) => scriptRuntime?.control?.(String(body?.file ?? ''), String(body?.action ?? ''), {
+      durationMs: body?.durationMs,
+    }) ?? { ok: false, error: 'script runtime unavailable' },
+  });
+  routes.push({
     method: 'GET', path: '/api/operations/readiness',
-    run: () => {
-      const integrity = operational.scanWorldIntegrity(world, { spawner: sharedCtx?.spawner });
+    run: async () => {
+      const integrity = await operational.scanWorldIntegrityAsync(world, { spawner: sharedCtx?.spawner });
       const saves = operational.verifySaveDirectory(saveDir);
       const commands = sharedCtx?.commands?.usageSnapshot?.() ?? { collisions: [] };
       return {
@@ -712,34 +702,13 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
         scripts: { loaded: scriptRuntime?.loaded?.length ?? 0, collisions: sharedCtx?.commands?.collisions?.length ?? 0,
           profile: scriptRuntime?.profile ?? null, reloadHistory: scriptRuntime?.reloadHistory?.slice?.(-20)?.reverse?.() ?? [] },
         ai: { ticks: aiTicks, expensive: aiTicks.slice().sort((a, b) => b.maxMs - a.maxMs).slice(0, 20),
-          expensiveEntities, bindings: sharedCtx?.ai?.bindings?.size ?? 0, scheduler: sharedCtx?.ai?.schedulerDiagnostics ?? null },
+          expensiveEntities, bindings: sharedCtx?.ai?.bindings?.size ?? 0,
+          scheduler: sharedCtx?.ai?.runtimeSnapshot?.() ?? sharedCtx?.ai?.schedulerDiagnostics ?? null },
+        spawner: sharedCtx?.spawner?.runtimeSnapshot?.() ?? null,
+        protocolCosts: sharedCtx?.protocolCosts?.snapshot?.({ historyLimit: 60 }) ?? null,
+        globalTraffic: sharedCtx?.globalTrafficGovernor?.snapshot?.() ?? null,
         storage,
       };
-    },
-  });
-
-  routes.push({
-    method: 'GET', path: '/api/operations/alerts',
-    run: () => {
-      const runtime = operational.runtimeSnapshot(), protocol = operational.protocolSnapshot(), memoryMB = process.memoryUsage().rss / 1048576;
-      const active = [
-        runtime.eventLoop.currentLagMs > alertThresholds.eventLoopLagMs && { key: 'event-loop', value: runtime.eventLoop.currentLagMs, threshold: alertThresholds.eventLoopLagMs, href: '#operations' },
-        (runtime.ticks[0]?.maxMs ?? 0) > alertThresholds.tickMs && { key: 'tick', value: runtime.ticks[0]?.maxMs ?? 0, threshold: alertThresholds.tickMs, href: '#operations' },
-        memoryMB > alertThresholds.memoryMB && { key: 'memory', value: Number(memoryMB.toFixed(1)), threshold: alertThresholds.memoryMB, href: '#operations' },
-        protocol.protocolErrors > alertThresholds.protocolErrors && { key: 'protocol', value: protocol.protocolErrors, threshold: alertThresholds.protocolErrors, href: '#operations' },
-      ].filter(Boolean);
-      return { thresholds: alertThresholds, active, ok: active.length === 0 };
-    },
-  });
-  routes.push({
-    method: 'PUT', path: '/api/operations/alerts',
-    run: ({ body }) => {
-      for (const key of ['eventLoopLagMs', 'tickMs', 'memoryMB', 'protocolErrors', 'parserErrors']) {
-        if (body?.[key] != null && (!Number.isFinite(Number(body[key])) || Number(body[key]) < 0)) return { error: `${key} must be a non-negative number` };
-      }
-      alertThresholds = { ...alertThresholds, ...Object.fromEntries(Object.entries(body ?? {}).filter(([key]) => key in alertThresholds).map(([key, value]) => [key, Number(value)])) };
-      writeJsonState(alertFile, alertThresholds);
-      return { ok: true, thresholds: alertThresholds };
     },
   });
 
@@ -757,29 +726,41 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
     return { file, bytes, snapshot: JSON.parse(text) };
   };
   const saveFiles = () => {
-    try { return fs.readdirSync(saveDir, { withFileTypes: true }).filter((entry) => entry.isFile() && /\.json(?:\.gz)?(?:\.(?:bak|legacy|pre-(?:restore|migration)\.\d+))?$/.test(entry.name)).map((entry) => {
+    try { return fs.readdirSync(saveDir, { withFileTypes: true }).filter((entry) => entry.isFile() && (/(?:^world\.sqlite(?:\.backup\.\d+)?$)|(?:\.json(?:\.gz)?(?:\.(?:bak|legacy|pre-(?:restore|migration)\.\d+))?$)/.test(entry.name))).map((entry) => {
       const stat = fs.statSync(path.join(saveDir, entry.name));
       return { name: entry.name, bytes: stat.size, modifiedAt: stat.mtimeMs, backup: /\.(?:bak|legacy|pre-restore\.)/.test(entry.name) };
     }).sort((a, b) => b.modifiedAt - a.modifiedAt); } catch { return []; }
   };
   const storageSnapshot = () => {
     const files = saveFiles();
-    let journal = null;
-    try { journal = JSON.parse(fs.readFileSync(path.join(saveDir, 'save-journal.json'), 'utf8')); }
-    catch (error) { journal = { status: 'unavailable', error: error.message }; }
     return {
       ...operational.verifySaveDirectory(saveDir),
       files,
       totalBytes: files.reduce((sum, file) => sum + file.bytes, 0),
       latestModifiedAt: files[0]?.modifiedAt ?? null,
-      journal,
       saves: persistence?.diagnostics?.(saveDir) ?? null,
     };
   };
   routes.push({ method: 'GET', path: '/api/backups', run: () => ({ saveDir, files: saveFiles() }) });
   routes.push({
+    method: 'POST', path: '/api/backups/create',
+    run: async () => {
+      if (persistence?.requestSave) await persistence.requestSave(world, saveDir);
+      const name = `world.sqlite.backup.${Date.now()}`;
+      const result = await createWorldDatabaseBackup(saveDir, path.join(saveDir, name));
+      return { ok: true, name, ...result };
+    },
+  });
+  routes.push({
     method: 'POST', path: '/api/backups/verify',
     run: ({ body }) => {
+      const name = String(body?.name ?? '');
+      if (/^world\.sqlite(?:\.backup\.\d+)?$/.test(name)) {
+        const file = safeSaveFile(name);
+        return file
+          ? { name, ...verifyWorldDatabaseFileSync(file, { cleanupSidecars: true }) }
+          : { ok: false, error: 'invalid backup path' };
+      }
       try { const parsed = readSnapshotFile(String(body?.name ?? '')); return { ok: true, name: body.name, bytes: parsed.bytes.length, version: parsed.snapshot?.version ?? 0,
         records: { mobiles: parsed.snapshot?.mobiles?.length ?? 0, items: parsed.snapshot?.items?.length ?? 0 } }; }
       catch (error) { return { error: error.message, ok: false }; }
@@ -788,6 +769,9 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
   routes.push({
     method: 'POST', path: '/api/backups/restore',
     run: ({ body }) => {
+      if (/^world\.sqlite\.backup\.\d+$/.test(String(body?.source ?? ''))) {
+        return { error: 'Online SQLite restore is intentionally disabled. Verify the backup, stop the shard cleanly, then replace world.sqlite while it is offline.' };
+      }
       const source = safeSaveFile(String(body?.source ?? ''));
       const inferred = String(body?.source ?? '').replace(/\.(?:bak|legacy|pre-restore\.\d+)$/, '');
       const targetName = String(body?.target ?? inferred);
@@ -898,15 +882,56 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
     method: 'GET', path: '/api/operations/budgets',
     run: () => {
       const runtime = operational.runtimeSnapshot(), apiStats = operational.adminRequestSnapshot?.() ?? { routes: [] };
-      const budgets = { apiP95Ms: 250, mapChunkMs: 180, tableRows: 500, eventLoopP95Ms: 50 };
+      const serviceLevels = runtime.serviceLevels ?? operational.serviceLevelSnapshot();
+      const metrics = runtimeServiceLevels.policies();
+      const budgets = {
+        apiP95Ms: metrics.adminRequest.target,
+        mapChunkMs: performanceBudgets.client.mapChunkMs,
+        tableRows: performanceBudgets.client.tableRows,
+        eventLoopP95Ms: metrics.eventLoopLag.target,
+      };
       const client = [...adminClientMetrics.values()].sort((a, b) => b.at - a.at);
       const violations = [
-        runtime.eventLoop.p95LagMs > budgets.eventLoopP95Ms && { metric: 'eventLoopP95Ms', value: runtime.eventLoop.p95LagMs, budget: budgets.eventLoopP95Ms },
+        ...Object.values(serviceLevels.metrics).filter((metric) => metric.status === 'degraded' || metric.status === 'critical')
+          .map((metric) => ({ metric: `slo:${metric.name}`, value: metric.p95, budget: metric.target, status: metric.status, burnRate: metric.burnRate })),
         ...apiStats.routes.filter((route) => route.p95Ms > budgets.apiP95Ms).map((route) => ({ metric: `api:${route.route}`, value: route.p95Ms, budget: budgets.apiP95Ms })),
         ...client.filter((row) => row.mapChunkMs > budgets.mapChunkMs).map((row) => ({ metric: `map:${row.account}`, value: row.mapChunkMs, budget: budgets.mapChunkMs })),
         ...client.filter((row) => row.tableRows > budgets.tableRows).map((row) => ({ metric: `table:${row.account}`, value: row.tableRows, budget: budgets.tableRows })),
       ].filter(Boolean);
-      return { ok: violations.length === 0, budgets, violations, api: apiStats, runtime: runtime.eventLoop, client };
+      return { ok: violations.length === 0, revision: performanceBudgets.revision, budgets, policies: metrics,
+        engine: { ...performanceBudgets.engine },
+        serviceLevels, violations, api: apiStats, runtime: runtime.eventLoop, client };
+    },
+  });
+  routes.push({
+    method: 'PUT', path: '/api/operations/budgets',
+    run: ({ body }) => {
+      const requestedMetrics = body?.metrics ?? {};
+      const nextMetrics = {};
+      for (const [name, current] of Object.entries(runtimeServiceLevels.policies())) {
+        const requested = requestedMetrics[name] ?? {};
+        nextMetrics[name] = {
+          ...current,
+          target: requested.target ?? current.target,
+          critical: requested.critical ?? current.critical,
+          objective: requested.objective ?? current.objective,
+          windowMs: requested.windowMs ?? current.windowMs,
+        };
+      }
+      const requestedClient = body?.client ?? {};
+      const nextClient = normalizeClientBudgets(requestedClient, performanceBudgets.client);
+      const requestedEngine = body?.engine ?? {};
+      const nextEngine = normalizeEngineBudgets(requestedEngine, performanceBudgets.engine);
+      performanceBudgets = {
+        revision: (performanceBudgets.revision | 0) + 1,
+        metrics: runtimeServiceLevels.configure(nextMetrics),
+        client: nextClient,
+        engine: nextEngine,
+      };
+      applyEngineBudgets(sharedCtx, nextEngine);
+      writeJsonState(performanceBudgetFile, performanceBudgets);
+      operational.structuredEvent('performance.budgets.updated', { revision: performanceBudgets.revision });
+      return { ok: true, ...performanceBudgets };
     },
   });
 
@@ -1047,8 +1072,11 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
     method: 'POST', path: '/api/world/save',
     run: async () => {
       if (!persistence?.requestSave) return { error: 'persistence not wired' };
-      const r = await persistence.requestSave(world, saveDir);
-      return { ok: true, ...r };
+      const [r, auxiliary] = await Promise.all([
+        persistence.requestSave(world, saveDir),
+        persistence.requestAuxiliarySave?.('admin') ?? null,
+      ]);
+      return { ok: true, ...r, auxiliary };
     },
   });
 
@@ -1056,8 +1084,8 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
   // BEFORE `taskkill /f` on Windows. Triggers the same SIGINT
   // handler used by Ctrl-C in console mode so the world final-save
   // + houses/bazaar flush + WS close happens cleanly. User report
-  // 2026-05-18: "przedmioty z plecaka nie zachowuja się po wyłączeniu
-  // servera" — control panel's `taskkill /f` skipped the SIGINT
+  // A report that backpack changes disappeared after server shutdown exposed
+  // that the control panel's `taskkill /f` skipped the SIGINT
   // handler entirely, so the 60 s auto-save was the only persistence
   // and anything done since the last tick evaporated.
   //
@@ -1068,7 +1096,13 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
     method: 'POST', path: '/api/world/shutdown',
     run: () => {
       setTimeout(() => {
-        try { process.kill(process.pid, 'SIGINT'); }
+        try {
+          if (typeof sharedCtx?.requestShutdown === 'function') {
+            void sharedCtx.requestShutdown('ADMIN');
+          } else {
+            process.kill(process.pid, 'SIGINT');
+          }
+        }
         catch (e) { console.error('[admin] graceful shutdown failed:', e?.message); }
       }, 50);
       return { ok: true, message: 'shutdown signal sent' };
@@ -1168,9 +1202,11 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
     run: async ({ body }) => {
       const rel = String(body?.rel || '').trim();
       if (!rel) return { error: 'rel script path required (body.rel)' };
-      if (!scriptRuntime?.reloadOne) return { error: 'reloadOne unavailable on runtime' };
+      if (!scriptRuntime?.reloadAffected && !scriptRuntime?.reloadOne) return { error: 'incremental reload unavailable on runtime' };
       const t0 = Date.now();
-      const r = await scriptRuntime.reloadOne(rel);
+      const r = scriptRuntime.reloadAffected
+        ? await scriptRuntime.reloadAffected(rel)
+        : await scriptRuntime.reloadOne(rel);
       return { ok: r.ok, ms: Date.now() - t0, ...r };
     },
   });
@@ -1195,6 +1231,23 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
   registerEntityRoutes(routes, {
     accounts, world, sharedCtx, adminCharacters, queryInt,
   });
+
+  registerAssetRoutes(routes, {
+    assetsDir: clientAssetsDir,
+    isMultiInUse: (id) => [...(world?.items?.values?.() ?? [])]
+      .some((item) => item?._multiAnchor && (item.multiId | 0) === (id | 0))
+      || sharedCtx.boats?.isMultiIdInUse?.(id) === true,
+    onChanged: (change) => {
+      world?.events?.emit?.('assets:changed', change);
+      notifyNodeUOAssetChanged(sharedCtx.connections, change);
+    },
+  });
+  registerNodeUORoutes(routes, sharedCtx);
+  registerScriptStudioRoutes(routes, { scriptsDir, scriptRuntime, sharedCtx });
+  registerOperationsInsightRoutes(routes, { scriptsDir, scriptRuntime, sharedCtx, world, saveDir });
+  registerAlertRoutes(routes, { saveDir });
+  registerVerificationRoutes(routes, { sharedCtx, world });
+  registerPlatformRoutes(routes, { sharedCtx });
 
 
   // ---- Scripts (read / edit / create / delete) -------------------------
@@ -1338,9 +1391,13 @@ export function buildHandlers({ sharedCtx, scriptRuntime, scriptsDir, saveDir, p
     },
   });
 
-  const clientGumpSourceDir = path.join(repoRoot, 'apps/client/src/ui/gumps');
-  const serverSourceDir = path.join(repoRoot, 'apps/server/src');
-  const clientGumpDefinitionsFile = path.join(repoRoot, 'apps/client/public/client-gumps.json');
+  // Engine/client sources belong to this checkout even when scriptsDir points
+  // at an external content pack (and in isolated admin-route tests). Deriving
+  // these paths from scriptsDir made the client editor silently look outside
+  // the repository in those deployments.
+  const clientGumpSourceDir = path.join(sourceRepoRoot, 'apps/client/src/ui/gumps');
+  const serverSourceDir = path.join(sourceRepoRoot, 'apps/server/src');
+  const clientGumpDefinitionsFile = path.join(sourceRepoRoot, 'apps/client/public/client-gumps.json');
 
   routes.push({
     method: 'GET', path: '/api/studio/server-source',

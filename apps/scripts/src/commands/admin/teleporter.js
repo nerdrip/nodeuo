@@ -1,4 +1,4 @@
-// FAZA CZ — `[teleporter <x> <y> [z] [map]` admin command.
+// PHASE CZ — `[teleporter <x> <y> [z] [map]` admin command.
 //
 // Spawns a teleporter tile at the player's feet that whisks anyone
 // stepping on it to the supplied destination. Sister command for

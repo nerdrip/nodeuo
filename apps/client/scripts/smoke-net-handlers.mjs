@@ -3,6 +3,7 @@ import {
   openBookLegacy, openBookNew, deathAction, healthbarPoison,
   mobileIncoming, mobileMoving, worldItemSA,
 } from '@uo/protocol';
+import { NodeUOFeature, NodeUOJsonKind, NodeUONpcDialogMessage } from '@uo/nodeuo-protocol';
 
 globalThis.localStorage = globalThis.localStorage ?? {
   getItem: () => null,
@@ -12,12 +13,21 @@ globalThis.localStorage = globalThis.localStorage ?? {
 
 const { bus } = await import('../src/core/event-bus.js');
 const { registerHandlers } = await import('../src/net/handlers.js');
+const { handleNodeUOJsonMessage } = await import('../src/net/nodeuo-modern.js');
 const { world } = await import('../src/world/world.js');
 
 class FakeNet {
-  constructor() { this.handlers = new Map(); }
+  constructor() {
+    this.handlers = new Map();
+    this.nodeUONegotiated = true;
+    this.nodeUOJsonTransport = true;
+    this.nodeUOFeatures = new Map([[NodeUOFeature.NpcDialog, 1]]);
+  }
   on(op, fn) { this.handlers.set(op & 0xff, fn); }
   send() {}
+  supportsNodeUO(capability) {
+    return this.nodeUOFeatures.has(capability);
+  }
 }
 
 function once(topic) {
@@ -32,6 +42,28 @@ function once(topic) {
 bus.clear();
 const net = new FakeNet();
 registerHandlers(net);
+
+const npcDialog = once('nodeuo:npc-dialog');
+handleNodeUOJsonMessage(net, {
+  nodeuo: 2,
+  kind: NodeUOJsonKind.Event,
+  feature: NodeUOFeature.NpcDialog,
+  payload: {
+    eventKind: NodeUONpcDialogMessage.Open,
+    requestId: 17,
+    data: {
+      npcSerial: 0x00001234,
+      name: 'Elena',
+      dialogue: { text: 'Will you help?' },
+      actions: [{ id: 'a1', label: 'I will.', kind: 'talk' }],
+    },
+  },
+});
+npcDialog.off();
+assert.equal(npcDialog.value.kind, NodeUONpcDialogMessage.Open);
+assert.equal(npcDialog.value.requestId, 17);
+assert.equal(npcDialog.value.payload.name, 'Elena');
+assert.equal(npcDialog.value.payload.actions[0].kind, 'talk');
 
 world.reset?.();
 net.handlers.get(0xF3)(worldItemSA({

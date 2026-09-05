@@ -4,10 +4,12 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { CommandRegistry } from '../src/net/commands.js';
 import {
-  auditSnapshot, compatibilitySnapshot, connectionClosed, connectionOpened, packet, protocolSnapshot, recordTick, runtimeSnapshot,
+  auditSnapshot, compatibilityNotice, compatibilitySnapshot, connectionClosed, connectionOpened, packet, protocolSnapshot, recordTick, runtimeSnapshot,
+  serviceLevelSnapshot,
   scanWorldIntegrity, structuredEvent, structuredSnapshot, verifySaveDirectory,
 } from '../src/systems/operational-diagnostics.js';
 import { World } from '../src/world/world.js';
+import { saveWorldSync } from '../src/world/persistence.js';
 
 describe('operational diagnostics', () => {
   it('aggregates opcode metrics without retaining packet payloads', () => {
@@ -23,7 +25,7 @@ describe('operational diagnostics', () => {
 
   it('keeps a bounded metadata-only packet ring for an inspected session', () => {
     const state = { id: 987654, stage: 'inWorld', accountName: 'operator', mobile: { serial: 0x1234 },
-      ws: { bufferedAmount: 7 }, nodeUOTransport: false, nodeUOCapabilities: 0, roundTripMs: 12.5 };
+      ws: { bufferedAmount: 7 }, nodeUOJsonTransport: false, roundTripMs: 12.5 };
     connectionOpened(state);
     for (let i = 0; i < 300; i++) packet('rx', i & 0xff, 7, 0.25, false, state);
     const session = compatibilitySnapshot().sessions.find((entry) => entry.id === state.id);
@@ -32,6 +34,16 @@ describe('operational diagnostics', () => {
     expect(session.packets.at(-1)).toMatchObject({ direction: 'rx', bytes: 7, error: false });
     expect(JSON.stringify(session.packets)).not.toContain('payload');
     connectionClosed(state, 'test complete');
+  });
+
+  it('reports shown and cooldown-suppressed compatibility notices by feature', () => {
+    const before = compatibilitySnapshot().notices;
+    compatibilityNotice('ui.rich-gumps/banker', true);
+    compatibilityNotice('ui.rich-gumps/banker', false);
+    const after = compatibilitySnapshot().notices;
+    expect(after.shown).toBe(before.shown + 1);
+    expect(after.suppressed).toBe(before.suppressed + 1);
+    expect(after.byFeature['ui.rich-gumps/banker']).toMatchObject({ shown: 1, suppressed: 1 });
   });
 
   it('finds orphan parents, stale reverse indexes and boat attachments', () => {
@@ -46,18 +58,28 @@ describe('operational diagnostics', () => {
     expect(item.serial).toBeTruthy();
   });
 
+  it('accepts contained items without world coordinates', () => {
+    const world = new World();
+    const player = world.createMobile({ x: 1, y: 1, z: 0, map: 1 });
+    const backpack = world.createItem({ itemId: 0x0E75, parent: player.serial, layer: 21 });
+    world.createItem({ itemId: 0x0EED, parent: backpack.serial });
+    const report = scanWorldIntegrity(world);
+    expect(report.issues.filter((issue) => issue.kind === 'invalid-position')).toEqual([]);
+  });
+
   it('aggregates scheduler latency and structured events', () => {
     recordTick('combat', 4.5);
     recordTick('combat', 55);
     const row = runtimeSnapshot().ticks.find((entry) => entry.name === 'combat');
     expect(row).toMatchObject({ calls: 2, slow: 1, maxMs: 55, averageMs: 29.75 });
+    expect(serviceLevelSnapshot().metrics.tickDuration.totalObservations).toBeGreaterThanOrEqual(2);
     structuredEvent('test.ready', { value: 3 });
     expect(structuredSnapshot(1)[0]).toMatchObject({ event: 'test.ready', value: 3 });
   });
 
   it('verifies readable save snapshots and tracks command outcomes', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nodeuo-ops-'));
-    fs.writeFileSync(path.join(dir, 'world.json'), JSON.stringify({ version: 3, mobiles: [], items: [] }));
+    saveWorldSync(new World(), dir);
     expect(verifySaveDirectory(dir)).toMatchObject({ ok: true });
 
     const commands = new CommandRegistry();

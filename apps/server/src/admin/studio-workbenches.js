@@ -297,7 +297,7 @@
   function pickerChoice(entry, kind) {
     const art = kind === 'hue'
       ? `<i class="hue-swatch" style="background:${esc(entry.color ?? '#000')}"></i>`
-      : `<img loading="lazy" src="${esc(entry.preview)}" alt="${esc(entry.name)}">`;
+      : `<img loading="lazy" data-preview="${esc(entry.preview)}" alt="${esc(entry.name)}">`;
     return `<button type="button" class="asset-choice" data-asset-id="${num(entry.id)}" title="${esc(entry.name)}">${art}<b>${esc(entry.name)}</b><small>${num(entry.id)} · 0x${num(entry.id).toString(16)}${entry.width ? ` · ${num(entry.width)}×${num(entry.height)}` : ''}</small></button>`;
   }
 
@@ -318,7 +318,44 @@
     let offset = 0;
     let total = 0;
     let requestVersion = 0;
-    const pageSize = 96;
+    let searchTimer = 0;
+    let previewObserver = null;
+    let closed = false;
+    const pageSize = 48;
+    const cancelPreviews = () => {
+      previewObserver?.disconnect();
+      previewObserver = null;
+      grid.querySelectorAll('img').forEach((image) => image.removeAttribute('src'));
+    };
+    const close = () => {
+      if (closed) return;
+      closed = true;
+      requestVersion += 1;
+      clearTimeout(searchTimer);
+      cancelPreviews();
+      root.remove();
+    };
+    const observePreviews = () => {
+      cancelPreviews();
+      const images = [...grid.querySelectorAll('img[data-preview]')];
+      const reveal = (image) => {
+        if (!image.isConnected || closed) return;
+        image.src = image.dataset.preview;
+        image.removeAttribute('data-preview');
+      };
+      if (!('IntersectionObserver' in globalThis)) {
+        images.slice(0, 12).forEach(reveal);
+        return;
+      }
+      previewObserver = new globalThis.IntersectionObserver((entries, observer) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          observer.unobserve(entry.target);
+          reveal(entry.target);
+        });
+      }, { root: grid, rootMargin: '120px 0px' });
+      images.forEach((image) => previewObserver.observe(image));
+    };
     const load = async () => {
       const version = ++requestVersion;
       grid.setAttribute('aria-busy', 'true');
@@ -329,6 +366,7 @@
         total = num(result.total);
         const entries = result.entries ?? [];
         grid.innerHTML = entries.map((entry) => pickerChoice(entry, kind)).join('') || '<p class="muted">No matching extracted assets.</p>';
+        observePreviews();
         status.textContent = total ? `${offset + 1}–${Math.min(offset + entries.length, total)} of ${total}` : '0 results';
         prev.disabled = offset <= 0;
         next.disabled = offset + entries.length >= total;
@@ -339,20 +377,19 @@
             const control = ctx.value.controls?.[local.selectedControl];
             if (control) control[path] = value;
           } else setPath(ctx.value, path, value);
-          root.remove();
+          close();
           ctx.mutated({ rerender: true });
         });
       } catch (error) {
         if (version === requestVersion) grid.innerHTML = `<p class="error">${esc(error.message)}</p>`;
       } finally { if (version === requestVersion) grid.removeAttribute('aria-busy'); }
     };
-    let searchTimer = 0;
     search.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { offset = 0; load(); }, 180); });
     prev.onclick = () => { offset = Math.max(0, offset - pageSize); load(); };
     next.onclick = () => { offset += pageSize; load(); };
-    root.querySelector('[data-close]').onclick = () => root.remove();
-    root.addEventListener('mousedown', (event) => { if (event.target === root) root.remove(); });
-    root.addEventListener('keydown', (event) => { if (event.key === 'Escape') root.remove(); });
+    root.querySelector('[data-close]').onclick = close;
+    root.addEventListener('mousedown', (event) => { if (event.target === root) close(); });
+    root.addEventListener('keydown', (event) => { if (event.key === 'Escape') close(); });
     search.focus();
     await load();
   }

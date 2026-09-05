@@ -4,10 +4,10 @@
 import http from 'node:http';
 import path from 'node:path';
 import url from 'node:url';
-import { WebSocketServer } from 'ws';
 import { config, validateConfig } from './config.js';
 import { resolveSaveDir } from './save-dir.js';
 import { World } from './world/world.js';
+import { createWorldMutationJournal } from './world/mutation-journal.js';
 import { createWorldQueryApi } from './world/query-api.js';
 import { createWorldOpsApi } from './world/ops-api.js';
 import { createScriptGameApi } from './script-game-api.js';
@@ -15,7 +15,7 @@ import { NetState } from './net/net-state.js';
 import { startTcpListener } from './net/tcp-listener.js';
 import { TcpAdapter } from './net/tcp-adapter.js';
 import { AuthKeyRegistry } from './net/auth.js';
-import { buildHandlers, targeting, gumps, contextMenus, vendors, books, spellbooks, combat, buildScriptCombatApi, prompts, trade, properties, effects, quest, refreshSurroundings, dispatchCastFromMacro } from './net/handlers.js';
+import { buildHandlers, targeting, gumps, contextMenus, vendors, books, spellbooks, combat, buildScriptCombatApi, prompts, trade, properties, effects, quest, refreshSurroundings, dispatchCastFromMacro, handleNodeUOText, handleNodeUOFeatureRequest, cleanupNodeUOFeatureState } from './net/handlers.js';
 import { CommandRegistry } from './net/commands.js';
 import { AccountDB } from './net/accounts.js';
 import * as items from './world/items.js';
@@ -23,13 +23,14 @@ import * as itemScriptRegistry from './world/item-scripts.js';
 import { pickNameForMob, pickMonsterName } from './world/npc-names.js';
 import { tickAllMobileScripts, rebuildTickingMobileIndex } from './world/mobile-scripts.js';
 import * as templates from './world/templates.js';
-import { setRuntimeSolidAt, staticHeightFor, tileDataTable, preloadTileData } from './world/movement.js';
+import { setRuntimeSolidAt, setRuntimeSurfaceAt, staticHeightFor, tileDataTable, preloadTileData } from './world/movement.js';
 import { setStaticHeightResolver, invalidateLosCache } from './world/los.js';
 import { AIScheduler, wanderBehavior } from './world/ai.js';
 import { loadScripts } from './scripts.js';
 import {
   saveWorldSync, saveWorldAsync, loadWorldSync, requestSave, awaitInFlightSaves, persistenceDiagnostics,
-  saveHousesSync, saveHousesAsync, loadHousesSync,
+  serializeMobile, serializeItem, serializeWorldMeta,
+  loadHousesSync,
   saveBazaarSync, saveBazaarAsync, loadBazaarSync,
   saveWorldStateAsync, loadWorldStateSync,
 } from './world/persistence.js';
@@ -54,6 +55,8 @@ import * as addonsSystem from './systems/housing/addons.js';
 import * as damageableItemsSystem from './systems/housing/damageable-items.js';
 import * as storeInventorySystem from './systems/economy/store-inventory.js';
 import * as regionOnEnter from './systems/region-onenter.js';
+import * as preventInaccessSystem from './systems/world/prevent-inaccess.js';
+import * as expansionFlagsSystem from './systems/expansion-flags.js';
 import { serializeBoards, deserializeBoards } from './systems/bulletin-board.js';
 import { promises as fsp } from 'node:fs';
 import { landProvider } from './world/land-provider.js';
@@ -81,6 +84,9 @@ import * as attributes from './world/attributes.js';
 import { extendTargeting } from './world/targeting.js';
 import * as statusEffects from './status-effects.js';
 import * as protocol from '@uo/protocol';
+import { NODEUO_JSON_SUBPROTOCOL, NodeUOFeature, NodeUONavalMessage } from '@uo/nodeuo-protocol';
+import { publishNodeUOWorldEvent } from './net/handlers/nodeuo-features.js';
+import { createGameWebSocketServer } from './net/websocket-server.js';
 import { tickPetHunger, sweepBondingPromotions } from './systems/pets/pet-hunger.js';
 import { tickSummons, registerSummon } from './systems/pets/summon-expire.js';
 import { worldBosses } from './systems/bosses/world-boss.js';
@@ -101,6 +107,7 @@ import * as paragonSystem from './systems/paragons.js';
 import * as virtueSystem from './systems/rewards/virtues.js';
 import * as refinementSystem from './systems/refinement.js';
 import * as peerlessSystem from './systems/bosses/peerless.js';
+import * as instancedPeerlessSystem from './systems/bosses/instanced-peerless.js';
 import * as petTrainingSystem from './systems/pets/pet-training.js';
 import * as mountAbilitiesSystem from './systems/pets/mount-abilities.js';
 import * as insuranceSystem from './systems/economy/insurance.js';
@@ -183,14 +190,23 @@ import * as reportsSystem from './systems/reports.js';
 import * as itemHistorySystem from './systems/item-history.js';
 import * as traceSystem from './trace.js';
 import * as operational from './systems/operational-diagnostics.js';
+import { runtimeAdmission } from './systems/load-shedding.js';
+import { installNodeUOReplication } from './systems/nodeuo-replication.js';
+import { broadcastNodeUOChannel, registerNodeUOMod, sendNodeUOChannel } from './net/handlers/nodeuo-modern.js';
+import { createPerformanceDelivery } from './systems/performance-delivery.js';
+import { installVerificationSuite } from './systems/verification-suite.js';
 import * as fireCasinoSystem from './systems/economy/fire-casino.js';
 import * as housingLottoSystem from './systems/housing/housing-lotto.js';
 import * as harvestQuotasSystem from './systems/economy/harvest-quotas.js';
 import * as spellReagentsSystem from './systems/spells/reagents.js';
+import { createSaveCoordinator } from './systems/save-coordinator.js';
 import { registerCoreWorldEvents } from './content/world-event-registry.js';
 // Canonical registrations are data-driven and reusable by tests/admin tools.
 // Shard scripts can still add or override entries after the runtime loads.
-registerCoreWorldEvents({ worldBosses: worldBossSystem, sigils: sigilSystem });
+// Boss definitions are engine metadata and may exist on an empty shard.
+// Faction sigils are physical world content and are registered by
+// `[createworld` (and restored by its script only on a populated shard).
+registerCoreWorldEvents({ worldBosses: worldBossSystem });
 
 const configValidation = validateConfig(config);
 if (!configValidation.ok) throw new Error(`Invalid server configuration: ${configValidation.errors.join('; ')}`);
@@ -198,13 +214,18 @@ for (const warning of configValidation.warnings) console.warn(`[config] ${warnin
 await runtimeGovernor.startup.measureAsync('tiledata', () => preloadTileData());
 
 const world = new World();
+// Engine-owned periodic work shares one deadline heap. Missed periods after
+// an event-loop stall are skipped, so recovery cannot trigger a timer storm.
+const runtimeScheduler = runtimeGovernor.scheduler;
+const every = (name, intervalMs, run, options) => runtimeScheduler.every(name, intervalMs, run, options);
+world._scheduler = runtimeScheduler;
 world.enableOnlineMobileIndex?.();
 const query = createWorldQueryApi(world);
 const ops = createWorldOpsApi(world);
 world._scriptQuery = query;
 world._scriptOps = ops;
 
-// FAZA AY: wire the movement layer's runtime-solid resolver. Closed
+// PHASE AY: wire the movement layer's runtime-solid resolver. Closed
 // doors (and any future explicitly-solid item) block movement at their
 // tile. The simple O(N) scan over world.items is fine for the small
 // item counts we ship; if it becomes hot, replace with a tile-indexed
@@ -222,6 +243,15 @@ setRuntimeSolidAt(function* runtimeSolidAt(facet, x, y) {
     if (it.x !== x || it.y !== y) continue;     // sector tile imprecision
     if (it.door || it.solid) yield it;
   }
+  yield* world.multiSpatial.blockersAt(facet, x, y);
+});
+setRuntimeSurfaceAt(function* runtimeSurfaceAt(facet, x, y) {
+  for (const serial of world.sectors.itemSerialsAt(facet, x, y)) {
+    const it = world.items.get(serial);
+    if (!it || it.x !== x || it.y !== y || !it.surface) continue;
+    yield it;
+  }
+  yield* world.multiSpatial.surfacesAt(facet, x, y);
 });
 // LOS reads the same tiledata table movement.js loaded — share the
 // height resolver so we don't re-parse the JSON.
@@ -248,7 +278,7 @@ handlers.dispatchCast = dispatchCastFromMacro;
 // for the trade API, but the opcode-keyed dispatch table never carried
 // the `trade` (or `combat` / `vendors`) ref → escrowed items on a
 // disconnected trade leaked into a phantom container with map=0 (0,0)
-// and the next save dumped them in items.json as orphans. Patch them
+// and the next save persisted them as orphan rows. Patch them
 // onto the table so `_onClose` and any future cleanup hook finds them.
 handlers.trade = trade;
 handlers.combat = combat;
@@ -305,6 +335,7 @@ const ai = new AIScheduler(world, {
   // player is present; in particular, don't let their 500 ms ticks starve
   // startup while gameplay scripts are still being imported.
   pauseWhenNoPlayers: true,
+  scheduler: runtimeScheduler,
   mobileMovingPacket: (m) => protocol.mobileMoving({
     serial: m.serial, body: m.body, x: m.x, y: m.y, z: m.z,
     direction: m.direction, hue: m.hue, flags: m.flags, notoriety: m.notoriety,
@@ -384,7 +415,9 @@ const commands = new CommandRegistry();
 
 // Load previous world state from disk, if present.
 const here = path.dirname(url.fileURLToPath(import.meta.url));
+const scriptsDir = path.resolve(here, '../../scripts/src');
 const saveDir = resolveSaveDir({ here });
+const { nodeUOSettings, protocolCosts, globalTrafficGovernor, featureRollouts, contentReleases } = createPerformanceDelivery({ saveDir, here, config });
 const spellComposer = new SpellComposerService(saveDir);
 const aiGraphs = new AIBehaviorGraphRegistry(ai, saveDir);
 try {
@@ -393,31 +426,45 @@ try {
 } catch (error) {
   console.error(`[uo-node] failed to load AI graphs: ${error?.message ?? error}`);
 }
+let restoredFromSnapshot = false;
 try {
-  if (loadWorldSync(world, saveDir)) {
-    console.log(`[uo-node] restored world from ${saveDir}/world.json  (mobiles=${world.mobiles.size}, items=${world.items.size})`);
-    // Wave 8: rebuild the artifact-uniqueness set from the loaded
-    // world so a server restart doesn't reopen the gate (existing
-    // unique artifacts must still block re-rolls).
-    artifactUniqueness.rebuildFromWorld(world);
-    console.log(`[uo-node] artifact uniqueness restored: ${artifactUniqueness.size()} unique artifact name(s) tracked`);
-    // Server audit #28 P1 #3 — poison status flag survives JSON, but
-    // the per-tick damage closure doesn't. Rebuild every poisoned
-    // mobile's ticker from `_poisonExpiresAt` so a player who logged
-    // out under Deadly poison keeps taking damage on restart.
-    try {
-      const { reapplyPoisonAfterRestore } = await import('./poison.js');
-      const n = reapplyPoisonAfterRestore(world);
-      if (n > 0) console.log(`[uo-node] re-attached poison tickers on ${n} mobile(s).`);
-    } catch (e) { console.warn(`[uo-node] poison restore skipped: ${e.message}`); }
-    try {
-      const n = playerVendorSystem.rebuildVendorIndex?.(world) ?? 0;
-      if (n > 0) console.log(`[uo-node] player-vendor index restored: ${n} vendor(s).`);
-    } catch (e) { console.warn(`[uo-node] player-vendor index restore skipped: ${e.message}`); }
+  restoredFromSnapshot = loadWorldSync(world, saveDir);
+  if (restoredFromSnapshot) {
+    console.log(`[uo-node] restored world from ${saveDir}/world.sqlite  (mobiles=${world.mobiles.size}, items=${world.items.size})`);
   }
 } catch (e) {
   console.error(`[uo-node] failed to load save: ${e.message}`);
 }
+// Runtime bootstrap owns this gate. A pristine save directory must stay
+// empty until `[createworld`, while reusable World fixtures retain their
+// historical "undefined means enabled" behavior for isolated subsystem tests.
+// Persistence overwrites the flag with true for a populated snapshot.
+if (!Object.prototype.hasOwnProperty.call(world, '_createWorldDone')) {
+  world._createWorldDone = false;
+}
+const mutationJournal = createWorldMutationJournal(saveDir, {
+  serializeMobile,
+  serializeItem,
+  serializeMeta: serializeWorldMeta,
+});
+if (restoredFromSnapshot) {
+  // SQLite automatically recovers committed WAL transactions while opening
+  // the database. Derived in-memory indexes are rebuilt after that load.
+  artifactUniqueness.rebuildFromWorld(world);
+  console.log(`[uo-node] artifact uniqueness restored: ${artifactUniqueness.size()} unique artifact name(s) tracked`);
+  try {
+    const { reapplyPoisonAfterRestore } = await import('./poison.js');
+    const n = reapplyPoisonAfterRestore(world);
+    if (n > 0) console.log(`[uo-node] re-attached poison tickers on ${n} mobile(s).`);
+  } catch (e) { console.warn(`[uo-node] poison restore skipped: ${e.message}`); }
+  try {
+    const n = playerVendorSystem.rebuildVendorIndex?.(world) ?? 0;
+    if (n > 0) console.log(`[uo-node] player-vendor index restored: ${n} vendor(s).`);
+  } catch (e) { console.warn(`[uo-node] player-vendor index restore skipped: ${e.message}`); }
+}
+mutationJournal.attach(world, runtimeScheduler);
+const verificationSuite = installVerificationSuite({ world, scheduler: runtimeScheduler, saveDir, scriptsDir,
+  assetsDir: path.resolve(here, '../../client/public/assets') });
 
 // Restore admin map-editor overlay (per-tile tileId/z overrides).
 // Survives server restarts so a session of painting in the admin
@@ -428,34 +475,11 @@ try {
   if (r.loaded > 0) console.log(`[uo-node] restored ${r.loaded} map-tile edit(s)`);
 } catch (e) { console.error(`[uo-node] map-edits load failed: ${e.message}`); }
 
-// Ambient wanderers — ensure a freshly-started shard has a few living NPCs
-// around the default spawn so the world doesn't feel empty. Skip when the
-// save already holds NPCs; we don't want to keep piling them on every boot.
-(() => {
-  const hasNpcs = [...world.mobiles.values()].some((m) => !m.client);
-  if (hasNpcs) return;
-  const baseX = 1496, baseY = 1625, baseZ = 10, facet = 1;
-  const npcs = [
-    { name: 'Wanderer',   body: 0x0190, hue: 0x83EA, dx: -3, dy:  0 },
-    { name: 'Farmer',     body: 0x0190, hue: 0x0391, dx:  3, dy:  1 },
-    { name: 'Guard',      body: 0x0190, hue: 0x0000, dx:  0, dy:  3 },
-    { name: 'Milkmaid',   body: 0x0191, hue: 0x0396, dx:  0, dy: -3 },
-    { name: 'Hermit',     body: 0x0190, hue: 0x0455, dx:  5, dy:  4 },
-    { name: 'Beggar',     body: 0x0190, hue: 0x0385, dx: -5, dy: -2 },
-  ];
-  for (const n of npcs) {
-    const mob = world.createMobile({
-      name: n.name, body: n.body, hue: n.hue,
-      x: baseX + n.dx, y: baseY + n.dy, z: baseZ, map: facet, notoriety: 1,
-    });
-    ai.attach(mob, 'wander');
-  }
-  console.log(`[uo-node] spawned ${npcs.length} ambient NPCs near (${baseX},${baseY})`);
-})();
-
 const accounts = new AccountDB(saveDir);
 try {
   accounts.load();
+  const bootstrapAdmin = accounts.ensureBootstrapAdmin();
+  if (bootstrapAdmin) console.log(`[uo-node] created bootstrap Admin account "${bootstrapAdmin.username}" in world.sqlite`);
   console.log(`[uo-node] loaded ${accounts.accounts.size} account(s)`);
 } catch (e) {
   console.error(`[uo-node] failed to load accounts: ${e.message}`);
@@ -465,6 +489,9 @@ try {
 // can hang handlers off of it (e.g. contextMenuProvider).
 const partyRegistry = new PartyRegistry(world);
 const guildRegistry = new GuildRegistry(world);
+// Engine systems invoked outside a NetState (masteries, encounters, AI) need
+// the same canonical party membership view as packet handlers and scripts.
+world._partyRegistry = partyRegistry;
 
 // Drop stale serials from guild + party lists when a mobile is
 // destroyed (admin [del, corpse decay sweep, summon-expire). Without
@@ -481,14 +508,14 @@ world._huntmasterSubmit = huntmasterSystem.submitTrophy;
 // Bug-hunt #11 #4 — hourly house decay sweep. `houses.sweepDecay()`
 // was defined but never scheduled, so the 150-day IDOC ladder was
 // dead code. Idempotent.
-const houseDecayTimer = setInterval(() => {
+const houseDecayTimer = every('house-decay', 60 * 60 * 1000, () => {
   try {
     const removed = houses.sweepDecay?.();
     if (removed?.length) {
       console.log(`[uo-node] house decay collapsed ${removed.length} house(s)`);
     }
   } catch (e) { console.error('[uo-node] house decay sweep:', e); }
-}, 60 * 60 * 1000);   // hourly
+});   // hourly
 houseDecayTimer.unref?.();
 
 // Bulletin board persistence — server parity #9 #10. Was wiped on
@@ -501,7 +528,7 @@ try {
     if (n > 0) console.log(`[uo-node] restored ${n} bulletin board(s) from ${bbPath}`);
   }
 } catch (e) { console.error('[uo-node] bulletin load failed:', e.message); }
-const dayNight = new DayNightCycle(world);
+const dayNight = new DayNightCycle(world, { scheduler: runtimeScheduler });
 // Bug-hunt #8 #11: restore time-of-day + weather across restart. The
 // snapshot lives in `world-state.json` next to the world buckets.
 try {
@@ -510,9 +537,9 @@ try {
 } catch (e) { console.error('[uo-node] world-state load failed:', e.message); }
 // Wire the weather broadcaster so day-night.js can rotate
 // rain/snow/storm patterns every 5 min and have everyone see it.
-dayNight.setWeatherBroadcaster?.((kind, intensity, temperature) => {
+dayNight.setWeatherBroadcaster?.((kind, intensity, temperature, recipients) => {
   const pkt = protocol.weather({ kind, intensity, temperature });
-  for (const m of world.subscribedMobiles?.('weather') ?? query.onlineMobiles()) {
+  for (const m of recipients ?? world.subscribedMobiles?.('weather') ?? query.onlineMobiles()) {
     if (m.client.sendCosmetic) m.client.sendCosmetic(pkt, 'weather');
     else m.client.send(pkt);
   }
@@ -546,7 +573,7 @@ corpse.setLootRegistry(loot);
 // AI spell casts, DoTs, mastery procs, etc. — left victims at 0 HP
 // alive forever (user report 2026-05-19, screenshot Toby/Dennys).
 world._corpse = corpse;
-// FAZA CX: expose the monster registry so corpse.killMobile can read
+// PHASE CX: expose the monster registry so corpse.killMobile can read
 // `valor` / hp from the slain creature's config when awarding virtue.
 corpse.setMonstersGetter?.((kind) => monsters.get(kind));
 // Wire achievements so killMobile can bump kill counters + check
@@ -570,10 +597,23 @@ const spawner = new Spawner(world, (w, kind, pos) => {
 const houses = new HouseRegistry();
 houses.attachWorld(world);
 try {
-  const restored = loadHousesSync(houses, saveDir);
+  const housedata = JSON.parse(await fsp.readFile(
+    path.resolve(here, '../../client/public/assets/housedata.json'), 'utf8',
+  ));
+  const pieces = houses.setCustomPieceCatalog(housedata);
+  console.log(`[uo-node] indexed ${pieces} legal custom-house pieces`);
+} catch (error) {
+  console.warn(`[uo-node] custom-house catalogue unavailable: ${error.message}`);
+}
+try {
+  const embedded = world._persistedHouses;
+  const restored = embedded
+    ? houses.restoreSnapshot(embedded)
+    : loadHousesSync(houses, saveDir);
   if (restored > 0) {
-    console.log(`[uo-node] restored ${restored} house(s) from ${saveDir}/houses.json`);
+    console.log(`[uo-node] restored ${restored} house(s) from ${embedded ? 'world.sqlite' : `${saveDir}/houses.json (legacy migration)`}`);
   }
+  if (!embedded && restored > 0) world._persistedHouses = houses.snapshot();
 } catch (e) {
   console.error(`[uo-node] failed to load houses: ${e.message}`);
 }
@@ -589,6 +629,15 @@ try {
 } catch (e) {
   console.error(`[uo-node] failed to load bazaar: ${e.message}`);
 }
+const saveCoordinator = createSaveCoordinator({
+  world, saveDir, houses, dayNight, every,
+  requestWorldSave: requestSave,
+  serializeBazaar: _bazaarSerialize,
+  serializeBoards,
+  saveBazaar: saveBazaarAsync,
+  saveWorldState: saveWorldStateAsync,
+});
+const { requestAuxiliarySave, timer: saveTimer } = saveCoordinator;
 const cityLoyalty = new cityLoyaltySystem.CityLoyaltyRegistry();
 // One shared systems registry for NetState handlers and gameplay scripts.
 // Keeping two hand-maintained object literals caused imported engines such as
@@ -599,7 +648,8 @@ const engineSystems = {
   spells: spellSystem, crafting: craftSystem,
   notoriety, poison, regen,
   paragons: paragonSystem, virtues: virtueSystem, refinement: refinementSystem,
-  peerless: peerlessSystem, petTraining: petTrainingSystem, mountAbilities: mountAbilitiesSystem,
+  peerless: peerlessSystem, instancedPeerless: instancedPeerlessSystem,
+  petTraining: petTrainingSystem, mountAbilities: mountAbilitiesSystem,
   insurance: insuranceSystem, slayers: slayerSystem,
   sigils: sigilSystem, worldBosses: worldBossSystem,
   powerScrolls: powerScrollsSystem, treasureMaps: treasureMapsSystem,
@@ -623,7 +673,9 @@ const engineSystems = {
   questConversation: questConversationSystem, petCustomization: petCustomizationSystem,
   achievements: achievementsSystem, shardEvents: shardEventsSystem,
   auctionHouse: auctionHouseSystem, quests: questSystem, bods: bodsSystem,
-  regionOnEnter, krampusEvent: krampusEventSystem, boats: boatsSystem,
+  regionOnEnter, preventInaccess: preventInaccessSystem,
+  expansionFlags: expansionFlagsSystem,
+  krampusEvent: krampusEventSystem, boats: boatsSystem,
   cityLoyalty: cityLoyaltySystem, shrines: shrineSystem,
   treasuresOfTokuno: treasuresOfTokunoSystem, itemRegistry: itemRegistrySystem,
   miniChampion: miniChampionSystem, factionCapture: factionCaptureSystem,
@@ -654,9 +706,12 @@ const engineSystems = {
   servuoP1Services: {},
   servuoContextMenus: {},
   servuoP2Admin: {},
+  // Deterministic content seed registry shared by create/wipe/recreate.
+  // Scripts add entries during activation; the stable Map survives hot reload.
+  worldContentSeeds: new Map(),
 };
 const sharedCtx = {
-  world, authKeys, accounts, config, handlers, commands, ai, aiGraphs, partyRegistry,
+  world, authKeys, accounts, config, handlers, commands, ai, aiGraphs, partyRegistry, scheduler: runtimeScheduler,
   guildRegistry, dayNight, regions, corpse, spawner, loot, monsters,
   cityLoyalty, protocol, items, spellComposer, specializations: specializationsSystem,
   vendors, quests: questSystem, questConversation: questConversationSystem,
@@ -665,12 +720,26 @@ const sharedCtx = {
   // (callable from net/handlers handleMovementReq). Without ctx.regionOnEnter
   // the updateRegion call was a no-op.
   regionOnEnter,
-  // FAZA DC: net handlers can reach into systems for ad-hoc pushes
+  // PHASE DC: net handlers can reach into systems for ad-hoc pushes
   // (e.g. login-time virtue snapshot, paragon broadcast).
   systems: engineSystems,
-  connections: new Set(),
+  connections: new Set(), nodeUOSettings, protocolCosts, globalTrafficGovernor,
+  featureRollouts, contentReleases,
+  ...verificationSuite.services,
+  landProvider, saveDir,
+  admission: runtimeAdmission,
+  handleNodeUOText,
+  handleNodeUOFeatureRequest,
+  cleanupNodeUOFeatureState,
 };
-
+const nodeUOReplication = installNodeUOReplication(sharedCtx);
+const nodeUOWorldEventsUnsubscribe = shardEventsSystem.subscribe((event) =>
+  publishNodeUOWorldEvent(sharedCtx.connections, {
+    id: `${event.kind}:${event.ts}`, type: event.kind,
+    severity: /defeat|death|demolished|corruption/i.test(event.kind) ? 'warning' : 'info',
+    title: String(event.payload?.title ?? event.kind).replaceAll('-', ' '), text: event.message,
+    location: event.payload?.location, startsAt: event.ts,
+  }));
 // Default tooltip / property-list provider. Scripts can replace this via
 // `properties.setProvider(ctx, fn)` for richer (affix/charges/magic) data;
 // until they do, every item and mobile still gets a minimal one-line
@@ -691,14 +760,18 @@ properties.setProvider(sharedCtx, (serial) => {
 });
 
 // Load gameplay scripts from apps/scripts/src (best-effort; missing dir is fine).
-const scriptsDir = path.resolve(here, '../../scripts/src');
 // Boats subsystem — continuous-sail tick that walks any boat with a
 // non-stop sail-state across water tiles. Independent of the AI loop
 // because boats need a finer cadence and pilot semantics. Exposed to
 // scripts under `api.boats` so the `[boat` command can queue sails.
 const boats = boatsSystem.startBoatSystem({
-  world, items, protocol, landProvider,
+  world, items, protocol, landProvider, scheduler: runtimeScheduler,
 });
+// Packet handlers and scripts share the same live controller. The module
+// namespace in `systems.boats` exposes constructors only and cannot steer a
+// running hull.
+sharedCtx.boats = boats;
+engineSystems.boatsRuntime = boats;
 
 // Wave 13: world-wide announcement on greater/lesser artifact drops.
 // Throttled to 5s per call so a champion spawn that drops two unique
@@ -738,12 +811,13 @@ setArtifactDiscoveryHook((profile) => {
 // headlines (champion defeats, world boss kills, artifact drops, etc.)
 // so any nearby Town Cryer NPC pulses them as overhead speech and
 // `[news` lists them.
+let cryerInterval = null;
 try {
   townCryerSystem.wireAutoNews(shardEventsSystem);
   // Pulse the latest headline through every Town Cryer NPC once every
   // 5 minutes. `tickHeadlinePulse` walks `world.mobiles` for
   // `_townCryer === true` and broadcasts overhead.
-  const cryerInterval = setInterval(() => {
+  cryerInterval = every('town-crier', 5 * 60 * 1000, () => {
     try {
       townCryerSystem.tickHeadlinePulse(world, (npc, msg) => {
         for (const m of query.clientsNear(npc, 12)) {
@@ -763,8 +837,7 @@ const scriptItems = Object.freeze({
   invalidateProps(serial) {
     const key = serial >>> 0;
     let nudged = 0;
-    for (const mobile of world.mobiles.values()) {
-      const state = mobile.client;
+    for (const state of world.propertyObservers?.(key) ?? []) {
       if (!state?.ctx?.propertyProvider) continue;
       try {
         const result = state.ctx.propertyProvider(key, state);
@@ -791,6 +864,13 @@ const scriptRuntime = await loadScripts(scriptsDir, {
   events: world.events,
   gumps, contextMenus, vendors, books, spellbooks, combat: scriptCombat, prompts, trade,
   properties, effects, quest, quests: scriptQuests,
+  nodeUO: {
+    features: NodeUOFeature,
+    messages: Object.freeze({ Naval: NodeUONavalMessage }),
+    send: sendNodeUOChannel,
+    broadcast: (options) => broadcastNodeUOChannel(sharedCtx.connections, options),
+    registerMod: registerNodeUOMod,
+  },
   party: partyRegistry, guilds: guildRegistry, dayNight,
   regions, corpse, spawner, loot, monsters, npcs, skills, houses, query, ops, game,
   itemScripts: itemScriptsApi,
@@ -814,7 +894,10 @@ const scriptRuntime = await loadScripts(scriptsDir, {
   tileData: { table: tileDataTable, staticHeight: staticHeightFor },
   itemTypes: { resolve: resolveItemType, all: allItemTypes, count: knownItemTypeCount },
   artifactUniqueness,
-  persistence: { saveWorldSync, saveWorldAsync, loadWorldSync, saveDir, requestSave, diagnostics: persistenceDiagnostics },
+  persistence: {
+    saveWorldSync, saveWorldAsync, loadWorldSync, saveDir, requestSave,
+    requestAuxiliarySave, diagnostics: persistenceDiagnostics,
+  },
   ctx: sharedCtx,
   // Catalogues + systems from the new structure. Scripts reach item
   // definitions via `api.catalog.items.itemsOfKind('weapon')` and cast
@@ -825,6 +908,7 @@ const scriptRuntime = await loadScripts(scriptsDir, {
   systems: engineSystems,
   log: (msg) => console.log(`[scripts] ${msg}`),
 });
+sharedCtx.scriptRuntime = scriptRuntime;
 try {
   const hydrated = items.rehydrateWorldItemDefinitions(world);
   if (hydrated.fields > 0) {
@@ -862,6 +946,7 @@ ai.start();
 // stale commands (or "— no commands —") after hot-reload because the
 // only push site lived in `LoginComplete`.
 world.events?.on?.('scripts:reloaded', () => {
+  verificationSuite.invalidateContent('scripts-reloaded');
   try { items.rehydrateWorldItemDefinitions(world); }
   catch (e) { console.warn('[item-script] definition rehydrate failed:', e?.message); }
   try { itemScriptRegistry.rebuildTickingItemIndex(world); }
@@ -917,7 +1002,8 @@ commands.register({
 // them from holding the event loop open on normal exit, but we still want
 // to stop firing ticks *before* wss.close() runs — otherwise a combat or
 // spawner tick can mutate the world after the final save is written.
-const authSweepTimer = setInterval(() => authKeys.sweep(), 10_000);
+let shuttingDown = false;
+const authSweepTimer = every('auth-sweep', 10_000, () => authKeys.sweep());
 authSweepTimer.unref();
 
 // Combat scheduler: process auto-attack swings at 10Hz. `corpse.killMobile`
@@ -925,20 +1011,20 @@ authSweepTimer.unref();
 // arg (killer) lets the corpse module run notoriety bookkeeping —
 // counting murders of innocents toward the red-name flag.
 const stopRuntimeMonitor = operational.startRuntimeMonitor();
-const combatTimer = setInterval(() => operational.measureTick('combat', () => {
+const combatTimer = every('combat', 100, () => operational.measureTick('combat', () => {
   combat.tick(world, (w, victim, killer) => corpse.killMobile(w, victim, killer));
-}), 100);
+}));
 combatTimer.unref();
 
 // Corpse decay sweeper — removes corpses older than 5 minutes.
-const corpseTimer = setInterval(() => corpse.sweepDecayedCorpses(world), 30_000);
+const corpseTimer = every('corpse-decay', 30_000, () => corpse.sweepDecayedCorpses(world));
 corpseTimer.unref();
 
 // Aggression / Heat-of-Battle sweep — drops the buff icon when the
 // 2-min combat window lapses. Fields stay zeroed afterwards so the
 // sweep is cheap.
 const { sweepExpired: sweepAggression } = await import('./aggression.js');
-const aggressionTimer = setInterval(() => sweepAggression(world), 5_000);
+const aggressionTimer = every('aggression-sweep', 5_000, () => sweepAggression(world));
 aggressionTimer.unref();
 
 // Quest "visit" objective bridge — when a tracked player crosses into
@@ -958,10 +1044,10 @@ regionOnEnter.onAnyEnter((mob, ctx) => {
 // aquariums flip 'overdue' → 'dead' after a second consecutive
 // neglected tick.
 const { tickAquariums } = await import('../../scripts/src/items/scripts/functional/aquarium.js');
-const aquariumTimer = setInterval(() => {
+const aquariumTimer = every('aquarium', 30 * 60_000, () => {
   try { tickAquariums(world); }
   catch (e) { console.error('[aquarium] tick:', e); }
-}, 30 * 60_000);
+});
 aquariumTimer.unref();
 
 // Item decay sweeper — UO 1-hour timeout on movable ground items. See
@@ -971,21 +1057,22 @@ const { startDecaySweeper } = await import('./world/decay.js');
 const decayTimer = startDecaySweeper(world, {
   intervalMs: 1000,
   maxPerTick: 512,
+  scheduler: runtimeScheduler,
   onTick: ({ stamped, expired }) => {
     if (expired > 0) console.log(`[decay] expired ${expired} ground item${expired === 1 ? '' : 's'} (stamped ${stamped} fresh)`);
   },
 });
 
 // Spawner tick — scripts register spawn groups via api.spawner.add().
-const spawnerTimer = setInterval(() => operational.measureTick('spawner', () => spawner.tick()), 10_000);
+const spawnerTimer = every('spawner', 10_000, () => operational.measureTick('spawner', () => spawner.tick()));
 spawnerTimer.unref();
 
 // XmlSpawner attachments — expiration and timed-effect hooks. This is the
 // Node-native equivalent of XmlAttachment timers in ServUO.
-const xmlAttachmentTimer = setInterval(() => {
+const xmlAttachmentTimer = every('xml-attachments', 1000, () => {
   try { tickXmlAttachments(world, Date.now()); }
   catch (e) { console.error('[xml-attachments]', e.message); }
-}, 1000);
+});
 xmlAttachmentTimer.unref();
 
 // Resource regen — HP/Mana/Stam slowly tick back up. The 1Hz cadence is
@@ -994,28 +1081,28 @@ xmlAttachmentTimer.unref();
 // 1 HP at the same instant.
 const REGEN_INTERVAL_MS = 1000;
 let lastRegenAt = Date.now();
-const regenTimer = setInterval(() => {
+const regenTimer = every('regen', REGEN_INTERVAL_MS, () => {
   operational.measureTick('regen', () => {
     const now = Date.now();
     const pass = regen.regenTickBudgeted(world, now - lastRegenAt, 1024);
     if (pass.remaining) runtimeGovernor.watchdog.skip('regen-deferred', Math.max(0, world.mobiles.size - pass.processed));
     lastRegenAt = now;
   });
-}, REGEN_INTERVAL_MS);
+});
 regenTimer.unref();
 
-const regionTimer = startRegionTracker({ world, regions, achievementsSystem, protocol });
+const regionTimer = startRegionTracker({ world, regions, achievementsSystem, protocol, scheduler: runtimeScheduler });
 
 // Timed status effects (poison DoT, bless/curse, etc). 500ms is frequent
 // enough for a 2s poison tick to feel responsive and still cheap even
 // with hundreds of mobs (most have zero effects).
-const statusEffectsTimer = setInterval(() => {
+const statusEffectsTimer = every('status-effects', 500, () => {
   statusEffects.tickAll(world, Date.now());
-}, 500);
+});
 statusEffectsTimer.unref();
 
 // Pet hunger + loyalty drift (1Hz, fractional accumulation).
-const petHungerTimer = setInterval(() => {
+const petHungerTimer = every('pet-hunger', 1000, () => {
   try { tickPetHunger(world, 1.0); }
   catch (e) { console.error('[pet-hunger]', e.message); }
 }, 1000);
@@ -1027,8 +1114,10 @@ petHungerTimer.unref();
 // Ocean encounters — every 5 min, each boat with riders rolls for a
 // sea-serpent / kraken / undead-pirate / water-elemental spawn. Cheap:
 // walks `world.items` once for boats; spawn factory does the rest.
+let oceanEncounterTimer = null;
 import('./systems/ocean-encounters.js').then(({ tickOceanEncounters }) => {
-  const t = setInterval(() => {
+  if (shuttingDown) return;
+  oceanEncounterTimer = every('ocean-encounters', 5 * 60 * 1000, () => {
     try {
       const n = tickOceanEncounters(world, {
         spawnFactory: sharedCtx.spawnFactory,
@@ -1049,36 +1138,37 @@ import('./systems/ocean-encounters.js').then(({ tickOceanEncounters }) => {
       });
       if (n > 0) console.log(`[ocean-enc] ${n} encounter(s) triggered`);
     } catch (e) { console.error('[ocean-enc]', e.message); }
-  }, 5 * 60 * 1000);
-  t.unref();
+  });
+  oceanEncounterTimer.unref();
 }).catch(() => { /* optional module */ });
 
-const petBondTimer = setInterval(() => {
+const petBondTimer = every('pet-bonding', 60 * 60 * 1000, () => {
   try {
     const promoted = sweepBondingPromotions(world, Date.now());
     if (promoted > 0) console.log(`[pet-bond] auto-bonded ${promoted} pet(s)`);
   } catch (e) { console.error('[pet-bond]', e.message); }
-}, 60 * 60 * 1000);
+});
 petBondTimer.unref();
 
 // Player-vendor charges + abandon-grace sweep (1 minute is plenty —
 // the engine accumulates fractions per real hour internally).
-const playerVendorTimer = setInterval(() => {
+const playerVendorTimer = every('player-vendors', 60_000, () => {
   try { playerVendorSystem.tickPlayerVendors(world, 60); }
   catch (e) { console.error('[player-vendor]', e.message); }
-}, 60_000);
+});
 playerVendorTimer.unref();
 
-// Item + Mobile script tick — content registers `hasTick:true` to opt
-// in. Cheap O(items+mobiles) walk; most entries skip immediately.
-const scriptTickTimer = setInterval(() => {
+// Item + Mobile script tick — content registers `hasTick:true` to opt in.
+// Reverse indexes keep this proportional to active scripted entities rather
+// than the full persisted item/mobile population.
+const scriptTickTimer = every('script-ticks', 1000, () => {
   operational.measureTick('scripts', () => {
     try { itemScriptRegistry.tickAllItemScripts(world, 1.0); }
     catch (e) { console.error('[item-script tick]', e.message); }
     try { tickAllMobileScripts(world, 1.0); }
     catch (e) { console.error('[mobile-script tick]', e.message); }
   });
-}, 1000);
+});
 scriptTickTimer.unref();
 
 // Faction sigil corruption tick — each sigil "corrupts" its town to
@@ -1086,42 +1176,42 @@ scriptTickTimer.unref();
 // Without this loop the timer started but never advanced (the function
 // existed in `systems/pvp/sigils.js` but no caller wired it). 30s cadence
 // is plenty given the 10-min ramp; cheaper than walking world.mobiles.
-const sigilTimer = setInterval(() => {
+const sigilTimer = every('sigil-corruption', 30_000, () => {
   try {
     sigilSystem.tickCorruption?.(Date.now(), (mob) => mob?.faction ?? null);
   } catch (e) { console.error('[sigils]', e.message); }
-}, 30_000);
+});
 sigilTimer.unref();
 
 // Magincia distilled-potion buff sweeper — 60s. Expires per-stat 10-min
 // buffs cleanly so str/dex/int don't accumulate over multiple drinks.
-const distillationTimer = setInterval(() => {
+const distillationTimer = every('distillation', 60_000, () => {
   try { maginciaDistillationSystem.tickDistilledBuffs(world); }
   catch (e) { console.error('[distillation]', e.message); }
-}, 60_000);
+});
 distillationTimer.unref();
 
 // Camps restock sweep — 60s. Restocks dead NPCs across all placed
 // camps with their original kind, re-rolls chest loot on next loot.
-const campsTimer = setInterval(() => {
+const campsTimer = every('camps', 60_000, () => {
   try { campsSystem.tick(world, spawner); }
   catch (e) { console.error('[camps]', e.message); }
-}, 60_000);
+});
 campsTimer.unref();
 
 // Seasonal events scheduler — 60s cadence, detects window open/close edges.
-const seasonalTimer = setInterval(() => {
+const seasonalTimer = every('seasonal-events', 60_000, () => {
   try { seasonalEventsSystem.tick(world); }
   catch (e) { console.error('[seasonal-events]', e.message); }
-}, 60_000);
+});
 seasonalTimer.unref();
 
 // Light-source burn-out sweep (60s). Walks ONLY lit torches/candles
 // registered in the active set; cheap regardless of world size.
-const lightDecayTimer = setInterval(() => {
+const lightDecayTimer = every('light-decay', 60_000, () => {
   try { tickLightDecay(Date.now()); }
   catch (e) { console.error('[light-decay]', e.message); }
-}, 60_000);
+});
 lightDecayTimer.unref();
 
 // Murder-count decay sweep. ServUO's per-player kill counter drops one
@@ -1129,29 +1219,29 @@ lightDecayTimer.unref();
 // check every 10 min and decrementing one count from any eligible
 // player. Walking the mob map at 10-min cadence costs effectively
 // nothing even on a populated shard.
-const murderDecayTimer = setInterval(() => {
+const murderDecayTimer = every('murder-decay', 10 * 60 * 1000, () => {
   try {
     const changed = notoriety.decayMurders(world, Date.now());
     if (changed > 0) console.log(`[notoriety] murder decay applied to ${changed} player(s)`);
   } catch (e) { console.error('[murder-decay]', e.message); }
-}, 10 * 60 * 1000);
+});
 murderDecayTimer.unref();
 
 // Stat-loss expiry sweep — 1 min cadence catches the 8 min timer with
 // enough granularity. corpse.sweepStatLoss walks online players only;
 // cost is trivial.
-const statLossTimer = setInterval(() => {
+const statLossTimer = every('stat-loss', 60 * 1000, () => {
   try {
     const restored = corpse.sweepStatLoss(world, Date.now());
     if (restored > 0) console.log(`[stat-loss] restored stats for ${restored} player(s)`);
   } catch (e) { console.error('[stat-loss]', e.message); }
-}, 60 * 1000);
+});
 statLossTimer.unref();
 
 // Summoned-creature auto-dismiss sweep (1Hz). Uses the summon index so
 // normal NPC/player populations are not walked every second. Effects are
 // best-effort.
-const summonExpireTimer = setInterval(() => {
+const summonExpireTimer = every('summon-expire', 1000, () => {
   try {
     tickSummons(world, {
       huedEffect: protocol.huedEffect,
@@ -1178,7 +1268,7 @@ const summonExpireTimer = setInterval(() => {
       },
     });
   } catch (e) { console.error('[summon-expire]', e.message); }
-}, 1000);
+});
 summonExpireTimer.unref();
 
 // Wire poison damage delivery — port of ServUO PoisonImpl.OnTick. Route
@@ -1192,10 +1282,10 @@ poison.setDamageHook((target, amount, attacker) => {
 
 // World-boss respawn checker (60s — bosses respawn on the order of
 // hours, no need to poll faster).
-const worldBossTimer = setInterval(() => {
+const worldBossTimer = every('world-bosses', 60_000, () => {
   try { worldBosses.tick(world); }
   catch (e) { console.error('[world-boss]', e.message); }
-}, 60_000);
+});
 worldBossTimer.unref();
 
 // Peerless-boss mechanics tick (250ms — phases advance fast enough that
@@ -1206,7 +1296,8 @@ const spawnPeerlessAddNear = createPeerlessAddSpawner({
 });
 
 let _lastPeerlessAt = Date.now();
-const peerlessBossTimer = setInterval(() => {
+const peerlessHealTimers = new Set();
+const peerlessBossTimer = every('peerless-bosses', 250, () => {
   const now = Date.now();
   const dt = now - _lastPeerlessAt;
   _lastPeerlessAt = now;
@@ -1242,10 +1333,7 @@ const peerlessBossTimer = setInterval(() => {
       },
       applyDamage: (target, amount, dmgType, attacker) => {
         if (!target) return;
-        target.hp = Math.max(0, (target.hp | 0) - amount);
-        if ((target.hp ?? 0) <= 0 && typeof corpse?.killMobile === 'function') {
-          corpse.killMobile(world, target, attacker);
-        }
+        combat.damage(world, target, amount, { attacker, damageType: dmgType });
       },
       applyEffect: (target, name, durationMs) => {
         statusEffects.add?.(target, { name, durationMs, expiresAt: Date.now() + durationMs });
@@ -1255,9 +1343,13 @@ const peerlessBossTimer = setInterval(() => {
         const each = Math.floor(total / ticks);
         const interval = Math.floor(durationMs / ticks);
         for (let i = 1; i <= ticks; i++) {
-          setTimeout(() => {
+          const handle = setTimeout(() => {
+            peerlessHealTimers.delete(handle);
+            if (shuttingDown || !world.mobiles.has(target.serial)) return;
             target.hp = Math.min(target.hpMax ?? target.hp, target.hp + each);
           }, i * interval);
+          handle.unref?.();
+          peerlessHealTimers.add(handle);
         }
       },
       broadcastSpeech: (mob, text) => {
@@ -1289,21 +1381,18 @@ const peerlessBossTimer = setInterval(() => {
       },
     });
   } catch (e) { console.error('[peerless-tick]', e.message); }
-}, 250);
+});
 peerlessBossTimer.unref();
 
 // Unique boss encounter tick — drives per-boss specials (Medusa stone
 // gaze, Stygian Dragon breath cone, Harrower curse, etc.). 1Hz cadence
 // matches the per-boss internal cooldowns (most are 6-15s).
 const bossEncountersModule = await import('./systems/bosses/boss-encounters.js');
-const bossEncountersTimer = setInterval(() => {
+const bossEncountersTimer = every('boss-encounters', 1000, () => {
   try {
     bossEncountersModule.tickBossEncounters(world, {
       applyDamage: (target, amount, _type, attacker) => {
-        target.hp = Math.max(0, (target.hp | 0) - amount);
-        if ((target.hp ?? 0) <= 0 && typeof corpse?.killMobile === 'function') {
-          corpse.killMobile(world, target, attacker);
-        }
+        combat.damage(world, target, amount, { attacker, damageType: _type });
       },
       broadcastSpeech: (mob, text) => {
         for (const o of query.clientsNear(mob, 18)) {
@@ -1324,30 +1413,30 @@ const bossEncountersTimer = setInterval(() => {
       },
     });
   } catch (e) { console.error('[boss-encounter-tick]', e.message); }
-}, 1000);
+});
 bossEncountersTimer.unref();
 
 // Auction house sweeper — settles expired lots once a minute. Lots
 // rarely live shorter than 24h so polling more often would burn CPU.
-const auctionTimer = setInterval(() => {
+const auctionTimer = every('auctions', 60_000, () => {
   try { auctionHouseSystem.tickAuctions(world); }
   catch (e) { console.error('[auction-tick]', e.message); }
-}, 60_000);
+});
 auctionTimer.unref();
 
 // VvV siege rotation tick (1h — sieges open every 3 days; cheap check).
-const vvvTimer = setInterval(() => {
+const vvvTimer = every('vvv', 60 * 60 * 1000, () => {
   try { vvvSystem.tick(); }
   catch (e) { console.error('[vvv-tick]', e.message); }
-}, 60 * 60 * 1000);
+});
 vvvTimer.unref();
 
 // Plant lifecycle tick (1h cadence; the system internally gates on
 // 24h per plant lastTickAt so this is just a "check often enough").
-const plantsTimer = setInterval(() => {
+const plantsTimer = every('plants', 60 * 60 * 1000, () => {
   try { plantsSystem.tickPlants(world); }
   catch (e) { console.error('[plants-tick]', e.message); }
-}, 60 * 60 * 1000);
+});
 plantsTimer.unref();
 
 // Push buff/debuff gain + loss to the affected player's client so their
@@ -1357,7 +1446,7 @@ plantsTimer.unref();
 // because scripts just push `{ name, durationMs, ... }` and don't think
 // about UI taxonomy.
 const DEBUFF_NAMES = new Set(['poison', 'curse', 'paralyze', 'weaken', 'clumsy', 'feeblemind']);
-// FAZA CP — flag-bit mappings for canon UO mood overheads. Bit 0x01
+// PHASE CP — flag-bit mappings for canon UO mood overheads. Bit 0x01
 // = paralyze (frozen), 0x04 = poisoned, 0x40 = warmode. The client
 // reads these from 0x77 / 0x78 and paints icon overlays on the
 // mobile sprite (anim-tint plus a small status icon overhead).
@@ -1380,7 +1469,7 @@ statusEffects.setListener((mob, action, eff) => {
       world._mobsWithEffects.delete(mob.serial);
     }
   }
-  // FAZA CP: maintain mob.flags for status icons + broadcast a 0x77
+  // PHASE CP: maintain mob.flags for status icons + broadcast a 0x77
   // mobileMoving so all observers re-paint the mood overhead.
   const bit = FLAG_BIT[eff.name] | 0;
   if (bit) {
@@ -1451,6 +1540,7 @@ const http_server = http.createServer((req, res) => {
       protocolMode: config.protocolMode,
       protocols: {
         uo: true,
+        nodeUOJson: NODEUO_JSON_SUBPROTOCOL,
       },
       mobiles: world.mobiles.size,
       items: world.items.size,
@@ -1537,22 +1627,8 @@ http_server.on('clientError', (err, socket) => {
   try { socket.destroy(); } catch { /* ignore */ }
 });
 
-let wss = null;
-let connId = 0;
 const wsRoutes = new Map();
-wss = new WebSocketServer({ noServer: true });
-wss.on('connection', (ws, req) => {
-  const id = ++connId;
-  const remoteAddress = req.socket.remoteAddress;
-  console.log(`[net#${id}] connected from ${remoteAddress}`);
-
-  new NetState(ws, {
-    ...sharedCtx,
-    id,
-    remoteAddress,
-    nodeUOTransport: ws.protocol === 'nodeuo.v1',
-  });
-});
+const wss = createGameWebSocketServer(sharedCtx);
 wsRoutes.set('/game', wss);
 
 http_server.on('upgrade', (req, socket, head) => {
@@ -1573,15 +1649,21 @@ http_server.on('upgrade', (req, socket, head) => {
 // authoritative hot-path source. A background validator detects and repairs
 // drift without putting a full-world scan inside movement or visibility ticks.
 world.enableSpatialIndexes?.();
-const spatialIndexTimer = setInterval(() => {
+const spatialIndexTimer = every('spatial-index-audit', 1000, () => {
   runtimeGovernor.background.enqueue('world:spatial-index-audit', () => {
-    const result = runtimeGovernor.watchdog.measure('spatial-index-audit', () => world.sectors.validate(world, { repair: true }));
-    runtimeGovernor.health.set('indexes', result.ok || result.repaired,
-      result.ok ? 'sector index consistent' : `${result.issues.length} issue(s) repaired`);
-    if (!result.ok) operational.structuredEvent('world.index.repaired', { issues: result.issues.slice(0, 100) });
+    const result = runtimeGovernor.watchdog.measure('spatial-index-audit', () => (
+      world.sectors.validateIncremental(world, { repair: true, budget: 2048 })
+    ));
+    if (result.complete) {
+      runtimeGovernor.health.set('indexes', result.ok || result.repaired,
+        result.ok ? `sector index consistent (${result.cycleChecked} checked)` : `${result.issueCount} issue(s) repaired`);
+      if (!result.ok) operational.structuredEvent('world.index.repaired', {
+        issues: result.issues.slice(0, 100), repaired: result.repairedCount,
+      });
+    }
   }, { priority: 3, sector: 'maintenance' });
   runtimeGovernor.background.drain();
-}, 60_000);
+});
 spatialIndexTimer.unref?.();
 
 http_server.listen(config.port, config.host, () => {
@@ -1609,8 +1691,8 @@ if (config.tcpPort) {
   });
 } else {
   // Loud "off" log so when the user expects TCP to be reachable and it
-  // isn't, the cause is obvious in the terminal. Marcin: "nie mam
-  // żadnych logów w naszym terminalu" → sometimes the listener was
+  // isn't, the cause is obvious in the terminal. Missing connection logs can
+  // mean the listener was
   // never asked to start because UO_TCP_PORT wasn't injected.
   console.log('[uo-node] TCP listener OFF (set UO_TCP_PORT=2594 or tick the toolbar TCP checkbox to enable for ClassicUO/Razor/OSI).');
 }
@@ -1621,6 +1703,9 @@ if (config.tcpPort) {
 // refuses every mutation, useful for read-only LAN dashboards).
 let adminServer = null;
 if (process.env.UO_ADMIN_PASS || process.env.UO_ADMIN_PORT) {
+  // Sending SIGINT to the current process can terminate abruptly on Windows.
+  // Expose the same shutdown routine directly to the admin API instead.
+  sharedCtx.requestShutdown = (reason = 'ADMIN') => shutdown(reason);
   // Keep the sizeable authoring/catalog module graph out of the normal shard
   // boot path. It is loaded only when the optional admin listener is enabled.
   const [{ startAdminServer }, { pushLogLine }] = await Promise.all([
@@ -1640,7 +1725,10 @@ if (process.env.UO_ADMIN_PASS || process.env.UO_ADMIN_PORT) {
   }
   adminServer = startAdminServer({
     sharedCtx, scriptRuntime, scriptsDir, saveDir,
-    persistence: { saveWorldSync, saveWorldAsync, loadWorldSync, requestSave, diagnostics: persistenceDiagnostics },
+    persistence: {
+      saveWorldSync, saveWorldAsync, loadWorldSync, requestSave,
+      requestAuxiliarySave, diagnostics: persistenceDiagnostics,
+    },
     accounts,
   });
 }
@@ -1648,92 +1736,38 @@ function safeStringify(v) {
   try { return JSON.stringify(v); } catch { return String(v); }
 }
 
-// Auto-save. Keep it configurable because large development worlds can make
-// a too-eager interval look like a server loop in the logs.
-const SAVE_INTERVAL_MS = resolveSaveIntervalMs();
-let autoSaveRunning = false;
-let autoSaveAgain = false;
-let autoSaveFollowupTimer = null;
-
-function resolveSaveIntervalMs() {
-  const explicit = process.env.UO_SAVE_INTERVAL_MS ?? process.env.UO_AUTOSAVE_INTERVAL_MS;
-  if (explicit != null) {
-    const raw = Number(explicit);
-    if (!Number.isFinite(raw)) return 180_000;
-    if (raw <= 0) return 0;
-    return Math.max(30_000, Math.round(raw));
-  }
-  return 180_000;
-}
-
-async function runAutoSavePass(reason = 'interval') {
-  if (autoSaveRunning) {
-    autoSaveAgain = true;
-    return;
-  }
-  autoSaveRunning = true;
-  try {
-    // Async path: snapshot is taken sync (consistent world), disk write
-    // happens off the event-loop. A second tick during a heavy save collapses
-    // to one follow-up pass instead of producing duplicate log lines.
-    const { bytes, ms } = await requestSave(world, saveDir);
-    console.log(`[uo-node] auto-saved (${reason}; mobiles=${world.mobiles.size}, items=${world.items.size}, ${bytes}B, ${ms}ms)`);
-  } catch (e) {
-    console.error(`[uo-node] auto-save failed: ${e.message}`);
-  } finally {
-    autoSaveRunning = false;
-    if (autoSaveAgain) {
-      autoSaveAgain = false;
-      clearTimeout(autoSaveFollowupTimer);
-      autoSaveFollowupTimer = setTimeout(() => runAutoSavePass('coalesced'), 1000);
-      autoSaveFollowupTimer.unref?.();
-    }
-  }
-
-  // Houses live outside world.mobiles/items, so they need their own
-  // pass. Cheap (one row per home, ≤ KB even for hundreds of houses)
-  // and fire-and-forget — failure logs but doesn't block the world save.
-  saveHousesAsync(houses, saveDir).then(({ bytes }) => {
-    if (houses.houses.size > 0) {
-      console.log(`[uo-node] auto-saved houses (n=${houses.houses.size}, ${bytes}B)`);
-    }
-  }).catch(e => {
-    console.error(`[uo-node] houses save failed: ${e.message}`);
-  });
-  // Magincia Bazaar stalls — dynamic-import to avoid coupling the
-  // top of main.js to a content-side module. Bug-hunt #5 A5.
-  const stallSnap = _bazaarSerialize();
-  if (stallSnap.length > 0) {
-    saveBazaarAsync(stallSnap, saveDir).catch(e => {
-      console.error(`[uo-node] bazaar save failed: ${e.message}`);
-    });
-  }
-  // Day/night + weather + season state is tiny, but the interval path must
-  // still avoid synchronous filesystem calls: a slow network volume can
-  // otherwise pause movement acknowledgements for a full disk round-trip.
-  saveWorldStateAsync({ dayNight: dayNight.serialize?.() ?? null }, saveDir)
-    .catch((e) => console.error('[uo-node] world-state save failed:', e.message));
-  // Bulletin boards — server parity #9 #10. Fire-and-forget async write.
-  try {
-    const bbPath = path.join(saveDir, 'bulletin-boards.json');
-    fsp.writeFile(bbPath, JSON.stringify(serializeBoards()), 'utf8')
-      .catch((e) => console.error('[uo-node] bulletin save failed:', e.message));
-  } catch (e) { console.error('[uo-node] bulletin save threw:', e.message); }
-}
-
-const saveTimer = SAVE_INTERVAL_MS > 0
-  ? setInterval(() => {
-    runAutoSavePass();
-  }, SAVE_INTERVAL_MS)
-  : null;
-if (saveTimer) saveTimer.unref();
-else console.log('[uo-node] auto-save disabled (UO_SAVE_INTERVAL_MS=0).');
-
 // Graceful shutdown. Stops every subsystem that owns a timer BEFORE the
 // final save, so no tick mutates the world between the snapshot and the
 // rename. Multiple signals in a row (user mashing Ctrl-C) must be idempotent.
-const SHUTDOWN_DEADLINE_MS = 10_000;
-let shuttingDown = false;
+const SHUTDOWN_DEADLINE_MS = Math.max(10_000,
+  Number(process.env.UO_SHUTDOWN_DEADLINE_MS) || 30_000);
+function stopPeriodicSubsystems() {
+  nodeUOReplication.close();
+  nodeUOWorldEventsUnsubscribe();
+  try { ai.stop(); } catch (e) { console.error(`[uo-node] ai.stop failed: ${e.message}`); }
+  try { dayNight.stop(); } catch (e) { console.error(`[uo-node] dayNight.stop failed: ${e.message}`); }
+  try { boats.stop?.(); } catch (e) { console.error(`[uo-node] boats.stop failed: ${e.message}`); }
+  try { spawner.dispose?.(); } catch (e) { console.error(`[uo-node] spawner.dispose failed: ${e.message}`); }
+  runtimeScheduler.stop();
+  for (const handle of [
+    houseDecayTimer, cryerInterval, authSweepTimer, combatTimer, corpseTimer,
+    aggressionTimer, aquariumTimer, decayTimer, spawnerTimer,
+    xmlAttachmentTimer, regenTimer, regionTimer, statusEffectsTimer,
+    petHungerTimer, oceanEncounterTimer, petBondTimer, playerVendorTimer,
+    scriptTickTimer, sigilTimer, distillationTimer, campsTimer, seasonalTimer,
+    lightDecayTimer, murderDecayTimer, statLossTimer, summonExpireTimer,
+    worldBossTimer, peerlessBossTimer, bossEncountersTimer, auctionTimer,
+    vvvTimer, plantsTimer, spatialIndexTimer, verificationSuite.interestDrainTimer, saveTimer,
+  ]) {
+    if (typeof handle?.cancel === 'function') handle.cancel();
+    else clearInterval(handle);
+  }
+  for (const handle of peerlessHealTimers) clearTimeout(handle);
+  peerlessHealTimers.clear();
+  stopRuntimeMonitor();
+  saveCoordinator.stop();
+}
+
 async function shutdown(sig) {
   if (shuttingDown) return;
   shuttingDown = true;
@@ -1751,6 +1785,8 @@ async function shutdown(sig) {
   try { tcpServer?.close?.(); } catch { /* already closing */ }
   try { adminServer?.close?.(); } catch { /* already closing */ }
   try { http_server.close(); } catch { /* already closing */ }
+  stopPeriodicSubsystems();
+  const scriptDisposePromise = scriptRuntime.dispose?.();
   runtimeGovernor.health.set('shutdown', false, 'draining connections');
   for (const state of sharedCtx.connections) state.sendSystemMessage?.('Server is shutting down. Your character is being saved.');
   const drainUntil = Date.now() + 1000;
@@ -1762,28 +1798,15 @@ async function shutdown(sig) {
   // sync save below doesn't race the same `.tmp` filenames.
   try { await awaitInFlightSaves(5000); }
   catch (e) { console.error(`[uo-node] awaitInFlightSaves: ${e.message}`); }
-  try { ai.stop(); } catch (e) { console.error(`[uo-node] ai.stop failed: ${e.message}`); }
-  try { dayNight.stop(); } catch (e) { console.error(`[uo-node] dayNight.stop failed: ${e.message}`); }
-  try { scriptRuntime.stop?.(); } catch (e) { console.error(`[uo-node] scriptRuntime.stop failed: ${e.message}`); }
-  clearInterval(authSweepTimer);
-  clearInterval(combatTimer);
-  clearInterval(corpseTimer);
-  clearInterval(decayTimer);
-  clearInterval(spawnerTimer);
-  clearInterval(xmlAttachmentTimer);
-  clearInterval(regenTimer);
-  clearInterval(regionTimer);
-  clearInterval(statusEffectsTimer);
-  clearInterval(petHungerTimer);
-  clearInterval(summonExpireTimer);
-  clearInterval(worldBossTimer);
-  clearInterval(spatialIndexTimer);
-  clearInterval(saveTimer);
-  stopRuntimeMonitor();
-  clearTimeout(autoSaveFollowupTimer);
+  try { await requestAuxiliarySave('shutdown'); }
+  catch (e) { console.error(`[uo-node] final auxiliary save: ${e.message}`); }
+  try { await scriptDisposePromise; } catch (e) { console.error(`[uo-node] scriptRuntime.dispose failed: ${e.message}`); }
   runtimeGovernor.health.set('shutdown', false, 'writing final snapshot');
+  try { await mutationJournal.waitForIdle(); }
+  catch (e) { console.error(`[uo-node] SQLite writer drain failed: ${e.message}`); }
   try { saveWorldSync(world, saveDir); console.log('[uo-node] final save written'); } catch (e) { console.error(`[uo-node] final save failed: ${e.message}`); }
-  try { saveHousesSync(houses, saveDir); } catch (e) { console.error(`[uo-node] final houses save failed: ${e.message}`); }
+  try { await mutationJournal.closeAsync(); } catch (e) { console.error(`[uo-node] SQLite close failed: ${e.message}`); }
+  try { verificationSuite.close(); } catch (e) { console.error(`[uo-node] verification suite close failed: ${e.message}`); }
   // Bug-hunt #5 A5: final bazaar snapshot so stall auctions/bids
   // survive Ctrl-C restart, matching world/houses parity.
   try { saveBazaarSync(_bazaarSerialize(), saveDir); }

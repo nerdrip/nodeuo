@@ -13,6 +13,7 @@ import { assets } from '../../assets/asset-manager.js';
 import { movementStats } from '../../managers/walker.js';
 import { uiManagerInstance } from '../ui-manager-singleton.js';
 import { lightPoints } from '../../renderer/light-points.js';
+import { requestNodeUOSpectatorReplay } from '../../net/nodeuo-services.js';
 
 function fmtKB(n) {
   if (n < 1024) return `${n} B`;
@@ -46,7 +47,7 @@ function fmtOpcodeTop(prefix, entries) {
 
 export class NetworkStatsGump extends WindowGump {
   constructor() {
-    super({ title: 'Network', width: 340, height: 348, x: 160, y: 80 });
+    super({ title: 'Network', width: 340, height: 370, x: 160, y: 80 });
 
     this._lines = [];
     this._lineByKey = new Map();
@@ -70,6 +71,7 @@ export class NetworkStatsGump extends WindowGump {
     addLine('light',   220, 0xffc47d);
     addLine('move',    238, 0x9fdcff);
     addLine('ui',      256, 0xfff0c0);
+    addLine('nodeuo',  274, 0xd5c4ff);
 
     // Per-opcode toggle button — flips the net-client tracker on/off.
     // When ON, refresh emits a top-5 RX/TX opcode tail at the bottom.
@@ -98,11 +100,19 @@ export class NetworkStatsGump extends WindowGump {
     trace.onClick = () => this._exportMovementTrace();
     this.add(trace);
 
+    const replay = new Button({
+      normalGumpId: 0x0FA8, pressedGumpId: 0x0FAA,
+      width: 100, height: 18, label: 'Replay JSON', action: ButtonAction.None,
+    });
+    replay.setPosition(224, 72);
+    replay.onClick = () => this._exportReplay();
+    this.add(replay);
+
     // Extra label for the per-opcode tail (4 rows max).
     this._opcodeLabels = [];
     for (let i = 0; i < 4; i++) {
       const lbl = new Label('', { fontSize: 10, hue: 0xc0b890 });
-      lbl.setPosition(12, 278 + i * 12);
+      lbl.setPosition(12, 296 + i * 12);
       this.add(lbl);
       this._opcodeLabels.push(lbl);
     }
@@ -150,7 +160,7 @@ export class NetworkStatsGump extends WindowGump {
     set('txBytes', `tx: ${fmtKB(s.bytesSent)}  (+${fmtKB(dTx)}/s)`);
     set('txPackets', `tx pkt: ${s.packetsSent}`);
     set('lastIO', `last rx: ${lastIo}`);
-    set('frame', `frame: ${clientPerfStats.frameMs.toFixed(1)}ms lag ${clientPerfStats.eventLoopLagMs.toFixed(1)} LT ${clientPerfStats.longTaskCount}/${clientPerfStats.maxLongTaskMs.toFixed(0)}`);
+    set('frame', `frame: ${clientPerfStats.frameMs.toFixed(1)}ms p95 ${clientPerfStats.frameP95Ms.toFixed(1)} q=${clientPerfStats.qualityLevel} lag ${clientPerfStats.eventLoopLagMs.toFixed(1)} LT ${clientPerfStats.longTaskCount}/${clientPerfStats.maxLongTaskMs.toFixed(0)}`);
     set('update', `upd/draw/tick: ${clientPerfStats.updateMs.toFixed(1)} / ${clientPerfStats.drawMs.toFixed(1)} / ${clientPerfStats.tickMs.toFixed(1)}ms`);
     const mf = assets.mobileFrameStats;
     const hitPct = mf?.calls ? ((mf.hits * 100 / mf.calls) | 0) : 0;
@@ -163,6 +173,10 @@ export class NetworkStatsGump extends WindowGump {
     set('move', `move: p${movementStats.pending}/${movementStats.maxPending} ack ${movementStats.lastAckLatencyMs.toFixed(0)}ms rej ${movementStats.rejects}`);
     const ui = uiManagerInstance.get?.();
     set('ui', `ui: gumps ${ui?.gumps?.length ?? 0} tick ${ui?.tickGumps?.length ?? 0}`);
+    const n = net.nodeUOJsonStats;
+    set('nodeuo', net.nodeUOJsonTransport
+      ? `v2: ${net.nodeUOFeatures.size} feat · tx ${n.sent}/${n.framesSent}f · rx ${n.received}/${n.framesReceived}f · batch ${n.batchedMessages} · drop ${n.dropped}`
+      : `protocol: standard UO${net.nodeUOTransportVersion ? ` + ${net.nodeUOTransportVersion}` : ''}`);
 
     // Per-opcode tail — top 4 RX + 1 row of top TX. Engine returns
     // {opcode → count}; sort descending and slice.
@@ -207,5 +221,17 @@ export class NetworkStatsGump extends WindowGump {
     } catch { /* clipboard unavailable */ }
     bus.emit('debug:movement-trace', { payload, trace });
     bus.emit('chat:system', { text: 'Movement trace exported.' });
+  }
+
+  async _exportReplay() {
+    try {
+      const snapshot = await requestNodeUOSpectatorReplay(net, 512);
+      const payload = JSON.stringify(snapshot, null, 2);
+      await globalThis.navigator?.clipboard?.writeText?.(payload);
+      bus.emit('debug:spectator-replay', { payload, snapshot });
+      bus.emit('chat:system', { text: `Redacted replay exported (${snapshot?.entries?.length ?? snapshot?.records?.length ?? 0} entries).` });
+    } catch (error) {
+      bus.emit('chat:system', { text: `Replay unavailable: ${error?.message ?? error}` });
+    }
   }
 }

@@ -19,6 +19,7 @@ import { bus } from '../core/event-bus.js';
 import { camera } from './camera.js';
 import { world } from '../world/world.js';
 import { profile } from '../managers/profile-manager.js';
+import { clientPerformanceGovernor } from '../shared/runtime-governor.js';
 
 // Audit #32 P1 #4 — CUO `Game/Weather.cs:13-22` canonical enum:
 //   WT_RAIN=0, WT_STORM_APPROACH=1, WT_SNOW=2, WT_STORM_BREWING=3
@@ -123,7 +124,8 @@ export class Weather {
 
   _resizePool(w, h) {
     const desired = weatherParticleBudget(
-      this._kind, this._intensity, w, h, profile.get('graphics.weatherDensity') ?? 1,
+      this._kind, this._intensity, w, h,
+      (profile.get('graphics.weatherDensity') ?? 1) * clientPerformanceGovernor.qualityScale(),
     );
     if (desired === this._max) return;
     this._max = desired;
@@ -168,8 +170,7 @@ export class Weather {
     // worldOverlay container which spans the full window, but the
     // user-resizable game area is camera.viewX..viewW. Painting rain
     // across the full window made streaks appear in the dark-blue
-    // chrome to the right/below the game viewport (user report
-    // 2026-05-19 "burza nie na obszarze gry tylko na całej reszcie").
+    // chrome to the right/below the game viewport instead of staying in the play area.
     const vx = camera.viewX | 0;
     const vy = camera.viewY | 0;
     const w  = Math.max(64, camera.viewW | 0);

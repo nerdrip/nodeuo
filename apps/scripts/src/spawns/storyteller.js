@@ -15,7 +15,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
 import { allMobiles } from '../_spatial.js';
-import { canCreateMobile, createMobile } from '../_mobiles.js';
+import { canCreateMobile, createMobile, destroyMobileBySerial } from '../_mobiles.js';
+import { registerWorldContentSeed } from '../_world-content.js';
+import { mobileBySerial } from '../_entities.js';
 
 const __HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const __DATA = path.resolve(__HERE, '../data/world/spawns/storyteller-tales.json');
@@ -49,6 +51,10 @@ function startStory(api, npc) {
   npc._storyTitle = story.title;
   let lineIdx = 0;
   const tick = () => {
+    if (!mobileBySerial(api, npc.serial)) {
+      npc._storyActive = false;
+      return;
+    }
     if (lineIdx === 0) {
       speakLineOverhead(api, npc, `*clears throat* "Gather 'round — I shall tell ye of: ${story.title}."`);
     }
@@ -72,7 +78,7 @@ function startStory(api, npc) {
       return;
     }
     speakLineOverhead(api, npc, story.lines[lineIdx++]);
-    setTimeout(tick, LINE_DELAY_MS).unref?.();
+    (api.lifecycle?.setTimeout ?? setTimeout)(tick, LINE_DELAY_MS)?.unref?.();
   };
   tick();
   return true;
@@ -103,8 +109,45 @@ function placeStoryteller(api, x, y, z, map) {
 export default function register(api) {
   if (!api.commands || !api.world) return () => {};
 
-  // Place one at the Britain inn on boot.
-  (api.lifecycle?.setImmediate ?? setImmediate)(() => placeStoryteller(api, 1496, 1624, 10, 1));
+  const canonical = { x: 1496, y: 1624, z: 10, map: 1 };
+  let canonicalNpc = null;
+  const applyStoryteller = (opts = {}) => {
+    if (opts.facets && !opts.facets.includes(canonical.map)) return { added: 0 };
+    canonicalNpc = [...allMobiles(api)].find((mobile) =>
+      (mobile._storyteller || mobile.kind === 'storyteller') &&
+      mobile.name === 'Master Storyteller' && mobile.map === canonical.map &&
+      mobile.x === canonical.x && mobile.y === canonical.y && mobile.z === canonical.z);
+    const added = canonicalNpc ? 0 : 1;
+    canonicalNpc ??= placeStoryteller(api, canonical.x, canonical.y, canonical.z, canonical.map);
+    if (canonicalNpc) canonicalNpc._worldContentSeed = 'canonical-storyteller';
+    return { added: canonicalNpc ? added : 0, failed: canonicalNpc ? 0 : 1 };
+  };
+  const removeStoryteller = (opts = {}) => {
+    if (opts.facets && !opts.facets.includes(canonical.map)) return { removed: 0 };
+    const serials = new Set();
+    for (const mobile of allMobiles(api)) {
+      if ((mobile._worldContentSeed === 'canonical-storyteller') ||
+          (mobile.name === 'Master Storyteller' && mobile.kind === 'storyteller' &&
+           mobile.map === canonical.map && mobile.x === canonical.x && mobile.y === canonical.y)) {
+        serials.add(mobile.serial >>> 0);
+      }
+    }
+    if (canonicalNpc) serials.add(canonicalNpc.serial >>> 0);
+    let removed = 0;
+    for (const serial of serials) {
+      try { if (mobileBySerial(api, serial)) { destroyMobileBySerial(api, serial); removed++; } }
+      catch (error) { api.log?.(`[storyteller] remove failed: ${error.message}`); }
+    }
+    canonicalNpc = null;
+    return { removed };
+  };
+  const unregisterSeed = registerWorldContentSeed(api, 'canonical-storyteller', {
+    apply: applyStoryteller,
+    remove: removeStoryteller,
+  });
+  if (api.world._createWorldDone !== false) {
+    (api.lifecycle?.setImmediate ?? setImmediate)(applyStoryteller);
+  }
 
   api.commands.register({
     name: 'storyteller',
@@ -153,5 +196,8 @@ export default function register(api) {
     },
   });
 
-  return () => api.commands.unregister('storyteller');
+  return () => {
+    unregisterSeed();
+    api.commands.unregister('storyteller');
+  };
 }

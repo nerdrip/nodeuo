@@ -1,4 +1,4 @@
-// FAZA EO — `[disguise` Disguise Kit (Thieves Guild reward).
+// PHASE EO — `[disguise` Disguise Kit (Thieves Guild reward).
 //
 // ServUO `Items/Tools/DisguiseKit.cs`: temporarily hides the player's
 // name + applies a random alias. Useful for evading bounty hunters

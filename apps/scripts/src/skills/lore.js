@@ -1,4 +1,4 @@
-// FAZA CU — Animal Lore + Arms Lore + Item Identification.
+// PHASE CU — Animal Lore + Arms Lore + Item Identification.
 //
 // Three thin skill commands that target a creature/item and print a
 // stat dump as system messages. ServUO opens dedicated gumps for

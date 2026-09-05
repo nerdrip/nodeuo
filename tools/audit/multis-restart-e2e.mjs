@@ -101,11 +101,14 @@ function seedMultis(world, owner) {
   );
   const acl = newAclFor(owner);
   const aclParts = applyAclToTiles(world, 0x006E, spawn.map, acl, house.instanceId);
-  assert.equal(aclParts, 3, 'house ACL was not attached to anchor and both proxies');
+  assert.equal(aclParts, 2, 'house ACL was not attached to anchor and dynamic door');
 
   const boat = placeGalleon(api, {
     kind: 'small',
-    x: spawn.x + 8,
+    // East-facing small hull extends five cells west of its origin. Keep the
+    // audit structures genuinely disjoint now that placement checks the full
+    // hull instead of only its origin tile.
+    x: spawn.x + 16,
     y: spawn.y + 2,
     z: spawn.z,
     map: spawn.map,
@@ -134,7 +137,7 @@ function startGameServer(world, accounts, generation) {
       commands,
       id: generation * 100 + states.length + 1,
       remoteAddress: request.socket?.remoteAddress ?? null,
-      nodeUOTransport: ws.protocol === 'nodeuo.v1',
+      nodeUOTransportVersion: ws.protocol,
     });
     states.push(state);
   });
@@ -259,7 +262,28 @@ async function loginClient(browser, webUrl, gamePort, user, generation) {
     return play && !play.disabled;
   });
   await clickTransition('#cs-play');
-  await page.waitForFunction(() => globalThis.__uo?.gc?.scene?._tiles, null, { timeout: 30_000 });
+  try {
+    await page.waitForFunction(() => globalThis.__uo?.gc?.scene?._tiles, null, { timeout: 30_000 });
+  } catch (error) {
+    const diagnostics = await page.evaluate(() => ({
+      url: location.href,
+      title: document.title,
+      loginMessage: document.querySelector('#m-msg')?.textContent ?? null,
+      characterMessage: document.querySelector('#cs-msg')?.textContent ?? null,
+      loadingDetail: document.querySelector('#uo-loading-detail')?.textContent ?? null,
+      loadingPercent: document.querySelector('#uo-loading-percent')?.textContent ?? null,
+      visibleControls: ['#m-login', '#ss-next', '#cs-play'].filter(
+        (selector) => document.querySelector(selector),
+      ),
+      runtimeReady: !!globalThis.__uo?.gc,
+      scene: globalThis.__uo?.gc?.scene?.constructor?.name ?? null,
+      tileRendererReady: !!globalThis.__uo?.gc?.scene?._tiles,
+    })).catch((evaluateError) => ({ evaluateError: String(evaluateError) }));
+    throw new Error(`${user.username}: client did not enter world: ${JSON.stringify({
+      diagnostics,
+      pageErrors,
+    })}`, { cause: error });
+  }
   return { context, page, pageErrors, user };
 }
 
@@ -365,9 +389,11 @@ function assertDurableServerState(world, ids, playerSerials) {
   const houseParts = [...world.items.values()].filter(
     (item) => (item._multiInstance >>> 0) === ids.houseSerial,
   );
-  assert.equal(houseParts.length, 3, 'house proxies were lost or duplicated during persistence');
+  assert.equal(houseParts.length, 2, 'house anchor/dynamic door were lost or duplicated during persistence');
   assert.ok(houseParts.every((item) => item._multiAcl === house._multiAcl), 'house ACL identity was not restored');
-  assert.ok(houseParts.filter((item) => !item._multiAnchor).every((item) => item._noDecay), 'house proxy durability flag was lost');
+  assert.ok(houseParts.filter((item) => !item._multiAnchor).every((item) => item._noDecay), 'house dynamic-part durability flag was lost');
+  assert.equal(house._multiComponentCount, 2, 'compact multi component count was lost');
+  assert.equal(house._multiCollision?.length, 1, 'compact multi collision was lost');
 
   assert.ok(boat?.boat, 'boat state did not survive server restart');
   assert.equal(boat.multiId, ids.boatMultiId);

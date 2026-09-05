@@ -8,6 +8,10 @@ import { fileURLToPath } from 'node:url';
 const brotli = promisify(zlib.brotliCompress);
 const gzip = promisify(zlib.gzip);
 const HERE = path.dirname(fileURLToPath(import.meta.url));
+const PUBLIC_ROOT = path.join(HERE, 'public');
+const DIST_ROOT = path.join(HERE, 'dist');
+const PUBLIC_MANIFEST = path.join(DIST_ROOT, '.nodeuo-public-assets.json');
+const BUNDLE_MANIFEST = path.join(DIST_ROOT, '.nodeuo-bundle-files.json');
 
 // Mime/text-ish assets where compression is worth it. Pre-compressed binary
 // (PNG, mp3, br/gz already), source maps, and giant UO binary blobs are
@@ -109,9 +113,83 @@ function ensureKtxTranscoderPlugin() {
   };
 }
 
-export default defineConfig(({ mode }) => ({
+function readManifest(file, fallback) {
+  try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return fallback; }
+}
+
+function outputPath(relative) {
+  const resolved = path.resolve(DIST_ROOT, relative);
+  if (resolved !== DIST_ROOT && !resolved.startsWith(`${DIST_ROOT}${path.sep}`)) {
+    throw new Error(`Unsafe build output path: ${relative}`);
+  }
+  return resolved;
+}
+
+function publicFiles() {
+  const files = [];
+  const queue = [PUBLIC_ROOT];
+  while (queue.length) {
+    const directory = queue.pop();
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const full = path.join(directory, entry.name);
+      if (entry.isDirectory()) queue.push(full);
+      else if (entry.isFile()) files.push(full);
+    }
+  }
+  return files;
+}
+
+/** Keep multi-gigabyte decoded UO assets outside Vite's delete-and-recopy pass.
+ * Generated bundles are still replaced on every build; public files are
+ * synchronized by a bounded metadata manifest and deleted when removed. */
+function incrementalPublicPlugin() {
+  let emitted = [];
+  return {
+    name: 'uo-incremental-public',
+    apply: 'build',
+    buildStart() {
+      fs.mkdirSync(DIST_ROOT, { recursive: true });
+      for (const relative of readManifest(BUNDLE_MANIFEST, { files: [] }).files ?? []) {
+        const file = outputPath(relative);
+        for (const candidate of [file, `${file}.br`, `${file}.gz`]) {
+          try { fs.unlinkSync(candidate); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+        }
+      }
+    },
+    writeBundle(_options, bundle) { emitted = Object.keys(bundle); },
+    closeBundle() {
+      const previous = readManifest(PUBLIC_MANIFEST, { files: {} }).files ?? {};
+      const current = {};
+      let copied = 0, skipped = 0, removed = 0;
+      for (const source of publicFiles()) {
+        const relative = path.relative(PUBLIC_ROOT, source).replaceAll(path.sep, '/');
+        const stat = fs.statSync(source);
+        const signature = `${stat.size}:${Math.trunc(stat.mtimeMs)}`;
+        const target = outputPath(relative);
+        current[relative] = signature;
+        if (fs.existsSync(target) && fs.statSync(target).size === stat.size
+            && (!previous[relative] || previous[relative] === signature)) { skipped++; continue; }
+        fs.mkdirSync(path.dirname(target), { recursive: true });
+        fs.copyFileSync(source, target);
+        copied++;
+      }
+      for (const relative of Object.keys(previous)) {
+        if (current[relative]) continue;
+        const file = outputPath(relative);
+        for (const candidate of [file, `${file}.br`, `${file}.gz`]) {
+          try { fs.unlinkSync(candidate); removed++; } catch (error) { if (error.code !== 'ENOENT') throw error; }
+        }
+      }
+      fs.writeFileSync(PUBLIC_MANIFEST, JSON.stringify({ schema: 1, files: current }));
+      fs.writeFileSync(BUNDLE_MANIFEST, JSON.stringify({ schema: 1, files: emitted }));
+      console.log(`[public-assets] copied ${copied}, reused ${skipped}, removed ${removed}`);
+    },
+  };
+}
+
+export default defineConfig(({ command, mode }) => ({
   root: '.',
-  publicDir: 'public',
+  publicDir: command === 'build' ? false : 'public',
   server: {
     port: 5173,
     strictPort: true,
@@ -119,6 +197,7 @@ export default defineConfig(({ mode }) => ({
   },
   build: {
     outDir: 'dist',
+    emptyOutDir: false,
     target: 'es2022',
     // 'hidden' keeps maps for crash diagnostics but doesn't expose them
     // via the //# sourceMappingURL comment — saves a public fetch and
@@ -174,6 +253,7 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     ensureKtxTranscoderPlugin(),
+    incrementalPublicPlugin(),
     precompressPlugin(),
   ],
 }));

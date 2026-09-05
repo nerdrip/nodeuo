@@ -14,8 +14,8 @@ export default {
     const caster = ctx.sender;
     radius(api, caster, 8, (m) => {
           if (m === caster || m.notoriety > 2) return;
-          m.dmgReductionUntil = Date.now() + 60_000;
-          m.dmgReductionPct = 0.15;
+          m._perseveranceUntil = Date.now() + 60_000;
+          m._perseveranceReduction = 0.15;
         });
   },
 };

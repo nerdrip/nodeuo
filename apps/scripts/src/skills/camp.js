@@ -66,7 +66,7 @@ export default function register(api) {
       });
       fire.campOwner = mob.serial >>> 0;
       // Broadcast spawn.
-      // BUGFIX #84 (FAZA DP): the previous global loops shipped 0xF3
+      // BUGFIX #84 (PHASE DP): the previous global loops shipped 0xF3
       // and 0x1D to every connected client whenever someone made camp
       // OR the campfire decayed. Same bug class as #65/#78/#80. Filter
       // by map + 18 tiles around the campfire's own coordinates (which

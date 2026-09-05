@@ -188,7 +188,7 @@ export function tickDecayBudgeted(world, now = Date.now(), decayMs = DEFAULT_DEC
 export function startDecaySweeper(world, opts = {}) {
   const intervalMs = opts.intervalMs ?? DEFAULT_SWEEP_MS;
   const decayMs    = opts.decayMs    ?? DEFAULT_DECAY_MS;
-  const handle = setInterval(() => {
+  const tick = () => {
     try {
       const now = Date.now();
       const stats = opts.maxPerTick
@@ -198,7 +198,10 @@ export function startDecaySweeper(world, opts = {}) {
     } catch (e) {
       console.error('[decay] sweep failed:', e);
     }
-  }, intervalMs);
+  };
+  const handle = opts.scheduler?.every
+    ? opts.scheduler.every('item-decay', intervalMs, tick)
+    : setInterval(tick, intervalMs);
   // Don't keep the Node event loop alive purely for the sweeper —
   // matches how the spawner / save cron behave.
   if (typeof handle?.unref === 'function') handle.unref();

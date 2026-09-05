@@ -1,4 +1,4 @@
-// FAZA DD — peerless dungeon bosses (Mondain's Legacy / Stygian Abyss).
+// PHASE DD — peerless dungeon bosses (Mondain's Legacy / Stygian Abyss).
 //
 // In ServUO a peerless is a one-of-a-kind dungeon boss locked behind
 // a quest-key altar. Players gather a fixed list of keys, drop them on
@@ -40,7 +40,28 @@ const DEFAULT_COOLDOWN_MS = 60 * 60 * 1000;
 /** @param {ArenaDef} def */
 export function registerArena(def) {
   if (!def?.name) throw new Error('peerless arena needs a name');
-  arenas.set(def.name, def);
+  if (!Array.isArray(def.requiredKeys)) {
+    throw new Error(`peerless arena ${def.name} requires a key list`);
+  }
+  if (!def.bossKind || !def.spawnAt || !def.teleportTo) {
+    throw new Error(`peerless arena ${def.name} has an incomplete encounter definition`);
+  }
+  const registered = Object.freeze({
+    ...def,
+    requiredKeys: Object.freeze([...def.requiredKeys]),
+    spawnAt: Object.freeze({ ...def.spawnAt }),
+    teleportTo: Object.freeze({ ...def.teleportTo }),
+  });
+  arenas.set(registered.name, registered);
+  return registered;
+}
+
+/** Remove only the definition owned by the unloading script. */
+export function unregisterArena(name, expected = null) {
+  const current = arenas.get(name);
+  if (!current || (expected && current !== expected)) return false;
+  arenas.delete(name);
+  return true;
 }
 
 /** @param {string} name */
@@ -66,7 +87,7 @@ export function _resetArenasForTest() {
  * @returns {boolean}
  */
 export function isOnCooldown(arenaName, now = Date.now()) {
-  const until = cooldowns.get(arenaName) | 0;
+  const until = Number(cooldowns.get(arenaName)) || 0;
   return until > now;
 }
 
@@ -79,8 +100,9 @@ export function isOnCooldown(arenaName, now = Date.now()) {
  */
 export function markFinished(arenaName, now = Date.now()) {
   const def = arenas.get(arenaName);
-  if (!def) return;
+  if (!def) return false;
   cooldowns.set(arenaName, now + (def.cooldownMs ?? DEFAULT_COOLDOWN_MS));
+  return true;
 }
 
 /**
@@ -93,10 +115,11 @@ export function markFinished(arenaName, now = Date.now()) {
  * @param {*} altar          the altar item (must have `arenaName`)
  * @returns {{ok:true, def:ArenaDef}|{ok:false, reason:string}}
  */
-export function tryUnlock(world, altar) {
+export function validateUnlock(world, altar, now = Date.now()) {
   const def = arenas.get(altar?.arenaName);
   if (!def) return { ok: false, reason: 'no-arena-registered' };
-  if (isOnCooldown(def.name)) return { ok: false, reason: 'cooldown' };
+  if (isOnCooldown(def.name, now)) return { ok: false, reason: 'cooldown' };
+  if (!world?.items) return { ok: false, reason: 'world-unavailable' };
   // Walk only items parented to the altar via reverse index — typical
   // altar has ≤6 quest-key items.
   const dropped = [];
@@ -124,11 +147,28 @@ export function tryUnlock(world, altar) {
   if (remaining.length > 0) {
     return { ok: false, reason: `missing-keys:${remaining.join(',')}` };
   }
-  // Consume the keys through the lifecycle path so altar children,
-  // sectors and onDestroy hooks cannot leak stale references.
-  for (const it of consumed) {
-    try { destroyItem(world, it.serial); }
-    catch { /* already consumed */ }
+  return { ok: true, def, altarSerial: altar.serial >>> 0, consumed };
+}
+
+/** Commit a previously validated offering after the boss spawn succeeds. */
+export function commitUnlock(world, validation) {
+  if (!validation?.ok || !world?.items) return false;
+  // Revalidate ownership before deleting anything. This makes the operation
+  // safe if another altar use moved or consumed one of the offerings between
+  // validation and spawn.
+  for (const expected of validation.consumed ?? []) {
+    const current = world.items.get(expected.serial);
+    if (!current || current.parent !== validation.altarSerial || current.name !== expected.name) {
+      return false;
+    }
   }
-  return { ok: true, def };
+  for (const it of validation.consumed ?? []) destroyItem(world, it.serial);
+  return true;
+}
+
+export function tryUnlock(world, altar) {
+  const validation = validateUnlock(world, altar);
+  if (!validation.ok) return validation;
+  if (!commitUnlock(world, validation)) return { ok: false, reason: 'offering-changed' };
+  return { ok: true, def: validation.def };
 }

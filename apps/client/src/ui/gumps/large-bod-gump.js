@@ -1,5 +1,5 @@
 // LargeBodGump — Large Bulk Order Deed progress UI (ServUO
-// `Gumps/LargeBODGump.cs`). Faza G #9.
+// `Gumps/LargeBODGump.cs`). Phase G #9.
 //
 // Receives a payload of:
 //   { label: string, skill: number, material: string, exceptional: bool,

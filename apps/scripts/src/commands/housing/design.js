@@ -42,7 +42,14 @@ export default function register(api) {
 
       switch (sub) {
         case 'start':
-          house.editing = { tiles: house.tiles?.slice?.() ?? [], floor: 0, backup: null };
+          if (!house.customizable) {
+            ctx.state.sendSystemMessage('This classic house cannot enter foundation design mode.');
+            return;
+          }
+          if (!HR.beginEditing?.(house, sender)) {
+            ctx.state.sendSystemMessage('The design workspace is already in use.');
+            return;
+          }
           ctx.state.sendSystemMessage('Design mode entered. Use [design commit when done.');
           return;
 

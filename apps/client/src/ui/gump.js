@@ -108,9 +108,8 @@ export class Gump extends Control {
     if (!v) return;
     // Clamp to current window bounds so a position saved from a larger
     // monitor (or one where the user dragged the gump mostly off-screen)
-    // doesn't restore us where only a sliver pokes into view. Marcin:
-    // "paperdoll przyciski poustawiane zle — PEACE/STATUS w rogu" —
-    // the paperdoll had been saved at y≈-200, so only slots 6/7 (the
+    // does not restore it where only a sliver pokes into view. A paperdoll
+    // saved at y≈-200 exposes only slots 6/7 (the
     // bottom of the side-button strip) peeked into the visible
     // viewport. Rules:
     //   • Top edge stays at y ≥ 0  (drag handle / title always visible)

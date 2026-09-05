@@ -31,7 +31,12 @@ describe('rich house authoring', () => {
     houses.addCustomItem(house, 'floor', 0x31F5, 101, 101, 0);
     expect(houses.validateCustom(house)).toMatchObject({ ok: true, tileCount: 2 });
     expect(houses.validateCustom(house).warnings.length).toBeGreaterThan(0);
-    houses.addCustomItem(house, 'item', 0, 500, 500, 500);
+    // Invalid edits are rejected at the mutation boundary.
+    expect(houses.addCustomItem(house, 'item', 0, 500, 500, 500)).toBe(false);
+    expect(houses.validateCustom(house).ok).toBe(true);
+    // Validation remains a second defensive boundary for imported/corrupt
+    // workspaces that did not pass through addCustomItem.
+    house.editing.tiles.push({ kind: 'item', g: 0, x: 500, y: 500, z: 500 });
     const invalid = houses.validateCustom(house);
     expect(invalid.ok).toBe(false);
     expect(invalid.errors.join(' ')).toMatch(/graphic|outside|elevation/i);

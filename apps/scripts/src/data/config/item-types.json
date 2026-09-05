@@ -21410,11 +21410,12 @@
     "artId": 4084,
     "name": "Glassblowing Book",
     "hue": 0,
-    "script": null,
+    "script": "imbue-recipe-scroll",
     "base": "Item",
     "source": "templates/ServUO/Scripts/Items/Consumables/GlassblowingBook.cs",
     "servuoClass": "GlassblowingBook",
-    "weight": 5
+    "weight": 5,
+    "recipeUnlock": "glassblowing"
   },
   "Gold": {
     "definitionId": "Gold",
@@ -22030,11 +22031,12 @@
     "artId": 4030,
     "name": "Masonry Book",
     "hue": 0,
-    "script": null,
+    "script": "imbue-recipe-scroll",
     "base": "Item",
     "source": "templates/ServUO/Scripts/Items/Consumables/MasonryBook.cs",
     "servuoClass": "MasonryBook",
-    "weight": 1
+    "weight": 1,
+    "recipeUnlock": "masonry"
   },
   "MassCurseScroll": {
     "definitionId": "MassCurseScroll",

@@ -83,6 +83,16 @@ describe('mlquests', () => {
     expect(mlq.offer(m, 'qOnce').reason).toBe('already-completed');
   });
 
+  it('reports an uncompleted unique quest as active, not completed', () => {
+    mlq.registerQuest({
+      id: 'qUniqueActive', objectives: [{ type: 'slay', kind: 'rat', count: 2 }],
+      rewards: [], unique: true,
+    });
+    const m = makeMob();
+    mlq.offer(m, 'qUniqueActive');
+    expect(mlq.offer(m, 'qUniqueActive').reason).toBe('already-active');
+  });
+
   it('non-unique quest can be replayed after completion', () => {
     mlq.registerQuest({
       id: 'qRepeat', objectives: [{ type: 'slay', kind: 'rat', count: 1 }],

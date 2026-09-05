@@ -122,5 +122,9 @@ export function registerLeverPuzzle(name, ctrl) {
   _registry.set(name, ctrl);
   return ctrl;
 }
+export function unregisterLeverPuzzle(name, expected = null) {
+  if (expected && _registry.get(name) !== expected) return false;
+  return _registry.delete(name);
+}
 export function getLeverPuzzle(name) { return _registry.get(name) ?? null; }
 export function listLeverPuzzles() { return [..._registry.entries()]; }

@@ -27,6 +27,7 @@ import { allMobiles, allItems } from '../../_spatial.js';
 import { itemBySerial, mobileBySerial } from '../../_entities.js';
 import { destroyItemBySerial } from '../../_items.js';
 import { destroyMobileBySerial } from '../../_mobiles.js';
+import { removeRegisteredWorldContent } from '../../_world-content.js';
 
 const RESET_MARKERS = [
   '_decorationApplied', '_signsApplied', '_doorsApplied',
@@ -104,6 +105,15 @@ export default function register(api) {
       // middle of the reset.
       clearGenerationMarkers(world);
 
+      // Tear down script-owned controllers and their deterministic physical
+      // landmarks before the fixed-point sweep. This prevents timers from
+      // retaining references to items that WipeWorld is about to destroy.
+      let seedItemsRemoved = 0;
+      try {
+        const seeded = removeRegisteredWorldContent(api);
+        seedItemsRemoved = seeded.removed ?? 0;
+      } catch (e) { api.log?.(`[wipeworld] runtime landmarks: ${e.message}`); }
+
       // 1) Forget the live occupants but retain definitions. The false
       //    population gate above keeps every group dormant until a complete
       //    `[createworld` succeeds.
@@ -124,12 +134,21 @@ export default function register(api) {
       // references as well or a restock timer can recreate old content after
       // CreateWorld reopens the population gate.
       let runtimeSystemsReset = 0;
+      let housesReset = 0;
       try {
+        // Sigils are logical singleton records rather than World entities.
+        // Clear them explicitly so the next `[createworld` rebuilds all five
+        // instead of incorrectly reporting them as already present.
+        runtimeSystemsReset += api.systems?.sigils?.resetSigils?.()?.removed ?? 0;
         runtimeSystemsReset += api.systems?.camps?.reset?.()?.campsRemoved ?? 0;
         for (const spawn of api.systems?.miniChampion?.listMiniChamps?.() ?? []) {
           spawn.stop?.();
           runtimeSystemsReset++;
         }
+        housesReset = api.houses?.reset?.() ?? 0;
+        api.systems?.maginciaBazaar?.deserializeStalls?.([]);
+        api.systems?.bulletinBoard?.deserializeBoards?.({ nextPostSerial: 1, boards: [] });
+        api.systems?.itemHistory?.clearAll?.();
       } catch (e) { api.log?.(`[wipeworld] runtime systems: ${e.message}`); }
 
       // 2) Kill every NPC mobile (anything without `isPlayer`). Their
@@ -137,7 +156,7 @@ export default function register(api) {
       //    don't need a second sweep over `world.items` for backpack
       //    contents.
       let mobsKilled = 0;
-      let itemsRemoved = 0;
+      let itemsRemoved = seedItemsRemoved;
       const removedSerials = new Set();
 
       // Destroy hooks are allowed to create follow-up entities. Sweep to a
@@ -182,6 +201,8 @@ export default function register(api) {
       // saves or scripts that bypassed the normal destruction facade.
       try { world.enableSpatialIndexes?.(); }
       catch (e) { api.log?.(`[wipeworld] spatial rebuild: ${e.message}`); }
+      try { api.systems?.playerVendor?.rebuildVendorIndex?.(world); }
+      catch (e) { api.log?.(`[wipeworld] vendor index rebuild: ${e.message}`); }
 
       // Remove already-rendered entities before the positional refresh. A
       // plain Map deletion is invisible to both the classic 0x1D protocol
@@ -238,10 +259,15 @@ export default function register(api) {
           }).catch((e) => api.log?.(`[wipeworld] save: ${e.message}`));
         }
       } catch (e) { api.log?.(`[wipeworld] save trigger: ${e.message}`); }
+      try {
+        const r = api.persistence?.requestAuxiliarySave?.('wipeworld');
+        if (r?.then) r.catch((e) => api.log?.(`[wipeworld] auxiliary save: ${e.message}`));
+      } catch (e) { api.log?.(`[wipeworld] auxiliary save trigger: ${e.message}`); }
 
       ctx.state.sendSystemMessage(
         `WipeWorld done. -${itemsRemoved} items, -${mobsKilled} mobs, ` +
-        `${spawnersReset} spawner groups/${runtimeSystemsReset} runtime systems reset; ` +
+        `${spawnersReset} spawner groups/${runtimeSystemsReset} runtime systems/` +
+        `${housesReset} houses reset; ` +
         `residual world=${remainingWorldItems} items/${remainingNpcs} mobs, ` +
         `client removals=${removalPackets}.`,
       );

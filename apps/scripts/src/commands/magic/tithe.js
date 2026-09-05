@@ -6,7 +6,7 @@
 //
 // 1 gold = 1 tithing point. Cap at 10 000 (ServUO default).
 // Chivalry spells cost from `mob.tithingPoints` instead of mana —
-// see `cast.js` for the dispatcher hook (FAZA AI part 2).
+// see `cast.js` for the dispatcher hook (PHASE AI part 2).
 
 import { allItems } from '../../_spatial.js';
 import { itemBySerial } from '../../_entities.js';

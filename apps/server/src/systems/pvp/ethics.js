@@ -107,10 +107,16 @@ export const HERO_POWERS = Object.freeze([
       caster.ethicShieldFactor = 0.5;
     } },
   { id: 'awareness',     name: 'Awareness',        minTier: 3, cost: 120,
-    effect: (caster) => {
+    effect: (caster, _target, world) => {
       // Reveals hidden mobs in range 8 for 120 s; combat-formulas
       // hitChance skips stealth penalties while active.
       caster.ethicAwareUntil = Date.now() + 120_000;
+      for (const mob of world?.mobiles?.values?.() ?? []) {
+        if (mob === caster || mob.map !== caster.map || !mob.hidden) continue;
+        if (Math.max(Math.abs(mob.x - caster.x), Math.abs(mob.y - caster.y)) <= 8) {
+          mob.hidden = false;
+        }
+      }
     } },
   { id: 'vehemence',     name: 'Vehemence',        minTier: 4, cost: 200,
     effect: (caster) => {
@@ -122,13 +128,13 @@ export const HERO_POWERS = Object.freeze([
 ]);
 
 export const EVIL_POWERS = Object.freeze([
-  { id: 'despoil',  name: 'Despoil',  minTier: 1, cost: 50,
+  { id: 'despoil',  name: 'Despoil',  minTier: 1, cost: 50, requiresTarget: true,
     effect: (caster, target) => {
       // Marks the target so the next time anyone (caster's allies
       // included) kills them, gold drop is doubled. 60 s window.
       if (target) target.ethicDespoilUntil = Date.now() + 60_000;
     } },
-  { id: 'curse',    name: 'Curse',    minTier: 2, cost: 80,
+  { id: 'curse',    name: 'Curse',    minTier: 2, cost: 80, requiresTarget: true,
     effect: (caster, target) => {
       // Target deals -20% damage for 30 s. combat-formulas reads
       // ethicCurseUntil + ethicCurseMalus.
@@ -137,7 +143,7 @@ export const EVIL_POWERS = Object.freeze([
         target.ethicCurseMalus = 0.2;
       }
     } },
-  { id: 'blast',    name: 'Blast',    minTier: 3, cost: 120,
+  { id: 'blast',    name: 'Blast',    minTier: 3, cost: 120, requiresTarget: true,
     effect: (caster, target, world) => {
       // Direct 25..40 damage, energy-typed. Routed through the
       // combat damage hook so it triggers aggression + on-hit procs.
@@ -147,7 +153,7 @@ export const EVIL_POWERS = Object.freeze([
         try { world._combat.damage(world, target, dmg, caster); }
         catch { /* advisory */ }
       } else {
-        target.hp = Math.max(1, (target.hp ?? 1) - dmg);
+        target.hp = Math.max(0, (target.hp ?? 1) - dmg);
       }
     } },
   { id: 'dread',    name: 'Dread',    minTier: 4, cost: 200,
@@ -174,12 +180,17 @@ export function invokePower(mob, powerId, target = null, world = null) {
   if (!mob?.ethic) return { ok: false, reason: 'unaligned' };
   const power = findPower(mob, powerId);
   if (!power) return { ok: false, reason: 'unknown-power' };
+  if (power.requiresTarget && !target) return { ok: false, reason: 'missing-target' };
   if ((mob.ethicPower ?? 0) < power.cost) return { ok: false, reason: 'no-power' };
   const tier = tierOf(mob);
   const tierIdx = TIERS.indexOf(tier);
   if (tierIdx < power.minTier) return { ok: false, reason: 'tier-too-low' };
   mob.ethicPower -= power.cost;
-  try { power.effect(mob, target, world); } catch { /* ignore */ }
+  try { power.effect(mob, target, world); }
+  catch {
+    mob.ethicPower = Math.min(POWER_CAP, mob.ethicPower + power.cost);
+    return { ok: false, reason: 'effect-failed' };
+  }
   return { ok: true, power };
 }
 

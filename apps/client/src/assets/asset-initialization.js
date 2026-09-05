@@ -7,6 +7,21 @@ const BASE = '/assets';
 const ATLAS_BOOT_PRELOAD_CONCURRENCY = 4;
 const ATLAS_BOOT_STATIC_PAGE_LIMIT = 2;
 const ATLAS_BOOT_MOBILE_PAGE_LIMIT = 2;
+const EAGER_MOBILE_BODIES = Object.freeze([
+  0x0190, 0x0191, 0x0192, 0x0193,
+  0x000C, 0x000D, 0x00C8, 0x00E2, 0x00E4, 0x00CC, 0x0035,
+]);
+
+async function loadMobileAtlasRoot() {
+  const index = await fetchJsonOptional(`${BASE}/mobiles-atlas-index.json`);
+  if (index?.format === 'nodeuo.mobile-atlas-shards'
+    && (index.schemaVersion | 0) >= 4
+    && Number.isInteger(index.shardSize)
+    && index.shards && typeof index.shards === 'object') {
+    return { ...index, bodies: {} };
+  }
+  return fetchJsonOptional(`${BASE}/mobiles-atlas.json`);
+}
 
 /** Load only assets required by the account/character-selection shell. The previous
  *  boot path fetched the complete map, statics and mobile animation
@@ -86,14 +101,14 @@ export async function loadWorldAssets(manager, opts = {}) {
     facetMetaJobs.push(fetchJsonOptional(`${BASE}/map${f}.json`));
     facetMetaJobs.push(fetchJsonOptional(`${BASE}/statics${f}.json`));
   }
-  const [hues, tiledata, landAtlas, staticAtlas, gumpAtlas, cliloc, mobilesAtlas, multis, animdata, texmapAtlas, housedata, cursorsManifest, radarcolManifest, fontsManifest, patches, ...facetMetas] = await Promise.all([
+  const [hues, tiledata, landAtlas, staticAtlas, gumpAtlas, cliloc, mobilesAtlas, multis, animdata, texmapAtlas, housedata, cursorsManifest, radarcolManifest, fontsManifest, patches, assetOverrides, ...facetMetas] = await Promise.all([
     fetchJson(`${BASE}/hues.json`),
     manager.tiledata ?? fetchJson(`${BASE}/tiledata.json`),
     fetchJson(`${BASE}/land-atlas.json`),
     fetchJson(`${BASE}/static-atlas.json`),
     manager.gumpAtlas ?? fetchJsonOptional(`${BASE}/gump-atlas.json`),
     fetchJsonOptional(`${BASE}/cliloc.json`),
-    fetchJsonOptional(`${BASE}/mobiles-atlas.json`),
+    loadMobileAtlasRoot(),
     fetchJsonOptional(`${BASE}/multi.json`),
     fetchJsonOptional(`${BASE}/animdata.json`),
     fetchJsonOptional(`${BASE}/texmap-atlas.json`),
@@ -107,6 +122,7 @@ export async function loadWorldAssets(manager, opts = {}) {
     // JSON manifest instead of the binary container — easier to author
     // server-side, easier to debug. Empty-or-missing → no patches.
     fetchJsonOptional(`${BASE}/patches.json`),
+    fetchJsonOptional(`${BASE}/asset-overrides.json`),
     ...facetMetaJobs,
   ]);
   // Audit rev.4 P2 — additional optional manifests loaded best-effort.
@@ -172,7 +188,7 @@ export async function loadWorldAssets(manager, opts = {}) {
       }
     }
   } catch { /* localized overlay missing — silent fallback to ENU */ }
-  manager.mobilesAtlas = mobilesAtlas;
+  manager.configureMobileAtlas?.(mobilesAtlas);
   manager.multis = multis;
   manager.animdata = animdata;
   manager.texmapAtlas = texmapAtlas;
@@ -229,6 +245,10 @@ export async function loadWorldAssets(manager, opts = {}) {
     } catch (e) {
       console.warn('[assets] patches.json malformed, ignoring:', e?.message);
     }
+  }
+  if (assetOverrides) {
+    try { manager.applyAssetOverrides(assetOverrides); }
+    catch (e) { console.warn('[assets] asset-overrides.json malformed, ignoring:', e?.message); }
   }
   // Audit #46 P2 — wire VerData binary applier. Was: `manager.verdata`
   // was fetched + stored but never read. Now: feeds the texture-
@@ -362,12 +382,13 @@ export async function loadWorldAssets(manager, opts = {}) {
     // a body whose page hasn't been mounted yet (asset-manager already
     // lazily resolves; we just stop preloading every page).
     const eagerPages = new Set();
-    const eagerBodies = [
-      0x0190, 0x0191, 0x0192, 0x0193,                 // human m/f first
-      0x000C, 0x000D,
-      0x00C8, 0x00E2, 0x00E4, 0x00CC, 0x0035,         // horses + warhorse
-    ];
-    const bodies = mobilesAtlas?.bodies ?? mobilesAtlas?.frames ?? null;
+    const eagerBodies = EAGER_MOBILE_BODIES;
+    // The index itself intentionally has no `bodies`. Warm only a few small
+    // metadata shards needed for login-area humans and mounts before choosing
+    // their atlas pages. This replaces the former ~53 MB blocking manifest.
+    await manager.prefetchMobileBodies?.(eagerBodies);
+    const activeMobileAtlas = manager.mobilesAtlas ?? mobilesAtlas;
+    const bodies = activeMobileAtlas?.bodies ?? activeMobileAtlas?.frames ?? null;
     if (bodies) {
       eagerBodyScan: for (const id of eagerBodies) {
         const body = bodies[id] ?? bodies[String(id)];
@@ -393,7 +414,7 @@ export async function loadWorldAssets(manager, opts = {}) {
     // even if the manifest shape doesn't match.
     if (eagerPages.size === 0) {
       selectedMobilePages.push(0);
-      if (mobilesAtlas.pageCount > 1) selectedMobilePages.push(1);
+      if (activeMobileAtlas.pageCount > 1) selectedMobilePages.push(1);
     }
     for (const p of selectedMobilePages) addPreload('mobiles', p);
   }
@@ -417,4 +438,3 @@ export async function loadWorldAssets(manager, opts = {}) {
   await Promise.allSettled(waits);
   onProgress(1.0, 'ready');
 }
-

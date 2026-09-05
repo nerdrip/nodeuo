@@ -36,7 +36,7 @@ function stableCapFor(mob) {
   max += (mob?.rewardStableSlots | 0);
   return max;
 }
-// FAZA DJ: 30-day expiration. Pets stabled longer than this without a
+// PHASE DJ: 30-day expiration. Pets stabled longer than this without a
 // withdraw are released into the wild on next `[stable list/withdraw`.
 const STABLE_EXPIRY_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -72,7 +72,7 @@ function broadcastIncoming(api, mob) {
     direction: mob.direction, hue: mob.hue, flags: mob.flags,
     notoriety: mob.notoriety, equipment: [],
   });
-  // BUGFIX #78 (FAZA DJ): visibility-gate. The previous global loop
+  // BUGFIX #78 (PHASE DJ): visibility-gate. The previous global loop
   // shipped 0x78 mobileIncoming to every connected client on the
   // shard whenever someone withdrew a pet. Same bug class as #65 but
   // unmissed during the audit pass because stable was buried.
@@ -230,9 +230,9 @@ export default function register(api) {
           stam: pet.stam, stamMax: pet.stamMax,
           notoriety: pet.notoriety, controlMaster: mob.serial >>> 0,
           map: pet.map,
-          // FAZA DJ: expiration timer.
+          // PHASE DJ: expiration timer.
           stabledAt: Date.now(),
-          // Preserve pet training (FAZA DF) across the round-trip.
+          // Preserve pet training (PHASE DF) across the round-trip.
           petXp: pet.petXp, petLevel: pet.petLevel,
           _origPetHpMax: pet._origPetHpMax, _origPetStr: pet._origPetStr,
         };
@@ -270,7 +270,7 @@ export default function register(api) {
           ctx.state.sendSystemMessage(`The animal trainer takes ${STABLE_COST} gold.`);
         }
         mob.stabled.splice(idx, 1);
-        // BUGFIX #4 (FAZA AI): createMobile only spreads its own
+        // BUGFIX #4 (PHASE AI): createMobile only spreads its own
         // canonical fields (name/body/hue/stats/skills) — it does NOT
         // copy `kind`, `controlMaster`, or any other ad-hoc tags from
         // the input data. Round-tripping through the stable used to

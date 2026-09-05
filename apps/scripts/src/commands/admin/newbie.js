@@ -1,5 +1,5 @@
 import { itemBySerial } from '../../_entities.js';
-// FAZA ET — `[newbie` admin command marks a target item as
+// PHASE ET — `[newbie` admin command marks a target item as
 // LootType.Blessed (kept on death). Companion to insurance: insurance
 // is paid by gold, newbied is a static flag set by GMs / starter kits.
 

@@ -19,7 +19,7 @@ export default function register(api) {
       direction: mob.direction, hue: mob.hue,
       flags: mob.flags, notoriety: mob.notoriety,
     });
-    // BUGFIX #80 (FAZA DL): visibility-gate. The previous global loop
+    // BUGFIX #80 (PHASE DL): visibility-gate. The previous global loop
     // shipped 0x77 mobileMoving with the new hue/notoriety to every
     // connected client whenever an admin tweaked their own karma —
     // same bug class as #65/#78. Filter by map + 18 tiles.

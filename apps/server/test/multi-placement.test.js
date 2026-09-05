@@ -47,7 +47,7 @@ describe('canonical multi placement', () => {
     expect(houseDeedPlacementHue({ hue: 0x0000 })).toBe(0);
   });
 
-  it('sends one type-2 anchor, keeps collision proxies hidden, and preserves dynamic pieces', () => {
+  it('sends one type-2 anchor, compacts immutable collision, and preserves dynamic pieces', () => {
     const { api, delivered } = makeApi();
     const tiles = [
       { id: WALL, x: 0, y: 0, z: 0, visible: true },
@@ -68,8 +68,9 @@ describe('canonical multi placement', () => {
       visible: true,
     });
     expect(result.placed).toBe(2);
-    expect(parts).toHaveLength(2);
-    expect(parts.find((item) => item.itemId === WALL)).toMatchObject({ visible: false, solid: true });
+    expect(parts).toHaveLength(1);
+    expect(result.anchor._multiComponentCount).toBe(2);
+    expect(result.anchor._multiCollision).toEqual([[0, 0, 0, 20]]);
     expect(parts.find((item) => item.itemId === DOOR)).toMatchObject({ visible: true });
     expect(parts.find((item) => item.itemId === DOOR).door).toBeTruthy();
     expect(delivered).toEqual([
@@ -87,14 +88,14 @@ describe('canonical multi placement', () => {
     const acl = newAclFor(owner);
 
     expect(first.instanceId).not.toBe(second.instanceId);
-    expect(applyAclToTiles(api.world, 0x006E, 1, acl, first.instanceId)).toBe(2);
+    expect(applyAclToTiles(api.world, 0x006E, 1, acl, first.instanceId)).toBe(1);
     for (const item of api.world.items.values()) {
       if (item._multiInstance === first.instanceId) expect(item._multiAcl).toBe(acl);
       if (item._multiInstance === second.instanceId) expect(item._multiAcl).toBeUndefined();
     }
   });
 
-  it('round-trips anchor identity and hidden collision proxies through persistence', () => {
+  it('round-trips anchor identity and compact collision through persistence', () => {
     const { api } = makeApi();
     const result = stampMultiAt(
       api,
@@ -108,20 +109,17 @@ describe('canonical multi placement', () => {
     );
     const owner = api.world.createMobile({ name: 'owner', x: 100, y: 100, z: 0, map: 1 });
     const acl = newAclFor(owner);
-    expect(applyAclToTiles(api.world, 0x006E, 1, acl, result.instanceId)).toBe(2);
+    expect(applyAclToTiles(api.world, 0x006E, 1, acl, result.instanceId)).toBe(1);
 
     const snapshot = snapshotWorld(api.world);
     const savedParts = snapshot.items.filter((item) => item._multiInstance === result.instanceId);
     expect(savedParts.find((item) => item._multiAnchor)).toHaveProperty('_multiAcl');
-    expect(savedParts.find((item) => !item._multiAnchor)).not.toHaveProperty('_multiAcl');
+    expect(savedParts).toHaveLength(1);
 
     const restoredWorld = new World();
     restoreWorld(restoredWorld, JSON.parse(JSON.stringify(snapshot)));
 
     const anchor = restoredWorld.items.get(result.anchor.serial);
-    const proxy = [...restoredWorld.items.values()].find(
-      (item) => item._multiInstance === result.instanceId && !item._multiAnchor,
-    );
     expect(anchor).toMatchObject({
       multiId: 0x006E,
       _multi: 0x006E,
@@ -130,15 +128,9 @@ describe('canonical multi placement', () => {
       hue: 0x0481,
       visible: true,
     });
-    expect(proxy).toMatchObject({
-      _multi: 0x006E,
-      _multiAnchor: false,
-      _multiInstance: result.instanceId,
-      visible: false,
-      solid: true,
-    });
+    expect(anchor._multiCollision).toEqual([[0, 0, 0, 20]]);
+    expect([...restoredWorld.multiSpatial.blockersAt(1, 100, 100)]).toHaveLength(1);
     expect(anchor._multiAcl).toEqual(acl);
-    expect(proxy._multiAcl).toBe(anchor._multiAcl);
   });
 
   it('registers a placed house multi with the placer as owner', () => {

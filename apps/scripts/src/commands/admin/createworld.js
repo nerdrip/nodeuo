@@ -21,9 +21,11 @@ import { applyDoors,        deleteDoors        } from './doorgen.js';
 import { applyTeleporters,  deleteTeleporters  } from './telgen.js';
 import { applyXmlSpawners, deleteXmlSpawners, primeVendorSpawners } from './xmlload.js';
 import { applyMoongates,    deleteMoongates    } from '../../spawns/moongates.js';
-import { placeRegionalNpcs } from '../../spawns/regional-npcs.js';
-import { registerStandardSigils } from '../../items/scripts/functional/sigil.js';
+import { deleteRegionalNpcs, placeRegionalNpcs } from '../../spawns/regional-npcs.js';
+import { deleteStandardSigils, registerStandardSigils } from '../../items/scripts/functional/sigil.js';
+import { deleteCanonicalShrines, placeCanonicalShrines } from '../../items/behaviors/shrines.js';
 import { allMobiles } from '../../_spatial.js';
+import { applyRegisteredWorldContent, removeRegisteredWorldContent } from '../../_world-content.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // admin → commands → src, then data/world/. Used by the gump's
@@ -33,7 +35,7 @@ const DATA_DIR  = resolve(__dirname, '..', '..', 'data', 'world');
 // Bump whenever a full population pass changes its deterministic stages.
 // Stored in world metadata so operators can distinguish an already-current
 // shard from one that needs an explicit `[recreateworld` migration.
-export const WORLD_CONTENT_VERSION = 3;
+export const WORLD_CONTENT_VERSION = 5;
 
 const STAGES = [
   { name: 'Decorations', apply: applyDecorations,  remove: deleteDecorations  },
@@ -44,6 +46,7 @@ const STAGES = [
   // for these to be part of `[createworld` so the cycle wipe + repopulate
   // covers them too instead of relying on the auto-spawn at boot.
   { name: 'Moongates',   apply: applyMoongates,    remove: deleteMoongates    },
+  { name: 'Shrines',     apply: placeCanonicalShrines, remove: deleteCanonicalShrines },
   // XmlSpawner registration runs last so the world has all decorations
   // in place first (some spawners want to deposit chests at known anchor
   // tiles created by the decoration pass).
@@ -58,14 +61,25 @@ const STAGES = [
       const r = placeRegionalNpcs(api);
       return { added: r.placed, failed: r.errors?.length ?? 0 };
     },
-    remove: () => ({ removed: 0 }),
+    remove: deleteRegionalNpcs,
   },
   // Faction sigils — 5 town stones at canonical coords. Idempotent
   // (registerStandardSigils skips if already populated). Batch #18
   // deferred.
   { name: 'Sigils',
-    apply: (api) => { registerStandardSigils(api); return { added: 5 }; },
-    remove: () => ({ removed: 0 }),
+    apply: registerStandardSigils,
+    remove: deleteStandardSigils,
+  },
+  { name: 'QuestNPCs',
+    apply: (api) => api.questContent?.placeCanonicalNpcs?.() ?? { added: 0, skipped: 0 },
+    remove: (api) => api.questContent?.removeCanonicalNpcs?.() ?? { removed: 0 },
+  },
+  // Script-owned physical landmarks (champion altars, dungeon links,
+  // Doom mechanisms, etc.). Their behaviours load at boot, but their
+  // world objects are created and removed only through this lifecycle.
+  { name: 'RuntimeLandmarks',
+    apply: applyRegisteredWorldContent,
+    remove: removeRegisteredWorldContent,
   },
 ];
 
@@ -88,6 +102,12 @@ function refreshConnectedClients(api) {
     catch (e) { api.log?.(`[createworld] refresh net#${m.client.id ?? '?'}: ${e.message}`); }
   }
   return refreshed;
+}
+
+function despawnSelectedGroups(api, facets) {
+  if (typeof api.spawner?.despawnWhere !== 'function') return { groupsMatched: 0, mobilesRemoved: 0 };
+  const selected = facets ? new Set(facets) : null;
+  return api.spawner.despawnWhere((group) => !selected || selected.has(group.map));
 }
 
 function queueWorldSave(api, state) {
@@ -154,7 +174,7 @@ function runStages(api, state, opts, enabled = 0xffff, priorFailures = 0) {
   const npcCount = countNonPlayerMobs(api.world);
   state.sendSystemMessage(
     `CreateWorld ${totals.failed ? `finished with ${totals.failed} failure(s)` : 'done'}. ` +
-    `Total items added: ${totals.added}. NPCs in world: ${npcCount}.`,
+    `Total content records added: ${totals.added}. NPCs in world: ${npcCount}.`,
   );
   return totals;
 }
@@ -253,6 +273,11 @@ function popcount(n) { let c = 0; while (n) { c += n & 1; n >>>= 1; } return c; 
 export default function register(api) {
   if (!api.commands || !api.items) return () => {};
 
+  // Logical sigil ownership/carrier state is intentionally runtime-only.
+  // Rebind it to persisted physical sigil items when a populated shard
+  // restarts; an explicitly clean shard keeps the registry empty.
+  if (api.world._createWorldDone !== false) registerStandardSigils(api);
+
   api.commands.register({
     name: 'createworld',
     help: '[createworld [facet... | gump | force] — populate every facet with decorations, signs, doors and teleporters extracted from ServUO data. `[createworld gump` opens a preview with per-stage toggles. Refuses if the world is already populated; use [wipeworld first or [recreateworld to re-run.',
@@ -304,6 +329,14 @@ export default function register(api) {
       const facets = args.length ? args.map((s) => parseInt(s, 10)).filter(Number.isFinite) : null;
       const opts = facets ? { facets } : {};
       ctx.state.sendSystemMessage('DeleteWorld: removing generated content…');
+      // Close the global population gate before teardown. The command is
+      // synchronous, but this also makes the intended state explicit to all
+      // runtime systems and prevents a follow-up timer from refilling groups.
+      if (!facets) {
+        api.world._createWorldDone = false;
+        api.world._createWorldVersion = 0;
+      }
+      const despawned = despawnSelectedGroups(api, facets);
       const totals = { removed: 0 };
       for (const stage of STAGES) {
         try {
@@ -319,13 +352,12 @@ export default function register(api) {
       // Per-facet runs leave it alone — the world is still partially
       // populated and a bare `[createworld` would skip the leftover
       // facets without us needing to re-stamp anything.
-      if (!facets) {
-        api.world._createWorldDone = false;
-        api.world._createWorldVersion = 0;
-      }
       refreshConnectedClients(api);
       queueWorldSave(api, ctx.state);
-      ctx.state.sendSystemMessage(`DeleteWorld done. Total items removed: ${totals.removed}.`);
+      ctx.state.sendSystemMessage(
+        `DeleteWorld done. Total content removed: ${totals.removed}; ` +
+        `despawned ${despawned.mobilesRemoved} actor(s) from ${despawned.groupsMatched} group(s).`,
+      );
     },
   });
 
@@ -344,6 +376,7 @@ export default function register(api) {
         api.world._createWorldDone = false;
         api.world._createWorldVersion = 0;
       }
+      const despawned = despawnSelectedGroups(api, facets);
       for (const stage of STAGES) {
         try { removed += stage.remove(api, opts).removed ?? 0; }
         catch (e) {
@@ -358,7 +391,7 @@ export default function register(api) {
       ctx.state.sendSystemMessage(`RecreateWorld: removed ${removed}; repopulating…`);
       const result = runStages(api, ctx.state, opts, 0xffff, removeFailures);
       ctx.state.sendSystemMessage(
-        `RecreateWorld: -${removed} +${result.added}` +
+        `RecreateWorld: -${removed} +${result.added}, despawned=${despawned.mobilesRemoved}` +
         (result.failed ? `, failures=${result.failed}.` : '.'),
       );
     },

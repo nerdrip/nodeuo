@@ -6,6 +6,8 @@ import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from '../../apps/client/node_modules/playwright/index.mjs';
 import { startAdminServer } from '../../apps/server/src/admin/admin-server.js';
+import { ContentDependencyGraph } from '../../apps/server/src/systems/content-dependency-graph.js';
+import { PlatformOperations } from '../../apps/server/src/systems/platform-operations.js';
 import { World } from '../../apps/server/src/world/world.js';
 
 /* global ed -- global lexical binding provided by admin/editor.html */
@@ -21,9 +23,12 @@ const accounts = {
 };
 const world = new World();
 world.createMobile({ name: 'browser-audit-admin', x: 1495, y: 1625, map: 1 });
+const scriptsDir = join(ROOT, 'apps/scripts/src');
+const platformOperations = new PlatformOperations({ saveDir, scriptsDir });
+const contentDependencies = new ContentDependencyGraph({ scriptsDir, assetsDir: join(ROOT, 'apps/client/public') });
 const server = startAdminServer({
-  port: 0, host: '127.0.0.1', accounts, sharedCtx: { world },
-  scriptsDir: join(ROOT, 'apps/scripts/src'), saveDir,
+  port: 0, host: '127.0.0.1', accounts, sharedCtx: { world, platformOperations, contentDependencies },
+  scriptsDir, saveDir,
 });
 if (!server.listening) await new Promise((ok) => server.once('listening', ok));
 const base = `http://127.0.0.1:${server.address().port}`;
@@ -152,7 +157,7 @@ try {
   assert.equal(runtimePrimitives.mutation.conflicts[0].payload.token, '[REDACTED]');
   assert.ok(runtimePrimitives.diagnosticShape.includes('broker') && runtimePrimitives.diagnosticShape.includes('longTasks'));
   const internalTabs = ['dashboard', 'accounts', 'characters', 'items', 'scripts', 'data', 'world-design', 'spawners',
-    'ai-graphs', 'simulators', 'animations', 'operations', 'logs', 'world'];
+    'ai-graphs', 'simulators', 'animations', 'platform', 'operations', 'logs', 'world'];
   for (const tab of internalTabs) {
     await page.click(`[data-tab="${tab}"]`);
     await page.waitForTimeout(125);
@@ -162,8 +167,12 @@ try {
       assert.ok(await page.locator('button', { hasText: 'Vendor' }).count(), 'spawner templates missing');
     }
     if (tab === 'operations') {
-      for (const id of ['ops-runtime','ops-network','ops-ai','ops-storage','ops-alerts','ops-health','ops-backups','ops-migrations','ops-flags','ops-tests','ops-budgets'])
+      for (const id of ['ops-runtime','ops-network','ops-ai','ops-intelligence','ops-storage','ops-alerts','ops-health','ops-backups','ops-migrations','ops-flags','ops-nodeuo-delivery','ops-nodeuo-theme','ops-tests','ops-budgets'])
         assert.equal(await page.locator(`#${id}`).count(), 1, `operations section ${id} missing`);
+    }
+    if (tab === 'platform') {
+      for (const id of ['pf-cases', 'pf-preview-resources', 'pf-approvals', 'pf-contracts', 'pf-live-events', 'pf-incidents'])
+        assert.equal(await page.locator(`#${id}`).count(), 1, `platform section ${id} missing`);
     }
     await auditAccessibility(`admin:${tab}`);
   }
@@ -179,6 +188,15 @@ try {
   assert.ok(await page.locator('#search-results [data-result-page]').count(), 'documentation full-text search returned no result');
   await page.keyboard.press('Escape');
   await auditAccessibility('admin:docs');
+  await page.goto(`${base}/script-studio`, { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('[data-type="ai"]');
+  assert.equal(await page.locator('[data-type]').count(), 7, 'Script Studio type catalog incomplete');
+  await page.click('[data-type="ai"]');
+  await page.fill('#id', 'browser-audit-ai');
+  await page.click('#generate');
+  await page.waitForFunction(() => document.querySelector('#source')?.value.includes('registerBehavior'));
+  assert.match(await page.locator('#path').innerText(), /authored\/ai\/browser-audit-ai\.js/);
+  await auditAccessibility('admin:script-studio');
   await page.goto(`${base}/`, { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('nav#tabs');
   // Content Studio is a full-screen top-level workbench. Keeping it out of an
@@ -338,7 +356,17 @@ try {
     return document.querySelector('[data-domain="gumps"]')?.classList.contains('active')
       && !records?.textContent?.includes('Loading records')
       && records?.querySelectorAll('[data-record]').length > 0;
-  }, null, { timeout: 12_000 });
+  }, null, { timeout: 12_000 }).catch(async (error) => {
+    const state = await page.evaluate(() => ({
+      status: document.querySelector('#status')?.textContent,
+      records: document.querySelector('#records')?.textContent?.slice(0, 500),
+      source: document.querySelector('#source')?.value,
+      active: document.querySelector('.domain.active')?.dataset?.domain,
+      broker: globalThis.AdminCore?.requestBroker?.snapshot?.(),
+    }));
+    console.error('[audit:admin] gump switch diagnostics', { state, pageErrors, consoleErrors, serverErrors });
+    throw error;
+  });
   assert.equal(await page.locator('[data-special-editor="gump"]').count(), 1, 'visual gump designer missing');
   assert.equal(await page.locator('[data-gump-stage]').count(), 1, 'gump design canvas missing');
   assert.ok(await page.locator('[data-gump-control]').count(), 'gump definition rendered no visual controls');
@@ -361,6 +389,12 @@ try {
   assert.equal(await page.locator('[data-special-editor="client-gump"]').count(), 1, 'bundled client gump override editor missing');
   assert.ok(await page.locator('[data-open-client-gump-source]').count(), 'client gump source editor action missing');
   assert.ok(await page.locator('[data-add-client-control]').count(), 'client gump control override action missing');
+  await page.fill('#filter', 'Npc Dialog');
+  await page.waitForFunction(() => document.querySelectorAll('#records [data-record]').length === 1);
+  await page.click('#records [data-record]');
+  await page.waitForFunction(() => document.querySelector('[data-special-editor="client-gump"]')?.textContent?.includes('action-24'));
+  assert.equal(await page.locator('.client-control-override').count(), 35, 'NPC dialog stable control catalogue is incomplete');
+  assert.equal(await page.locator('[data-quick-path="source"]').inputValue(), 'npc-dialog-gump.js');
   const clientGumpLayout = await page.evaluate(() => ({
     overflow: document.documentElement.scrollWidth - innerWidth,
     inspectorColumns: window.getComputedStyle(
@@ -424,4 +458,4 @@ try {
   rmSync(saveDir, { recursive: true, force: true });
 }
 
-console.log('[audit:admin-browser-e2e] ok tabs=14 editors=studio,data-tree,iso a11y=clean');
+console.log('[audit:admin-browser-e2e] ok tabs=15 editors=studio,data-tree,iso a11y=clean');

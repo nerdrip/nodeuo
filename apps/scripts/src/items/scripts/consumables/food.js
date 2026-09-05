@@ -1,6 +1,6 @@
 // Food — generic edible item. Restores +10 stamina instantly + applies
 // a 'sated' status effect that doubles HP regen for 60 seconds.
-// FAZA DS: ServUO `Food.cs` increments `Player.Hunger` and the regen
+// PHASE DS: ServUO `Food.cs` increments `Player.Hunger` and the regen
 // scheduler reads it; we model the same idea via a status effect that
 // regen.js's hasEffect path picks up.
 
@@ -78,7 +78,7 @@ export default function buildFoodScript(api) {
       user.client?.sendSystemMessage?.(item.givesToothAche
         ? 'You feel as if you could eat as much as you wanted!'
         : 'You eat the food.');
-      // FAZA DS: over-time regen tick. Stack-friendly — eating again
+      // PHASE DS: over-time regen tick. Stack-friendly — eating again
       // refreshes the duration without compounding the multiplier.
       api.statusEffects?.apply?.(user, { name: 'sated', durationMs: 60_000 });
       consumeOne(api, world, item, user);

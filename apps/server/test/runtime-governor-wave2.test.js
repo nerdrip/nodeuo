@@ -3,7 +3,7 @@ import {
   CoalescingWorkQueue, RevisionCache, PhaseWatchdog, LifecycleRegistry,
   commandRegistryAudit, fuzzySuggestions, HealthState, AdaptiveBudget,
   TypedSpatialRegistry, TransactionJournal, DeterministicRuntime, StartupProfiler,
-  buildServerQualityReport, serverQualityReportMarkdown,
+  DeadlineScheduler, buildServerQualityReport, serverQualityReportMarkdown,
 } from '../src/systems/runtime-governor.js';
 import { SectorIndex } from '../src/world/sectors.js';
 import { Spawner } from '../src/spawner.js';
@@ -70,6 +70,12 @@ describe('wave 2 runtime governor', () => {
     expect(budget.current).toBeLessThan(100);
     for (let i = 0; i < 40; i++) budget.observe(1);
     expect(budget.current).toBeGreaterThan(10);
+    budget.setPressure('critical');
+    expect(budget.snapshot()).toMatchObject({ pressure: 'critical', pressureLimit: 35 });
+    expect(budget.current).toBeLessThanOrEqual(35);
+    budget.setPressure('healthy');
+    for (let i = 0; i < 40; i++) budget.observe(1);
+    expect(budget.current).toBeGreaterThan(35);
     const spatial = new TypedSpatialRegistry();
     spatial.add('door', 1, { map: 1, x: 10, y: 10 }, { id: 1 });
     spatial.add('teleport', 2, { map: 1, x: 12, y: 10 }, { id: 2 });
@@ -89,6 +95,52 @@ describe('wave 2 runtime governor', () => {
     const startup = new StartupProfiler(); startup.measure('sync', () => 1);
     expect(startup.snapshot().phases[0].name).toBe('sync');
   });
+
+  it('runs periodic jobs from one deadline heap and skips catch-up storms', () => {
+    let now = 0;
+    let monotonic = 0;
+    let pending = null;
+    const scheduler = new DeadlineScheduler({
+      now: () => now,
+      monotonicNow: () => (monotonic += .1),
+      setTimer: (fn, delay) => { pending = { fn, delay, unref() {} }; return pending; },
+      clearTimer: () => { pending = null; },
+      maxCallbacksPerTurn: 8,
+    });
+    const calls = [];
+    scheduler.every('pulse', 100, (at) => calls.push(at));
+    expect(pending.delay).toBe(100);
+    now = 550;
+    pending.fn();
+    expect(calls).toEqual([550]);
+    expect(scheduler.snapshot()).toMatchObject({ callbacks: 1, skippedPeriods: 4, activeJobs: 1 });
+    expect(scheduler.snapshot().jobs[0].due).toBe(600);
+    scheduler.stop();
+    expect(scheduler.snapshot().activeJobs).toBe(0);
+  });
+
+  it('keeps a same-name one-shot rescheduled by its own callback', () => {
+    let now = 0;
+    let pending = null;
+    const scheduler = new DeadlineScheduler({
+      now: () => now,
+      monotonicNow: () => 0,
+      setTimer: (fn, delay) => { pending = { fn, delay, unref() {} }; return pending; },
+      clearTimer: () => { pending = null; },
+    });
+    const calls = [];
+    const run = () => {
+      calls.push(now);
+      if (calls.length === 1) scheduler.once('retry', 25, run);
+    };
+    scheduler.once('retry', 10, run);
+    now = 10; pending.fn();
+    expect(scheduler.snapshot().activeJobs).toBe(1);
+    expect(pending.delay).toBe(25);
+    now = 35; pending.fn();
+    expect(calls).toEqual([10, 35]);
+    expect(scheduler.snapshot().activeJobs).toBe(0);
+  });
 });
 
 describe('wave 2 spatial indexes', () => {
@@ -102,11 +154,42 @@ describe('wave 2 spatial indexes', () => {
     item.x = 11; sectors.moveItem(item);
     expect([...sectors.itemSerialsAt(1, 10, 20)]).toEqual([]);
     expect([...sectors.itemSerialsAt(1, 11, 20)]).toEqual([item.serial]);
-    expect(sectors.revision).toBe(revision, 'same-sector movement keeps candidate revision stable');
+    expect(sectors.revision).toBeGreaterThan(revision, 'same-sector item movement invalidates visibility/path caches');
     sectors._itAt.set(item.serial, 123);
     expect(sectors.validate(world).ok).toBe(false);
     expect(sectors.validate(world, { repair: true }).repaired).toBe(true);
     expect(sectors.validate(world).ok).toBe(true);
+  });
+
+  it('indexes online players and incrementally repairs drift within a fixed budget', () => {
+    const world = new World();
+    const player = world.createMobile({ name: 'online', x: 40, y: 40, map: 1 });
+    player.client = { readyState: 1 };
+    world.markMobileOnline(player);
+    expect([...world.sectors.onlineMobileSerialsNear(1, 40, 40, 8)]).toEqual([player.serial]);
+    expect(world.sectors.nearestOnlineDistance(world, 1, 44, 40, 8)).toBe(4);
+    world.sectors._mobAt.set(player.serial, 123);
+    let result;
+    for (let i = 0; i < 20; i++) {
+      result = world.sectors.validateIncremental(world, { budget: 1, repair: true });
+      if (result.complete) break;
+    }
+    expect(result).toMatchObject({ complete: true, repaired: true });
+    expect(world.sectors.validate(world).ok).toBe(true);
+    world.markMobileOffline(player);
+    expect([...world.sectors.onlineMobileSerialsNear(1, 40, 40, 8)]).toEqual([]);
+  });
+
+  it('fans property invalidations only to live observers and cleans reverse links', () => {
+    const world = new World();
+    const live = { ws: { readyState: 1 }, _closed: false };
+    const closed = { ws: { readyState: 3 }, _closed: true };
+    world.observeProperties(live, 0x40000001);
+    world.observeProperties(closed, 0x40000001);
+    expect([...world.propertyObservers(0x40000001)]).toEqual([live]);
+    expect(closed._observedProperties.size).toBe(0);
+    expect(world.clearPropertyObserver(live)).toBe(1);
+    expect([...world.propertyObservers(0x40000001)]).toEqual([]);
   });
 
   it('indexes spawners and keeps huge regions in the global bucket', () => {

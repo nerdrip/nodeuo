@@ -81,11 +81,22 @@ export function setLootRegistry(registry) { lootRegistry = registry; }
  * exports are read-only — the assignment threw "Cannot assign to read
  * only property 'killMobile' of object '[object Module]'" at script
  * init and the entire quest system silently dropped. Same failure
- * class as the templates.useItem monkey-patch fixed in FAZA LA;
+ * class as the templates.useItem monkey-patch fixed in PHASE LA;
  * same fix shape (registration API instead of property reassignment).
  */
 const _killHooks = [];
-export function addKillHook(fn) { if (typeof fn === 'function') _killHooks.push(fn); }
+export function addKillHook(fn) {
+  if (typeof fn !== 'function') return () => false;
+  _killHooks.push(fn);
+  let active = true;
+  return () => {
+    if (!active) return false;
+    active = false;
+    const index = _killHooks.indexOf(fn);
+    if (index >= 0) _killHooks.splice(index, 1);
+    return index >= 0;
+  };
+}
 export function clearKillHooks() { _killHooks.length = 0; }
 
 /** @typedef {import('./world/world.js').World} World */
@@ -97,6 +108,10 @@ export function clearKillHooks() { _killHooks.length = 0; }
  * @returns {import('./world/items.js').Item} corpse item
  */
 export function killMobile(world, mob, killer = null) {
+  // Death delivery can race between combat, poison and scripted damage.
+  // Once a player is a ghost (or an NPC has already left the world), a
+  // repeated callback must not create another corpse or award kill hooks.
+  if (!mob || mob.ghost || !world?.mobiles?.has?.(mob.serial)) return null;
   // Audit #37 P1 #4 — ServUO `GiftOfLifeSpell.HandleDeath_OnCallback`
   // intercepts death and auto-resurrects the buffed mobile, restoring
   // HP via `hitsScalar = spellweaving/240 + focusLevel/100`. Was
@@ -156,6 +171,8 @@ export function killMobile(world, mob, killer = null) {
     mob._peacefulUntil = 0;
     mob._provokedUntil = 0;
     mob._provokedTarget = 0;
+    mob._spiritSpeakUntil = 0;
+    mob.canHearGhosts = false;
     // Audit #33 P1 #4 — partner-mob sweep. ServUO clears Combatant on
     // the surviving provoke partner the next AI think; we don't have
     // that hook, so the AI loop happily re-pinned `combatant = stale
@@ -211,14 +228,14 @@ export function killMobile(world, mob, killer = null) {
   // Notoriety bookkeeping — increment kill counter on the attacker if the
   // victim was Innocent, and re-broadcast the killer so other clients
   // re-colour their nameplate (red after 5 kills).
-  // FAZA BY: faction kill counter — independent of murder count, so a
+  // PHASE BY: faction kill counter — independent of murder count, so a
   // legitimate PvP faction skirmish doesn't pump the killer toward red.
   if (killer && recordFactionKill(killer, mob)) {
     killer.client?.sendSystemMessage?.(
       `Faction kill recorded (total: ${killer.factionKills}).`,
     );
   }
-  // FAZA CX: Valor virtue accrual for slaying a non-player creature.
+  // PHASE CX: Valor virtue accrual for slaying a non-player creature.
   // Reads `valor` from the monster config (or a HP-scaled fallback);
   // self-kills, suicides, and PK count are excluded by the
   // `recordKill` path below.
@@ -232,7 +249,7 @@ export function killMobile(world, mob, killer = null) {
       if (valor > 0) awardVirtue(killer, 'valor', valor);
     } catch { /* ignore — virtue is a side-effect, not critical */ }
   }
-  // FAZA DF: pet training xp. The killer slot when a player's pet
+  // PHASE DF: pet training xp. The killer slot when a player's pet
   // lands the killing blow is the pet itself (combat code attributes
   // damage to the attacker mob, not its master). Train the pet, and
   // wire `pet._world` so the level-up notify can reach the master.
@@ -285,12 +302,12 @@ export function killMobile(world, mob, killer = null) {
     corpse.lootOwnerSerial = top.attackerSerial;
     corpse.lootLockUntil = corpse.spawnedAt + 10_000;
   }
-  // FAZA EN: forensic clue — record killer's name on the corpse so
+  // PHASE EN: forensic clue — record killer's name on the corpse so
   // `[forensic` can reveal it. ServUO `Corpse.Killer` is the same
   // attribute. We store the name (string) rather than a serial because
   // mob serials don't survive disconnect/restart for player kills.
   if (killer) corpse.killerName = killer.name ?? 'an unknown attacker';
-  // FAZA EU: charge insurance fee for any insured items the player is
+  // PHASE EU: charge insurance fee for any insured items the player is
   // wearing. The collect call runs BEFORE the corpse re-parent loop so
   // we know which items qualify; chargeInsurance defaults expired ones
   // (not enough gold) so they fall through to the normal corpse drop.
@@ -314,14 +331,14 @@ export function killMobile(world, mob, killer = null) {
   }
 
   // Re-parent equipped items into the corpse container.
-  // BUGFIX #32 (FAZA BP): fire onUnequip before clearing the layer so
+  // BUGFIX #32 (PHASE BP): fire onUnequip before clearing the layer so
   // lifecycle scripts can clean up worn-state side-effects (lit torches
   // would snuff, equip-driven buffs would tear down, etc.). Without this
   // the previous death path silently dropped the layer and a torch lit
   // on a doomed paladin's corpse stayed visually lit forever.
-  // FAZA ES: items with `newbied: true` (starter equipment, quest
+  // PHASE ES: items with `newbied: true` (starter equipment, quest
   // rewards) stay parented to the player and are NOT moved to the
-  // corpse. ServUO `LootType.Blessed` parity. Insured items (FAZA EJ)
+  // corpse. ServUO `LootType.Blessed` parity. Insured items (PHASE EJ)
   // also bypass via the same path — they keep their layer too.
   // Bug-hunt B1 hot-spot — walk only items parented to `mob` via the
   // reverse `_childrenByParent` index when available. The 4 corpse.js
@@ -496,7 +513,7 @@ export function killMobile(world, mob, killer = null) {
       flags: mob.flags, x: mob.x, y: mob.y, z: mob.z, direction: mob.direction,
     }));
     mob.client.send(healthUpdate({ serial: mob.serial, current: 0, max: mob.hpMax ?? 50 }));
-    // Faza H.2 — sentinel opens the DeathGump (Resurrect at Healer /
+    // Phase H.2 — sentinel opens the DeathGump (Resurrect at Healer /
     // Shrine / Remain a ghost). Routed through the standard system
     // message sniffer in game-scene.js.
     mob.client.sendSystemMessage?.('@@OPEN_DEATH_GUMP@@');
@@ -593,7 +610,7 @@ function runKillHooks(world, victim, killer) {
  * @param {import('./world/world.js').Mobile} mob
  * @param {import('./world/world.js').Mobile} [resurrector]  e.g. shrine NPC
  *        or a friendly player — when set and not the same as `mob`, the
- *        resurrector earns Compassion virtue (FAZA DG).
+ *        resurrector earns Compassion virtue (PHASE DG).
  */
 export function resurrectMobile(world, mob, resurrector = null) {
   if (!mob.ghost) return;
@@ -680,7 +697,7 @@ export function resurrectMobile(world, mob, resurrector = null) {
     }));
     mob.client.sendSystemMessage?.('You have been resurrected.');
   }
-  // BUGFIX #66 (FAZA CX): the previous mobileIncoming sent an empty
+  // BUGFIX #66 (PHASE CX): the previous mobileIncoming sent an empty
   // equipment array — observers saw the resurrected player as a
   // naked mannequin until they walked away and back. Scan items
   // parented + worn on the mob via the reverse index so the
@@ -702,7 +719,7 @@ export function resurrectMobile(world, mob, resurrector = null) {
     direction: mob.direction, hue: mob.hue ?? 0, flags: mob.flags ?? 0,
     notoriety: mob.notoriety ?? 1, equipment,
   });
-  // BUGFIX #75 (FAZA DG): observer health bars stayed on ghost values
+  // BUGFIX #75 (PHASE DG): observer health bars stayed on ghost values
   // after res. mobileIncoming carries body/hue but not hp — without an
   // explicit healthUpdate broadcast, party members' bars showed 0/50
   // until the next damage tick. Same bug class as #55, #64, #69.
@@ -715,7 +732,7 @@ export function resurrectMobile(world, mob, resurrector = null) {
     client.send(incoming);
     client.send(resurrected);
   });
-  // FAZA DG: a different mobile resurrected this one — that's an act of
+  // PHASE DG: a different mobile resurrected this one — that's an act of
   // Compassion in the canonical UO virtue list. ServUO awards 200 per
   // assist; we follow the same heuristic.
   if (resurrector && resurrector !== mob && resurrector.client) {
@@ -757,7 +774,7 @@ export function sweepStatLoss(world, now = Date.now()) {
 
 /** Delete a corpse and everything inside it. */
 export function decayCorpse(world, corpseSerial) {
-  // BUGFIX #65 (FAZA CW): capture corpse position BEFORE destroy so
+  // BUGFIX #65 (PHASE CW): capture corpse position BEFORE destroy so
   // the removeEntity broadcast can apply a visibility gate. The
   // previous loop fired removeEntity to EVERY connected client on
   // every corpse decay (every 30 s sweeper) — N×M packets per tick
@@ -788,8 +805,8 @@ export function decayCorpse(world, corpseSerial) {
 const CORPSE_DECAY_MS = 7 * 60 * 1000;
 
 /**
- * Scan for corpses older than the decay window and remove them. Call at a
- * slow cadence (e.g. every 30s); iterating world.items is fine at MVP scale.
+ * Scan the dedicated corpse-serial index for entries older than the decay
+ * window and remove them. Call at a slow cadence (for example every 30s).
  *
  * @param {World} world
  */
@@ -829,12 +846,14 @@ function broadcastInRange(world, origin, fn) {
  * @param {import('./world/world.js').Mobile} mob
  */
 function dropLoot(world, corpse, mob) {
-  // BUGFIX #72 (FAZA DD): paragon kills are supposed to drop 1.5×
+  // BUGFIX #72 (PHASE DD): paragon kills are supposed to drop 1.5×
   // loot — that's the whole point of the buff. The system was wired
   // (paragons.js exports `paragonLootMultiplier`) but corpse.dropLoot
   // never read it, so paragon corpses produced vanilla piles. Paragon
   // mob = same gold pile and same drop counts as a regular spawn.
-  const lootMult = mob?.paragon ? 1.5 : 1.0;
+  const paragonMult = mob?.paragon ? 1.5 : 1.0;
+  const despoilMult = (Number(mob?.ethicDespoilUntil) || 0) > Date.now() ? 2 : 1;
+  const lootMult = paragonMult * despoilMult;
   const gold = Math.round((mob.gold | 0) * lootMult);
   if (gold > 0) {
     createItem(world, {

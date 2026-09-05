@@ -15,7 +15,7 @@ export default {
     radius(api, caster, 12, (m) => {
           if (!m.hidden) return;
           m.hidden = false;
-          m.slowedUntil = Date.now() + 8_000;
+          m._slowedUntil = Date.now() + 8_000;
         });
   },
 };

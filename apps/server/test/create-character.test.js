@@ -1,4 +1,4 @@
-// FAZA BR + BUGFIX #34 — `parseCreateCharacter` extracts the user's
+// PHASE BR + BUGFIX #34 — `parseCreateCharacter` extracts the user's
 // CreateCharacter selections (sex, hue, hair, profession, skills) from
 // the 0x00 / 0xF8 packet. Previously `bringIntoWorld()` silently dropped
 // every selection except the name, so a player who picked female + red
@@ -51,7 +51,7 @@ function buildCreateChar({
   return w.bytes();
 }
 
-describe('parseCreateCharacter (FAZA BR / bugfix #34)', () => {
+describe('parseCreateCharacter (PHASE BR / bugfix #34)', () => {
   it('round-trips name, sex=female, profession=mage', () => {
     const pkt = buildCreateChar({
       name: 'Mira', sex: 1, profession: 2,

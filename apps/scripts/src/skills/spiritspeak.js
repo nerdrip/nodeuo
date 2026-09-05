@@ -2,7 +2,7 @@
 //
 // ServUO `Skills/SpiritSpeak.cs`: lets the caster understand ghost
 // speech and slightly heals (mana → HP conversion at high skill).
-// We surface it as a self-buff that ticks for ~30 s, plus a sparkle
+// We surface it as a self-buff with skill-scaled duration, plus a sparkle
 // effect for visual feedback.
 
 import { normalizeSkillValue } from '../_rules.js';
@@ -34,15 +34,19 @@ export default function register(api) {
         api.skillGain?.tryGain?.(sender, SKILL_SPIRITSPEAK, 40);
         return;
       }
-      // Apply self-buff "spiritspeak" — ghost-speech becomes intelligible
-      // for the duration. Content code that emits ghost-only chat reads
-      // `.effects.includes('spiritspeak')` to decide visibility.
+      // Pre-AOS ServUO scales the ghost-hearing window from 15 seconds at
+      // zero skill to 180 seconds at GM skill. The server speech fan-out
+      // consumes both this effect and the timestamp (the latter survives a
+      // hot reload without serialising callback functions).
+      const communionMs = Math.max(15_000, Math.min(180_000,
+        Math.round((skill / 50) * 90_000)));
       api.statusEffects.apply(sender, {
         name: 'spiritspeak',
-        durationMs: 30_000,
+        durationMs: communionMs,
         tick: null,
+        onRemove(mob) { mob._spiritSpeakUntil = 0; },
       });
-      sender._spiritSpeakUntil = now + 30_000;
+      sender._spiritSpeakUntil = now + communionMs;
       sender.servuoClasses = [...new Set([
         ...(sender.servuoClasses ?? []),
         'SpiritSpeakTimer',

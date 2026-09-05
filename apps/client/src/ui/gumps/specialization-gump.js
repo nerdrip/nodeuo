@@ -4,7 +4,7 @@ import { Label } from '../controls/label.js';
 import { Button, ButtonAction } from '../controls/button.js';
 import { bus } from '../../core/event-bus.js';
 import { net } from '../../net/net-client.js';
-import { extNodeUOSpecialization, NodeUOSpecializationMessage } from '@uo/protocol';
+import { NodeUOJsonKind, NodeUOSpecializationMessage } from '@uo/nodeuo-protocol';
 
 const FACE = { normalGumpId: 0x0FA8, pressedGumpId: 0x0FAA, action: ButtonAction.Activate };
 
@@ -80,7 +80,14 @@ export class SpecializationGump extends WindowGump {
   }
 
   _send(kind, payload) {
-    try { net.send(extNodeUOSpecialization({ kind, requestId: this.requestId, payload })); }
+    try {
+      net.sendNodeUOMessage({
+        kind: NodeUOJsonKind.Event, feature: 'character.specializations',
+        payload: { operation: kind === NodeUOSpecializationMessage.Reset ? 'reset' : 'allocate',
+          eventKind: kind, requestId: this.requestId, data: payload },
+        idempotencyKey: `specialization:${this.requestId}:${kind}:${payload?.nodeId ?? ''}`,
+      });
+    }
     catch { this._message.setText('Connection closed before the request was sent.'); }
   }
 

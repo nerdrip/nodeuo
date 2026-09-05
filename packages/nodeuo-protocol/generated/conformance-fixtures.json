@@ -1,0 +1,904 @@
+{
+  "schemaVersion": 7,
+  "fingerprint": "fnv1a64:c40d1396ee05e631",
+  "fixtures": [
+    {
+      "feature": "accessibility.spatial-cues",
+      "schema": "fnv1a64:cbac74e670e057dd",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "admin.config-transactions",
+      "schema": "fnv1a64:b100a4c9951578f5",
+      "payload": {
+        "operation": "example"
+      },
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "ai.inspector",
+      "schema": "fnv1a64:f600d0bfc5d35b3d",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "animation.semantic",
+      "schema": "fnv1a64:f47b4850bdd48683",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "assets.chunks",
+      "schema": "fnv1a64:18e2be3ab9aacd88",
+      "payload": {
+        "operation": "example",
+        "name": "example"
+      },
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "assets.client-profile",
+      "schema": "fnv1a64:56786dcfde97e301",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "assets.content-addressed",
+      "schema": "fnv1a64:4efc501288da1d82",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "assets.patchsets",
+      "schema": "fnv1a64:96e0c2822b11c84d",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "assets.streaming",
+      "schema": "fnv1a64:b34c00ed7a9d0815",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "character.specializations",
+      "schema": "fnv1a64:09a04b9857b9950a",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "character.virtues",
+      "schema": "fnv1a64:807a95859506eb46",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "cinematic.timeline",
+      "schema": "fnv1a64:34a82eb6a8f25a66",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "client.performance-hints",
+      "schema": "fnv1a64:89e383f94157336d",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "clock.sync",
+      "schema": "fnv1a64:67c4b74a4cc498cd",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "combat.cooldowns",
+      "schema": "fnv1a64:5359faf8fab3345d",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "combat.preflight",
+      "schema": "fnv1a64:3fd2ade9c129b876",
+      "payload": {
+        "targetSerial": 0
+      },
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "combat.telegraphs",
+      "schema": "fnv1a64:f976d1e4c6402244",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "combat.timeline",
+      "schema": "fnv1a64:d67d21f32d7dff24",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "container.delta",
+      "schema": "fnv1a64:30995ddd0a7b986c",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "content.dependencies",
+      "schema": "fnv1a64:8d68a9bc98368e2a",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "content.preflight",
+      "schema": "fnv1a64:580a9032aa895233",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "content.preview-session",
+      "schema": "fnv1a64:09547b8edb845cbc",
+      "payload": {
+        "operation": "example"
+      },
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "content.release",
+      "schema": "fnv1a64:837d1e4f216513d4",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "crafting.plan",
+      "schema": "fnv1a64:6e7b65a6745413d0",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "crafting.workbench",
+      "schema": "fnv1a64:67d7b678b0734e0b",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "debug.time-travel",
+      "schema": "fnv1a64:f1ab83f1e345193f",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "diagnostics.client-frame",
+      "schema": "fnv1a64:c23c6030287e2b73",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "diagnostics.live",
+      "schema": "fnv1a64:d71f3008fc86210c",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "diagnostics.trace",
+      "schema": "fnv1a64:9b039ba07b4282a3",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "economy.market-stream",
+      "schema": "fnv1a64:61001ec95429d575",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "editor.collaboration",
+      "schema": "fnv1a64:f5dd8ce093acbe22",
+      "payload": {
+        "operation": "example"
+      },
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "editor.transactions",
+      "schema": "fnv1a64:9e25bac7b332d291",
+      "payload": {
+        "operation": "example"
+      },
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "effects.structured",
+      "schema": "fnv1a64:f6a437d33a877267",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "flow.qos",
+      "schema": "fnv1a64:181d0f8bd0fdb11d",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "housing.collaboration",
+      "schema": "fnv1a64:d9a997d0789edb46",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "housing.tools",
+      "schema": "fnv1a64:2359455bb8e4c519",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "instance.handoff",
+      "schema": "fnv1a64:162247cfa5c6aae2",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "instance.live-handoff",
+      "schema": "fnv1a64:88c6f6148b912fb6",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "interaction.catalog",
+      "schema": "fnv1a64:32648a43479a66b1",
+      "payload": {
+        "targetSerial": 0
+      },
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "inventory.transactions",
+      "schema": "fnv1a64:2b3636036283f1cc",
+      "payload": {
+        "operation": "example"
+      },
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "inventory.views",
+      "schema": "fnv1a64:808d7f0fdb14755d",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "localization.message-format",
+      "schema": "fnv1a64:6afa39e9f448d3e0",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "map.prefetch",
+      "schema": "fnv1a64:8e47d03ca66409c4",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "moderation.case",
+      "schema": "fnv1a64:7538912d6071dc7f",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "mods.channels",
+      "schema": "fnv1a64:24e6283ca69e5663",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "mods.permissions",
+      "schema": "fnv1a64:e901cff8f7d7335c",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "movement.hints",
+      "schema": "fnv1a64:25f49dcb147cc3a5",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "movement.reconciliation",
+      "schema": "fnv1a64:81c4a07199b9dfca",
+      "payload": {
+        "inputSequence": 0,
+        "accepted": false
+      },
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "naval.preview",
+      "schema": "fnv1a64:b9c8b33be14122eb",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "network.path-selection",
+      "schema": "fnv1a64:11ee9798215b9a0f",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "npc.dialog",
+      "schema": "fnv1a64:244ab593356976f5",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "npc.generative",
+      "schema": "fnv1a64:7cdb7edafaebb2eb",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "npc.relationships",
+      "schema": "fnv1a64:69fee8e38f5dd3d0",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "party.loot-policy",
+      "schema": "fnv1a64:c2cc6bfbad616793",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "party.markers",
+      "schema": "fnv1a64:a2a99bc29a13ce88",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "party.tactics",
+      "schema": "fnv1a64:872da9f0cea67de1",
+      "payload": {
+        "operation": "example"
+      },
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "properties.structured",
+      "schema": "fnv1a64:8d70f11b29814698",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "protocol.batch",
+      "schema": "fnv1a64:915900edcf90c3d4",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "protocol.causality",
+      "schema": "fnv1a64:f75d5262ff0c8dbb",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "protocol.command-schema",
+      "schema": "fnv1a64:6459105189f1c51c",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "protocol.compatibility-fallbacks",
+      "schema": "fnv1a64:5bbb8c0dcf9a6d63",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "protocol.conformance",
+      "schema": "fnv1a64:17b0ff031b4bfcdd",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "protocol.consent",
+      "schema": "fnv1a64:da24820cbeecfe33",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "protocol.cost-hints",
+      "schema": "fnv1a64:5bbb8c0dcf9a6d63",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "protocol.errors",
+      "schema": "fnv1a64:0484b7ddd62de312",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "protocol.feature-health",
+      "schema": "fnv1a64:adad231c56b99af2",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "protocol.manifest",
+      "schema": "fnv1a64:4dc4147c23e91e15",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "protocol.policy",
+      "schema": "fnv1a64:5bbb8c0dcf9a6d63",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "protocol.preconditions",
+      "schema": "fnv1a64:63ce00c6bed72916",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "protocol.privacy-contract",
+      "schema": "fnv1a64:5f11d0e378531185",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "protocol.privacy-labels",
+      "schema": "fnv1a64:5bbb8c0dcf9a6d63",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "protocol.renegotiate",
+      "schema": "fnv1a64:efc9d8fa812a2468",
+      "payload": {
+        "operation": "example"
+      },
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "protocol.resumable-streams",
+      "schema": "fnv1a64:0f3dc77aa9e6d10d",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "protocol.retry-policy",
+      "schema": "fnv1a64:6beb69e8344cfd68",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "protocol.rpc",
+      "schema": "fnv1a64:4a6d20675047952c",
+      "payload": {
+        "targetFeature": "example",
+        "method": "example"
+      },
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "protocol.schema-lifecycle",
+      "schema": "fnv1a64:80e47f5447ccaaad",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "protocol.schema-registry",
+      "schema": "fnv1a64:781712772b69616b",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "protocol.signed-content",
+      "schema": "fnv1a64:fc69394b940b27c7",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "protocol.state-repair",
+      "schema": "fnv1a64:4895f596de7ee534",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "protocol.subscription-leases",
+      "schema": "fnv1a64:bcd88a3e3c657033",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "protocol.subscriptions",
+      "schema": "fnv1a64:597a432c4dd8dfb2",
+      "payload": {
+        "target": "example"
+      },
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "protocol.transactions",
+      "schema": "fnv1a64:5ac75c3f9d4d2532",
+      "payload": {
+        "operation": "example"
+      },
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "quest.graph",
+      "schema": "fnv1a64:2caeab220bd259aa",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "quest.guidance",
+      "schema": "fnv1a64:2caeab220bd259aa",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "quest.journal",
+      "schema": "fnv1a64:2caeab220bd259aa",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "release.compatibility",
+      "schema": "fnv1a64:ed90408233ea1237",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "script.catalog",
+      "schema": "fnv1a64:4157bb522689f1bf",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "session.resume",
+      "schema": "fnv1a64:6b808cbe30d384d8",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "skills.insights",
+      "schema": "fnv1a64:3b961cfcdf09f784",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "social.pings",
+      "schema": "fnv1a64:4bed1e1df3ed09cb",
+      "payload": {
+        "operation": "example"
+      },
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "social.state",
+      "schema": "fnv1a64:64fec674c0c1633f",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "spectator.full-stream",
+      "schema": "fnv1a64:c2fd8e5a31235a82",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "spectator.replay",
+      "schema": "fnv1a64:010e98a164be9d92",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "spell.composer",
+      "schema": "fnv1a64:4807cd1b87174290",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "support.evidence",
+      "schema": "fnv1a64:13d7428cabb15507",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "trade.audit",
+      "schema": "fnv1a64:11f2aff48d388c26",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "trade.receipts",
+      "schema": "fnv1a64:ff93ae203fb1c52b",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "transactions.idempotent",
+      "schema": "fnv1a64:2a904bd7431f54c1",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "transport.webtransport",
+      "schema": "fnv1a64:0ce86a2a0b6bec1f",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "ui.accessibility",
+      "schema": "fnv1a64:9925105b0040897a",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "ui.rich-gumps",
+      "schema": "fnv1a64:bc570c7e33b289f3",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "ui.safe-schema",
+      "schema": "fnv1a64:bd84fa52592513db",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "ui.structured",
+      "schema": "fnv1a64:3142537f48850e4f",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "vendor.insights",
+      "schema": "fnv1a64:e23db61be6886621",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "vendor.search",
+      "schema": "fnv1a64:85bf844fed2da0f5",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "voice.authorization",
+      "schema": "fnv1a64:bc34cd6bb7c217a6",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "voice.spatial-state",
+      "schema": "fnv1a64:8579b7b9efa55a36",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "world.annotations",
+      "schema": "fnv1a64:2d2e2c7629eb2da0",
+      "payload": {
+        "operation": "example"
+      },
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "world.audio-scene",
+      "schema": "fnv1a64:cbac74e670e057dd",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "world.champion",
+      "schema": "fnv1a64:f349fddc64ee029d",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "world.codex",
+      "schema": "fnv1a64:4d9f23adcb604d91",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "world.components",
+      "schema": "fnv1a64:cb2db0b649f6ff75",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "world.delta",
+      "schema": "fnv1a64:cb2db0b649f6ff75",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "world.editing",
+      "schema": "fnv1a64:c9ac3eac40b9de69",
+      "payload": {
+        "operation": "example"
+      },
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "world.environment",
+      "schema": "fnv1a64:5f11d0e378531185",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "world.events",
+      "schema": "fnv1a64:d67d21f32d7dff24",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "world.layers",
+      "schema": "fnv1a64:0e3e17b7d3313a51",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "world.live-event-director",
+      "schema": "fnv1a64:6ba13fe242b08b5b",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "world.progressive-snapshot",
+      "schema": "fnv1a64:777c6cb69cf60f9b",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "world.region-prefetch",
+      "schema": "fnv1a64:f45043ce9a72439c",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "world.sector-digest",
+      "schema": "fnv1a64:454266be305007fa",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "world.sector-stream",
+      "schema": "fnv1a64:c58125dbea0334da",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    },
+    {
+      "feature": "world.timeline",
+      "schema": "fnv1a64:d67d21f32d7dff24",
+      "payload": {},
+      "valid": true,
+      "errors": []
+    }
+  ]
+}

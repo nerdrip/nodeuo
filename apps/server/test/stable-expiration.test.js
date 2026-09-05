@@ -1,4 +1,4 @@
-// FAZA DJ — stable expiration: pets stabled longer than 30 days run
+// PHASE DJ — stable expiration: pets stabled longer than 30 days run
 // off on next list/withdraw.
 
 import { describe, it, expect } from 'vitest';
@@ -19,7 +19,7 @@ function fakeApi(world) {
   };
 }
 
-describe('stable expiration (FAZA DJ)', () => {
+describe('stable expiration (PHASE DJ)', () => {
   it('pets boarded < 30 days survive the next list', async () => {
     const w = new World();
     const api = fakeApi(w);

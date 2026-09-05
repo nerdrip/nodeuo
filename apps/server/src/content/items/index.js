@@ -6,6 +6,6 @@
 // decoupled from content and allows hot-reload of items at runtime.
 
 export {
-  getItem, registerItem, itemsOfKind,
+  getItem, registerItem, unregisterItem, itemsOfKind,
   getItemByDefinition, getItemByTag, itemVariants,
 } from './registry.js';

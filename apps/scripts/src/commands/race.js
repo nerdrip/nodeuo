@@ -15,7 +15,7 @@ export default function register(api) {
     run(ctx, args) {
       const which = String(args[0] ?? '').toLowerCase();
       if (which === 'abilities' || which === 'gump' || which === 'book') {
-        // Faza H.2 — open the racial abilities book overlay.
+        // Phase H.2 — open the racial abilities book overlay.
         const race = ctx.sender?.race ?? 'human';
         ctx.state.sendSystemMessage?.(`@@OPEN_RACIAL_GUMP@@${race}`);
         return;

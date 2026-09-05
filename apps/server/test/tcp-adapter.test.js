@@ -23,6 +23,8 @@ class FakeSocket extends EventEmitter {
     this.end = vi.fn();
     this.destroy = vi.fn();
     this.setNoDelay = vi.fn();
+    this.cork = vi.fn();
+    this.uncork = vi.fn();
     this.remoteAddress = '127.0.0.1';
     this.remotePort = 12345;
   }
@@ -101,6 +103,26 @@ describe('TcpAdapter', () => {
     const arg = sock.write.mock.calls[0][0];
     expect(Buffer.isBuffer(arg)).toBe(true);
     expect(arg).toEqual(Buffer.from(payload));
+  });
+
+  it('corks a same-turn packet burst without changing write order', async () => {
+    const sock = new FakeSocket();
+    const adapter = new TcpAdapter(sock);
+    adapter.send(Uint8Array.of(0x11));
+    adapter.send(Uint8Array.of(0x22));
+    expect(sock.cork).toHaveBeenCalledTimes(1);
+    expect(sock.write.mock.calls.map(([payload]) => payload[0])).toEqual([0x11, 0x22]);
+    await Promise.resolve();
+    expect(sock.uncork).toHaveBeenCalledTimes(1);
+  });
+
+  it('writes a batch through scatter/gather-friendly corking in packet order', () => {
+    const sock = new FakeSocket();
+    const adapter = new TcpAdapter(sock);
+    expect(adapter.sendBatch([Uint8Array.of(0x33), Buffer.from([0x44, 0x45])])).toBe(true);
+    expect(sock.cork).toHaveBeenCalledTimes(1);
+    expect(sock.write.mock.calls.map(([payload]) => [...payload])).toEqual([[0x33], [0x44, 0x45]]);
+    expect(sock.uncork).toHaveBeenCalledTimes(1);
   });
 
   it('close() ends the socket and flips readyState', () => {

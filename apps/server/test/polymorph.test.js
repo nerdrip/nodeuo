@@ -1,4 +1,4 @@
-// FAZA BS — polymorph + bugfix #35 (body change must broadcast to nearby
+// PHASE BS — polymorph + bugfix #35 (body change must broadcast to nearby
 // observers, not just the subject's own client).
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -62,7 +62,7 @@ function putReagents(world, caster) {
   }
 }
 
-describe('polymorph (FAZA BS)', () => {
+describe('polymorph (PHASE BS)', () => {
   /** @type {any} */ let api, world, caster, observer, observerSends;
 
   beforeEach(() => {

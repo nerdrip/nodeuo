@@ -74,12 +74,12 @@ describe('special-moves', () => {
 
   // ---- Audit batch #44 — newly-added abilities --------------------------
 
-  it('DualWield sets the flag + 5s window', () => {
+  it('DualWield sets a timed window without forging equipment state', () => {
     const m = mkMob();
     m.skills[41] = 80; // Swords — also unlocks via hasWeaponSkill
     const r = invokeMove({}, m, null, 'DualWield');
     expect(r.ok).toBe(true);
-    expect(m._dualWield).toBe(true);
+    expect(m._dualWield).toBeUndefined();
     expect(m._dualWieldUntil).toBeGreaterThan(Date.now());
   });
 

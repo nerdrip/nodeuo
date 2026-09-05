@@ -1,7 +1,7 @@
 import { destroyItemBySerial } from '../../../_items.js';
 // Shared helper — single-use consumable cleanup.
 //
-// BUGFIX #30 (FAZA BN): single-use consumables previously called
+// BUGFIX #30 (PHASE BN): single-use consumables previously called
 // `world.items.delete(item.serial)` directly, which skipped the
 // `destroyItem()` lifecycle in apps/server/src/world/items.js — so
 // onDestroy hooks never fired for consumed items, and any future
@@ -14,7 +14,7 @@ import { destroyItemBySerial } from '../../../_items.js';
 export function consumeOne(api, world, item, user) {
   if ((item.amount ?? 1) > 1) {
     item.amount -= 1;
-    // BUGFIX #86 (FAZA DR): the previous decrement-only path mutated
+    // BUGFIX #86 (PHASE DR): the previous decrement-only path mutated
     // server-side amount but never pushed a containerContentUpdate to
     // the user. The browser pack kept showing the pre-cast count
     // (e.g. "5x fireball scroll" after casting one) until the player

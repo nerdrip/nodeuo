@@ -12,6 +12,7 @@
 
 /**
  * @typedef {Object} Party
+ * @property {number} id
  * @property {number} leader
  * @property {number[]} members
  * @property {Map<number, number>} pending
@@ -19,6 +20,7 @@
  */
 
 import { partyList, partyRemove, partyMessage, partyInvitation } from '@uo/protocol';
+import { sendNodeUOPartySnapshot } from './net/handlers/nodeuo-modern.js';
 
 export class PartyRegistry {
   /**
@@ -28,11 +30,14 @@ export class PartyRegistry {
     this.world = world;
     /** @type {Set<Party>} */
     this.parties = new Set();
+    /** Stable lookup used by queued group activities such as the PvP arena. */
+    this.byId = new Map();
   }
 
   /** Return the party containing `mobileSerial`, or null. */
   partyOf(mobileSerial) {
-    const mob = this.world.mobiles.get(mobileSerial);
+    const serial = typeof mobileSerial === 'object' ? mobileSerial?.serial : mobileSerial;
+    const mob = this.world.mobiles.get(Number(serial) >>> 0);
     return mob?._party ?? null;
   }
 
@@ -45,7 +50,10 @@ export class PartyRegistry {
 
   _sendRoster(party) {
     const bytes = partyList(party.members);
-    this._broadcast(party, bytes);
+    for (const serial of party.members) {
+      const state = this.world.mobiles.get(serial)?.client;
+      if (state && !sendNodeUOPartySnapshot(state)) state.send(bytes);
+    }
   }
 
   /** Invite `targetSerial` to join `leader`'s party (creating one if needed). */
@@ -56,12 +64,14 @@ export class PartyRegistry {
     let party = this.partyOf(leaderSerial);
     if (!party) {
       party = {
+        id: leaderSerial >>> 0,
         leader: leaderSerial,
         members: [leaderSerial],
         pending: new Map(),
         canLoot: new Map(),
       };
       this.parties.add(party);
+      this.byId.set(party.id, party);
       const leader = this.world.mobiles.get(leaderSerial);
       if (leader) leader._party = party;
     }
@@ -90,7 +100,7 @@ export class PartyRegistry {
     if (inviteLeader !== leaderSerial) return;
     party.pending.delete(targetSerial);
     if (party.members.includes(targetSerial)) return;       // already a member
-    // BUGFIX #50 (FAZA CH): leave whatever party the joiner was already
+    // BUGFIX #50 (PHASE CH): leave whatever party the joiner was already
     // in. The previous code blindly pushed targetSerial onto members
     // and overwrote `_party` — leaving the joiner listed in their old
     // party (members[] never cleaned) while their UI showed only the
@@ -109,7 +119,7 @@ export class PartyRegistry {
     const party = this.partyOf(leaderSerial);
     if (!party) return;
     party.pending.delete(targetSerial);
-    // BUGFIX #50 (FAZA CH): notify the leader that the invite was
+    // BUGFIX #50 (PHASE CH): notify the leader that the invite was
     // refused so they can re-invite or carry on. Silent decline left
     // pickup-group leaders staring wondering why nothing was happening.
     const leader = this.world.mobiles.get(leaderSerial);
@@ -130,8 +140,11 @@ export class PartyRegistry {
     // Remove event to everyone (including the leaver) so clients can clear UI.
     const bytes = partyRemove(memberSerial, party.members);
     const leaver = this.world.mobiles.get(memberSerial);
-    if (leaver?.client) leaver.client.send(bytes);
-    this._broadcast(party, bytes);
+    if (leaver?.client && !sendNodeUOPartySnapshot(leaver.client)) leaver.client.send(bytes);
+    for (const serial of party.members) {
+      const client = this.world.mobiles.get(serial)?.client;
+      if (client && !sendNodeUOPartySnapshot(client)) client.send(bytes);
+    }
     if (party.members.length < 2 || party.leader === memberSerial) {
       this.disband(party);
     }
@@ -141,16 +154,18 @@ export class PartyRegistry {
     for (const s of party.members) {
       const m = this.world.mobiles.get(s);
       if (m) m._party = undefined;
-      if (m?.client) m.client.send(partyRemove(s, []));
+      if (m?.client && !sendNodeUOPartySnapshot(m.client)) m.client.send(partyRemove(s, []));
     }
     party.canLoot.clear();
     this.parties.delete(party);
+    this.byId.delete(party.id);
   }
 
   setCanLoot(memberSerial, allow) {
     const party = this.partyOf(memberSerial);
     if (!party?.members.includes(memberSerial >>> 0)) return false;
     party.canLoot.set(memberSerial >>> 0, !!allow);
+    this._sendRoster(party);
     return true;
   }
 

@@ -126,8 +126,10 @@ export function tickPairing(world) {
     const pa = world._partyRegistry.byId.get(aId);
     const pb = world._partyRegistry.byId.get(bId);
     if (!pa || !pb) continue;
-    const teamA = (pa.members ?? []).slice(0, 2);
-    const teamB = (pb.members ?? []).slice(0, 2);
+    const teamA = (pa.members ?? []).slice(0, 2)
+      .map((serial) => world.mobiles.get(serial)).filter(Boolean);
+    const teamB = (pb.members ?? []).slice(0, 2)
+      .map((serial) => world.mobiles.get(serial)).filter(Boolean);
     if (teamA.length < 1 || teamB.length < 1) continue;
     const m = _startMatchInternal(world, '2v2', teamA, teamB);
     if (m) out.push(m);
@@ -462,7 +464,7 @@ let _killHookInstalled = false;
  *     party IDs without crossing the script boundary.
  *
  *  Idempotent — re-calling does nothing extra (safe across hot-reload). */
-export function init({ world, corpse, partyRegistry, itemsApi } = {}) {
+export function init({ world, corpse, partyRegistry, itemsApi, scheduler } = {}) {
   if (world) {
     if (partyRegistry) world._partyRegistry = partyRegistry;
     if (itemsApi)     world._itemsApi = itemsApi;
@@ -475,7 +477,7 @@ export function init({ world, corpse, partyRegistry, itemsApi } = {}) {
     _killHookInstalled = true;
   }
   if (!_interval && world) {
-    _interval = setInterval(() => {
+    const tick = () => {
       try { tickPairing(world); } catch (e) { console.error('[arena] tickPairing', e); }
       try { tickMatches(world); } catch (e) { console.error('[arena] tickMatches', e); }
       // Tournament timeout — abort stale tournaments.
@@ -485,13 +487,18 @@ export function init({ world, corpse, partyRegistry, itemsApi } = {}) {
           _tournaments.delete(key);
         }
       }
-    }, 2000);
+    };
+    _interval = scheduler?.every
+      ? scheduler.every('pvp-arena', 2000, tick)
+      : setInterval(tick, 2000);
     if (typeof _interval?.unref === 'function') _interval.unref();
   }
 }
 
 export function shutdown() {
-  if (_interval) { clearInterval(_interval); _interval = null; }
+  if (typeof _interval?.cancel === 'function') _interval.cancel();
+  else if (_interval) clearInterval(_interval);
+  _interval = null;
 }
 
 /** Test-only: reset module state so test files can run in isolation. */
@@ -504,7 +511,9 @@ export function _resetForTest() {
   _ratings.clear();
   _nextMatch = 1;
   _nextTournament = 1;
-  if (_interval) { clearInterval(_interval); _interval = null; }
+  if (typeof _interval?.cancel === 'function') _interval.cancel();
+  else if (_interval) clearInterval(_interval);
+  _interval = null;
   _killHookInstalled = false;
 }
 

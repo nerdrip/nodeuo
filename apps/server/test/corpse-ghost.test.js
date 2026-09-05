@@ -45,6 +45,19 @@ describe('killMobile — gender-aware ghost body', () => {
     killMobile(w, mob);
     expect(mob.body).toBe(FEMALE_GHOST);
   });
+
+  it('is idempotent when two damage sources deliver death concurrently', () => {
+    const w = new World();
+    const mob = makePlayer(w, MALE_ALIVE);
+    mob._spiritSpeakUntil = Date.now() + 60_000;
+    const first = killMobile(w, mob);
+    const itemCount = w.items.size;
+
+    expect(killMobile(w, mob)).toBeNull();
+    expect(w.items.size).toBe(itemCount);
+    expect(first?.itemId).toBe(0x2006);
+    expect(mob._spiritSpeakUntil).toBe(0);
+  });
 });
 
 describe('resurrectMobile — gender-aware living body', () => {

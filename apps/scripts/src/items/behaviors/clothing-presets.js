@@ -1,4 +1,4 @@
-// FAZA BP — clothing presets + `[outfit <preset>` admin command.
+// PHASE BP — clothing presets + `[outfit <preset>` admin command.
 //
 // Presets are *named bundles* of items.json template references. Each
 // entry resolves to:
@@ -96,7 +96,7 @@ export default function register(api) {
 }
 
 /**
- * Public for tests + the character-creator path (FAZA BR will call this
+ * Public for tests + the character-creator path (PHASE BR will call this
  * directly once a body/sex/preset selection completes).
  *
  * @param {import('@uo/server/src/scripts.js').ScriptAPI} api

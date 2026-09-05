@@ -6435,7 +6435,7 @@
     "servuoPath": "templates/ServUO/Scripts/Mobiles/Normal/DreadWarhorse.cs"
   },
   {
-    "kind": "dream-wraith ",
+    "kind": "dream-wraith",
     "name": "a Dream Wraith",
     "body": 740,
     "hp": 650,
@@ -20945,7 +20945,7 @@
     "peerless": true
   },
   {
-    "kind": "ShimmeringFerret",
+    "kind": "shimmering-ferret",
     "name": "a shimmering ferret",
     "body": 279,
     "hp": 50,
@@ -23399,7 +23399,7 @@
     "fame": 600
   },
   {
-    "kind": "tormented minotaur",
+    "kind": "tormented-minotaur",
     "name": "Tormented Minotaur",
     "body": 262,
     "hp": 4200,
@@ -23609,7 +23609,7 @@
     "peerless": true
   },
   {
-    "kind": "TravestyDog",
+    "kind": "travesty-dog",
     "name": "a travesty dog",
     "body": 217,
     "hue": 2301,

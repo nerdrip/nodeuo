@@ -6,6 +6,6 @@ export default {
   name: 'mystic-weapon',
   cast(api, ctx) {
     const caster = ctx.sender;
-    caster.mysticWeaponUntil = Date.now() + 45_000;
+    caster._mysticWeaponUntil = Date.now() + 45_000;
   },
 };

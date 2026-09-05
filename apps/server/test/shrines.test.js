@@ -1,4 +1,4 @@
-// FAZA BV — Shrine resurrection: ghost adjacency check, HP/mana/stam
+// PHASE BV — Shrine resurrection: ghost adjacency check, HP/mana/stam
 // restoration, fullRestore vs default policy. Plus regression for
 // bugfix #38: corpse spawnedAt now persists.
 
@@ -10,7 +10,7 @@ import * as corpseModule from '../src/corpse.js';
 import { placeShrine, resurrectAtShrine } from '../src/systems/shrines.js';
 import { snapshotWorld, restoreWorld } from '../src/world/persistence.js';
 
-describe('Shrine resurrection (FAZA BV)', () => {
+describe('Shrine resurrection (PHASE BV)', () => {
   /** @type {World} */ let w;
   /** @type {any} */ let mob;
   /** @type {any} */ let shrine;

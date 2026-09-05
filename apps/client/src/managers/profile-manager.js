@@ -363,6 +363,7 @@ const DEFAULTS = Object.freeze({
   // some `ui.*` keys; the `graphics.*` block aggregates the strictly
   // visual feature flags that map 1:1 to CUO Profile.cs visual options.
   graphics: {
+    renderer:           'webgl',        // webgl/webgpu; WebGPU is opt-in and requires restart
     blackWhiteOnDeath: true,          // CUO `EnableBlackWhiteEffect` (death desat)
     hideUnderRoof:     true,          // CUO `NoDrawRoofs` (cut roofs when player covered)
     shadowsEnabled:    true,
@@ -387,6 +388,8 @@ const DEFAULTS = Object.freeze({
     weatherDensity:    1,
     noFlicker:         false,
     effectsQuality:    'auto',         // auto/low/high; auto follows device budget
+    dynamicResolution: true,           // lower fill-rate only under sustained critical load
+    dynamicResolutionMin: 0.8,
     noColorObjectsOutOfRange: false,
     hideScreenshotMessage: false,
   },

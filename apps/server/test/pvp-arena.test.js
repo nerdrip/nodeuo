@@ -2,12 +2,13 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
-  enrol1v1, leave, tickPairing, recordKill, tickMatches,
+  enrol1v1, enrol2v2, leave, tickPairing, recordKill, tickMatches,
   canArenaAttack, isInMatch, status,
   tournamentCreate, tournamentJoin, tournamentStart,
   _resetForTest,
 } from '../src/systems/pvp/pvp-arena.js';
 import { World } from '../src/world/world.js';
+import { PartyRegistry } from '../src/party.js';
 
 function makeFighter(world, name, x = 100, y = 100) {
   const mob = world.createMobile({
@@ -43,6 +44,30 @@ describe('PvP Arena', () => {
     expect(b.x).not.toBe(20);
     // Match coords are inside the arena map.
     expect(a.map).toBe(1);
+  });
+
+  it('resolves party serials into real mobiles for a 2v2 match', () => {
+    const world = new World();
+    const parties = new PartyRegistry(world);
+    world._partyRegistry = parties;
+    const [a1, a2, b1, b2] = ['A1', 'A2', 'B1', 'B2'].map((name) => makeFighter(world, name));
+    for (const fighter of [a1, a2, b1, b2]) {
+      fighter.client = { send() {}, sendSystemMessage() {} };
+    }
+    parties.invite(a1.serial, a2.serial); parties.accept(a2.serial, a1.serial);
+    parties.invite(b1.serial, b2.serial); parties.accept(b2.serial, b1.serial);
+    const partyA = parties.partyOf(a1.serial);
+    const partyB = parties.partyOf(b1.serial);
+
+    expect(enrol2v2(partyA)).toBe(true);
+    expect(enrol2v2(partyB)).toBe(true);
+    const matches = tickPairing(world);
+
+    expect(matches).toHaveLength(1);
+    expect(matches[0].mode).toBe('2v2');
+    expect(matches[0].teamA).toEqual([a1.serial, a2.serial]);
+    expect(matches[0].teamB).toEqual([b1.serial, b2.serial]);
+    expect([a1, a2, b1, b2].every((mob) => isInMatch(mob))).toBe(true);
   });
 
   it('canArenaAttack returns true only for opposing teams in same active match', () => {

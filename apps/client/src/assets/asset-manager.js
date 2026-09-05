@@ -1,24 +1,11 @@
-// Client-side asset orchestrator. Mirrors ClassicUO.Assets/UOFileManager.cs
-// at MVP scope: it knows where the static atlases live (under /assets/),
-// fetches them on startup, and resolves runtime queries:
-//
-//   - palette lookup    (hues.png + hues.json)        → for hue shader
-//   - tiledata flags    (tiledata.json)               → walk/blocking/etc
-//   - land sprite       (land-atlas-NN.png + manifest)→ Pixi Texture per id
-//   - static sprite     (static-atlas-NN.png  + ...)  → Pixi Texture per id
-//   - gump sprite       (gump-atlas-NNN.png   + ...)  → Pixi Texture per id (when present)
-//   - map block         (map0.bin via Range request)  → 196B per (cx, cy)
-//   - statics block     (staidx0/statics0.bin)        → list of static items per block
-//
-// Loaded lazily — calling `init()` only fetches the small JSON manifests
-// + hues palette. Atlas pages and map blocks are pulled on demand.
+// Lazy UO asset orchestrator: metadata, atlases, ranged map blocks and caches.
 
 import 'pixi.js/ktx2';
 import { Assets, Texture, Rectangle, setKTXTranscoderPath } from 'pixi.js';
 import { bus } from '../core/event-bus.js';
 import { AsyncWorkPool, clientRuntimeProfile, ResourceTelemetry } from '../shared/runtime-governor.js';
-import { EXACT_MOUNT_BODIES } from '../shared/mount-data.js';
-import { fetchBinary, fetchBinaryRange } from './asset-fetch.js';
+import { fetchBinary, fetchBinaryRange, fetchJsonVerified } from './asset-fetch.js';
+import { BODY_FALLBACK, GENERIC_ANIMAL, GENERIC_MONSTER, resolvedMobileBody } from './mobile-atlas.js';
 import {
   initializeCharacterCreation,
   initializeLogin,
@@ -90,120 +77,6 @@ function waitForAssetIdle(timeout = 24) {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-// ---- Body fallback table -------------------------------------------------
-// Safety substitutions for stale/incomplete generated atlases. The v2
-// extractor reads AnimationFrame*.uop + AnimationSequence.uop, but a user can
-// still run with an older atlas or a slim UO install missing those archives.
-// In that case render a visually-similar substitute instead of a tiny stub.
-//
-// The substitute should be the closest stylistic match available in
-// anim.mul (no UOP needed). Verified by hand against the live atlas —
-// all targets here resolve to >= 32×32 frames.
-const BODY_FALLBACK = Object.freeze({
-  // Some retail manifests expose the lava-snake body as an empty entry.
-  // The same-family serpent keeps snake movement/death instead of falling
-  // through to the generic daemon body.
-  52: 51,     // Lava Snake               -> Giant Serpent
-  29: 211,    // Gorilla                  -> Black Bear (quadruped mammal)
-  81: 80,     // Bull Frog                -> Giant Toad
-  106: 12,    // Shadow Wyrm              -> Dragon
-  142: 42,    // Clan Chitter/Scratch     -> Ratman
-  143: 42,    // Clan Chitter/Scratch alt -> Ratman
-  235: 234,   // Great Hart               -> Deer
-  236: 277,   // stale Cu Sidhe body      -> canonical Cu Sidhe
-  239: 241,   // stale Oni body           -> canonical Oni
-  260: 24,    // Corporeal Brume          -> Wraith
-  268: 780,   // stale Vasanord body      -> canonical Vasanord
-  // Stygian Abyss / Mondain post-AOS bodies (Bodyconv anim4/anim5 entries).
-  716: 28,    // Chicken Lizard          → Giant Spider (closest "small skittery thing")
-  717: 28,    // Clockwork Scorpion      → Giant Spider
-  718: 13,    // Faerie Dragon           → Air Elemental (small ethereal)
-  719: 26,    // Dragon Wolf             → White Wolf
-  720: 15,    // Lava Elemental          → Fire Elemental
-  721: 9,     // Flayer                  → Daemon
-  722: 24,    // Undead Gargoyle         → Wraith
-  723: 28,    // Goblin                  → Giant Spider (humanoid not in MUL)
-  724: 28,    // Gremlin                 → Giant Spider
-  725: 9,     // Homunculus              → Daemon
-  726: 226,   // Kepetch                 → Llama
-  727: 226,   // Kepetch Shorn           → Llama
-  728: 65,    // Medusa                  → Lich (snake-haired humanoid)
-  729: 28,    // Mimic                   → Giant Spider
-  730: 235,   // Raptor                  → Hart
-  732: 51,    // RotWorm                 → Giant Serpent
-  733: 5,     // Skree                   → Eagle
-  734: 28,    // Slith                   → Giant Spider
-  735: 28,    // Female Spider           → Giant Spider
-  736: 28,    // Male Spider             → Giant Spider
-  737: 28,    // Trapdoor Spider         → Giant Spider
-  738: 87,    // (Trapdoor)              → fallback
-  739: 26,    // Leather Wolf            → White Wolf
-  740: 24,    // Shadow Dweller          → Wraith
-  741: 9,     // Slasher of Veils        → Daemon
-  742: 9,     // Tunnel Spirit Body      → Daemon
-  743: 9,     // Tunnel Spirit Tentacle  → Daemon
-  826: 12,    // Stygian Dragon          → Dragon
-  829: 14,    // Rising Colossus         → Earth Elemental
-  830: 24,    // Primeval Lich           → Wraith
-  831: 6,     // Parrot Bird             → Bird
-  832: 6,     // Phoenix                 → Bird
-  // Animal range fallbacks are used only for genuinely missing/placeholder
-  // frames. Small animals legitimately contain 8-15 px-wide silhouettes;
-  // those must never be classified as corrupt merely because they are tiny.
-  201: 226,   // Cat                     → Llama
-  205: 226,   // Rabbit                  → Llama
-  238: 215,   // Rat                     → Giant Rat (same creature family)
-  234: 235,   // Great Hart              → Hart variant
-  // body 235 is absent in some legacy archives; use canonical deer 234.
-  287: 51,    // Blood Worm              → Giant Serpent
-  // EP1 (Mondain's Legacy) — anim5 redirects, mostly UOP.
-  256: 9, 257: 12, 258: 65, 259: 9, 261: 13,
-  262: 9, 263: 9, 264: 65, 265: 12, 266: 235, 267: 9,
-  269: 5,  270: 9, 271: 9, 272: 9, 273: 9,
-  276: 235, 280: 9, 281: 9, 285: 14,
-  277: 26,  278: 226, 279: 226, 282: 6, 283: 6, 284: 226,
-  // ---- Necromancy / Bushido / Spellweaving polymorph forms.
-  // The spell sets player.body to one of these; CUO's anim resolver
-  // routes them to the canonical creature anim. Without explicit
-  // entries the resolver falls into HIGH_GROUP and idle plays the
-  // wrong frame. Mirrors ServUO `TransformContext` body table.
-  747: 24,    // Lich Form          → Wraith / Lich anim
-  748: 0x0303, // Wraith Form       → ghost (already canonical body)
-  749: 305,   // Horrific Beast     → Beast (305 = Reaper-class)
-  750: 47,    // Reaper Form        → Reaper (real body 47)
-  751: 312,   // Vampiric Embrace   → Vampire Bat (312)
-  752: 87,    // Lich Form alt      → 87 (Lich variant)
-  753: 24,    // Necro polymorph    → Wraith
-  // Bushido / Animal Form (Ninjitsu)
-  754: 226,   // Animal Form llama
-  755: 6,     // Animal Form bird
-  756: 24,    // Animal Form rat → Wraith fallback
-  // Character creation / race-change parity. Some extracted mobile
-  // atlases ship the female gargoyle body (0x29B) but not male 0x29A;
-  // render a visible gargoyle silhouette instead of dropping the mobile.
-  666: 667,
-});
-
-function resolvedMobileBody(atlas, body) {
-  body |= 0;
-  if (!atlas) return body;
-  const hasExact = !!atlas.bodies?.[body];
-  const bodyConv = atlas.bodyConv?.[body];
-  const usesUop = ((atlas.mobTypes?.[body]?.flags | 0) & 0x10000) !== 0;
-  // CUO applies Body.def only to legacy file-0 bodies. Bodyconv, UOP and the
-  // canonical mount table keep the requested body. This also fixes existing
-  // schema-v2 manifests which contain both the correct 0x31A swamp-dragon
-  // frames and an obsolete Body.def alias to an ostard.
-  if (hasExact && (bodyConv || usesUop || EXACT_MOUNT_BODIES.has(body))) return body;
-  const alias = atlas.aliases?.[body];
-  const aliasBody = alias?.body ?? alias?.trueBody;
-  return aliasBody != null && atlas.bodies?.[aliasBody] ? aliasBody : body;
-}
-// Last-resort generic by body range (used when no specific fallback +
-// the original lookup returned nothing).
-const GENERIC_MONSTER = 9;     // Daemon — universal "scary thing"
-const GENERIC_ANIMAL  = 226;   // Llama — universal "small thing"
-
 class AssetManager {
   constructor() {
     /** @type {{count:number,width:number,height:number,hues:any[]} | null} */
@@ -220,6 +93,10 @@ class AssetManager {
     this.gumpAtlas = null;
     /** @type {{pageCount:number,atlasW:number,atlasH:number,tiles:Record<number, any>} | null} */
     this.mobilesAtlas = null;
+    /** Lazy, immutable mobile metadata shards keyed by their content-addressed file. */
+    this._mobileShardLoads = new Map();
+    this._mobileLoadedShards = new Set();
+    this.mobileShardStats = { requested: 0, loaded: 0, failed: 0, bytes: 0 };
     /** @type {{pageCount:number,atlasW:number,atlasH:number,tiles:Record<number, any>} | null} */
     this.texmapAtlas = null;
     /** @type {{count:number, multis:Record<number, {id:number,x:number,y:number,z:number,visible:boolean}[]>} | null} */
@@ -285,6 +162,9 @@ class AssetManager {
     this._atlasPageUseCounts = new Map();
     /** @type {Map<string, number>} conservative decoded GPU bytes per page */
     this._atlasPageBytes = new Map();
+    /** Per-page evidence for atlas packing and prefetch decisions. This is
+     * bounded by physical atlas page cardinality, not by rendered frames. */
+    this._atlasPageTelemetry = new Map();
     /** Verdata-style remap tables. Populated by `applyPatches()` once
      *  init() pulls /assets/patches.json. Maps SOURCE id → REPLACEMENT id;
      *  consulted at the top of every texture lookup so a single JSON
@@ -295,6 +175,11 @@ class AssetManager {
       statics: new Map(),    // itemId → alt-itemId
       hues:    new Map(),    // hueIdx → { rgb } user overlay (future use)
     };
+    /** Per-shard decoded PNG overrides authored in Admin > Assets. */
+    this._assetOverrides = {
+      land: new Map(), static: new Map(), gump: new Map(), texmap: new Map(),
+    };
+    this._overrideTextureLoads = new Map();
 
     /** Backwards-compat aliases — point at the *current* facet's slabs.
      *  Updated by `setFacet()`. New callers should go through facet methods. */
@@ -312,6 +197,71 @@ class AssetManager {
   async init(opts = {}) { return initializeWorld(this, opts); }
 
   async _initWorld(opts = {}) { return loadWorldAssets(this, opts); }
+
+  configureMobileAtlas(atlas) {
+    this.mobilesAtlas = atlas ? { ...atlas, bodies: { ...(atlas.bodies ?? {}) } } : null;
+    this._mobileShardLoads.clear();
+    this._mobileLoadedShards.clear();
+    this.mobileShardStats = { requested: 0, loaded: 0, failed: 0, bytes: 0 };
+    return this.mobilesAtlas;
+  }
+
+  _mobileShardRow(body) {
+    const atlas = this.mobilesAtlas;
+    if (!atlas?.shards || !Number.isInteger(atlas.shardSize)) return null;
+    return atlas.shards[Math.floor((body | 0) / atlas.shardSize)] ?? null;
+  }
+
+  async _loadMobileShardForBody(body) {
+    const row = this._mobileShardRow(body);
+    if (!row?.file || this._mobileLoadedShards.has(row.file)) return !!row;
+    let job = this._mobileShardLoads.get(row.file);
+    if (!job) {
+      this.mobileShardStats.requested++;
+      job = fetchJsonVerified(`${BASE}/${row.file}`, {
+        sha256: row.sha256, bytes: Number(row.bytes),
+      }).then((shard) => {
+        const expectedGroup = Math.floor((body | 0) / this.mobilesAtlas.shardSize);
+        if ((shard?.schemaVersion | 0) !== 1
+          || shard.group !== expectedGroup
+          || shard.shardSize !== this.mobilesAtlas.shardSize
+          || !shard.bodies || typeof shard.bodies !== 'object') {
+          throw new Error(`invalid mobile atlas shard ${row.file}`);
+        }
+        Object.assign(this.mobilesAtlas.bodies, shard.bodies);
+        this._mobileLoadedShards.add(row.file);
+        this.mobileShardStats.loaded++;
+        this.mobileShardStats.bytes += Number(row.bytes) || 0;
+        return true;
+      }).catch((error) => {
+        this.mobileShardStats.failed++;
+        console.warn('[assets] mobile shard load failed:', row.file, error?.message ?? error);
+        return false;
+      }).finally(() => this._mobileShardLoads.delete(row.file));
+      this._mobileShardLoads.set(row.file, job);
+    }
+    return job;
+  }
+
+  /** Load the requested logical body and every possible resolution target. */
+  async ensureMobileBody(body) {
+    if (!this.mobilesAtlas) return false;
+    const requested = body | 0;
+    if (!this.mobilesAtlas.shards) return !!this.mobilesAtlas.bodies?.[requested];
+    const candidates = new Set([requested]);
+    const alias = this.mobilesAtlas.aliases?.[requested];
+    const aliasBody = alias?.body ?? alias?.trueBody;
+    if (Number.isInteger(aliasBody)) candidates.add(aliasBody);
+    const fallback = BODY_FALLBACK[requested];
+    if (Number.isInteger(fallback)) candidates.add(fallback);
+    candidates.add(requested < 200 ? GENERIC_MONSTER : GENERIC_ANIMAL);
+    await Promise.all([...candidates].map((id) => this._loadMobileShardForBody(id)));
+    return !!this.mobilesAtlas.bodies?.[resolvedMobileBody(this.mobilesAtlas, requested)];
+  }
+
+  async prefetchMobileBodies(bodies) {
+    await Promise.all([...new Set(bodies ?? [])].map((body) => this.ensureMobileBody(body)));
+  }
 
   /** Resolve a multi id (house/boat/etc.) to its tile list, or null. */
   multiTiles(multiId) {
@@ -499,12 +449,11 @@ class AssetManager {
       const img = sctx.getImageData(0, 0, meta.w, meta.h);
       const px = img.data;
       // UO art uses a dark-blue / dark-purple shadow band around many
-      // cursor sprites. Marcin: "bez niebieskich obwódek". Drop any
+      // cursor sprites. Drop any
       // pixel where blue dominates by a wide margin AND overall
       // brightness is low — that's the shadow halo, not real cursor
       // colour. We only touch pixels that aren't already transparent.
-      // Plus green decorative dots on walk-cursors (Marcin: "te zielone
-      // kropki mnie irytują") — strip pixels where green dominates by
+      // Also strip decorative green dots from walk cursors where green dominates by
       // a wide margin AND red/blue are low. Same threshold logic.
       for (let i = 0; i < px.length; i += 4) {
         if (px[i + 3] === 0) continue;
@@ -630,6 +579,8 @@ class AssetManager {
   _touchAtlasPageKey(key) {
     const tex = this._atlasPages.get(key);
     if (!tex) return null;
+    const telemetry = this._atlasPageTelemetry.get(key);
+    if (telemetry) { telemetry.touches++; telemetry.lastUsedAt = Date.now(); }
     this._atlasPages.delete(key);
     this._atlasPages.set(key, tex);
     return tex;
@@ -699,6 +650,7 @@ class AssetManager {
     for (const key of this._atlasPages.keys()) {
       if ((this._atlasPageUseCounts.get(key) || 0) > 0) used++;
     }
+    const telemetry = [...this._atlasPageTelemetry.values()];
     return {
       pages: this._atlasPages.size,
       used,
@@ -708,6 +660,13 @@ class AssetManager {
       estimatedBytes: this._atlasBytesTotal(),
       byteLimit: this.runtimeProfile?.atlasBytes ?? ATLAS_PAGE_CACHE_BUDGET_BYTES,
       overByteBudget: this._atlasBytesTotal() > (this.runtimeProfile?.atlasBytes ?? ATLAS_PAGE_CACHE_BUDGET_BYTES),
+      transferredBytes: telemetry.reduce((sum, row) => sum + row.transferredBytes, 0),
+      loadMs: Number(telemetry.reduce((sum, row) => sum + row.loadMs, 0).toFixed(2)),
+      formats: telemetry.reduce((out, row) => { out[row.format] = (out[row.format] ?? 0) + 1; return out; }, {}),
+      // Top pages make the admin heatmap useful without uploading a giant
+      // per-frame trace. Zero-touch rows reveal wasted prefetches.
+      hotPages: telemetry.slice().sort((a, b) => b.touches - a.touches).slice(0, 32).map((row) => ({ ...row })),
+      wastedPrefetches: telemetry.filter((row) => row.prefetched && row.touches === 0).length,
     };
   }
 
@@ -793,6 +752,10 @@ class AssetManager {
     id = id | 0;
     let tex = this._landTextures.get(id);
     if (tex) return this._touchCache(this._landTextures, id, tex);
+    const override = await this._loadGraphicOverride(
+      'land', id, this._landTextures, this._cacheLimit('land', 4096),
+    );
+    if (override) return override;
     this.resourceTelemetry.note('land', 'miss');
     if (this._missingLandTextures.has(id)) return null;
     const pending = this._landTextureLoads.get(id);
@@ -831,6 +794,7 @@ class AssetManager {
     id = id | 0;
     let tex = this._landTextures.get(id);
     if (tex) return this._touchCache(this._landTextures, id, tex);
+    if (this._assetOverrides?.land?.has(id)) return null;
     this.resourceTelemetry.note('land', 'miss');
     if (this._missingLandTextures.has(id)) return null;
     const meta = this.landAtlas?.tiles[id];
@@ -896,6 +860,66 @@ class AssetManager {
         this._missingStaticTextures.delete(id);
       }
     }
+  }
+
+  /** Install same-id PNG replacements produced by the admin asset editor.
+   * They remain separate from remaps so removing one restores atlas art. */
+  applyAssetOverrides(manifest) {
+    if (!manifest || typeof manifest !== 'object') return;
+    const cacheByKind = {
+      land: this._landTextures, static: this._staticTextures,
+      gump: this._gumpTextures, texmap: this._texmapTextures,
+    };
+    for (const kind of ['land', 'static', 'gump', 'texmap']) {
+      const target = this._assetOverrides[kind];
+      const changedIds = new Set(target.keys());
+      target.clear();
+      const source = manifest[kind];
+      for (const [rawId, rawValue] of Object.entries(source && typeof source === 'object' ? source : {})) {
+        const id = Number(rawId);
+        const file = typeof rawValue === 'string' ? rawValue : rawValue?.file;
+        if (!Number.isInteger(id) || id < 0 || typeof file !== 'string' || !file || file.includes('..')) continue;
+        changedIds.add(id);
+        target.set(id, {
+          file: file.replace(/^\/+/, ''),
+          width: Number(rawValue?.width) || 0,
+          height: Number(rawValue?.height) || 0,
+        });
+      }
+      for (const id of changedIds) {
+        this._releaseCachedTexture(cacheByKind[kind].get(id));
+        cacheByKind[kind].delete(id);
+        this._overrideTextureLoads.delete(`${kind}:${id}`);
+      }
+    }
+  }
+
+  async _loadGraphicOverride(kind, id, cache, limit) {
+    const record = this._assetOverrides?.[kind]?.get(id | 0);
+    if (!record) return null;
+    const cached = cache.get(id | 0);
+    if (cached) return this._touchCache(cache, id | 0, cached);
+    const key = `${kind}:${id | 0}`;
+    const pending = this._overrideTextureLoads.get(key);
+    if (pending) return pending;
+    const load = this._decodePool.run(`override:${key}`, async () => {
+      try {
+        const texture = await Assets.load(`${BASE}/${record.file}`);
+        if (!texture?.source) return null;
+        texture.source.scaleMode = 'nearest';
+        texture._uoAssetOverride = true;
+        texture._uoAssetOverrideUrl = `${BASE}/${record.file}`;
+        cache.set(id | 0, texture);
+        this._capCache(cache, limit);
+        return texture;
+      } catch (error) {
+        console.warn(`[assets] override load failed ${key}:`, error?.message ?? error);
+        return null;
+      }
+    }, { priority: 0 });
+    this._overrideTextureLoads.set(key, load);
+    try { return await load; }
+    finally { if (this._overrideTextureLoads.get(key) === load) this._overrideTextureLoads.delete(key); }
   }
 
   /** Audit #46 P2 — VerData applier. CUO `VerdataLoader.cs` reads each
@@ -1015,11 +1039,20 @@ class AssetManager {
   }
 
   async staticTexture(id) {
+    const sourceId = id | 0;
+    const directOverride = await this._loadGraphicOverride(
+      'static', sourceId, this._staticTextures, this._cacheLimit('static', 4096),
+    );
+    if (directOverride) return directOverride;
     // Verdata-style remap. Patch table is empty for unpatched shards so
     // this Map.get() is O(1) and essentially free.
     const remapped = this._patches?.statics?.get(id | 0);
     if (remapped != null) id = remapped;
     id = id | 0;
+    const remappedOverride = await this._loadGraphicOverride(
+      'static', id, this._staticTextures, this._cacheLimit('static', 4096),
+    );
+    if (remappedOverride) return remappedOverride;
     let tex = this._staticTextures.get(id);
     if (tex) return this._touchCache(this._staticTextures, id, tex);
     this.resourceTelemetry.note('static', 'miss');
@@ -1066,11 +1099,18 @@ class AssetManager {
    *  async `staticTexture()` path without allocating a Promise every
    *  animation frame. */
   staticTextureSync(id) {
+    const sourceId = id | 0;
+    const sourceOverride = this._staticTextures.get(sourceId);
+    if (sourceOverride?._uoAssetOverride) {
+      return this._touchCache(this._staticTextures, sourceId, sourceOverride);
+    }
+    if (this._assetOverrides?.static?.has(sourceId)) return null;
     const remapped = this._patches?.statics?.get(id | 0);
     if (remapped != null) id = remapped;
     id = id | 0;
     let tex = this._staticTextures.get(id);
     if (tex) return this._touchCache(this._staticTextures, id, tex);
+    if (this._assetOverrides?.static?.has(id)) return null;
     this.resourceTelemetry.note('static', 'miss');
     if (this._missingStaticTextures.has(id)) return null;
     const tiles = this.staticAtlas?.tiles;
@@ -1097,9 +1137,14 @@ class AssetManager {
    *  flat decorative tiles like roads / dungeon floors). */
   async texmapTexture(texId) {
     texId = texId | 0;
-    if (!this.texmapAtlas || !texId) return null;
+    if (!texId) return null;
     let tex = this._texmapTextures.get(texId);
     if (tex) return this._touchCache(this._texmapTextures, texId, tex);
+    const override = await this._loadGraphicOverride(
+      'texmap', texId, this._texmapTextures, this._cacheLimit('texmap', 1024),
+    );
+    if (override) return override;
+    if (!this.texmapAtlas) return null;
     this.resourceTelemetry.note('texmap', 'miss');
     if (this._missingTexmapTextures.has(texId)) return null;
     const pending = this._texmapTextureLoads.get(texId);
@@ -1137,6 +1182,10 @@ class AssetManager {
    *  container/paperdoll/etc. art instead of guessing at a fixed
    *  width × height. Cheap — just a dictionary read. */
   gumpSize(id) {
+    const override = this._assetOverrides?.gump?.get(id | 0);
+    if (override?.width && override?.height) {
+      return { w: override.width | 0, h: override.height | 0 };
+    }
     if (!this.gumpAtlas) return null;
     const meta = this.gumpAtlas.tiles[id];
     if (!meta) return null;
@@ -1144,6 +1193,11 @@ class AssetManager {
   }
 
   async gumpTexture(id) {
+    const sourceId = id | 0;
+    const directOverride = await this._loadGraphicOverride(
+      'gump', sourceId, this._gumpTextures, this._cacheLimit('gump', 2048),
+    );
+    if (directOverride) return directOverride;
     if (!this.gumpAtlas) return null;
     // Verdata-style remap (see applyPatches). Allows a shard to swap
     // e.g. the spellbook chrome 0x08AC for a custom 0x08B0 without
@@ -1151,6 +1205,10 @@ class AssetManager {
     const remapped = this._patches?.gumps?.get(id | 0);
     if (remapped != null) id = remapped;
     id = id | 0;
+    const remappedOverride = await this._loadGraphicOverride(
+      'gump', id, this._gumpTextures, this._cacheLimit('gump', 2048),
+    );
+    if (remappedOverride) return remappedOverride;
     let tex = this._gumpTextures.get(id);
     if (tex) return this._touchCache(this._gumpTextures, id, tex);
     this.resourceTelemetry.note('gump', 'miss');
@@ -1205,6 +1263,11 @@ class AssetManager {
    *  bodies surface. */
   _mobileFrameMeta(body, action, direction, frame) {
     if (!this.mobilesAtlas) return null;
+    if (this.mobilesAtlas.shards && !this.mobilesAtlas.bodies?.[body | 0]) {
+      // The renderer remains synchronous; start the deduplicated fetch and let
+      // its normal next-frame retry consume the body once the shard lands.
+      void this.ensureMobileBody(body);
+    }
     const meta = this._tryMobileFrame(body, action, direction, frame);
     const isPlaceholder = meta && meta.meta.w <= 2 && meta.meta.h <= 2;
     if (meta && !isPlaceholder) return meta;
@@ -1455,6 +1518,7 @@ class AssetManager {
    */
   async prefetchMobileCycle(body, action, direction) {
     if (!this.mobilesAtlas) return;
+    await this.ensureMobileBody(body);
     const realBody = resolvedMobileBody(this.mobilesAtlas, body);
     const b = this.mobilesAtlas.bodies?.[realBody];
     if (!b) return;
@@ -1480,6 +1544,7 @@ class AssetManager {
    *  Returns `{ texture, cx, cy, w, h, frameCount }` or null.
    *  Async — for renderer hot path use `mobileFrameTextureSync`. */
   async mobileFrameTexture(body, action, direction, frame) {
+    await this.ensureMobileBody(body);
     const info = this._mobileFrameMeta(body, action, direction, frame);
     if (!info) return null;
     // Ensure the page is loaded, then defer to the sync path which
@@ -1536,7 +1601,7 @@ class AssetManager {
     return this.mobilesAtlas?.corpseConv?.[body] ?? null;
   }
 
-  async _loadAtlasPage(kind, pageIndex) {
+  async _loadAtlasPage(kind, pageIndex, priority = 1) {
     const key = this._atlasPageKey(kind, pageIndex);
     const tex = this._touchAtlasPageKey(key);
     if (tex) return tex;
@@ -1548,7 +1613,9 @@ class AssetManager {
     }
     const pending = this._atlasPageLoads.get(key);
     if (pending) return pending;
-    const load = this._decodePool.run(`atlas:${key}`, () => this._loadAtlasPageUncached(kind, pageIndex, key));
+    const load = this._decodePool.run(
+      `atlas:${key}`, () => this._loadAtlasPageUncached(kind, pageIndex, key, priority), { priority },
+    );
     this._atlasPageLoads.set(key, load);
     try {
       return await load;
@@ -1595,7 +1662,7 @@ class AssetManager {
         const kind = job?.kind ?? fixedKind;
         const page = job?.page;
         try {
-          if (kind != null && Number.isFinite(page)) await this._loadAtlasPage(kind, page | 0);
+          if (kind != null && Number.isFinite(page)) await this._loadAtlasPage(kind, page | 0, 3);
         } catch (e) {
           console.warn(`[assets] atlas preload failed ${kind}:${page}`, e?.message ?? e);
         } finally {
@@ -1606,7 +1673,7 @@ class AssetManager {
     }
   }
 
-  async _loadAtlasPageUncached(kind, pageIndex, key) {
+  async _loadAtlasPageUncached(kind, pageIndex, key, priority = 1) {
     let tex = null;
     // Padding widths used by each extractor (must match the file names).
     const PAD = { land: 2, static: 3, gump: 3, mobiles: 2, texmap: 2 };
@@ -1619,11 +1686,16 @@ class AssetManager {
     // boot). PNG remains the canonical format; KTX2 is opt-in via the
     // extractor `--ktx2` flag. Standard-pipeline BasisU encoding stays
     // a P3 asset-build task, not a runtime-client gap.
-    const candidates = [
-      `${BASE}/${stem}.ktx2`,
-      `${BASE}/${stem}.png`,
-    ];
+    const mobilePage = kind === 'mobiles' ? this.mobilesAtlas?.pages?.[pageIndex] : null;
+    const immutableMobileFile = /^mobiles-atlas-page-\d+-[a-f0-9]{16}\.png$/i.test(mobilePage?.file ?? '')
+      ? mobilePage.file : null;
+    const immutableMobileKtx2 = /^mobiles-atlas-page-\d+-[a-f0-9]{16}\.ktx2$/i.test(mobilePage?.ktx2?.file ?? '')
+      ? mobilePage.ktx2.file : null;
+    const candidates = immutableMobileFile
+      ? [...(immutableMobileKtx2 ? [`${BASE}/${immutableMobileKtx2}`] : []), `${BASE}/${immutableMobileFile}`]
+      : [`${BASE}/${stem}.ktx2`, `${BASE}/${stem}.png`];
     for (const url of candidates) {
+      const started = performance.now();
       try {
         // HEAD pre-flight: file must exist AND be the expected binary
         // type. Vite's dev server falls back to index.html (200,
@@ -1648,6 +1720,17 @@ class AssetManager {
         const width = source?.pixelWidth || source?.width || tex.width || 0;
         const height = source?.pixelHeight || source?.height || tex.height || 0;
         this._atlasPageBytes.set(key, Math.max(0, width * height * 4));
+        const existing = this._atlasPageTelemetry.get(key);
+        this._atlasPageTelemetry.set(key, {
+          key, kind, page: pageIndex | 0, url,
+          format: url.endsWith('.ktx2') ? 'ktx2' : 'png',
+          transferredBytes: Number(head.headers.get('content-length')) || 0,
+          decodedBytes: Math.max(0, width * height * 4),
+          loadMs: Number((performance.now() - started).toFixed(2)),
+          loadedAt: Date.now(), lastUsedAt: existing?.lastUsedAt ?? 0,
+          touches: existing?.touches ?? 0,
+          prefetched: Number(priority) >= 3,
+        });
         this._capAtlasPages(this.runtimeProfile?.atlasPages ?? ATLAS_PAGE_CACHE_MAX, key);
         return tex;
       } catch (e) {

@@ -16,10 +16,12 @@
 //     nextLotId: number,
 //   }
 
-import { destroyItem } from '../../world/items.js';
+import { createItem, destroyItem } from '../../world/items.js';
+import { serializeItem } from '../../world/persistence.js';
 
 const DEFAULT_DURATION_MS = 24 * 60 * 60 * 1000;
 const LISTING_FEE_PCT = 0.02;       // 2 % of starting bid
+const GOLD_ITEM_IDS = new Set([0x0EED, 0x0EEE, 0x0EEF]);
 
 /** @typedef {Object} AuctionLot
  *  @property {number} id
@@ -43,6 +45,112 @@ function ensureStore(world) {
   return world._auctionHouse;
 }
 
+function directChildren(world, parentSerial) {
+  const indexed = world?._childrenByParent?.get?.(parentSerial);
+  if (indexed) return Array.from(indexed, (serial) => world.items.get(serial)).filter(Boolean);
+  return Array.from(world?.items?.values?.() ?? []).filter((item) => item.parent === parentSerial);
+}
+
+function resolveBackpack(world, mob) {
+  if (!mob) return null;
+  for (const item of directChildren(world, mob.serial)) {
+    if ((item.layer | 0) === 21) return item;
+  }
+  return null;
+}
+
+function descendants(world, parent) {
+  if (!parent) return [];
+  const result = [];
+  const seen = new Set([parent.serial >>> 0]);
+  const stack = [parent.serial >>> 0];
+  while (stack.length) {
+    const serial = stack.pop();
+    for (const item of directChildren(world, serial)) {
+      const childSerial = item.serial >>> 0;
+      if (seen.has(childSerial)) continue;
+      seen.add(childSerial);
+      result.push(item);
+      stack.push(childSerial);
+    }
+  }
+  return result;
+}
+
+function goldPiles(world, mob) {
+  const pack = resolveBackpack(world, mob);
+  if (!pack) return null;
+  return descendants(world, pack).filter((item) => (
+    GOLD_ITEM_IDS.has(item.itemId | 0) && (item.amount ?? 1) > 0
+  ));
+}
+
+function goldBalance(world, mob) {
+  const piles = goldPiles(world, mob);
+  if (piles) return piles.reduce((total, pile) => total + Math.max(0, pile.amount ?? 1), 0);
+  return Math.max(0, mob?.gold | 0);
+}
+
+function debitGold(world, mob, amount) {
+  const debit = Math.max(0, Math.trunc(Number(amount) || 0));
+  if (!mob || goldBalance(world, mob) < debit) return false;
+  const piles = goldPiles(world, mob);
+  if (!piles) {
+    mob.gold = Math.max(0, (mob.gold | 0) - debit);
+    return true;
+  }
+  let remaining = debit;
+  for (const pile of piles) {
+    if (remaining <= 0) break;
+    const have = Math.max(0, pile.amount ?? 1);
+    if (have <= remaining) {
+      remaining -= have;
+      destroyItem(world, pile.serial);
+    } else {
+      pile.amount = have - remaining;
+      remaining = 0;
+    }
+  }
+  return remaining === 0;
+}
+
+function creditGold(world, mob, amount) {
+  const credit = Math.max(0, Math.trunc(Number(amount) || 0));
+  if (!mob || credit <= 0) return credit === 0;
+  const pack = resolveBackpack(world, mob);
+  if (!pack) {
+    mob.gold = (mob.gold | 0) + credit;
+    return true;
+  }
+  try {
+    createItem(world, {
+      itemId: 0x0EED, amount: credit, parent: pack.serial,
+      x: 60, y: 60, z: 0, map: mob.map ?? 1,
+      name: 'gold coins', stackable: true,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function deliverItem(world, lot, recipient) {
+  if (!recipient || lot.itemDelivered) return lot.itemDelivered === true;
+  const pack = resolveBackpack(world, recipient);
+  if (!pack) return false;
+  try {
+    createItem(world, {
+      ...lot.item,
+      x: 60, y: 60, z: 0, map: recipient.map ?? 1,
+      parent: pack.serial, layer: 0, gridX: 60, gridY: 60,
+    });
+    lot.itemDelivered = true;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Consign an item. Removes the item from world (escrow) and returns
  * the lot id. Listing fee is debited from consigner's gold pile.
@@ -52,30 +160,24 @@ export function consign(world, consigner, item, opts = {}) {
   const store = ensureStore(world);
   const startingBid = Math.max(1, opts.startingBid | 0);
   const buyoutPrice = Math.max(0, opts.buyoutPrice | 0);
-  const duration = opts.durationMs ?? DEFAULT_DURATION_MS;
+  if (buyoutPrice > 0 && buyoutPrice < startingBid) return { ok: false, reason: 'buyout-below-starting' };
+  const duration = Math.max(1_000, Math.trunc(Number(opts.durationMs ?? DEFAULT_DURATION_MS)));
   const fee = Math.ceil(startingBid * LISTING_FEE_PCT);
-  if ((consigner.gold ?? 0) < fee) {
+  if (world.items?.get?.(item.serial) !== item) return { ok: false, reason: 'item-not-live' };
+  if (goldBalance(world, consigner) < fee) {
     return { ok: false, reason: `listing-fee-${fee}gp` };
   }
-  consigner.gold = (consigner.gold ?? 0) - fee;
-  // Snapshot the WHOLE item — bug-hunt #7 B1: previously only itemId/hue/
-  // amount/name were captured, so winners got a stripped-down "default"
-  // copy of a stat-laden artifact (no durability, runic tier, exceptional,
-  // crafter author, weapon affixes, slayer, etc). structuredClone takes
-  // an O(payload) snapshot that survives the lot lifetime.
   let snapshot;
   try {
-    snapshot = structuredClone(item);
+    snapshot = serializeItem(item);
   } catch {
-    // Fallback for items that hold non-cloneable refs (Maps, functions).
-    snapshot = JSON.parse(JSON.stringify(item));
+    return { ok: false, reason: 'item-not-serializable' };
   }
   snapshot.serialOriginal = item.serial;
-  // Strip the live parent / world-coord fields; they'll be set on restore.
   delete snapshot.serial;
   delete snapshot.parent;
-  try { destroyItem(world, item.serial); }
-  catch { /* item gone already */ }
+  if (!debitGold(world, consigner, fee)) return { ok: false, reason: `listing-fee-${fee}gp` };
+  destroyItem(world, item.serial);
   const lot = {
     id: store.nextLotId++,
     item: snapshot,
@@ -86,6 +188,9 @@ export function consign(world, consigner, item, opts = {}) {
     expiresAt: Date.now() + duration,
     status: 'open',
     history: [],
+    pendingRefunds: [],
+    payoutDelivered: false,
+    itemDelivered: false,
   };
   store.lots.set(lot.id, lot);
   return { ok: true, lotId: lot.id, fee };
@@ -98,21 +203,28 @@ export function bid(world, mob, lotId, amount) {
   if (!lot) return { ok: false, reason: 'no-such-lot' };
   if (lot.status !== 'open') return { ok: false, reason: 'closed' };
   if (mob.serial === lot.consignerSerial) return { ok: false, reason: 'own-lot' };
-  if (amount < lot.startingBid) return { ok: false, reason: 'below-starting' };
-  if (amount <= lot.currentBid) return { ok: false, reason: 'must-outbid' };
-  if ((mob.gold ?? 0) < amount) return { ok: false, reason: 'no-gold' };
-  // Escrow new bid + refund prior.
-  mob.gold -= amount;
-  if (lot.currentBidder) {
+  const requested = Math.max(0, Math.trunc(Number(amount) || 0));
+  const accepted = lot.buyoutPrice > 0 ? Math.min(requested, lot.buyoutPrice) : requested;
+  if (accepted < lot.startingBid) return { ok: false, reason: 'below-starting' };
+  if (accepted <= lot.currentBid) return { ok: false, reason: 'must-outbid' };
+
+  const sameBidder = (lot.currentBidder >>> 0) === (mob.serial >>> 0);
+  const debit = sameBidder ? accepted - lot.currentBid : accepted;
+  if (!debitGold(world, mob, debit)) return { ok: false, reason: 'no-gold' };
+
+  if (lot.currentBidder && !sameBidder) {
+    const refund = { bidder: lot.currentBidder, amount: lot.currentBid, delivered: false };
     const prior = world.mobiles.get(lot.currentBidder);
-    if (prior) prior.gold = (prior.gold ?? 0) + lot.currentBid;
+    refund.delivered = creditGold(world, prior, refund.amount);
+    lot.pendingRefunds ??= [];
+    lot.pendingRefunds.push(refund);
   }
-  lot.currentBid = amount;
+  lot.currentBid = accepted;
   lot.currentBidder = mob.serial;
   lot.currentBidderName = mob.name ?? 'unknown';
-  lot.history.push({ bidder: mob.serial, amount, ts: Date.now() });
+  lot.history.push({ bidder: mob.serial, amount: accepted, ts: Date.now() });
   // Buyout — instant close.
-  if (lot.buyoutPrice > 0 && amount >= lot.buyoutPrice) {
+  if (lot.buyoutPrice > 0 && accepted >= lot.buyoutPrice) {
     return _settle(world, lot);
   }
   return { ok: true, lot };
@@ -134,53 +246,50 @@ export function tickAuctions(world) {
 function _settle(world, lot) {
   if (lot.status !== 'open') return { ok: false, reason: 'already-settled' };
   if (!lot.currentBidder) {
-    // No bids — return item to consigner via mail-stub field so the
-    // consigner can `[auction reclaim` it on next login.
     lot.status = 'expired';
-    return { ok: true, lot, payout: 0, returnedToConsigner: true };
+    const consigner = world.mobiles.get(lot.consignerSerial);
+    deliverItem(world, lot, consigner);
+    return { ok: true, lot, payout: 0, returnedToConsigner: lot.itemDelivered };
   }
   const consigner = world.mobiles.get(lot.consignerSerial);
   const winner = world.mobiles.get(lot.currentBidder);
-  // Pay consigner — gold-pile to their backpack so it's an actual lift-
-  // able item (mob.gold scalar was decoupled; bug-hunt #7 B4). Falls
-  // back to mob.gold scalar when no pack exists.
-  if (consigner) {
-    const consPack = _resolveBackpack(world, consigner);
-    if (consPack && world.createItem) {
-      world.createItem({
-        itemId: 0x0EED, amount: lot.currentBid, parent: consPack.serial,
-        name: 'gold coins',
-      });
-    } else {
-      consigner.gold = (consigner.gold ?? 0) + lot.currentBid;
-    }
-  }
-  // Hand item to winner — recreate from FULL snapshot in their pack.
-  if (winner) {
-    const winPack = _resolveBackpack(world, winner);
-    try {
-      world.createItem?.({
-        ...lot.item,
-        x: 0, y: 0, z: 0, map: winner.map,
-        parent: winPack ? winPack.serial : winner.serial,
-        layer: winPack ? 0 : (lot.item.layer ?? 0),
-      });
-    } catch { /* fallback — leave on lot for reclaim */ }
-  }
   lot.status = 'sold';
-  return { ok: true, lot, payout: lot.currentBid };
+  lot.payoutDelivered = creditGold(world, consigner, lot.currentBid);
+  deliverItem(world, lot, winner);
+  return {
+    ok: true, lot, payout: lot.currentBid,
+    payoutDelivered: lot.payoutDelivered, itemDelivered: lot.itemDelivered,
+  };
 }
 
-/** Find the layer-21 backpack of a mob via the reverse parent index. */
-function _resolveBackpack(world, mob) {
-  if (!mob || !world?._childrenByParent) return null;
-  const idx = world._childrenByParent.get(mob.serial);
-  if (!idx) return null;
-  for (const s of idx) {
-    const it = world.items.get(s);
-    if (it?.layer === 21) return it;
+/** Deliver every pending auction refund/item/payout owned by a character. */
+export function reclaim(world, mob, lotId = 0) {
+  if (!world || !mob) return { ok: false, reason: 'no-args' };
+  const store = ensureStore(world);
+  const lots = lotId ? [store.lots.get(lotId | 0)].filter(Boolean) : [...store.lots.values()];
+  if (lotId && lots.length === 0) return { ok: false, reason: 'no-such-lot' };
+  let items = 0;
+  let gold = 0;
+  for (const lot of lots) {
+    for (const refund of lot.pendingRefunds ?? []) {
+      if (refund.delivered || (refund.bidder >>> 0) !== (mob.serial >>> 0)) continue;
+      if (creditGold(world, mob, refund.amount)) {
+        refund.delivered = true;
+        gold += refund.amount;
+      }
+    }
+    if (lot.status === 'sold' && (lot.consignerSerial >>> 0) === (mob.serial >>> 0)
+        && !lot.payoutDelivered && creditGold(world, mob, lot.currentBid)) {
+      lot.payoutDelivered = true;
+      gold += lot.currentBid;
+    }
+    const ownsPendingItem = !lot.itemDelivered && (
+      (lot.status === 'expired' && (lot.consignerSerial >>> 0) === (mob.serial >>> 0))
+      || (lot.status === 'sold' && (lot.currentBidder >>> 0) === (mob.serial >>> 0))
+    );
+    if (ownsPendingItem && deliverItem(world, lot, mob)) items++;
   }
-  return null;
+  return { ok: true, items, gold };
 }
 
 export function listOpen(world) {

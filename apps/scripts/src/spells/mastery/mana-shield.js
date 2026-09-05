@@ -6,6 +6,6 @@ export default {
   name: 'mana-shield',
   cast(api, ctx) {
     const caster = ctx.sender;
-    caster.manaShieldUntil = Date.now() + 60_000;
+    caster._manaShieldUntil = Date.now() + 60_000;
   },
 };

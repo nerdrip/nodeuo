@@ -1,4 +1,4 @@
-// FAZA DZ — `[smelt` ore→ingot conversion.
+// PHASE DZ — `[smelt` ore→ingot conversion.
 //
 // ServUO `Items/Resources/Ores/BaseOre.cs`: dropping ore on a forge
 // converts it to ingots at a 1:1 ratio (with skill-gated success).

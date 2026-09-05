@@ -7,7 +7,7 @@
 //   `statCaps`  — { str, dex, int }         default 100, max 125 with +25
 //
 // The skill-gain headroom uses the existing hardcoded 120 ceiling, so
-// raising a cap purely informational for now (FAZA P part 2 will plug
+// raising a cap purely informational for now (PHASE P part 2 will plug
 // per-mob caps into the gain formula). Boss drops + champion rewards
 // route through this same code so a player who beats a champ altar
 // gets the same +5/+10 they'd get on retail.
@@ -70,7 +70,7 @@ export default function register(api) {
     },
   });
 
-  // FAZA DT — `[ps-combine` combines two power scrolls of the same
+  // PHASE DT — `[ps-combine` combines two power scrolls of the same
   // skill at the same tier into one of the next tier. ServUO's
   // `Skills/PowerScrollDeed.cs` has a similar combine path (used for
   // tournament rewards). Tiers: +5 → +10 → +15 → +20 → max.

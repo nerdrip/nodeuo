@@ -1,4 +1,4 @@
-// FAZA BQ — `dispatchTileWalkEvents` fires onWalkOn / onWalkOff for
+// PHASE BQ — `dispatchTileWalkEvents` fires onWalkOn / onWalkOff for
 // scripted ground items at the source / destination tile of a step.
 // Includes a regression for bugfix #33 (pressure-plate held open while
 // any mob is still on the plate).
@@ -10,7 +10,7 @@ import {
   registerItemScript, unregisterItemScript, dispatchTileWalkEvents,
 } from '../src/world/item-scripts.js';
 
-describe('dispatchTileWalkEvents (FAZA BQ)', () => {
+describe('dispatchTileWalkEvents (PHASE BQ)', () => {
   /** @type {string[]} */
   let calls;
 

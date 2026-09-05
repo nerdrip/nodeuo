@@ -107,7 +107,7 @@ export function skillIdForSchool(school) {
 export function findReagent(api, caster, templateName) {
   const tpl = api.templates?.get?.(templateName);
   if (!tpl) return null;
-  // BUGFIX #91 (FAZA DW): the previous implementation only scanned
+  // BUGFIX #91 (PHASE DW): the previous implementation only scanned
   // items DIRECTLY parented to the caster — i.e. items at layer level
   // in the paperdoll. Real UO players keep reagents in a "reagent bag"
   // tucked inside their backpack, which means the reagent's `parent`
@@ -158,7 +158,7 @@ export function healthUpdateFor(api, mob) {
 }
 
 /**
- * BUGFIX #69 (FAZA DA): broadcast a health update to BOTH the mob's
+ * BUGFIX #69 (PHASE DA): broadcast a health update to BOTH the mob's
  * own client AND every nearby observer. Mass-heal spells like Arch
  * Cure / Noble Sacrifice / Greater Heal previously only sent 0xA1 to
  * the recipient — overhead bars + dragged-out status bars on every
@@ -317,7 +317,7 @@ export const SPELL_MANTRAS = Object.freeze({
 });
 
 /**
- * BUGFIX #35 (FAZA BS) — broadcast a body / hue / flag change to BOTH the
+ * BUGFIX #35 (PHASE BS) — broadcast a body / hue / flag change to BOTH the
  * subject and every nearby observer. Form-change spells (wraith-form,
  * lich-form, horrific-beast, stone-form) used to send `mobileUpdate` only
  * to `caster.client`, so other players kept seeing the human body until
@@ -449,7 +449,13 @@ export function applySpellDamage(api, target, baseDmg, caster, spell) {
   // through plate in two casts. We detect PvP by checking whether the
   // target carries a NetState (`target.client`), matching ServUO's
   // SpellHelper.SphereCheck logic.
-  const sdiRaw = (api.attributes?.effective?.(caster)?.spellDamageIncrease | 0);
+  const attrBag = api.attributes?.effectiveAttributes?.(caster)
+    ?? api.attributes?.effective?.(caster)
+    ?? {};
+  const reaperSdi = caster?._reaperForm ? (caster._reaperSDI | 0) : 0;
+  const mysticSdi = (caster?._mysticTransformUntil ?? 0) > Date.now()
+    ? (caster._mysticTransformDmgBonus | 0) : 0;
+  const sdiRaw = (attrBag.spellDamageIncrease | 0) + reaperSdi + mysticSdi;
   const isPvP = !!target?.client && !!caster?.client && target !== caster;
   const sdi = Math.min(isPvP ? 15 : 100, sdiRaw);
   if (sdi > 0) bonusMul *= 1 + sdi / 100;
@@ -501,6 +507,41 @@ export function applySpellDamage(api, target, baseDmg, caster, spell) {
   if (target?.skills && target !== caster && award) award(target, SKILL_RESIST, difficulty);
 
   return final;
+}
+
+/** Echo a targeted necromancy hit through an active Conduit field. */
+export function echoConduitDamage(api, caster, primary, amount, damageType = null) {
+  const now = Date.now();
+  const area = caster?._conduitArea;
+  if (!area || (caster._conduitUntil ?? 0) <= now || !primary) {
+    if (caster?._conduitUntil && caster._conduitUntil <= now) {
+      caster._conduitUntil = 0;
+      caster._conduitArea = null;
+      caster._conduitStrength = 0;
+    }
+    return 0;
+  }
+  if ((primary.map ?? caster.map) !== area.map
+      || Math.max(Math.abs((primary.x | 0) - area.x), Math.abs((primary.y | 0) - area.y)) > area.radius) {
+    return 0;
+  }
+  const echo = Math.max(1, Math.floor(amount * Math.max(0.1, Math.min(1, Number(caster._conduitStrength) || 0.35))));
+  let affected = 0;
+  for (const target of nearbyMobiles(api, {
+    x: area.x, y: area.y, z: primary.z ?? caster.z, map: area.map,
+  }, null, area.radius)) {
+    if (target === primary || target === caster || (target.hp ?? 0) <= 0 || target.ghost) continue;
+    if (target.map !== area.map) continue;
+    if (Math.max(Math.abs((target.x | 0) - area.x), Math.abs((target.y | 0) - area.y)) > area.radius) continue;
+    if ((target.controlMaster >>> 0) === (caster.serial >>> 0)
+        || (caster.controlMaster && target.controlMaster === caster.controlMaster)) continue;
+    // Preserve the shard's safe default: don't splash blue/innocent targets
+    // unless the caster has explicitly entered war mode.
+    if ((target.notoriety ?? 1) <= 2 && !caster.warMode) continue;
+    api.combat.damage(api.world, target, echo, caster, damageType);
+    affected++;
+  }
+  return affected;
 }
 
 /**

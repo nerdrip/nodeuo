@@ -85,7 +85,7 @@ describe('hitChance', () => {
   it('treats Parrying as the defender skill when higher than weapon skill (with shield)', () => {
     const a = mob({ skills: { [WEAPON_SKILLS.WRESTLING]: 50 } });
     const dWeak = mob({ skills: { [WEAPON_SKILLS.WRESTLING]: 20 } });
-    // FAZA HK: parry skill counts only when the defender has a shield
+    // PHASE HK: parry skill counts only when the defender has a shield
     // equipped (`_hasShield = true`). The unshielded equivalent below
     // confirms the gate works.
     const dParry = mob({
@@ -95,7 +95,7 @@ describe('hitChance', () => {
     expect(hitChance(a, dParry)).toBeLessThan(hitChance(a, dWeak));
   });
 
-  it('ignores Parrying when no shield is equipped (FAZA HK / #125)', () => {
+  it('ignores Parrying when no shield is equipped (PHASE HK / #125)', () => {
     const a = mob({ skills: { [WEAPON_SKILLS.WRESTLING]: 50 } });
     const dNoShield = mob({
       skills: { [WEAPON_SKILLS.WRESTLING]: 20, [SKILL_PARRYING]: 90 },

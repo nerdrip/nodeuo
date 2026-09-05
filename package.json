@@ -19,6 +19,7 @@
     "client:profile": "pnpm --filter @uo/client run client:profile",
     "extract": "pnpm --filter @uo/extractor run extract",
     "extract:ktx2": "pnpm --filter @uo/extractor run ktx2",
+    "extract:mobile-atlas:migrate": "pnpm --filter @uo/extractor run mobile-atlas:migrate",
     "extract:ktx2:tool:check": "pnpm --filter @uo/extractor run ktx2:tool:check",
     "extract:ktx2:tool:install": "pnpm --filter @uo/extractor run ktx2:tool:install",
     "audit:servuo": "node tools/audit/servuo-server-audit.mjs",
@@ -38,6 +39,10 @@
     "audit:multis:e2e": "node tools/audit/multis-restart-e2e.mjs",
     "audit:wave2-300": "node tools/audit/wave2-300-quality-suite.mjs",
     "audit:wave2-300:full": "node tools/audit/wave2-300-quality-suite.mjs --full",
+    "audit:performance": "node tools/audit/performance-regression.mjs",
+    "audit:performance:full": "node tools/audit/performance-regression.mjs --full",
+    "audit:gameplay-performance": "node tools/audit/nodeuo-gameplay-benchmark.mjs",
+    "audit:gameplay-performance:full": "node tools/audit/nodeuo-gameplay-benchmark.mjs --full",
     "catalog:gumps:server": "node tools/audit/server-gump-catalog.mjs --write"
   },
   "devDependencies": {

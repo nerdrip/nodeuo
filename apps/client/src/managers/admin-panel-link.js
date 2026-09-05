@@ -9,9 +9,6 @@
 // — the user gets a one-click bridge from game ↔ admin tools without
 // having to remember the URL or run a second service manually.
 //
-// Marcin: "jezeli zaloguje sie admin to w jednej zakladce ma gre, w
-// drugiej panel admina".
-//
 // URL resolution:
 //   1. `window.__UO_ADMIN_URL`     — explicit override (set by host page).
 //   2. `localStorage['uo.adminUrl']` — sticky per-user override.

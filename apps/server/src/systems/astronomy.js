@@ -83,7 +83,7 @@ export function ledgerSummary(mob) {
     observed: [...ledger.observed],
     remaining: CONSTELLATIONS.filter((c) => !ledger.observed.has(c)),
     complete: ledger.observed.size === CONSTELLATIONS.length,
-    completedAt: ledger.completedAt | 0,
+    completedAt: Number(ledger.completedAt) || 0,
   };
 }
 

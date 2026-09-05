@@ -65,17 +65,22 @@ root, checks Node/pnpm, and supplies a few default paths.
 ## Control Panel
 
 `tools/run-control-panel.bat` and `tools/run-control-panel.sh` start the
-Electron control panel. It provides buttons for:
+Electron control panel. Its status header validates the configured UO source,
+the in-repository ServUO tree, and the optional KTX2 encoder before work starts.
+It provides focused service groups for:
 
-- server
-- browser client
-- bridge
-- asset extraction
-- KTX2 conversion tool checks/install
-- project dependency install/update
+- the server, optional admin backend, and opt-in classic TCP listener;
+- the browser client and optional outbound TCP bridge;
+- selectable asset extraction, including an animations-only preset and an
+  explicit ServUO content refresh;
+- KTX2 conversion tool checks/install; and
+- project dependency install/update.
 
-The panel streams service logs into tabs and stops spawned child processes when
-the window closes.
+The panel streams batched service logs into tabs, supports restart/copy actions,
+uses the configured ports for conflict cleanup, attempts an authenticated
+graceful server shutdown, and stops spawned child processes when the window
+closes. Settings are local to the workstation and remain collapsed until they
+are needed.
 
 ## Asset Extraction
 

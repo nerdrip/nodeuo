@@ -16,7 +16,7 @@
 self.onmessage = async (e) => {
   const req = e.data;
   if (!req || typeof req !== 'object' || !req.url) return;
-  const { id, url, etag, lastModified } = req;
+  const { id, url, etag, lastModified, sha256, bytes } = req;
   try {
     const headers = new Headers();
     if (etag) headers.set('If-None-Match', etag);
@@ -33,7 +33,21 @@ self.onmessage = async (e) => {
     // Stream the body as text first so we have full control over the
     // parse step (JSON.parse can throw for malformed responses; we
     // surface the error to the caller without crashing the worker).
-    const text = await res.text();
+    let text;
+    if (sha256 || Number.isFinite(bytes)) {
+      const buffer = await res.arrayBuffer();
+      if (Number.isFinite(bytes) && buffer.byteLength !== bytes) {
+        throw new Error(`size mismatch: expected ${bytes}, received ${buffer.byteLength}`);
+      }
+      if (sha256) {
+        if (!self.crypto?.subtle) throw new Error('WebCrypto unavailable for asset integrity check');
+        const digest = await self.crypto.subtle.digest('SHA-256', buffer);
+        const actual = [...new Uint8Array(digest)]
+          .map((value) => value.toString(16).padStart(2, '0')).join('');
+        if (actual !== String(sha256).toLowerCase()) throw new Error('SHA-256 mismatch');
+      }
+      text = new TextDecoder().decode(buffer);
+    } else text = await res.text();
     let data;
     try { data = JSON.parse(text); }
     catch (err) {

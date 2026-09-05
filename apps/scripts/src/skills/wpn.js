@@ -1,4 +1,4 @@
-// FAZA CV — weapon special-ability queue.
+// PHASE CV — weapon special-ability queue.
 //
 // ServUO models AOS specials as primary / secondary picks per weapon,
 // activated via the war-mode ability bar. The user clicks an icon
@@ -60,8 +60,8 @@ const ABILITIES = {
     onHit({ mob, target, ctx }) {
       if (!mob?._weapon) mob._moveDelayUntil = Date.now() + 3_000; // ServUO Fists.MoveDelayTimer.
       // 2-second paralyze on the target. Use status-effects if wired.
-      const ms = 2000;
-      target.paralyzedUntil = Date.now() + ms;
+      const ms = (target._resilienceUntil ?? 0) > Date.now() ? 1000 : 2000;
+      target._paralyzedUntil = Date.now() + ms;
       ctx?.statusEffects?.apply?.(target, { name: 'paralyze', durationMs: ms });
       mob.client?.sendSystemMessage?.('Paralyzing Blow lands!');
       return 0;
@@ -75,8 +75,9 @@ const ABILITIES = {
       // here as a tick-driver via statusEffects so the bleed continues
       // even if the attacker walks away.
       const tickDmg = Math.max(1, Math.floor(baseDamage / 8));
+      const durationMs = (target._resilienceUntil ?? 0) > Date.now() ? 3000 : 5000;
       ctx?.statusEffects?.apply?.(target, {
-        name: 'bleed', durationMs: 5000,
+        name: 'bleed', durationMs,
         data: { tickDmg, source: mob.serial },
       });
       mob.client?.sendSystemMessage?.('Bleed Attack inflicted!');
@@ -98,7 +99,7 @@ const ABILITIES = {
       try {
         ctx?.combat?.unequipWeapon?.(target);
       } catch { /* combat may not expose unequip — fall through */ }
-      target.disarmedUntil = Date.now() + 5000;
+      target._disarmedUntil = Date.now() + 5000;
       mob.client?.sendSystemMessage?.('Disarm strikes home!');
       return 0;
     },
@@ -114,7 +115,7 @@ const ABILITIES = {
         target.mountId = 0;
         mob.client?.sendSystemMessage?.('Dismount: foe is unhorsed!');
       }
-      target.dismountedUntil = Date.now() + 10_000;
+      target._dismountedUntil = Date.now() + 10_000;
       return 0;
     },
   },
@@ -123,8 +124,8 @@ const ABILITIES = {
     mana: 30,
     onHit({ mob, target, ctx }) {
       // ServUO MortalStrike: target cannot be healed for 6s.
-      const ms = 6000;
-      target.mortalWoundUntil = Date.now() + ms;
+      const ms = (target._resilienceUntil ?? 0) > Date.now() ? 3000 : 6000;
+      target._mortalStrikeUntil = Date.now() + ms;
       ctx?.statusEffects?.apply?.(target, { name: 'mortal-strike', durationMs: ms });
       mob.client?.sendSystemMessage?.('Mortal Strike! Healing is disabled on the foe.');
       return 0;

@@ -1,4 +1,4 @@
-// FAZA CY — paragon mob templates.
+// PHASE CY — paragon mob templates.
 //
 // ServUO's `BaseCreature.IsParagon` flag (Mondain's Legacy) tags ~5% of
 // natural spawns as elite "paragon" variants:

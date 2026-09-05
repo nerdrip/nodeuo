@@ -1,16 +1,16 @@
 # NodeUO Scriptbook
 
-Ten przewodnik opisuje pisanie zawartości dla serwera NodeUO. Kod silnika żyje
-w `apps/server/src`, natomiast reguły świata, komendy, przedmioty, mobile, AI,
-czary, questy i wydarzenia powinny trafiać do `apps/scripts/src`.
+This guide describes how to write content for the NodeUO server. Engine code
+lives in `apps/server/src`; world rules, commands, items, mobiles, AI, spells,
+quests, and events belong in `apps/scripts/src`.
 
-> Najważniejsza zasada: skrypt korzysta z publicznego `api`, nie importuje
-> prywatnych modułów silnika. Dzięki temu działa po hot reloadzie, jest prostszy
-> do testowania i nie omija indeksów świata.
+> The most important rule: a script uses the public `api`; it does not import
+> private engine modules. This keeps it hot-reloadable, easy to test, and on
+> the indexed world-access paths.
 
-## Pierwszy skrypt
+## First script
 
-Najmniejszy moduł eksportuje funkcję rejestrującą zawartość:
+The smallest module exports a content registration function:
 
 ```js
 export default function register(api) {
@@ -19,14 +19,14 @@ export default function register(api) {
     access: 'Player',
     help: '[hello',
     run(ctx) {
-      ctx.state.sendSystemMessage(`Witaj ${ctx.sender.name}!`);
+      ctx.state.sendSystemMessage(`Hello ${ctx.sender.name}!`);
     },
   });
 }
 ```
 
-Do modułów składających się głównie z komend, eventów i timerów wygodny jest
-`defineScript`:
+`defineScript` is convenient for modules made mostly of commands, events, and
+timers:
 
 ```js
 import { defineScript } from './_script.js';
@@ -44,63 +44,60 @@ export default defineScript({
 });
 ```
 
-## Gdzie dodać funkcję
+## Where a feature belongs
 
-| Funkcja | Kanoniczne miejsce |
+| Feature | Canonical location |
 | --- | --- |
-| Komenda | `apps/scripts/src/commands/` |
-| Definicja przedmiotu | `data/config/items.json` |
-| Zachowanie przedmiotu | `items/scripts/` albo `items/behaviors/` |
-| Mobile lub NPC | `data/config/monsters.json`, `npcs.json` |
+| Command | `apps/scripts/src/commands/` |
+| Item definition | `data/config/items.json` |
+| Item behavior | `items/scripts/` or `items/behaviors/` |
+| Mobile or NPC | `data/config/monsters.json`, `npcs.json` |
 | AI | `apps/scripts/src/npcs/ai/` |
-| Czar | `data/config/spells.json` + `apps/scripts/src/spells/` |
+| Spell | `data/config/spells.json` + `apps/scripts/src/spells/` |
 | Skill | `data/config/skills.json` + `apps/scripts/src/skills/` |
 | Crafting | `data/config/recipes.json` + `apps/scripts/src/crafting/` |
-| Spawn lub świat | `data/world/` + `apps/scripts/src/spawns/` |
-| Gump | `data/config/gumps.json` albo kod korzystający z `api.gumps` |
+| Spawn or world content | `data/world/` + `apps/scripts/src/spawns/` |
+| Gump | `data/config/gumps.json` or code using `api.gumps` |
 
-## Publiczne warstwy API
+## Public API layers
 
-| API | Zastosowanie |
+| API | Purpose |
 | --- | --- |
-| `api.game` | tworzenie, ruch, ekwipunek, indeksowane wyszukiwanie |
-| `api.lifecycle` | komendy, eventy i timery sprzątane przy reloadzie |
-| `api.systems` | domeny silnika: czary, combat, housing, questy itd. |
-| `api.gumps` | standardowe gumpy protokołu UO |
-| `api.targeting` | wybór celu przez klienta |
-| `api.itemScripts` | lifecycle i używanie przedmiotów |
-| `api.templates` | szablony przedmiotów |
-| `api.protocol` | standardowe pakiety klienta UO |
-| `api.game.*Near` | szybkie zapytania przestrzenne |
+| `api.game` | creation, movement, equipment, and indexed queries |
+| `api.lifecycle` | commands, events, and timers cleaned up on reload |
+| `api.systems` | engine domains: spells, combat, housing, quests, and others |
+| `api.gumps` | standard UO protocol gumps |
+| `api.targeting` | client target selection |
+| `api.itemScripts` | item lifecycle and use behavior |
+| `api.templates` | item templates |
+| `api.protocol` | standard UO client packets |
+| `api.game.*Near` | efficient spatial queries |
 
-`api.world` jest wyjściem awaryjnym dla migracji, administracji i rzadkich
-globalnych raportów. Nie używaj pełnego skanowania świata w tickach AI.
+`api.world` is an escape hatch for migrations, administration, and rare global
+reports. Do not perform full-world scans in AI ticks.
 
-## Workflow w panelu Admin
+## Admin panel workflow
 
-1. Otwórz **Content Studio** i wybierz domenę, np. Items, Mobiles albo Spells.
-2. Edytuj rekord oraz — jeśli jest powiązany — otwórz jego skrypt przyciskiem
-   **Edit bound script**.
-3. Użyj walidacji i podglądu diff.
-4. Publikacja tworzy backup i wykonuje hot reload skryptów.
-5. Dla zmian silnika uruchom ponownie serwer; dla większości zmian zawartości
-   wystarcza reload.
+1. Open **Content Studio** and select a domain such as Items, Mobiles, or Spells.
+2. Edit the record and, when linked, open its script with **Edit bound script**.
+3. Run validation and inspect the diff.
+4. Publishing creates a backup and hot-reloads scripts.
+5. Restart the server for engine changes; reloading is enough for most content changes.
 
-## Reguły hot reloadu
+## Hot-reload rules
 
-- używaj `api.lifecycle.setInterval`, a nie surowego `setInterval`;
-- używaj `api.lifecycle.event`, aby subskrypcja została usunięta;
-- rejestruj komendy przez `api.lifecycle.command`;
-- przechowuj seriale encji, nie obiekty runtime;
-- ręczne rejestracje muszą zwracać disposer.
+- use `api.lifecycle.setInterval`, not raw `setInterval`;
+- use `api.lifecycle.event` so the subscription is removed;
+- register commands through `api.lifecycle.command`;
+- retain entity serials, not runtime objects;
+- manual registrations must return a disposer.
 
-## Minimalna walidacja
+## Minimum validation
 
 ```powershell
 pnpm --filter @uo/server test
 ```
 
-Zmiany klient–serwer albo protokołu wymagają dodatkowo smoke testów klienta.
-Rozszerzenia NodeUO muszą pozostać negocjowane; standardowy protokół Ultimy
-nie może zmieniać zachowania dla innych emulatorów.
-
+Client/server or protocol changes additionally require the client smoke tests.
+NodeUO extensions must remain negotiated; the standard Ultima Online protocol
+must behave identically with third-party emulators.

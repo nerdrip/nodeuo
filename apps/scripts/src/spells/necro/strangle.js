@@ -2,7 +2,7 @@
 // up to 5 ticks. ServUO scales by SpiritSpeak; we use Necromancy skill
 // to size the per-tick damage.
 
-import { aura, broadcastEffect, broadcastSound, SKILL_SPIRIT_SPEAK, skillValue } from '../_helpers.js';
+import { aura, broadcastEffect, broadcastSound, echoConduitDamage, SKILL_SPIRIT_SPEAK, skillValue } from '../_helpers.js';
 
 export default {
   name: 'strangle',
@@ -48,6 +48,7 @@ export default {
       // (`AOS.Damage(m,from,dmg,0,0,0,100,0)`). Was untyped, ignored
       // cold resists.
       api.combat.damage(api.world, target, dmg, caster, { cold: 100 });
+      echoConduitDamage(api, caster, target, dmg, { cold: 100 });
       // ServUO `Strangle.cs:108-110`: calls `m.Spell.OnCasterHurt()` on
       // each tick (disturbs target's cast) + 60% reveal-from-hide.
       try { api.spells?.disturbCast?.(target); } catch { /* no-op */ }

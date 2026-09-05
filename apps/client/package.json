@@ -9,7 +9,7 @@
     "generate:seasons": "node scripts/generate-season-data.mjs",
     "build:smoke": "pnpm run build && pnpm run smoke:dist",
     "preview": "vite preview",
-    "smoke": "pnpm run smoke:dist && pnpm run smoke:startup-ui && pnpm run smoke:ui-parity && pnpm run smoke:screenshot-parity && pnpm run smoke:outgoing && pnpm run smoke:incoming-coverage && pnpm run smoke:servuo-samples && pnpm run smoke:net-handlers && pnpm run smoke:targeting-mouse && pnpm run smoke:profile-options && pnpm run smoke:render-profile-options && pnpm run smoke:audit-parity && pnpm run smoke:gump && pnpm run smoke:gump-position-cache && pnpm run smoke:ui-drag-drop && pnpm run smoke:action-bar && pnpm run smoke:gump-layout && pnpm run smoke:gump-catalog && pnpm run smoke:hotkeys && pnpm run smoke:macros && pnpm run smoke:macro-import && pnpm run smoke:speech-keywords && pnpm run smoke:world-text-damage && pnpm run smoke:journal && pnpm run smoke:timer && pnpm run smoke:scroll-flag && pnpm run smoke:text-input && pnpm run smoke:gump-info && pnpm run smoke:paperdoll && pnpm run smoke:race-preview && pnpm run smoke:body-coverage && pnpm run smoke:color-box && pnpm run smoke:tooltip-options && pnpm run smoke:light && pnpm run smoke:light-points && pnpm run smoke:asset-cache && pnpm run smoke:sprite-pool && pnpm run smoke:roof && pnpm run smoke:pathfinder && pnpm run smoke:camera-pan && pnpm run smoke:anim && pnpm run smoke:static-anim && pnpm run smoke:effects && pnpm run smoke:scroll && pnpm run smoke:virtual-list && pnpm run smoke:map-texture-dirty && pnpm run smoke:map-coordinate && pnpm run smoke:perf-budgets && pnpm run smoke:extstats && pnpm run smoke:party && pnpm run smoke:client-perf && pnpm run smoke:runtime-wave2",
+    "smoke": "pnpm run smoke:dist && pnpm run smoke:startup-ui && pnpm run smoke:ui-parity && pnpm run smoke:screenshot-parity && pnpm run smoke:outgoing && pnpm run smoke:incoming-coverage && pnpm run smoke:servuo-samples && pnpm run smoke:net-handlers && pnpm run smoke:custom-house && pnpm run smoke:targeting-mouse && pnpm run smoke:profile-options && pnpm run smoke:render-profile-options && pnpm run smoke:audit-parity && pnpm run smoke:gump && pnpm run smoke:gump-position-cache && pnpm run smoke:ui-drag-drop && pnpm run smoke:action-bar && pnpm run smoke:gump-layout && pnpm run smoke:gump-catalog && pnpm run smoke:hotkeys && pnpm run smoke:macros && pnpm run smoke:macro-import && pnpm run smoke:speech-keywords && pnpm run smoke:world-text-damage && pnpm run smoke:journal && pnpm run smoke:timer && pnpm run smoke:scroll-flag && pnpm run smoke:text-input && pnpm run smoke:gump-info && pnpm run smoke:paperdoll && pnpm run smoke:race-preview && pnpm run smoke:body-coverage && pnpm run smoke:color-box && pnpm run smoke:tooltip-options && pnpm run smoke:light && pnpm run smoke:light-points && pnpm run smoke:asset-cache && pnpm run smoke:sprite-pool && pnpm run smoke:roof && pnpm run smoke:pathfinder && pnpm run smoke:camera-pan && pnpm run smoke:anim && pnpm run smoke:static-anim && pnpm run smoke:effects && pnpm run smoke:scroll && pnpm run smoke:virtual-list && pnpm run smoke:map-texture-dirty && pnpm run smoke:map-coordinate && pnpm run smoke:perf-budgets && pnpm run smoke:extstats && pnpm run smoke:party && pnpm run smoke:client-perf && pnpm run smoke:runtime-wave2",
     "smoke:runtime-wave2": "node scripts/smoke-runtime-wave2.mjs",
     "smoke:wave2-quality": "node scripts/smoke-wave2-quality.mjs",
     "smoke:dist": "node scripts/smoke-dist.mjs",
@@ -38,6 +38,7 @@
     "smoke:incoming-coverage": "node scripts/smoke-incoming-coverage.mjs",
     "smoke:servuo-samples": "node scripts/smoke-servuo-samples.mjs",
     "smoke:net-handlers": "node scripts/smoke-net-handlers.mjs",
+    "smoke:custom-house": "node scripts/smoke-custom-house.mjs",
     "smoke:targeting-mouse": "node scripts/smoke-targeting-mouse.mjs",
     "smoke:spell-range": "node scripts/smoke-spell-range-preview.mjs",
     "smoke:light": "node scripts/smoke-light-overlay.mjs",
@@ -71,6 +72,7 @@
     ,"smoke:gump-catalog": "node scripts/gump-catalog.mjs"
   },
   "dependencies": {
+    "@uo/nodeuo-protocol": "workspace:*",
     "@uo/protocol": "workspace:*",
     "pixi.js": "^8.19.0"
   },

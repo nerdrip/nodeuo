@@ -1,0 +1,17 @@
+{
+  "name": "@uo/nodeuo-protocol",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "scripts": {
+    "generate": "node scripts/generate-types.mjs",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.10"
+  }
+}

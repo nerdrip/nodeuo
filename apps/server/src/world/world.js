@@ -3,9 +3,12 @@
 // multi-facet trees are added in Phase 4/5.
 
 import { SerialAllocator } from './serial.js';
-import { SectorIndex } from './sectors.js';
+import { SectorIndex, sectorKeyForPosition } from './sectors.js';
 import { createItem as createWorldItem, destroyItem as destroyWorldItem } from './items.js';
 import { TypedSpatialRegistry } from '../systems/runtime-governor.js';
+import { HotEntityStore } from './hot-entity-store.js';
+import { EntityDirty, InterestManager } from './interest-management.js';
+import { MultiSpatialIndex } from './multi-spatial-index.js';
 
 /**
  * @typedef {Object} Point3
@@ -89,11 +92,43 @@ export class World {
     this._xmlAttachmentEntities = new Set();
     this._xmlAttachmentIndexReady = false;
     this._subscribersByChannel = new Map([['region', new Set()], ['weather', new Set()]]);
+    /** Reverse OPL observer index: serial -> clients that actually requested
+     * that object's properties. Script mutations can nudge only interested
+     * clients instead of scanning every mobile on the shard. */
+    this._propertyObservers = new Map();
+    this.hotMobiles = new HotEntityStore();
+    this.interest = new InterestManager();
     /** Sector spatial index — populated automatically on createMobile/
      *  removeMobile and from items.js on createItem/destroyItem.
      *  Movement handlers must call `world.sectors.moveMobile(mob)` after
      *  changing mob.x/y/map. */
     this.sectors = new SectorIndex();
+    this.multiSpatial = new MultiSpatialIndex();
+    this.interest.bindLocationResolver((serial, kind) => {
+      const entity = kind === 'mobile' ? this.mobiles.get(serial) : this.items.get(serial);
+      if (!entity || (kind === 'item' && entity.parent)) return null;
+      const x = Number(entity.x) | 0;
+      const y = Number(entity.y) | 0;
+      const map = Number(entity.map) | 0;
+      if (x < 0 || x > 7167 || y < 0 || y > 4095) return null;
+      return { x, y, map, sectorKey: sectorKeyForPosition(map, x, y) };
+    });
+    // Player movement is the cheapest reliable wake-up signal for nearby
+    // sleeping AI. The scheduler is attached later by main.js; optional
+    // chaining keeps isolated World fixtures independent of AI.
+    this.sectors.onMobileMoved = (mob) => {
+      if (mob?.client) {
+        this._ai?.wakeNear?.(mob, 48);
+        this._spawner?.activateNear?.(mob, 64);
+      }
+    };
+    this.sectors.onMobileUpdated = (mob) => {
+      this.hotMobiles.updatePosition(mob);
+      this.interest.mark(mob?.serial, EntityDirty.Position, 'mobile');
+    };
+    this.sectors.onItemUpdated = (item) => {
+      this.interest.mark(item?.serial, EntityDirty.Position, 'item');
+    };
     /** Typed indexes for systems that previously searched every item: doors,
      * teleporters, signs, spawners and area effects. They are an internal
      * accelerator and do not alter the Ultima protocol. */
@@ -148,6 +183,7 @@ export class World {
    * the compatibility fallback. */
   enableSpatialIndexes() {
     this.sectors.rebuild(this);
+    this.hotMobiles.rebuild(this.mobiles);
     this.spatial = new TypedSpatialRegistry();
     this._spatialTypesByItem.clear();
     this._groundItemCount = 0;
@@ -188,6 +224,7 @@ export class World {
   markMobileOnline(mob) {
     if (!mob?.serial) return;
     this._onlineMobiles.add(mob.serial >>> 0);
+    this.sectors?.markMobileOnline?.(mob);
     this.subscribeMobile('region', mob);
     this.subscribeMobile('weather', mob);
   }
@@ -198,6 +235,7 @@ export class World {
       : mobOrSerial?.serial >>> 0;
     if (!serial) return;
     this._onlineMobiles.delete(serial);
+    this.sectors?.markMobileOffline?.(serial);
     for (const subscribers of this._subscribersByChannel.values()) subscribers.delete(serial);
   }
 
@@ -235,6 +273,63 @@ export class World {
     }
   }
 
+  observeProperties(state, serialLike) {
+    const serial = Number(serialLike) >>> 0;
+    if (!state || !serial) return false;
+    let observers = this._propertyObservers.get(serial);
+    if (!observers) { observers = new Set(); this._propertyObservers.set(serial, observers); }
+    const changed = !observers.has(state);
+    observers.add(state);
+    state._observedProperties ??= new Set();
+    state._observedProperties.delete(serial);
+    state._observedProperties.add(serial);
+    // A malicious client can query arbitrary serials. Bound its reverse
+    // footprint while retaining the most recently used OPL entries.
+    while (state._observedProperties.size > 4096) {
+      const oldest = state._observedProperties.values().next().value;
+      state._observedProperties.delete(oldest);
+      const oldObservers = this._propertyObservers.get(oldest);
+      oldObservers?.delete(state);
+      if (oldObservers?.size === 0) this._propertyObservers.delete(oldest);
+    }
+    return changed;
+  }
+
+  *propertyObservers(serialLike) {
+    const serial = Number(serialLike) >>> 0;
+    const observers = this._propertyObservers.get(serial);
+    for (const state of observers ?? []) {
+      if (state?._closed || state?.ws?.readyState !== 1) {
+        observers.delete(state);
+        state?._observedProperties?.delete?.(serial);
+        continue;
+      }
+      yield state;
+    }
+    if (observers?.size === 0) this._propertyObservers.delete(serial);
+  }
+
+  clearPropertyObserver(state) {
+    if (!state) return 0;
+    let removed = 0;
+    for (const serial of state._observedProperties ?? []) {
+      const observers = this._propertyObservers.get(serial);
+      if (observers?.delete(state)) removed++;
+      if (observers?.size === 0) this._propertyObservers.delete(serial);
+    }
+    state._observedProperties?.clear?.();
+    return removed;
+  }
+
+  clearPropertySubject(serialLike) {
+    const serial = Number(serialLike) >>> 0;
+    const observers = this._propertyObservers.get(serial);
+    if (!observers) return 0;
+    for (const state of observers) state?._observedProperties?.delete?.(serial);
+    this._propertyObservers.delete(serial);
+    return observers.size;
+  }
+
   /** O(1) online presence check once the explicit index is enabled. */
   hasOnlineMobiles() {
     if (this._onlineMobilesAuthoritative) {
@@ -249,6 +344,20 @@ export class World {
       if (mob.client) return true;
     }
     return false;
+  }
+
+  markMobileVitals(mob) {
+    if (!mob?.serial) return 0;
+    this.hotMobiles.updateVitals(mob);
+    return this.interest.mark(mob.serial, EntityDirty.Vitals, 'mobile');
+  }
+
+  markEntityProperties(entityOrSerial, kind = null) {
+    const serial = typeof entityOrSerial === 'number' ? entityOrSerial >>> 0 : entityOrSerial?.serial >>> 0;
+    if (!serial) return 0;
+    const resolvedKind = kind ?? (this.mobiles.has(serial) ? 'mobile' : 'item');
+    if (resolvedKind === 'mobile') this.hotMobiles.upsert(this.mobiles.get(serial));
+    return this.interest.mark(serial, EntityDirty.Properties, resolvedKind);
   }
 
   /**
@@ -303,6 +412,8 @@ export class World {
       value: this, writable: true, configurable: true, enumerable: false,
     });
     this.mobiles.set(serial, m);
+    this.hotMobiles.upsert(m);
+    this.interest.mark(serial, EntityDirty.Created | EntityDirty.All, 'mobile');
     this.sectors.addMobile(m);
     return m;
   }
@@ -311,12 +422,15 @@ export class World {
     this.markMobileOffline(serial);
     this.mobiles.delete(serial);
     this.sectors.removeMobile(serial);
+    this.hotMobiles.remove(serial);
+    this.interest.mark(serial, EntityDirty.Removed, 'mobile');
     this._summons?.delete?.(serial);
     this._pets?.delete?.(serial);
     this._combatMobiles?.delete?.(serial);
     this._mobsWithEffects?.delete?.(serial);
     this._tickingMobiles?.delete?.(serial);
     this._xmlAttachmentEntities?.delete?.(serial);
+    this.clearPropertySubject(serial);
     // Fire registered destroy hooks — guild/party/pet/etc. cleanups
     // attach via `onMobileDestroyed`. Bug-hunt #4 A6 (guild leak).
     if (this._destroyHooks?.length) {
@@ -342,7 +456,37 @@ export class World {
    *  Removes the mobile AND drops its sector index entry — the previous
    *  `world.mobiles.delete()` direct calls leaked stale serials into
    *  `sectors.mobileSerialsNear` results (bug-hunt #2 A4). Idempotent. */
-  destroyMobile(serial) { this.removeMobile(serial); }
+  destroyMobile(serial) {
+    const root = Number(serial) >>> 0;
+    if (!this.mobiles.has(root)) return false;
+    // Destructive removal owns the mobile's complete containment tree.
+    // `removeMobile` remains the non-cascading primitive used by death/
+    // transfer flows that relocate equipment first. Spawner/admin teardown
+    // uses this method and must never leave thousands of items parented to a
+    // serial that no longer exists.
+    const stack = [root];
+    const descendants = [];
+    const seen = new Set();
+    while (stack.length) {
+      const parent = stack.pop();
+      const indexed = this._childrenByParent?.get(parent);
+      const children = indexed
+        ? [...indexed]
+        : [...this.items.values()].filter((item) => item.parent === parent).map((item) => item.serial);
+      for (const child of children) {
+        const itemSerial = child >>> 0;
+        if (!itemSerial || seen.has(itemSerial)) continue;
+        seen.add(itemSerial);
+        descendants.push(itemSerial);
+        stack.push(itemSerial);
+      }
+    }
+    for (let i = descendants.length - 1; i >= 0; i--) {
+      destroyWorldItem(this, descendants[i]);
+    }
+    this.removeMobile(root);
+    return true;
+  }
 
   /** Public item destruction facade for scripts/tests that only hold a World.
    *  Keeps item script hooks, sector indexes, parent indexes and history in

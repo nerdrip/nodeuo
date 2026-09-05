@@ -25,8 +25,8 @@ import { assets } from '../../assets/asset-manager.js';
 import { world } from '../../world/world.js';
 import { bus } from '../../core/event-bus.js';
 
-// CUO tool tabs. The `kind` we set on `houseCustomization` determines
-// which 0xD7 builder fires and lets NodeUO preserve semantic piece kinds.
+// CUO tool tabs. The `kind` selects the standard roof/stair/item 0xD7
+// operation; NodeUO derives item subtypes from the same housedata catalogue.
 const TABS = [
   { key: 'walls',    table: 'walls',    kind: 'wall',  label: 'Walls'    },
   { key: 'doors',    table: 'doors',    kind: 'door',  label: 'Doors'    },
@@ -180,7 +180,7 @@ export class HouseCustomizationGump extends WindowGump {
     const actions = [
       ['Backup',  () => houseCustomization.backup()],
       ['Restore', () => houseCustomization.restore()],
-      ['Commit',  () => { houseCustomization.commit(); this.close(); }],
+      ['Commit',  () => { if (houseCustomization.commit()) this.close(); }],
       ['Revert',  () => houseCustomization.revert()],
       ['Eraser',  () => houseCustomization.toggleEraser()],
       ['Exit',    () => { houseCustomization.exit(); this.close(); }],
@@ -238,6 +238,7 @@ export class HouseCustomizationGump extends WindowGump {
       const check = state.validation
         ? ` · ${state.validation.ok ? 'valid' : `${state.validation.errors.length} error(s)`}` : '';
       this._toolStatus.setText(`${state.message ?? ''}${h ? ` · ${h.tileCount} tiles · undo ${h.canUndo ? 'yes' : 'no'} · redo ${h.canRedo ? 'yes' : 'no'}` : ''}${check}`.slice(0, 90));
+      if (state.operation === 'commit' && state.ok) this.close();
     });
 
     // Category list (left pane).

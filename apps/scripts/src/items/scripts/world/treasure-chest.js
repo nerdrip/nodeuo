@@ -1,4 +1,4 @@
-// FAZA FG — Treasure chest lifecycle.
+// PHASE FG — Treasure chest lifecycle.
 //
 // ServUO `Items/Special/TreasureChestLevel*.cs`: locked + trapped
 // chests guarding a level-tiered loot table. We bind the script to

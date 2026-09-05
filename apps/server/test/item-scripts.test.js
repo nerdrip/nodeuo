@@ -1,4 +1,4 @@
-// FAZA BN: lifecycle scripts wired through items.json + bugfix #30:
+// PHASE BN: lifecycle scripts wired through items.json + bugfix #30:
 //
 //   1. `dispatchItemEvent` honours `item.script` and routes to the
 //      registered handler.
@@ -45,7 +45,7 @@ import { buildHitchingPost, buildSwitch, buildXmlTileTrap } from '../../scripts/
 import * as xmlSpawner from '../src/systems/xml-spawner.js';
 import { adjustKarma } from '../src/notoriety.js';
 
-describe('item-scripts (FAZA BN)', () => {
+describe('item-scripts (PHASE BN)', () => {
   /** @type {World} */
   let world;
 

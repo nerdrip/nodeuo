@@ -10,6 +10,7 @@ import { ScrollArea } from '../controls/scroll-area.js';
 import { Control } from '../control.js';
 import { net } from '../../net/net-client.js';
 import { bus } from '../../core/event-bus.js';
+import { NodeUOChannel, NodeUOFeature } from '@uo/nodeuo-protocol';
 
 function buildSpeechCmd(text) {
   const enc = new TextEncoder();
@@ -64,7 +65,7 @@ export class QuestLogGump extends CommandPanel {
       width: 80, height: 22, label: 'Refresh', action: ButtonAction.Activate,
     });
     refresh.setPosition(12, 4);
-    refresh.onClick = () => { this._clearLines(); this._issue('[quest list'); };
+    refresh.onClick = () => this._refresh();
     this._actions.add(refresh);
 
     const abandon = new Button({
@@ -80,7 +81,29 @@ export class QuestLogGump extends CommandPanel {
     };
     this._actions.add(abandon);
 
-    this._issue('[quest list');
+    this._questUnsub = bus.on('nodeuo:quest-journal', (snapshot) => this._renderQuests(snapshot));
+    this._refresh();
+  }
+  dispose() { this._questUnsub?.(); super.dispose(); }
+  _renderQuests(snapshot) {
+    this._clearLines();
+    const quests = snapshot?.quests ?? [];
+    if (!quests.length) { this._appendLine('No active quests.'); return; }
+    for (const quest of quests) {
+      this._appendLine(`${quest.title || quest.id} · stage ${quest.stage ?? 0}`);
+      for (const objective of quest.objectives ?? []) this._appendLine(`  • ${objective.text ?? objective.name ?? objective.kind ?? JSON.stringify(objective)}`);
+    }
+  }
+  async _refresh() {
+    this._clearLines();
+    if (!net.supportsNodeUO?.(NodeUOFeature.QuestJournal)) { this._issue('[quest list'); return; }
+    try {
+      const snapshot = await net.sendNodeUORequest({
+        channel: NodeUOChannel.Quest, namespace: 'nodeuo.quest',
+        capability: NodeUOFeature.QuestJournal,
+      });
+      this._renderQuests(snapshot);
+    } catch (error) { this._appendLine(`Quest refresh failed: ${error.message}`); }
   }
   get type() { return 'quest-log'; }
 }

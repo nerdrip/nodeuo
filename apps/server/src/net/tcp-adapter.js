@@ -50,6 +50,7 @@ export class TcpAdapter extends EventEmitter {
     this._seedHandled = false;
     /** Used to buffer the first chunk if it arrives in pieces shorter than 4 bytes. */
     this._seedBuf = null;
+    this._uncorkScheduled = false;
 
     socket.on('data', (chunk) => this._onData(chunk));
     socket.on('close', () => {
@@ -112,10 +113,43 @@ export class TcpAdapter extends EventEmitter {
       ? payload
       : Buffer.from(payload.buffer, payload.byteOffset, payload.byteLength);
     try {
+      // Keep packet bytes and ordering untouched while allowing Node to fold
+      // a burst of small UO packets into fewer kernel writes. uncork runs at
+      // the end of the current microtask turn, so login and movement latency
+      // stay sub-millisecond and writableLength still exposes backpressure.
+      if (!this._uncorkScheduled && typeof this.socket.cork === 'function') {
+        this._uncorkScheduled = true;
+        this.socket.cork();
+        queueMicrotask(() => {
+          if (!this._uncorkScheduled) return;
+          this._uncorkScheduled = false;
+          try { this.socket?.uncork?.(); } catch { /* socket closed */ }
+        });
+      }
       this.socket.write(b);
     } catch (e) {
       // Socket closed underneath us — surface as error so NetState can clean up.
       this.emit('error', e);
+    }
+  }
+
+  /** Scatter/gather-compatible sibling of send(). Node combines corked
+   * writes through the stream's _writev implementation when available. */
+  sendBatch(payloads) {
+    if (this.readyState !== 1 || !Array.isArray(payloads) || payloads.length === 0) return false;
+    try {
+      this.socket.cork?.();
+      for (const payload of payloads) {
+        const buffer = Buffer.isBuffer(payload)
+          ? payload : Buffer.from(payload.buffer, payload.byteOffset, payload.byteLength);
+        this.socket.write(buffer);
+      }
+      this.socket.uncork?.();
+      return true;
+    } catch (error) {
+      try { this.socket.uncork?.(); } catch { /* ignore */ }
+      this.emit('error', error);
+      return false;
     }
   }
 
@@ -126,6 +160,10 @@ export class TcpAdapter extends EventEmitter {
   close(_code, _reason) {
     if (this.readyState >= 2) return;
     this.readyState = 2;
+    if (this._uncorkScheduled) {
+      this._uncorkScheduled = false;
+      try { this.socket.uncork?.(); } catch { /* ignore */ }
+    }
     try { this.socket.end(); } catch { /* ignore */ }
     // Hard-destroy after a short grace period so a peer that doesn't FIN
     // doesn't leave us with a half-open socket forever.

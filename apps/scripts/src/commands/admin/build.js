@@ -8,19 +8,14 @@ import { createItem, destroyItemBySerial } from '../../_items.js';
 // session: pick a graphic, click tile → place, click another tile →
 // place again, right-click to cancel.
 //
-// Why this exists: Marcin asked for "ladny wizualny edytor staticow
-// czyli zeby byly wszystkie itemy i zeby mozna z nich budowac domy
-// dekoracje". Full visual editor is bigger; this is the foundation —
-// a chained-target placement loop with a curated palette gump.
+// This provides a chained-target placement loop with a curated palette
+// for building houses and decorations from static artwork.
 //
 // Storage: placed statics go into `world.items` as regular item
 // entries with `isDecoration: true` + `movable: false` (matches
 // `[decorate` semantics). They round-trip through persistence so a
 // builder's session survives restarts. `[del` removes them.
 //
-// Companion features (TODO next session):
-//   - Erase mode (right-click a placed static to delete it)
-//   - Multi-tile preview ghost
 //   - Save selection as a multi/.json export
 
 const SAFE_GRAPHIC_RANGE = [0x0001, 0x4000];
@@ -57,16 +52,14 @@ export default function register(api) {
       return;
     }
     state.sendSystemMessage?.(`Build mode: 0x${itemId.toString(16)}. Click tiles to place. Right-click to cancel.`);
-    // Push a 0xBF 0x6F preview hint so the target cursor renders the
-    // graphic as a translucent ghost at the mouse position. Lets the
-    // operator see WHAT they're placing before the click — without
-    // this they had to look up the brush in the [buildmenu palette
-    // every time, or just guess.
+    // Push a typed preview hint so the NodeUO target cursor renders a ghost.
     try {
-      const proto = api.protocol;
-      const previewCap = proto?.NodeUOCapability?.WorldEditing ?? (1 << 6);
-      if (proto?.extBuildPreview && state?.send && state.supportsNodeUO?.(previewCap)) {
-        state.send(proto.extBuildPreview(itemId, hue));
+      const previewCap = api.nodeUO?.features?.WorldEditing;
+      if (state.supportsNodeUO?.(previewCap)) {
+        api.nodeUO?.send?.(state, {
+          feature: previewCap, namespace: 'nodeuo.world-editing',
+          payload: { operation: 'preview', itemId, hue },
+        });
       }
     } catch { /* preview hint is non-fatal */ }
     req(state, (picked) => {

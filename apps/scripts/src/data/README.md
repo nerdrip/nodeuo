@@ -9,10 +9,10 @@ data/
 ├── README.md          (this file)
 ├── config/            (A — source-of-truth templates)
 │   ├── npcs.json      (NPC archetypes — single source of truth)
-│   ├── monsters.json  (701 hostile creature templates — UNIFIED)
+│   ├── monsters.json  (803 hostile and ambient creature templates — unified)
 │   ├── npc-names.json (random-name pools per race/gender/monster)
 │   └── items.json, item-types.json, magic-properties.json, loot-*.json,
-│       recipes.json, skills.json, spell-*.json,
+│       recipes.json, skills.json, spells.json,
 │       poison-levels.json, vendor-inventory.json, store-catalogue.json,
 │       housedata.json, sfx-table.js, magincia-recipes.json
 └── world/             (B — placement data + quest content)
@@ -59,8 +59,7 @@ craft, drop, or skill check after the next script reload.
 | File | What it defines | Consumed by |
 | --- | --- | --- |
 | **`config/npcs.json`** | NPC archetype templates (`kind`, `body`, `hue`, `name`, `title`, `vendorKind`, `ai`, `behavior`, `outfit`, `stats`, `skills`, `flags`, `notoriety`, `race`). The single source of truth for non-combat NPC types — bankers, healers, paladins, monks, guards, citizens. Personal names are NOT here; they're rolled at spawn-time from `npc-names.json`. | `data.js` → `NpcRegistry` (server) + `townspeople.js` → mobile catalog |
-| **`config/monsters.json`** | All 701 hostile + ambient mobile templates in ONE file (UNIFIED 2026-05-16; previously split between `monsters.json` + `mobile-templates/*.json`). Each entry: `kind` (kebab-case key), `name`, `body`, `hp`, `str/dex/int`, `dmgMin/dmgMax`, `notoriety`, `aggroRange`, `attackInterval`, `gold`, `loot` (table name or inline array), `flags`, `ai`, optional `boss`/`peerless`/`tamable`/`rideable`/`specialAbilities`/`outfit`/`skills`. | `data.js` → `MonsterRegistry` (server) — consumed by `aggressive.js spawnAggressive` |
-| `monsters.json` | Monster templates (429 entries): hostile creatures + animals + bosses. Fields: `kind`, `name`, `body`, `hp`, `str/dex/int`, `dmg`, `notoriety`, `gold`, `loot` (table name from `loot-tables.json`), `rare`, `tamable`, `controlSlots`. | `data.js` → `MonsterRegistry` (server) |
+| **`config/monsters.json`** | All 803 hostile and ambient mobile templates in one file. Each entry uses a normalized kebab-case `kind` plus its body, stats, damage, notoriety, AI, loot and optional boss, peerless, pet, outfit and skill metadata. | `data.js` → `MonsterRegistry` (server) — consumed by `aggressive.js spawnAggressive` |
 | `npc-names.json` | Random name pools — `human.male`/`human.female` (1487 / 2110), `tokuno`/`elf`/`gargoyle` + per-monster pools (daemon, ratman, lizardman, savage…). Extracted from ServUO `Data/names.xml` by `tools/extractors/extract-names.mjs`. | `server/src/world/npc-names.js#pickNameForMob` |
 | `items.json` | Item templates (graphic, layer, weight, stackable, script hook). | `data.js` → `templates.registerTemplate` |
 | `item-types.json` | Item-type→kind tags (`'weapon'`, `'armor'`, `'reagent'`) for filtering and crafting input lookup. | crafting system + admin gump |
@@ -87,9 +86,10 @@ quest line. Editing them changes spawned state, not type behavior.
 | File | What it defines | Consumed by |
 | --- | --- | --- |
 | `decorations.json` | 107 951 furniture / decoration statics across 6 facets — every chair, plant, table. | `[decorate` (stage of `[createworld`) |
-| `signs.json` | 868 town sign placements (sign graphic + label + facet coords). | `[signgen` (stage of `[createworld`) |
+| `signs.json` | 834 town sign placements (sign graphic + label + facet coordinates). | `[signgen` (stage of `[createworld`) |
 | `teleporters.json` | 1374 teleporter pads across 5 facets. | `[telgen` (stage of `[createworld`) |
 | `regional-npcs.json` | 141 named characters (Hawkins, Iolo, Sister Lana, Brom, Sandra…) — each gets a fixed personal name + region anchor + auto-offset placement. | `[createworld` → `RegionalNPCs` stage → `spawns/regional-npcs.js#placeRegionalNpcs` |
+| `spawns/champions.json`, `spawns/doom-gauntlet.json`, `spawns/despise-pillars.json` | Script-owned landmarks and their encounter coordinates. | `[createworld` → `RuntimeLandmarks`; removed by `[deleteworld`/`[wipeworld` |
 | `xmlspawners.json` | XML-driven monster spawn rectangles (group + per-rect kind list + cadence). | `[xmlload` stage + `XmlSpawner` |
 | `camps.json` | Brigand / orc camp blueprints (tent statics + per-camp NPC list). | `systems/housing/camps.js` |
 | `addons.json` | House addon definitions (placeable furniture sets, e.g. fountain, vendor stall). | housing placement + `[addon` admin |
@@ -118,6 +118,9 @@ quest line. Editing them changes spawned state, not type behavior.
 - A loader in `data.js` handles every CONFIG file. WORLD DATA is
   consumed lazily by its specific engine (often a `[createworld` stage
   in `commands/admin/createworld.js`).
+- World scripts register behaviour at boot but must register deterministic
+  physical seeds through `_world-content.js`; a clean shard may not place
+  NPCs or items before `[createworld`.
 - Don't put PERSONAL names in templates. Generic display names in
   `npcs.json`'s `name` field are OK; the spawn pipeline replaces them
   with a pick from `npc-names.json` keyed on body/race/gender.

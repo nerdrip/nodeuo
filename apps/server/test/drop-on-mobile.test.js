@@ -1,4 +1,4 @@
-// Drop-on-mobile tests (FAZA item system 2026-05-05).
+// Drop-on-mobile tests (PHASE item system 2026-05-05).
 //
 // Covers the new 0x08 branch: dropping a held item directly onto a mobile
 // (player → auto-open trade, NPC → registered hook or refuse).

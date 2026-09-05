@@ -413,8 +413,7 @@ class LightPoints {
     // Clip mask — the dim rect on LightOverlay is sized to the
     // game-viewport rect (camera.viewX..viewW × viewY..viewH), but
     // a light Sprite placed near the player can overflow that rect
-    // and bleed into the chrome / sidebar UI. User report 2026-05-19
-    // "światło wystaje za ekran gry". Pixi v8 supports a Graphics
+    // and bleed into the chrome / sidebar UI. Pixi v8 supports a Graphics
     // mask on a Container — we resize it every tick to track
     // `camera.viewX/viewW/...`. Mounted as a child so transforms
     // sync with the layer's parent space.
@@ -701,9 +700,8 @@ class LightPoints {
       // Read mobile lerp offsets for smooth follow. `m.offsetX/Y/Z` are
       // sub-tile residuals from `beginMoveStep` — adding them to the
       // world-screen position makes the light glide with the avatar
-      // through the 200-400 ms walk lerp instead of jumping tile-to-
-      // tile. User report 2026-05-19 "podczas poruszania się postaci
-      // światło nie przechodzi płynnie". Used purely as a screen-
+      // through the 200-400 ms walk lerp instead of jumping tile-to-tile.
+      // Used purely as a screen-
       // pixel patch added below; the tile coords stay as-is so the
       // tile-distance cull from the player's tile still works.
       let lerpOffX = 0, lerpOffY = 0;
@@ -722,10 +720,8 @@ class LightPoints {
       // units are ½-foot increments and a typical floor-to-ceiling
       // is 20 Z (the Britain bank floor sits at z=20). Player standing
       // outside at z=0 can't see a torch on the bank's first-floor
-      // tile (z=20) until they step inside the bank's entrance which
-      // brings them up to the same z. User report 2026-05-19 "jeżeli
-      // jakieś źródło światła jest w pomieszczeniu to powinno je
-      // być widać dopiero po wejściu do środka". Skip personal-light
+      // tile (z=20) until they step inside the bank's entrance, which
+      // brings them up to the same z. Skip personal light
       // (always rendered at the player) — only world-static / attached
       // mobile lights are gated.
       const playerZ = player.z | 0;
@@ -1183,8 +1179,7 @@ const STATIC_LIGHTS = new Map([
   [0x0A22, [5, 0xFFD080]], [0x0A23, [5, 0xFFD080]],
   [0x0A24, [5, 0xFFD080]], [0x0A25, [5, 0xFFD080]],
   // Street lamps & wall lanterns — ServUO `Items/Lights/WallLantern.cs`
-  // + `Items/Lights/StreetLight.cs`. User report 2026-05-18: "uliczne
-  // latarnie nie dają światła". These IDs aren't in tiledata
+  // + `Items/Lights/StreetLight.cs`. These IDs aren't in tiledata
   // FLAG_LIGHT_SRC either, so the auto cross-reference path misses
   // them. Curated whitelist below covers every common town-light
   // graphic plus the carpentry-craftable lamp posts.

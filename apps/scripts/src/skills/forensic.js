@@ -1,4 +1,4 @@
-// FAZA EN — `[forensic` Forensic Evaluation skill.
+// PHASE EN — `[forensic` Forensic Evaluation skill.
 //
 // ServUO `Skills/Forensic.cs`: targets a corpse to reveal its
 // killer's name (and last known thief if the body was looted).

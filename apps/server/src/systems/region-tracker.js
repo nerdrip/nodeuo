@@ -43,8 +43,8 @@ function resolveMusicId(name) {
   return MUSIC_NAME_TO_ID[name.toLowerCase()] ?? 0xFFFF;
 }
 
-export function startRegionTracker({ world, regions, achievementsSystem, protocol }) {
-  const regionTimer = setInterval(() => {
+export function startRegionTracker({ world, regions, achievementsSystem, protocol, scheduler = null }) {
+  const tick = () => {
   const online = typeof world.onlineMobiles === 'function'
     ? world.onlineMobiles()
     : world.mobiles.values();
@@ -87,8 +87,8 @@ export function startRegionTracker({ world, regions, achievementsSystem, protoco
     // when the innermost region has none — without this every nested
     // "tavern room" / "bedroom" region without a music attr silenced
     // the city's main loop on entry, then any move back out re-played
-    // it. User report 2026-05-19 "jak zmienia się miasta bywa różnie
-    // [z muzyką]". Walk `here` from innermost outward and use the
+    // it, making city music inconsistent while crossing subregions. Walk
+    // `here` from innermost outward and use the
     // first region with a music attr; only emit 0xFFFF (stop) when
     // nothing in the stack declares one.
     let musicRegion = null;
@@ -116,8 +116,10 @@ export function startRegionTracker({ world, regions, achievementsSystem, protoco
     }
     if (newName) m.client.sendSystemMessage?.(`You have entered ${newName}.`);
   }
-}, 1000);
-  regionTimer.unref();
+  };
+  const regionTimer = scheduler?.every
+    ? scheduler.every('region-tracker', 1000, tick)
+    : setInterval(tick, 1000);
+  regionTimer.unref?.();
   return regionTimer;
 }
-

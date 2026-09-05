@@ -24,7 +24,7 @@ export default function register(api) {
         gumpId: BACKPACK_GUMP_ID,
         x: ctx.sender.x, y: ctx.sender.y, z: ctx.sender.z, map: ctx.sender.map,
       });
-      // BUGFIX #65 (FAZA CW): visibility-gate.
+      // BUGFIX #65 (PHASE CW): visibility-gate.
       for (const other of nearbyClients(ctx.world, bag)) {
         other.client.sendItem(bag);
       }
@@ -58,7 +58,7 @@ export default function register(api) {
           x: 0, y: 0, z: 0, map: 0,
         });
       }
-      // BUGFIX #65 (FAZA CW): visibility-gate.
+      // BUGFIX #65 (PHASE CW): visibility-gate.
       for (const other of nearbyClients(ctx.world, bag)) {
         other.client.sendItem(bag);
       }

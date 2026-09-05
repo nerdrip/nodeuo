@@ -139,10 +139,10 @@ export default function (api) {
           return;
         }
         // Wave 34: palette delete.
-        // Wave 35: confirm-gate gdy palette jest aktualnie loaded —
-        // accidental delete of the in-use SWATCHES would silently
-        // strip the picker. Caller passes `CONFIRM` (case-sensitive)
-        // jako 4th arg żeby pokonać guard.
+        // Wave 35: require confirmation when the palette is currently loaded;
+        // accidental deletion of the in-use SWATCHES would silently
+        // strip the picker. The caller passes `CONFIRM` (case-sensitive)
+        // as the fourth argument to pass this guard.
         if (action === 'delete') {
           if (!name) { ctx.state.sendSystemMessage('Usage: [vendorhue palette delete <name> [CONFIRM]'); return; }
           if (!mob._huePalettes.has(name)) {

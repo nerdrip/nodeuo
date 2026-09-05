@@ -530,7 +530,7 @@ export default function register(api) {
   // read-only — the assignment threw at script init and dropped the
   // ENTIRE quests module. Hook chain mirror of templates.addUseItemHook.
   api.corpse?.addKillHook?.((world, victim, killer) => {
-    // BUGFIX #3 (FAZA AH): killing another player makes `victim.kind ===
+    // BUGFIX #3 (PHASE AH): killing another player makes `victim.kind ===
     // undefined`, which used to slip through and produce empty progress
     // notices on PvE quests. Require victim to be a non-client mobile
     // with a kind tag so PvP kills never advance PvE quests.

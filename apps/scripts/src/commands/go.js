@@ -1,4 +1,4 @@
-// FAZA HB — `[go <location|x y [z]>` teleport with named presets.
+// PHASE HB — `[go <location|x y [z]>` teleport with named presets.
 //
 // ServUO reference: Scripts/Commands/Go.cs — a multi-tab gump listing
 // every canonical destination (towns, dungeons, shrines, moongates,
@@ -120,7 +120,7 @@ export default function register(api) {
     access: 'GM',
     run(ctx, args) {
       const sender = ctx.sender;
-      // FAZA NE: bare `[go` opens the gump with the full destination
+      // PHASE NE: bare `[go` opens the gump with the full destination
       // list. Previously it just printed "Usage: ..." which made the
       // travel UI feel hidden. Mirrors ServUO's `Help/GoGump.cs` —
       // bare command opens the picker.
@@ -143,7 +143,7 @@ export default function register(api) {
           ctx.state.sendSystemMessage('No matching destinations.');
           return;
         }
-        // FAZA II: render via gump if available — players asked for the
+        // PHASE II: render via gump if available — players asked for the
         // CUO-style picker. ServUO `Help/GoGump.cs` is exactly this.
         if (api.gumps?.send) {
           renderGoGump(api, ctx, matches);
@@ -183,10 +183,10 @@ export default function register(api) {
         map: typeof dest.map === 'number' ? dest.map | 0 : sender.map,
       };
       if (!api.game?.mobile?.teleport?.(sender, next, { state: ctx.state, refresh: true })) {
-        // BUGFIX #116 (FAZA HB): the original `[go` mutated coords but
+        // BUGFIX #116 (PHASE HB): the original `[go` mutated coords but
         // never told observers the player vanished from the old spot,
         // so phantom mobiles lingered for nearby clients until their
-        // own next frame. Recall (FAZA DU) had the same bug fixed — we
+        // own next frame. Recall (PHASE DU) had the same bug fixed — we
         // adopt the same removeEntity-to-pre-observers approach here.
         const preObservers = [...clientsNear(api, sender, 18, sender)];
         if (api.protocol?.removeEntity) {
@@ -232,7 +232,7 @@ export const _LOCATIONS_FOR_TEST = LOCATIONS;
 // Public export — admin editor reads via /api/locations.
 export const LOCATIONS_REGISTRY = LOCATIONS;
 
-// FAZA II — `[go` picker gump. Two columns × N rows; each row is a
+// PHASE II — `[go` picker gump. Two columns × N rows; each row is a
 // button that re-dispatches `[go <key>` so the move + visibility
 // fixes (#116) all run through the same path.
 function renderGoGump(api, ctx, entries) {

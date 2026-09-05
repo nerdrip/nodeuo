@@ -77,6 +77,9 @@ export function registerItem(def) {
         else byArt.delete(previous.artId);
       }
     }
+    for (const [tag, value] of byTag) {
+      if (value === previous) byTag.delete(tag);
+    }
   }
 
   byDefinition.set(definitionId, normalized);
@@ -87,6 +90,31 @@ export function registerItem(def) {
   list.push(normalized);
   byArtAll.set(artId, list);
   return normalized;
+}
+
+/** Remove a definition and every lookup alias owned by it. `expected` makes
+ * hot-reload disposal race-safe: an older script generation cannot remove a
+ * newer replacement that reused the same definition id. */
+export function unregisterItem(id, expected = null) {
+  const definitionId = typeof id === 'object'
+    ? String(id?.definitionId ?? id?.id ?? '')
+    : String(id ?? '');
+  const current = byDefinition.get(definitionId);
+  if (!current || (expected && current !== expected)) return false;
+  byDefinition.delete(definitionId);
+
+  const variants = (byArtAll.get(current.artId) ?? [])
+    .filter((entry) => entry !== current);
+  if (variants.length) byArtAll.set(current.artId, variants);
+  else byArtAll.delete(current.artId);
+  if (byArt.get(current.artId) === current) {
+    if (variants.length) byArt.set(current.artId, variants.at(-1));
+    else byArt.delete(current.artId);
+  }
+  for (const [tag, value] of byTag) {
+    if (value === current) byTag.delete(tag);
+  }
+  return true;
 }
 
 /** String lookup means definition identity; numeric lookup means legacy art. */

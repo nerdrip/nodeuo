@@ -105,7 +105,11 @@ function applyControlOverride(gump, override) {
   }
   const alpha = bounded(override.opacity ?? override.alpha, 0, 1);
   if (alpha != null && control.node) control.node.alpha = alpha;
-  if (override.text != null) control.setText?.(String(override.text));
+  if (override.text != null) {
+    const text = String(override.text);
+    if (typeof control.setText === 'function') control.setText(text);
+    else control.setLabel?.(text);
+  }
   if (override.hue != null) control.setHue?.(Number(override.hue) | 0);
   if (override.gumpId != null || override.artId != null) control.setGumpId?.(Number(override.gumpId ?? override.artId) | 0);
   if (override.itemId != null) control.setItemId?.(Number(override.itemId) | 0);
@@ -189,12 +193,22 @@ class ClientGumpDefinitions {
         if (typeof behavior[key] === 'boolean') gump[key] = behavior[key];
       }
     }
+    const controlsApplied = this.applyControls(gump, definition);
+    gump._clientGumpDefinition = { definitionId: definition.definitionId, revision: this.revision, controlsApplied };
+    gump.onClientGumpDefinitionApplied?.(definition);
+    return definition;
+  }
+
+  /** Reapply just the control layer after a dynamic gump rebuilt children.
+   * This deliberately leaves frame position/size alone, so a dialogue update
+   * cannot jump a window the player has already dragged elsewhere. */
+  applyControls(gump, definition = this.find(gump)) {
+    if (!definition || definition.abstract) return 0;
     let controlsApplied = 0;
     for (const override of definition.controlOverrides ?? []) {
       if (applyControlOverride(gump, override)) controlsApplied++;
     }
-    gump._clientGumpDefinition = { definitionId: definition.definitionId, revision: this.revision, controlsApplied };
-    return definition;
+    return controlsApplied;
   }
 }
 

@@ -1,4 +1,4 @@
-// FAZA EA — `[repair` command. ServUO `Engines/Craft/RepairTool.cs`
+// PHASE EA — `[repair` command. ServUO `Engines/Craft/RepairTool.cs`
 // uses a tinker tool (or smith tongs) to restore item durability.
 // Each repair restores 5..15 durability and may permanently lower the
 // item's max durability on a botched roll.
@@ -49,7 +49,7 @@ export default function register(api) {
           return;
         }
         // Pick the appropriate skill for the item category. Heuristic
-        // by itemId range — full per-item registry is FAZA J part-2.
+        // by itemId range — full per-item registry is PHASE J part-2.
         const skillId = pickSkillFor(item);
         const rawSkill = ctx.sender.skills?.[skillId] ?? ctx.sender.skills?.[String(skillId)] ?? 0;
         const skill = normalizeSkillValue(rawSkill);

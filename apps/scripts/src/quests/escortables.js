@@ -1,6 +1,6 @@
 // Escortables catalog — ServUO `Quests/Escortables.cs` + `EscortToDugan.cs`.
 // Registers a default pool of escort quests that any matching NPC can offer.
-// Faza F.1.4.
+// Phase F.1.4.
 //
 // Each escort:
 //   • NPC asks to be taken from `fromRegion` to `toRegion`.

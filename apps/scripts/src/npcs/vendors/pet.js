@@ -15,7 +15,7 @@ import { mobileBySerial } from '../../_entities.js';
 //
 // We do NOT replicate ServUO's loyalty/hunger system in this round —
 // pets are persistently bound until the player releases them with
-// `[pet release`. Stable system (rented for 30 days) is FAZA J cont.
+// `[pet release`. Stable system (rented for 30 days) is PHASE J cont.
 
 const FOLLOW_RANGE = 6;
 const REPLAN_DRIFT = 3;
@@ -49,7 +49,7 @@ export default function (api) {
     name: 'pet',
     initState() {
       return {
-        // BUGFIX #49 (FAZA CG): pet command state used to live ONLY in
+        // BUGFIX #49 (PHASE CG): pet command state used to live ONLY in
         // the per-binding state — but bindings are runtime-only, never
         // serialised. Every server restart blindly reset every pet
         // back to 'follow' even if the player had ordered them to
@@ -64,13 +64,13 @@ export default function (api) {
       };
     },
     tick(ctx, mob, state) {
-      // FAZA CG: sync command from persisted field if present. Mutators
+      // PHASE CG: sync command from persisted field if present. Mutators
       // (the [pet command + speech parser) write `mob.petCommand` so
       // both old and new instances see the same intent across restart.
       if (mob.petCommand && mob.petCommand !== state.command) {
         state.command = mob.petCommand;
       }
-      // FAZA CG: drain _heardSpeech for "all <verb>" commands from the
+      // PHASE CG: drain _heardSpeech for "all <verb>" commands from the
       // master. Other speakers' chatter is filtered by the speech-push
       // gate in handlers.js (we set _speechKeywords = ['all'] when the
       // pet is bound), so this loop only sees relevant utterances.
@@ -128,7 +128,7 @@ export default function (api) {
         // wandering in place — caller can re-bind via [tame.
         return;
       }
-      // BUGFIX #5 (FAZA AJ): when the master logs out we keep their
+      // BUGFIX #5 (PHASE AJ): when the master logs out we keep their
       // mobile in `world.mobiles` so the next login rebinds the same
       // character — but `master.client === null`. Without this guard,
       // the pet kept following the offline master's last position
@@ -165,7 +165,7 @@ export default function (api) {
       if (!target && state.command !== 'guard'
           && state.command !== 'stay' /* stay = literally don't move */) {
         const lastBy = master._lastDamageBy | 0;
-        const lastAt = master._lastDamageAt | 0;
+        const lastAt = Number(master._lastDamageAt) || 0;
         if (lastBy && now - lastAt < 8000) {
           const aggressor = mobileBySerial({ world: ctx.world }, lastBy >>> 0);
           if (aggressor && !aggressor.ghost && (aggressor.hp ?? 0) > 0

@@ -1,4 +1,4 @@
-// FAZA DY — `[hire` mercenary command.
+// PHASE DY — `[hire` mercenary command.
 //
 // ServUO's `Engines/Hires/HireFighter.cs` lets the player hire armed
 // NPCs by paying gold up-front. The hireling follows the master like

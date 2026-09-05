@@ -20,6 +20,7 @@ function tailor(id, name, category, minSkill, outputItemId, material, count, opt
     id: id + RECIPE_ID_OFFSET, name, category, skillId: SKILL,
     minSkill, maxSkill: opts.maxSkill ?? minSkill + 250,
     outputItemId, outputCount: 1,
+    toolKind: 'tailor',
     inputs: [{ itemId: material, count }],
     exceptionalChance: opts.exceptionalChance ?? 0.1,
   });
@@ -79,7 +80,8 @@ export default function register(api) {
   const sys = api.systems?.crafting;
   if (!sys?.registerRecipe) { api.log?.('crafting/tailoring: engine missing, skipping'); return () => {}; }
   let count = 0;
-  for (const def of __PENDING__) { try { sys.registerRecipe(def); count++; } catch (e) { api.log?.('crafting/tailoring: ' + e.message); } }
+  const owned = [];
+  for (const def of __PENDING__) { try { const registered = sys.registerRecipe(def); if (registered !== false) { owned.push(registered ?? sys.getRecipe?.(def.id) ?? def); count++; } } catch (e) { api.log?.('crafting/tailoring: ' + e.message); } }
   api.log?.('crafting/tailoring: registered ' + count + ' recipes');
-  return () => {};
+  return () => { for (const def of owned) sys.unregisterRecipe?.(def.id, def); };
 }

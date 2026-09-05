@@ -13,7 +13,7 @@
 //                                          set false to gate humans only
 //   item.message = "You step through the moongate."  (optional)
 //
-// FAZA AUDIT: extended to mirror ServUO `Teleporter.cs` knobs:
+// PHASE AUDIT: extended to mirror ServUO `Teleporter.cs` knobs:
 //   item.requireKarma = number              minimum karma to use
 //   item.requireFame  = number              minimum fame
 //   item.requireLevel = number              minimum mobile level

@@ -189,7 +189,7 @@ export default function register(api) {
             ctx.state.sendSystemMessage('Their pack is empty.');
           } else {
             const stolen = candidates[(Math.random() * candidates.length) | 0];
-            // BUGFIX #113 (FAZA GD): the previous parent-only mutation
+            // BUGFIX #113 (PHASE GD): the previous parent-only mutation
             // moved the item server-side but never told the victim's
             // client OR the thief's client. Victim's pack still showed
             // the item until they re-opened it; the thief saw nothing.

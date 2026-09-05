@@ -1,5 +1,5 @@
 import { mobileBySerial } from '../../_entities.js';
-// FAZA DB — `[paragon` admin command toggles the paragon flag on a
+// PHASE DB — `[paragon` admin command toggles the paragon flag on a
 // targeted creature. Mirrors ServUO's `[ParagonCheck` / `[Paragon`
 // admin commands. Useful for spawn-control + testing.
 //

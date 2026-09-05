@@ -1,8 +1,8 @@
 // Bulletin-board server logic — 0x71 packet hub.
 //
-// Boards live as items with `kind:'bulletin'` in the world. Each post
-// is plain data on `board.posts[]`. We don't persist to disk yet; the
-// shard memory is the source of truth.
+// Boards live as items with `kind:'bulletin'` in the world. Posts use a
+// sidecar snapshot because they are not ordinary item fields; main.js saves
+// and restores that snapshot together with the other auxiliary world state.
 //
 // Outbound packets we build:
 //   0x71 0x00 board header + summary list (sent on board open)

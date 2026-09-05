@@ -1,4 +1,4 @@
-// FAZA LA / BUGFIX #140 — pre-template useItem hook chain.
+// PHASE LA / BUGFIX #140 — pre-template useItem hook chain.
 // Boat + door scripts can't monkey-patch `templates.useItem` (read-only
 // ES module export); instead they register hooks via addUseItemHook.
 
@@ -7,7 +7,7 @@ import {
   useItem, addUseItemHook, clearUseItemHooks,
 } from '../src/world/templates.js';
 
-describe('useItem hook chain (FAZA LA / #140)', () => {
+describe('useItem hook chain (PHASE LA / #140)', () => {
   beforeEach(() => clearUseItemHooks());
 
   it('runs hooks in registration order until one returns truthy', () => {

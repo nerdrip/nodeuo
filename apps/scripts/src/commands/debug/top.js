@@ -3,7 +3,7 @@
 // HTTP roundtrip — we just walk the live mobile registry. Keeps the
 // query simple: reads every mobile with a `client` (online players) +
 // the persistent player record fallback if the offline accounts/saves
-// expose `players.json` (FAZA 2026-05-08 split-save).
+// expose player-owned SQLite rows without scanning the entire world.
 //
 // Stats:
 //   fame   karma   gold   kills   pkills   skills   stat   hp   level

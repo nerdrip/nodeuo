@@ -17,7 +17,14 @@ export const CORE_SIGILS = Object.freeze([
 ]);
 
 export function registerCoreWorldEvents({ worldBosses, sigils }) {
-  for (const boss of CORE_WORLD_BOSSES) worldBosses.registerBoss(boss.id, { cooldownMs: boss.cooldownMs });
-  for (const sigil of CORE_SIGILS) sigils.registerSigil(sigil.id, sigil.x, sigil.y, sigil.map);
-  return { bosses: CORE_WORLD_BOSSES.length, sigils: CORE_SIGILS.length };
+  if (worldBosses) {
+    for (const boss of CORE_WORLD_BOSSES) worldBosses.registerBoss(boss.id, { cooldownMs: boss.cooldownMs });
+  }
+  if (sigils) {
+    for (const sigil of CORE_SIGILS) sigils.registerSigil(sigil.id, sigil.x, sigil.y, sigil.map);
+  }
+  return {
+    bosses: worldBosses ? CORE_WORLD_BOSSES.length : 0,
+    sigils: sigils ? CORE_SIGILS.length : 0,
+  };
 }

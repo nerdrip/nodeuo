@@ -1,11 +1,4 @@
-// Wire opcode handlers to world state mutations + bus events. Mirrors
-// ClassicUO's PacketHandlers.cs (one method per opcode).
-//
-// Each handler:
-//   1. decodes the packet via ../net/incoming.js
-//   2. mutates `world` if applicable
-//   3. emits a bus event so scenes/UI can react
-
+// Decode server opcodes, mutate the world mirror and publish UI events.
 import { world } from '../world/world.js';
 import { bus } from '../core/event-bus.js';
 import {
@@ -48,34 +41,14 @@ import {
   buildUseReq,
   buildWarMode,
 } from './outgoing.js';
-import { assets } from '../assets/asset-manager.js';
 import { corpseManager } from '../managers/corpse-manager.js';
 import { walker } from '../managers/walker.js';
 import { profile } from '../managers/profile-manager.js';
 import { DIR_DX, DIR_DY, DIR_MASK, DIR_RUNNING_BIT, directionFromDelta } from '../shared/directions.js';
 import { isDeadBody } from '../shared/bodies.js';
 import { applyWorldItemInfo, captureNameFromSingleClick, u16, u32 } from './packet-state.js';
-import {
-  extNodeUOCapabilities,
-  NODEUO_CAPABILITIES_ALL,
-  NODEUO_EXT_SUBCOMMAND,
-  NODEUO_MOVEMENT_SUBCOMMAND,
-  NODEUO_SPELL_COMPOSER_SUBCOMMAND,
-  NODEUO_SPECIALIZATION_SUBCOMMAND,
-  NODEUO_COOLDOWN_SUBCOMMAND,
-  NODEUO_NAVAL_SUBCOMMAND,
-  NODEUO_HOUSE_TOOLS_SUBCOMMAND,
-  NODEUO_SKILL_INSIGHTS_SUBCOMMAND,
-  NODEUO_TRADE_AUDIT_SUBCOMMAND,
-  NODEUO_VENDOR_INSIGHTS_SUBCOMMAND,
-  NODEUO_PROTOCOL_MAJOR,
-  NodeUOCapability,
-  NodeUOCapabilityMessage,
-  NodeUOSpellComposerMessage,
-  NodeUOSpecializationMessage,
-  NodeUONavalMessage,
-  NodeUOHouseToolsMessage,
-} from '@uo/protocol';
+import { resetNodeUOModernState } from './nodeuo-modern.js';
+import { assets } from '../assets/asset-manager.js';
 
 /** ServUO answers 0x09 LookReq with a 0x1C/0xAE speech packet whose
  *  `name` header is "You see" and whose `text` is the target's display
@@ -155,7 +128,10 @@ function _clearMobileEquipment(m) {
 export function registerHandlers(net) {
   const delayedDeathRemovals = new Map();
   let loginConfirmSerial = 0;
+  let customHouseDecodeQueue = Promise.resolve();
+  let customHouseSession = 0;
   bus.on('net:close', () => {
+    customHouseSession++;
     for (const timer of delayedDeathRemovals.values()) clearTimeout(timer);
     delayedDeathRemovals.clear();
   });
@@ -163,6 +139,7 @@ export function registerHandlers(net) {
     for (const timer of delayedDeathRemovals.values()) clearTimeout(timer);
     delayedDeathRemovals.clear();
     loginConfirmSerial = 0;
+    resetNodeUOModernState();
     world.reset();
     bus.emit('atmosphere:weather', { kind: 0xFE, particles: 0, temperature: 0 });
     bus.emit('atmosphere:light', { level: 0, reset: true });
@@ -1415,7 +1392,37 @@ export function registerHandlers(net) {
     }
     bus.emit('book:data', { serial, pages });
   });
-  net.on(0xD8, (pkt) => bus.emit('house:custom',    decodeCustomHouse(pkt)));
+  net.on(0xD8, (pkt) => {
+    // Dense (mode 2) designs derive their grid dimensions from the static
+    // foundation multi. Mode 0/1 do not need bounds, but passing them keeps
+    // us compatible with both ServUO's compact floor planes and NodeUO's
+    // explicit-coordinate encoder.
+    const serial = pkt.length >= 9 ? u32(pkt, 5) : 0;
+    const foundation = world.items.get(serial);
+    const multi = foundation?.multiId != null ? assets.multiTiles(foundation.multiId) : null;
+    let bounds = null;
+    if (Array.isArray(multi) && multi.length) {
+      let minX = Infinity, minY = Infinity, maxY = -Infinity;
+      for (const tile of multi) {
+        minX = Math.min(minX, tile.x | 0);
+        minY = Math.min(minY, tile.y | 0);
+        maxY = Math.max(maxY, tile.y | 0);
+      }
+      if (Number.isFinite(minX) && Number.isFinite(minY) && Number.isFinite(maxY)) {
+        bounds = { minX, minY, maxY };
+      }
+    }
+    const session = customHouseSession;
+    customHouseDecodeQueue = customHouseDecodeQueue
+      .catch(() => {})
+      .then(() => decodeCustomHouse(pkt, { bounds }))
+      .then((info) => {
+        if (session === customHouseSession) bus.emit('house:custom', info);
+      })
+      .catch((error) => bus.emit('net:decode-error', {
+        opcode: 0xD8, message: error?.message ?? String(error),
+      }));
+  });
 
   // ---- Messages -----------------------------------------------------------
 
@@ -1448,180 +1455,8 @@ export function registerHandlers(net) {
   net.on(0xBF, (pkt) => {
     const ext = decodeExtendedCommand(pkt);
     bus.emit('ext:command', ext);
-    // Sub-routing for ops that other modules care about by name. CUO has
-    // ~25 subops we may eventually surface; fan out the highest-impact
-    // ones here so consumers can subscribe by name.
+    // Fan out named extended commands for decoupled consumers.
     switch (ext.subop) {
-      case NODEUO_EXT_SUBCOMMAND: {
-        const p = ext.payload;
-        if (!net.nodeUOTransport || p.length < 8) break;
-        const kind = p[0] | 0;
-        const major = p[1] | 0;
-        const minor = p[2] | 0;
-        if (kind !== NodeUOCapabilityMessage.Offer || major !== NODEUO_PROTOCOL_MAJOR) break;
-        const capabilities = (u32(p, 4) & NODEUO_CAPABILITIES_ALL) >>> 0;
-        net.nodeUONegotiated = true;
-        net.nodeUOCapabilities = capabilities;
-        world.nodeUO = { major, minor, capabilities };
-        try {
-          net.send(extNodeUOCapabilities({
-            kind: NodeUOCapabilityMessage.Accept,
-            major,
-            minor,
-            capabilities,
-          }));
-        } catch { /* connection closed between offer and accept */ }
-        bus.emit('nodeuo:capabilities', world.nodeUO);
-        break;
-      }
-      case NODEUO_MOVEMENT_SUBCOMMAND: {
-        if (!net.nodeUONegotiated || ext.payload.length < 8) break;
-        const p = ext.payload;
-        const hint = {
-          weight: u16(p, 0),
-          capacity: u16(p, 2),
-          paceMultiplier: Math.max(1, u16(p, 4) / 1000),
-          staminaCost: p[6] | 0,
-          overloaded: (p[7] & 1) !== 0,
-        };
-        if (world.player) world.player.encumbrance = hint;
-        walker.setPaceMultiplier?.(hint.paceMultiplier);
-        bus.emit('player:encumbrance', hint);
-        break;
-      }
-      case NODEUO_SPELL_COMPOSER_SUBCOMMAND: {
-        if (!net.supportsNodeUO?.(NodeUOCapability.SpellComposer)) break;
-        const p = ext.payload;
-        if (p.length < 7) break;
-        const kind = p[0] | 0;
-        if (kind !== NodeUOSpellComposerMessage.Open
-          && kind !== NodeUOSpellComposerMessage.Result) break;
-        const requestId = u32(p, 1);
-        const length = u16(p, 5);
-        if (length > 32 * 1024 || 7 + length > p.length) break;
-        try {
-          const payload = JSON.parse(new TextDecoder('utf-8').decode(p.subarray(7, 7 + length)));
-          bus.emit('nodeuo:spell-composer', { kind, requestId, payload });
-        } catch (error) {
-          console.warn('[spell-composer] parse threw', error?.message);
-        }
-        break;
-      }
-      case NODEUO_SPECIALIZATION_SUBCOMMAND: {
-        if (!net.supportsNodeUO?.(NodeUOCapability.Specializations)) break;
-        const p = ext.payload;
-        if (p.length < 7) break;
-        const kind = p[0] | 0;
-        if (kind !== NodeUOSpecializationMessage.Open
-          && kind !== NodeUOSpecializationMessage.Result) break;
-        const requestId = u32(p, 1);
-        const length = u16(p, 5);
-        if (length > 32 * 1024 || 7 + length > p.length) break;
-        try {
-          const payload = JSON.parse(new TextDecoder('utf-8').decode(p.subarray(7, 7 + length)));
-          bus.emit('nodeuo:specializations', { kind, requestId, payload });
-        } catch (error) {
-          console.warn('[specializations] parse threw', error?.message);
-        }
-        break;
-      }
-      case NODEUO_COOLDOWN_SUBCOMMAND: {
-        if (!net.supportsNodeUO?.(NodeUOCapability.CooldownBars)) break;
-        const p = ext.payload;
-        if (p.length < 7) break;
-        const kind = p[0] | 0;
-        const requestId = u32(p, 1);
-        const length = u16(p, 5);
-        if (length > 8 * 1024 || 7 + length > p.length) break;
-        try {
-          const payload = JSON.parse(new TextDecoder('utf-8').decode(p.subarray(7, 7 + length)));
-          bus.emit('nodeuo:cooldown', { kind, requestId, payload });
-        } catch (error) {
-          console.warn('[cooldown] parse threw', error?.message);
-        }
-        break;
-      }
-      case NODEUO_NAVAL_SUBCOMMAND: {
-        if (!net.supportsNodeUO?.(NodeUOCapability.NavalPreview)) break;
-        const p = ext.payload;
-        if (p.length < 7) break;
-        const kind = p[0] | 0;
-        if (kind !== NodeUONavalMessage.ShowRange && kind !== NodeUONavalMessage.HideRange) break;
-        const requestId = u32(p, 1);
-        const length = u16(p, 5);
-        if (length > 16 * 1024 || 7 + length > p.length) break;
-        try {
-          const payload = length
-            ? JSON.parse(new TextDecoder('utf-8').decode(p.subarray(7, 7 + length))) : {};
-          bus.emit('nodeuo:naval-preview', { kind, requestId, payload });
-        } catch (error) {
-          console.warn('[naval-preview] parse threw', error?.message);
-        }
-        break;
-      }
-      case NODEUO_HOUSE_TOOLS_SUBCOMMAND: {
-        if (!net.supportsNodeUO?.(NodeUOCapability.HouseTools)) break;
-        const p = ext.payload;
-        if (p.length < 7) break;
-        const kind = p[0] | 0;
-        if (kind !== NodeUOHouseToolsMessage.Snapshot && kind !== NodeUOHouseToolsMessage.Result) break;
-        const requestId = u32(p, 1);
-        const length = u16(p, 5);
-        if (length > 32 * 1024 || 7 + length > p.length) break;
-        try {
-          const payload = length
-            ? JSON.parse(new TextDecoder('utf-8').decode(p.subarray(7, 7 + length))) : {};
-          bus.emit('nodeuo:house-tools', { kind, requestId, payload });
-        } catch (error) {
-          console.warn('[house-tools] parse threw', error?.message);
-        }
-        break;
-      }
-      case NODEUO_SKILL_INSIGHTS_SUBCOMMAND: {
-        if (!net.supportsNodeUO?.(NodeUOCapability.SkillInsights)) break;
-        const p = ext.payload;
-        if (p.length < 6) break;
-        const requestId = u32(p, 0);
-        const length = u16(p, 4);
-        if (length > 8 * 1024 || 6 + length > p.length) break;
-        try {
-          const payload = JSON.parse(new TextDecoder('utf-8').decode(p.subarray(6, 6 + length)));
-          bus.emit('nodeuo:skill-insight', { requestId, payload });
-        } catch (error) {
-          console.warn('[skill-insight] parse threw', error?.message);
-        }
-        break;
-      }
-      case NODEUO_TRADE_AUDIT_SUBCOMMAND: {
-        if (!net.supportsNodeUO?.(NodeUOCapability.TradeAudit)) break;
-        const p = ext.payload;
-        if (p.length < 6) break;
-        const requestId = u32(p, 0);
-        const length = u16(p, 4);
-        if (length > 4 * 1024 || 6 + length > p.length) break;
-        try {
-          const payload = JSON.parse(new TextDecoder('utf-8').decode(p.subarray(6, 6 + length)));
-          bus.emit('nodeuo:trade-audit', { requestId, payload });
-        } catch (error) {
-          console.warn('[trade-audit] parse threw', error?.message);
-        }
-        break;
-      }
-      case NODEUO_VENDOR_INSIGHTS_SUBCOMMAND: {
-        if (!net.supportsNodeUO?.(NodeUOCapability.VendorInsights)) break;
-        const p = ext.payload;
-        if (p.length < 6) break;
-        const requestId = u32(p, 0);
-        const length = u16(p, 4);
-        if (length > 16 * 1024 || 6 + length !== p.length) break;
-        try {
-          const payload = JSON.parse(new TextDecoder('utf-8').decode(p.subarray(6)));
-          bus.emit('nodeuo:vendor-insight', { requestId, payload });
-        } catch (error) {
-          console.warn('[vendor-insight] parse threw', error?.message);
-        }
-        break;
-      }
       case 0x0001: {
         // FastWalkPrevention init — 6 × u32 BE keys.
         const p = ext.payload;
@@ -1639,42 +1474,6 @@ export function registerHandlers(net) {
       }
       case 0x0004: bus.emit('gump:close-generic',
         { gumpId: u32(ext.payload, 0), buttonId: u32(ext.payload, 4) }); break;
-      case 0x006F: {
-        if (!net.supportsNodeUO?.(NodeUOCapability.WorldEditing)) break;
-        // Custom 0xBF 0x6F BuildPreview — server hint for the next
-        // target prompt. Tells the cursor to ghost an itemId at the
-        // mouse so the operator sees what they're about to place.
-        // Payload: u16 itemId, u16 hue (0 = clear).
-        const p = ext.payload;
-        if (p.length < 4) break;
-        const itemId = p[0] | (p[1] << 8);
-        const hue    = p[2] | (p[3] << 8);
-        bus.emit('target:preview', { itemId, hue });
-        break;
-      }
-      case 0x006E: {
-        if (!net.supportsNodeUO?.(NodeUOCapability.WorldEditing)) break;
-        // Custom 0xBF 0x6E MapTileEdit — admin Map Editor pushed live
-        // tile edits. Payload: u8 facet + u16 count + per-edit
-        // (u16 x, u16 y, u16 tileId, i8 z = 7 bytes).
-        const p = ext.payload;
-        if (p.length < 3) break;
-        const facet = p[0];
-        const count = p[1] | (p[2] << 8);
-        const edits = [];
-        let off = 3;
-        for (let i = 0; i < count && off + 7 <= p.length; i++, off += 7) {
-          const x = p[off]   | (p[off+1] << 8);
-          const y = p[off+2] | (p[off+3] << 8);
-          const tileId = p[off+4] | (p[off+5] << 8);
-          let z = p[off+6]; if (z >= 128) z -= 256;        // i8 sign-extend
-          edits.push({ facet, x, y, tileId, z });
-        }
-        if (edits.length) {
-          assets.applyOverlayEdits(edits);
-        }
-        break;
-      }
       case 0x0006: bus.emit('party:command',  { payload: ext.payload }); break;
       case 0x0008: bus.emit('player:map',     { mapId: ext.payload[0] | 0 }); break;
       case 0x000C: bus.emit('healthbar:close',{ serial: u32(ext.payload, 0) }); break;
@@ -1718,33 +1517,6 @@ export function registerHandlers(net) {
         kind:   u32(ext.payload, 0),
         serial: u32(ext.payload, 4),
       }); break;
-      // 0xBF 0xA0 — custom shard command catalogue. Server sends a
-      // utf-8 JSON `{ accessLevel, commands:[{name,help,access},...] }`
-      // payload at LoginComplete. Used by the right-edge command panel
-      // so the user sees a clickable list filtered to their access.
-      case 0x00A0: {
-        if (!net.supportsNodeUO?.(NodeUOCapability.RichGumps)) break;
-        if (ext.payload.length < 2) break;
-        const len = (ext.payload[0] << 8) | ext.payload[1];
-        if (len <= 0 || len > ext.payload.length - 2) break;
-        try {
-          const text = new TextDecoder('utf-8').decode(ext.payload.subarray(2, 2 + len));
-          const data = JSON.parse(text);
-          const catalogue = {
-            accessLevel: String(data?.accessLevel || 'Player'),
-            commands: Array.isArray(data?.commands) ? data.commands : [],
-          };
-          // Capability negotiation normally completes before GameScene is
-          // constructed. A plain event was therefore lost and an Admin saw
-          // the panel's hard-coded Player fallback. Cache the latest payload
-          // for late subscribers; world.reset() clears it on disconnect.
-          world.commandCatalogue = catalogue;
-          bus.emit('shard:commands', catalogue);
-        } catch (err) {
-          console.warn('[shard:commands] parse threw', err?.message);
-        }
-        break;
-      }
       case 0x0018: bus.emit('map:patches',    { payload: ext.payload }); break;
       case 0x0019: {
         // Extended stats. CUO branches by `version`:
@@ -1833,7 +1605,10 @@ export function registerHandlers(net) {
           const x = (p[7] << 8) | p[8];
           const y = (p[9] << 8) | p[10];
           let z = p[11]; if (z >= 128) z -= 256;
-          bus.emit('house:custom-interact', { serial, type, graphic, x, y, z });
+          const info = { serial, type, graphic, x, y, z };
+          bus.emit('house:custom-interact', info);
+          if (type === 4) bus.emit('house:custom-start', info);
+          if (type === 5) bus.emit('house:custom-end', info);
         }
         break;
       }
@@ -2210,8 +1985,7 @@ export function registerHandlers(net) {
       // single-skill update
       if (info.skills[0]) {
         const s = info.skills[0];
-        // Audit #36 P2 #7 (rev. 2026-05-17) — show old → new value
-        // pair per user request ("było 12.5 a teraz jest 14.0"). The
+        // Audit #36 P2 #7 (rev. 2026-05-17) — show the old → new value pair. The
         // earlier format reported a delta only ("increased by 0.1.
         // It is now 12.5") which the user found unhelpful for tracking
         // progress jumps. Still gated by `profile.skills.showChange`

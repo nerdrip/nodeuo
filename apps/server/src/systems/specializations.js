@@ -1,8 +1,5 @@
-import {
-  extNodeUOSpecialization,
-  NodeUOCapability,
-  NodeUOSpecializationMessage,
-} from '@uo/protocol';
+import { NodeUOFeature, NodeUOSpecializationMessage } from '@uo/nodeuo-protocol';
+import { sendNodeUOEvent } from '../net/handlers/nodeuo-modern.js';
 import { normalizeSkillValue } from '../combat-formulas.js';
 
 const node = (id, tree, label, description, effects, requires = []) => Object.freeze({
@@ -149,21 +146,19 @@ export function snapshot(mob) {
 }
 
 export function open(state, requestId = 0) {
-  if (!state?.mobile || !state.supportsNodeUO?.(NodeUOCapability.Specializations)) return false;
-  state.send(extNodeUOSpecialization({
-    kind: NodeUOSpecializationMessage.Open,
-    requestId,
-    payload: snapshot(state.mobile),
-  }));
-  return true;
+  if (!state?.mobile || !state.supportsNodeUO?.(NodeUOFeature.Specializations)) return false;
+  const payload = snapshot(state.mobile);
+  return sendNodeUOEvent(state, {
+    feature: NodeUOFeature.Specializations,
+    eventKind: NodeUOSpecializationMessage.Open, requestId, payload,
+  });
 }
 
 export function sendResult(state, requestId, result) {
-  if (!state?.mobile || !state.supportsNodeUO?.(NodeUOCapability.Specializations)) return false;
-  state.send(extNodeUOSpecialization({
-    kind: NodeUOSpecializationMessage.Result,
-    requestId,
-    payload: { ...result, ...snapshot(state.mobile) },
-  }));
-  return true;
+  if (!state?.mobile || !state.supportsNodeUO?.(NodeUOFeature.Specializations)) return false;
+  const payload = { ...result, ...snapshot(state.mobile) };
+  return sendNodeUOEvent(state, {
+    feature: NodeUOFeature.Specializations,
+    eventKind: NodeUOSpecializationMessage.Result, requestId, payload,
+  });
 }

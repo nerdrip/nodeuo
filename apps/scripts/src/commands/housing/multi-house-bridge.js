@@ -69,6 +69,14 @@ export function neutralizeHouseMultiHues(api, reference = null, { notify = true 
 }
 
 function boundsOf(parts, fallback) {
+  if (Array.isArray(fallback?._multiBounds) && fallback._multiBounds.length >= 4) {
+    return {
+      x1: (fallback.x | 0) + (fallback._multiBounds[0] | 0),
+      y1: (fallback.y | 0) + (fallback._multiBounds[1] | 0),
+      x2: (fallback.x | 0) + (fallback._multiBounds[2] | 0),
+      y2: (fallback.y | 0) + (fallback._multiBounds[3] | 0),
+    };
+  }
   let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
   for (const item of parts) {
     if (item._multiAnchor) continue;
@@ -118,6 +126,7 @@ export function syncRegistryHouseToMulti(api, house) {
     item._multiOwner = acl.owner;
     item._multiName = house.sign?.title ?? item._multiName;
   }
+  api.houses?.markChanged?.();
   return acl;
 }
 
@@ -126,13 +135,26 @@ export function syncMultiAclToRegistry(api, reference) {
   const house = api.houses?.houseByMultiInstance?.(instanceOf(reference));
   const acl = getAcl(reference);
   if (!house || !acl?.owner) return house ?? null;
-  house.ownerSerial = acl.owner.serial >>> 0;
-  house.ownerName = acl.owner.name ?? house.ownerName;
-  house.coowners = new Set((acl.coOwners ?? []).map((entry) => entry.serial >>> 0));
-  house.friends = new Set((acl.friends ?? []).map((entry) => entry.serial >>> 0));
-  house.bans = new Set((acl.bans ?? []).map((entry) => entry.serial >>> 0));
+  const nextOwner = acl.owner.serial >>> 0;
+  if ((house.ownerSerial >>> 0) !== nextOwner) {
+    api.houses?.transferOwnership?.(house, {
+      serial: nextOwner,
+      name: acl.owner.name ?? house.ownerName,
+    });
+  } else {
+    house.ownerName = acl.owner.name ?? house.ownerName;
+  }
+  const ownerSerial = house.ownerSerial >>> 0;
+  house.bans = new Set((acl.bans ?? []).map((entry) => entry.serial >>> 0)
+    .filter((serial) => serial && serial !== ownerSerial));
+  house.coowners = new Set((acl.coOwners ?? []).map((entry) => entry.serial >>> 0)
+    .filter((serial) => serial && serial !== ownerSerial && !house.bans.has(serial)));
+  house.friends = new Set((acl.friends ?? []).map((entry) => entry.serial >>> 0)
+    .filter((serial) => serial && serial !== ownerSerial
+      && !house.bans.has(serial) && !house.coowners.has(serial)));
   house.lockdowns = new Set((acl.lockedDown ?? []).map((serial) => serial >>> 0));
   house.isPublic = acl.isPublic === true;
+  api.houses?.markChanged?.();
   return house;
 }
 
@@ -168,6 +190,12 @@ export function registerMultiHouse(api, reference, owner, options = {}) {
     multiInstance: instanceId,
     customizable: isCustomHouseMulti(multiId),
     source: options.source ?? 'multi',
+    footprint: Array.isArray(anchorItem?._multiFootprint)
+      ? anchorItem._multiFootprint.map((cell) => [
+          (anchorItem.x | 0) + (cell[0] | 0),
+          (anchorItem.y | 0) + (cell[1] | 0),
+        ])
+      : null,
   });
   syncRegistryHouseToMulti(api, house);
   return house;
@@ -225,7 +253,7 @@ export function houseManagementPayload(api, house, viewer) {
 export function openHouseManagement(api, state, viewer, house) {
   if (!state || !viewer || !house) return false;
   state._activeHouseId = house.id;
-  const capability = api.protocol?.NodeUOCapability?.RichGumps ?? 1;
+  const capability = api.nodeUO?.features?.RichGumps;
   if (!state.supportsNodeUO?.(capability)) return false;
   state.sendSystemMessage?.(`@@OPEN_HOUSE_GUMP@@${houseManagementPayload(api, house, viewer)}`);
   return true;

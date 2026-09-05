@@ -1,7 +1,7 @@
 // Confidence — short-term self-buff: ticks HP back as long as the
 // samurai isn't taking hits. Tagged via status-effects with onTick.
 //
-// BUGFIX #109 (FAZA FV): regen tick used to send healthUpdate only
+// BUGFIX #109 (PHASE FV): regen tick used to send healthUpdate only
 // to the buffed mob's own client. Observers' overhead bars + party
 // members' dragged-out status bars stayed on the pre-tick HP. Same
 // class as #55/#75/#87. Use broadcastHealthUpdate.

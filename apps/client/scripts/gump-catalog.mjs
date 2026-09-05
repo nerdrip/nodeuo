@@ -132,6 +132,27 @@ if (!houseDefinition?.frame?.enabled) failures.push('House Management must use i
 for (const requiredId of ['actions-panel', 'ownership-panel', 'access-panel', 'demolish-button', 'demolition-hint']) {
   if (!houseControlIds.has(requiredId)) failures.push(`House Management JSON is missing stable control '${requiredId}'`);
 }
+const npcDialogDefinition = runtimeById.get('client:npc-dialog-gump');
+const npcDialogControlIds = new Set((npcDialogDefinition?.controlOverrides ?? []).map((entry) => entry.controlId));
+if (!npcDialogDefinition?.frame?.enabled) failures.push('NPC Dialog must use its JSON frame definition');
+if (npcDialogDefinition?.frame?.width !== 780 || npcDialogDefinition?.frame?.height !== 390) {
+  failures.push('NPC Dialog JSON must preserve the complete default frame size');
+}
+const npcDialogRequiredIds = [
+  'window-background', 'window-title', 'cinema-panel', 'portrait-panel',
+  'npc-portrait', 'npc-name', 'npc-title', 'dialogue-panel', 'dialogue-text',
+  'action-hint', 'action-list', ...Array.from({ length: 24 }, (_, index) => `action-${index + 1}`),
+];
+for (const requiredId of npcDialogRequiredIds) {
+  if (!npcDialogControlIds.has(requiredId)) failures.push(`NPC Dialog JSON is missing stable control '${requiredId}'`);
+}
+const npcDialogSource = readFileSync(join(gumpRoot, 'npc-dialog-gump.js'), 'utf8');
+for (const requiredId of npcDialogRequiredIds.filter((id) => !id.startsWith('action-'))) {
+  if (!npcDialogSource.includes(`'${requiredId}'`)) failures.push(`NPC Dialog source is missing layoutId '${requiredId}'`);
+}
+if (!npcDialogSource.includes('button.setLayoutId(`action-${index + 1}`)')) {
+  failures.push('NPC Dialog source is missing stable dynamic action slot IDs');
+}
 
 if (process.argv.includes('--write')) {
   const output = join(appRoot, '.generated', 'gump-catalog.json');

@@ -39,9 +39,8 @@ export function pushPersonalLight(api, mob, level) {
 /** Resolve a "wearer + light level" pair from a light-source item.
  *  Returns `{ wearer, level }` ONLY when the item is DIRECTLY equipped
  *  on a mobile (parent = mobile serial AND `item.layer` set) — a lit
- *  torch sitting in a pack does NOT emit personal light. User report
- *  2026-05-19 "odpalona pochodnia w plecaku daje światło, powinna
- *  dopiero po tym jak podejdzie do ręki". ServUO `BaseLight.OnEquip`
+ *  torch sitting in a pack does NOT emit personal light. ServUO
+ *  `BaseLight.OnEquip`
  *  is the canonical hook for emitting personal light — when the item
  *  leaves the layer (drop into pack), `OnRemoved` clears it. */
 export function resolveWearerLight(world, item) {
@@ -78,9 +77,8 @@ export function broadcastItemUpdate(api, world, item) {
     // mobile). Walk the parent chain to find the owning mobile, then
     // push a 0x25 ContainerContentUpdate so the pack gump re-renders
     // the icon. Without this, double-clicking a torch in your pack
-    // toggled `_lit` server-side but the pack icon stayed on the
-    // unlit sprite — user report 2026-05-18 "sprite się nie zmienia
-    // czy to w plecaku czy paperdolu".
+    // toggled `_lit` server-side but the pack and paperdoll icons stayed on
+    // the unlit sprite.
     let cur = itemBySerial({ world }, item.parent);
     let owner = null;
     let hops = 0;

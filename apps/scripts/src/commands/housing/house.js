@@ -1,6 +1,5 @@
-import { allMobiles, nearbyClients } from '../../_spatial.js';
+import { allMobiles } from '../../_spatial.js';
 import { itemBySerial } from '../../_entities.js';
-import { createItem } from '../../_items.js';
 import { demolishMultiWithDeed } from './placemulti.js';
 import { openHouseManagement, syncRegistryHouseToMulti } from './multi-house-bridge.js';
 
@@ -45,7 +44,7 @@ function selectedHouse(api, state, mob, requestedId = null) {
 //   [house ban <name>          Ban a player by name.
 //
 // The HouseRegistry instance is created in main.js bootstrap and
-// exposed via api.houses (FAZA M part 2 will wire the lockdown ACL
+// exposed via api.houses (PHASE M part 2 will wire the lockdown ACL
 // into the pickup handler so a non-owner trying to take a locked
 // item gets refused).
 
@@ -66,111 +65,9 @@ export default function register(api) {
 
       if (!sub) sub = 'gump';
 
-      // Houses are physical multis placed through deeds/the GM multi
-      // browser. The old rectangle generator remains below only for save
-      // compatibility but is intentionally unreachable from player chat.
+      // Houses are physical multis placed through deeds/the GM multi browser.
       if (sub === 'place') {
         ctx.state.sendSystemMessage('Use a house deed to place a canonical house foundation.');
-        return;
-      }
-
-      if (sub === 'place') {
-        if (api.houses.housesOf(mob.serial).length > 0) {
-          ctx.state.sendSystemMessage('You already own a house.');
-          return;
-        }
-        const w = Math.max(3, Math.min(15, Number(ctx.args[1] ?? 7) | 0));
-        const h = Math.max(3, Math.min(15, Number(ctx.args[2] ?? 7) | 0));
-        const x1 = mob.x - (w >> 1), y1 = mob.y - (h >> 1);
-        const x2 = x1 + w - 1, y2 = y1 + h - 1;
-        // Overlap check.
-        for (let cx = x1; cx <= x2; cx++) {
-          for (let cy = y1; cy <= y2; cy++) {
-            if (api.houses.houseAt(cx, cy, mob.map)) {
-              ctx.state.sendSystemMessage('That area overlaps an existing house.');
-              return;
-            }
-          }
-        }
-        const house = api.houses.place(mob, { x1, y1, x2, y2, map: mob.map ?? 1 });
-
-        // Spawn the actual structure as world items so every client sees
-        // walls + a wood-plank floor without any client-side change. The
-        // items are immovable and tagged `house` so we can sweep them
-        // when the house is removed. We send each as a 0xF3 worldItemSA
-        // to nearby clients so they appear without a relog.
-        //
-        // Tile ids follow ServUO `Multis`/`HouseFoundation` defaults:
-        //   0x0064  = stone foundation block (used for the perimeter)
-        //   0x0496  = wooden floor planks
-        //   0x0006  = stone wall N-S
-        //   0x0007  = stone wall E-W
-        //   0x0021  = wooden door (south wall midpoint)
-        const FLOOR  = 0x0496;
-        const WALL_NS = 0x0006;
-        const WALL_EW = 0x0007;
-        const DOOR    = 0x0021;
-        house.spawnedItems = [];
-        const broadcastSpawn = (item) => {
-          house.spawnedItems.push(item.serial);
-          const wi = api.protocol?.worldItemSA?.({
-            serial: item.serial, itemId: item.itemId, hue: item.hue,
-            amount: item.amount, x: item.x, y: item.y, z: item.z,
-          });
-          // BUGFIX #65 (FAZA CW): visibility-gate. Building a 10×10
-          // house can spawn 100+ items; without filter that's 100×N
-          // packets to every connected client globally.
-          if (wi) for (const m of nearbyClients(api.world, item)) m.client.send(wi);
-        };
-        const z = mob.z | 0;
-        // Floor — every tile inside the bounds gets a plank.
-        for (let cx = x1; cx <= x2; cx++) {
-          for (let cy = y1; cy <= y2; cy++) {
-            const it = createItem(api, api.world, {
-              itemId: FLOOR, x: cx, y: cy, z, map: mob.map ?? 1,
-              name: 'house floor', movable: false,
-            });
-            it.house = house.id;
-            broadcastSpawn(it);
-          }
-        }
-        // Walls — perimeter, with a single door in the south face.
-        const doorX = x1 + ((x2 - x1) >> 1);
-        for (let cx = x1; cx <= x2; cx++) {
-          // North wall.
-          const itN = createItem(api, api.world, {
-            itemId: WALL_EW, x: cx, y: y1, z, map: mob.map ?? 1,
-            name: 'house wall', movable: false,
-          });
-          itN.house = house.id;
-          broadcastSpawn(itN);
-          // South wall — substitute door at the centre.
-          const isDoor = cx === doorX;
-          const itS = createItem(api, api.world, {
-            itemId: isDoor ? DOOR : WALL_EW, x: cx, y: y2, z, map: mob.map ?? 1,
-            name: isDoor ? 'house door' : 'house wall', movable: false,
-          });
-          itS.house = house.id;
-          broadcastSpawn(itS);
-        }
-        for (let cy = y1 + 1; cy < y2; cy++) {
-          // West wall.
-          const itW = createItem(api, api.world, {
-            itemId: WALL_NS, x: x1, y: cy, z, map: mob.map ?? 1,
-            name: 'house wall', movable: false,
-          });
-          itW.house = house.id;
-          broadcastSpawn(itW);
-          // East wall.
-          const itE = createItem(api, api.world, {
-            itemId: WALL_NS, x: x2, y: cy, z, map: mob.map ?? 1,
-            name: 'house wall', movable: false,
-          });
-          itE.house = house.id;
-          broadcastSpawn(itE);
-        }
-
-        ctx.state.sendSystemMessage(`House #${house.id} placed (${w}×${h}, ${house.spawnedItems.length} pieces).`);
         return;
       }
 
@@ -242,7 +139,15 @@ export default function register(api) {
         }
         ctx.state._activeHouseId = house.id;
         const serial = house.multiSerial ?? house.id;
-        ctx.state.sendSystemMessage?.(`@@OPEN_HOUSE_CUSTOM@@${serial}`);
+        const packet = api.protocol?.extHouseCustomization?.({
+          serial, type: 4, x: -1, y: -1, z: -1,
+        });
+        if (packet) ctx.state.send?.(packet);
+        else ctx.state.sendSystemMessage('House customization protocol is unavailable.');
+        const revision = api.protocol?.extHouseRevision?.({
+          serial, revision: house.revision | 0,
+        });
+        if (revision) ctx.state.send?.(revision);
         return;
       }
 
@@ -269,7 +174,35 @@ export default function register(api) {
         ctx.state.sendSystemMessage('Lock down which item?');
         api.targeting.request(ctx.state, (picked) => {
           if (!picked?.serial) return;
-          house.lockdowns.add(picked.serial >>> 0);
+          const liveItem = itemBySerial(api, picked.serial >>> 0);
+          const role = api.houses.roleOf(house, mob.serial);
+          if ((role !== 'owner' && role !== 'coowner')
+              || selectedHouse(api, ctx.state, mob) !== house) {
+            ctx.state.sendSystemMessage('House access or your location changed; lockdown cancelled.');
+            return;
+          }
+          if (!liveItem || liveItem.parent != null || api.houses.houseAt(liveItem.x, liveItem.y, liveItem.map) !== house) {
+            ctx.state.sendSystemMessage('The item must be on the floor inside this house.');
+            return;
+          }
+          if (liveItem._multiInstance != null || liveItem._customHouseId != null) {
+            ctx.state.sendSystemMessage('Structural house pieces cannot be locked down.');
+            return;
+          }
+          if (house.lockdowns.has(liveItem.serial >>> 0)) {
+            ctx.state.sendSystemMessage('That item is already locked down.');
+            return;
+          }
+          if (!api.houses.canLockDown(house, mob)) {
+            ctx.state.sendSystemMessage('This house has reached its lockdown limit.');
+            return;
+          }
+          liveItem._movableBeforeLockdown ??= liveItem.movable !== false;
+          liveItem.movable = false;
+          liveItem.lockedDown = true;
+          liveItem.house = house.id;
+          house.lockdowns.add(liveItem.serial >>> 0);
+          api.houses.markChanged?.();
           syncRegistryHouseToMulti(api, house);
           ctx.state.sendSystemMessage(`Locked down. (Total: ${house.lockdowns.size})`);
         }, { kind: 0 });
@@ -287,7 +220,27 @@ export default function register(api) {
         ctx.state.sendSystemMessage('Release which item?');
         api.targeting.request(ctx.state, (picked) => {
           if (!picked?.serial) return;
-          house.lockdowns.delete(picked.serial >>> 0);
+          const liveItem = itemBySerial(api, picked.serial >>> 0);
+          const role = api.houses.roleOf(house, mob.serial);
+          if ((role !== 'owner' && role !== 'coowner')
+              || selectedHouse(api, ctx.state, mob) !== house) {
+            ctx.state.sendSystemMessage('House access or your location changed; release cancelled.');
+            return;
+          }
+          if (!liveItem || !house.lockdowns.has(liveItem.serial >>> 0)) {
+            ctx.state.sendSystemMessage('That item is not locked down by this house.');
+            return;
+          }
+          if (house.secures?.has?.(liveItem.serial >>> 0)) {
+            ctx.state.sendSystemMessage('Unsecure that container before releasing it.');
+            return;
+          }
+          house.lockdowns.delete(liveItem.serial >>> 0);
+          liveItem.movable = liveItem._movableBeforeLockdown !== false;
+          delete liveItem._movableBeforeLockdown;
+          liveItem.lockedDown = false;
+          if (liveItem.house === house.id) delete liveItem.house;
+          api.houses.markChanged?.();
           syncRegistryHouseToMulti(api, house);
           ctx.state.sendSystemMessage(`Released. (Total: ${house.lockdowns.size})`);
         }, { kind: 0 });
@@ -312,9 +265,13 @@ export default function register(api) {
         }
         if (!target) { ctx.state.sendSystemMessage(`Player "${name}" not found.`); return; }
         const s = target.serial >>> 0;
+        if (s === (house.ownerSerial >>> 0)) {
+          ctx.state.sendSystemMessage('The owner already has full access and cannot be added to an ACL list.');
+          return;
+        }
         switch (sub) {
           case 'friend':
-            house.friends.add(s); house.bans.delete(s);
+            house.friends.add(s); house.coowners.delete(s); house.bans.delete(s);
             ctx.state.sendSystemMessage(`${target.name} is now a friend of the house.`);
             break;
           case 'unfriend':
@@ -322,7 +279,7 @@ export default function register(api) {
             ctx.state.sendSystemMessage(`${target.name} is no longer a friend.`);
             break;
           case 'coowner':
-            house.coowners.add(s); house.friends.add(s); house.bans.delete(s);
+            house.coowners.add(s); house.friends.delete(s); house.bans.delete(s);
             ctx.state.sendSystemMessage(`${target.name} is now a co-owner.`);
             break;
           case 'uncoowner':
@@ -351,7 +308,7 @@ export default function register(api) {
         // a separate, much smaller cap (4 on small foundation).
         const secureRole = house ? api.houses.roleOf(house, mob.serial) : 'visitor';
         const mayManage = secureRole === 'owner' || secureRole === 'coowner';
-        if (!house || !mayManage || (sub === 'secure' && !api.houses.canSecure?.(house, mob))) {
+        if (!house || !mayManage) {
           ctx.state.sendSystemMessage('You cannot manage secures here.');
           return;
         }
@@ -360,23 +317,59 @@ export default function register(api) {
         api.targeting.request(ctx.state, (picked) => {
           if (!picked?.serial) return;
           const item = itemBySerial(api, picked.serial);
-          if (!item || !item.container) {
-            ctx.state.sendSystemMessage('That is not a container.');
+          const liveRole = api.houses.roleOf(house, mob.serial);
+          if ((liveRole !== 'owner' && liveRole !== 'coowner')
+              || selectedHouse(api, ctx.state, mob) !== house) {
+            ctx.state.sendSystemMessage('House access or your location changed; secure operation cancelled.');
+            return;
+          }
+          if (!item || !item.container || item.parent != null
+              || api.houses.houseAt(item.x, item.y, item.map) !== house) {
+            ctx.state.sendSystemMessage('Target a container on the floor inside this house.');
             return;
           }
           house.secures ??= new Set();
           if (sub === 'secure') {
+            if (house.secures.has(item.serial >>> 0)) {
+              ctx.state.sendSystemMessage('That container is already secure.');
+              return;
+            }
+            if (!api.houses.canSecure?.(house, mob)) {
+              ctx.state.sendSystemMessage('This house has reached its secure-container limit.');
+              return;
+            }
+            if (!house.lockdowns.has(item.serial >>> 0) && !api.houses.canLockDown(house, mob)) {
+              ctx.state.sendSystemMessage('This house has reached its lockdown limit.');
+              return;
+            }
             house.secures.add(picked.serial >>> 0);
             // ServUO `BaseHouse.AddSecure`: a secure also consumes a
             // lockdown slot. Bug-hunt #7 B2.
-            house.lockdowns?.add?.(picked.serial >>> 0);
+            if (!house.lockdowns.has(picked.serial >>> 0)) {
+              house.lockdowns.add(picked.serial >>> 0);
+              item._secureAddedLockdown = true;
+              item._movableBeforeLockdown ??= item.movable !== false;
+              item.movable = false;
+              item.lockedDown = true;
+            }
             item.house = house.id;
             ctx.state.sendSystemMessage(`Secured. (Total: ${house.secures.size})`);
           } else {
-            house.secures.delete(picked.serial >>> 0);
-            house.lockdowns?.delete?.(picked.serial >>> 0);
+            if (!house.secures.delete(picked.serial >>> 0)) {
+              ctx.state.sendSystemMessage('That container is not secured by this house.');
+              return;
+            }
+            if (item._secureAddedLockdown) {
+              house.lockdowns?.delete?.(picked.serial >>> 0);
+              item.movable = item._movableBeforeLockdown !== false;
+              delete item._movableBeforeLockdown;
+              delete item._secureAddedLockdown;
+              item.lockedDown = false;
+            }
+            if (!house.lockdowns.has(item.serial >>> 0) && item.house === house.id) delete item.house;
             ctx.state.sendSystemMessage(`Unsecured. (Total: ${house.secures.size})`);
           }
+          api.houses.markChanged?.();
           syncRegistryHouseToMulti(api, house);
         }, { kind: 0 });
         return;

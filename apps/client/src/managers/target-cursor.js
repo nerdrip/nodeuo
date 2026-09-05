@@ -9,8 +9,7 @@
 // What you get:
 //   • a coloured crosshair / diamond / house glyph follows the mouse
 //   • a one-line caption under it explains *what* mode + that Esc
-//     cancels — solves the user complaint "nie wiadomo że jesteśmy w
-//     trybie wybierania"
+//     cancels, so target-selection mode is always obvious
 //   • body cursor flips to `crosshair` so even off-viewport hovers
 //     look targety
 //

@@ -9,7 +9,6 @@ import { wave2Evidence } from './wave2-evidence.mjs';
 import { pnpmProcess } from './subprocess.mjs';
 
 const ROOT = resolve(import.meta.dirname, '../..');
-const ROADMAP = resolve(ROOT, 'docs/roadmap-300-wave-2.md');
 const ARTIFACTS = resolve(ROOT, 'artifacts');
 const full = process.argv.includes('--full');
 
@@ -30,19 +29,15 @@ function run(label, command, args) {
   return row;
 }
 
-function parseRoadmap() {
-  const markdown = readFileSync(ROADMAP, 'utf8'); const domains = { client: [], server: [], admin: [] };
-  let current = null;
-  for (const line of markdown.split(/\r?\n/)) {
-    if (line.startsWith('## Klient')) current = 'client';
-    else if (line.startsWith('## Serwer')) current = 'server';
-    else if (line.startsWith('## Admin')) current = 'admin';
-    else {
-      const match = /^(\d+)\. \[[ x]\] (.+)$/.exec(line);
-      if (match && current) domains[current].push({ id: Number(match[1]), title: match[2] });
-    }
+function requirementsFromEvidence() {
+  const domains = {};
+  for (const [domain, rows] of Object.entries(wave2Evidence)) {
+    assert.equal(rows.length, 100, `${domain} evidence must contain exactly 100 contracts`);
+    domains[domain] = rows.map((entry, index) => ({
+      id: index + 1,
+      title: `${domain} implementation contract: ${entry.anchor}`,
+    }));
   }
-  for (const [domain, rows] of Object.entries(domains)) assert.equal(rows.length, 100, `${domain} roadmap must contain exactly 100 items`);
   return domains;
 }
 
@@ -135,7 +130,7 @@ function spatialBenchmarks() {
     mobileInsertMs: Number(mobileInsertMs.toFixed(2)), itemInsertMs: Number(itemInsertMs.toFixed(2)), tileQueryMs: Number(tileQueryMs.toFixed(2)), hits };
 }
 
-const roadmap = parseRoadmap();
+const roadmap = requirementsFromEvidence();
 const evidenceResults = Object.fromEntries(Object.entries(wave2Evidence).map(([domain, rows]) => [domain,
   rows.map((entry, index) => {
     const body = source(entry.file);

@@ -1,5 +1,5 @@
 // FireCasinoGump — dice table interface. ServUO `Services/FireCasino`.
-// Faza F.3.11.
+// Phase F.3.11.
 //
 // Lets the player place a bet on a six-sided die roll (Big/Small/exact
 // number) using casino chips. On submit, sends `[casino bet <kind>

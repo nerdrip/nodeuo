@@ -1,5 +1,5 @@
 import { mobileBySerial } from '../../_entities.js';
-// FAZA DI — `[sacrifice` virtue invocation.
+// PHASE DI — `[sacrifice` virtue invocation.
 //
 // ServUO Sacrifice virtue (Misc/Virtues.cs): the player can spend
 // 100 virtue points to either auto-resurrect themselves on death or
@@ -53,7 +53,7 @@ export default function register(api) {
           return;
         }
         // Spend the virtue, revive the target. resurrectMobile will
-        // award Compassion to `sender` (FAZA DG) — the Sacrifice rite
+        // award Compassion to `sender` (PHASE DG) — the Sacrifice rite
         // is double-virtue: spend 100 sacrifice, gain ~200 compassion.
         api.systems.virtues.spendVirtue?.(sender, 'sacrifice', SACRIFICE_COST);
         if (api.ctx?.corpse?.resurrectMobile) {

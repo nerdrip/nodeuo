@@ -184,9 +184,8 @@ export function teleportToRune(api, mob, dest) {
   }
   // Re-stream the destination's items + mobiles to the teleported
   // client. Without this, post-moongate Moonglow looks empty (no
-  // moongate graphic at the new location, no merchants, no statics —
-  // user report 2026-05-18 "po teleporcie z Britanii do Moonglow nie
-  // ma grafiki portalu"). `refreshSurroundings` is the same path
+  // moongate graphic at the new location, no merchants and no statics.
+  // `refreshSurroundings` is the same path
   // `[go` and admin-panel teleport use.
   try {
     if (mob.client) api.ctx?.handlers?.refreshSurroundings?.(mob.client);

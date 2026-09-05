@@ -8,6 +8,7 @@ export class CoalescingWorkQueue {
     this.maxItems = Math.max(16, maxItems | 0);
     this._now = now;
     this._queues = [[], [], [], []];
+    this._heads = [0, 0, 0, 0];
     this._pending = new Map();
     this.stats = { enqueued: 0, coalesced: 0, completed: 0, failed: 0, dropped: 0, lastMs: 0, maxMs: 0 };
   }
@@ -51,19 +52,239 @@ export class CoalescingWorkQueue {
     return count;
   }
   _take(previousSector) {
-    for (const queue of this._queues) {
-      if (!queue.length) continue;
-      let index = 0;
-      if (previousSector && queue.length > 1) {
-        const different = queue.findIndex((task) => task.sector !== previousSector);
-        if (different >= 0) index = different;
+    for (let priority = 0; priority < this._queues.length; priority++) {
+      const queue = this._queues[priority];
+      let head = this._heads[priority];
+      while (head < queue.length && this._pending.get(queue[head].key) !== queue[head]) head++;
+      if (head >= queue.length) {
+        queue.length = 0; this._heads[priority] = 0;
+        continue;
       }
-      return queue.splice(index, 1)[0];
+      let index = head;
+      if (previousSector && queue.length - head > 1) {
+        for (let cursor = head + 1; cursor < queue.length; cursor++) {
+          const candidate = queue[cursor];
+          if (this._pending.get(candidate.key) === candidate && candidate.sector !== previousSector) {
+            index = cursor; break;
+          }
+        }
+      }
+      const task = queue[index];
+      if (index !== head) queue[index] = queue[head];
+      this._heads[priority] = head + 1;
+      if (this._heads[priority] > 1024 && this._heads[priority] * 2 >= queue.length) {
+        this._queues[priority] = queue.slice(this._heads[priority]);
+        this._heads[priority] = 0;
+      }
+      return task;
     }
     return null;
   }
   get size() { return this._pending.size; }
   snapshot() { return { ...this.stats, pending: this.size, budgetMs: this.budgetMs, maxItems: this.maxItems }; }
+}
+
+/**
+ * One deadline heap for periodic server work. It replaces dozens of native
+ * intervals with a single unref'd timeout, skips missed periods after an
+ * event-loop stall (no catch-up storm), and bounds callbacks per turn.
+ */
+export class DeadlineScheduler {
+  constructor({
+    now = () => Date.now(),
+    monotonicNow = () => performance.now(),
+    maxCallbacksPerTurn = 128,
+    maxTurnMs = 10,
+    setTimer = setTimeout,
+    clearTimer = clearTimeout,
+  } = {}) {
+    this._now = now;
+    this._monotonicNow = monotonicNow;
+    this._setTimer = setTimer;
+    this._clearTimer = clearTimer;
+    this.maxCallbacksPerTurn = Math.max(1, maxCallbacksPerTurn | 0);
+    this.maxTurnMs = Math.max(1, Number(maxTurnMs) || 10);
+    this._jobs = new Map();
+    this._heap = [];
+    this._timer = null;
+    this._timerDue = 0;
+    this._sequence = 0;
+    this._stopped = false;
+    this.stats = {
+      scheduled: 0, cancelled: 0, callbacks: 0, errors: 0,
+      skippedPeriods: 0, yieldedTurns: 0, wakeups: 0,
+      lastTurnMs: 0, maxTurnMs: 0,
+    };
+  }
+
+  every(name, intervalMs, run, { delayMs = intervalMs } = {}) {
+    const interval = Math.max(1, Number(intervalMs) || 1);
+    return this._schedule(name, Math.max(0, Number(delayMs) || 0), interval, run);
+  }
+
+  once(name, delayMs, run) {
+    return this._schedule(name, Math.max(0, Number(delayMs) || 0), 0, run);
+  }
+
+  _schedule(name, delayMs, intervalMs, run) {
+    if (typeof run !== 'function') throw new TypeError('scheduled job requires a function');
+    const id = String(name || `job:${++this._sequence}`);
+    this.cancel(id);
+    this._stopped = false;
+    const job = {
+      id, run, intervalMs, due: this._now() + delayMs,
+      version: 1, sequence: ++this._sequence, calls: 0, errors: 0,
+      totalMs: 0, maxMs: 0, lastAt: 0,
+    };
+    this._jobs.set(id, job);
+    this._push({ id, due: job.due, version: job.version, sequence: job.sequence });
+    this.stats.scheduled++;
+    this._arm();
+    const handle = { id, cancel: () => this.cancel(id), unref: () => handle };
+    return Object.freeze(handle);
+  }
+
+  cancel(handleOrId) {
+    const id = typeof handleOrId === 'object' ? handleOrId?.id : handleOrId;
+    if (id == null || !this._jobs.delete(String(id))) return false;
+    this.stats.cancelled++;
+    return true;
+  }
+
+  _before(a, b) { return a.due < b.due || (a.due === b.due && a.sequence < b.sequence); }
+  _push(row) {
+    const heap = this._heap;
+    let index = heap.push(row) - 1;
+    while (index > 0) {
+      const parent = (index - 1) >> 1;
+      if (!this._before(row, heap[parent])) break;
+      heap[index] = heap[parent];
+      index = parent;
+    }
+    heap[index] = row;
+  }
+  _pop() {
+    const heap = this._heap;
+    if (!heap.length) return null;
+    const root = heap[0];
+    const last = heap.pop();
+    if (heap.length) {
+      let index = 0;
+      while (true) {
+        const left = index * 2 + 1;
+        if (left >= heap.length) break;
+        const right = left + 1;
+        const child = right < heap.length && this._before(heap[right], heap[left]) ? right : left;
+        if (!this._before(heap[child], last)) break;
+        heap[index] = heap[child];
+        index = child;
+      }
+      heap[index] = last;
+    }
+    return root;
+  }
+  _peekValid() {
+    while (this._heap.length) {
+      const row = this._heap[0];
+      const job = this._jobs.get(row.id);
+      if (job && job.version === row.version && job.due === row.due) return row;
+      this._pop();
+    }
+    return null;
+  }
+
+  _arm(delayOverride = null) {
+    if (this._stopped) return;
+    const next = this._peekValid();
+    if (!next) return;
+    const now = this._now();
+    const delay = delayOverride == null ? Math.max(0, Math.min(0x7fffffff, next.due - now)) : delayOverride;
+    const desiredDue = now + delay;
+    if (this._timer) {
+      if (this._timerDue <= desiredDue) return;
+      this._clearTimer(this._timer);
+      this._timer = null;
+    }
+    this._timerDue = desiredDue;
+    this._timer = this._setTimer(() => {
+      this._timer = null;
+      this._timerDue = 0;
+      this._drain();
+    }, delay);
+    this._timer?.unref?.();
+  }
+
+  _drain() {
+    if (this._stopped) return;
+    const started = this._monotonicNow();
+    let callbacks = 0;
+    this.stats.wakeups++;
+    while (callbacks < this.maxCallbacksPerTurn
+        && this._monotonicNow() - started < this.maxTurnMs) {
+      const row = this._peekValid();
+      const now = this._now();
+      if (!row || row.due > now) break;
+      this._pop();
+      const job = this._jobs.get(row.id);
+      if (!job || job.version !== row.version) continue;
+      const callbackStarted = this._monotonicNow();
+      try { job.run(now); }
+      catch (error) {
+        job.errors++;
+        this.stats.errors++;
+        console.error(`[scheduler ${job.id}]`, error);
+      }
+      const elapsed = Math.max(0, this._monotonicNow() - callbackStarted);
+      job.calls++;
+      job.totalMs += elapsed;
+      job.maxMs = Math.max(job.maxMs, elapsed);
+      job.lastAt = now;
+      callbacks++;
+      this.stats.callbacks++;
+      const currentJob = this._jobs.get(job.id);
+      if (job.intervalMs > 0 && currentJob === job) {
+        const periods = Math.max(1, Math.floor((now - job.due) / job.intervalMs) + 1);
+        if (periods > 1) this.stats.skippedPeriods += periods - 1;
+        job.due += periods * job.intervalMs;
+        job.version++;
+        job.sequence = ++this._sequence;
+        this._push({ id: job.id, due: job.due, version: job.version, sequence: job.sequence });
+      } else if (currentJob === job) {
+        this._jobs.delete(job.id);
+      }
+    }
+    const turnMs = Math.max(0, this._monotonicNow() - started);
+    this.stats.lastTurnMs = turnMs;
+    this.stats.maxTurnMs = Math.max(this.stats.maxTurnMs, turnMs);
+    const next = this._peekValid();
+    if (next && next.due <= this._now()) {
+      this.stats.yieldedTurns++;
+      this._arm(0);
+    } else this._arm();
+  }
+
+  stop() {
+    this._stopped = true;
+    if (this._timer) this._clearTimer(this._timer);
+    this._timer = null;
+    this._timerDue = 0;
+    this._jobs.clear();
+    this._heap.length = 0;
+  }
+
+  snapshot() {
+    return {
+      ...this.stats,
+      activeJobs: this._jobs.size,
+      heapEntries: this._heap.length,
+      jobs: [...this._jobs.values()].map((job) => ({
+        name: job.id, intervalMs: job.intervalMs, due: job.due,
+        calls: job.calls, errors: job.errors,
+        averageMs: job.calls ? Number((job.totalMs / job.calls).toFixed(3)) : 0,
+        maxMs: Number(job.maxMs.toFixed(3)), lastAt: job.lastAt,
+      })).sort((a, b) => b.averageMs - a.averageMs || a.name.localeCompare(b.name)),
+    };
+  }
 }
 
 export class RevisionCache {
@@ -220,15 +441,26 @@ export class AdaptiveBudget {
     this.base = Math.max(1, base | 0); this.min = Math.max(1, Math.min(this.base, min | 0));
     this.max = Math.max(this.base, max | 0); this.targetTickMs = Math.max(1, Number(targetTickMs) || 25);
     this.current = this.base; this.tickEmaMs = 0; this.skipped = 0;
+    this.pressure = 'healthy'; this.pressureLimit = this.max;
   }
   observe(tickMs) {
     const ms = Math.max(0, Number(tickMs) || 0); this.tickEmaMs = this.tickEmaMs ? this.tickEmaMs * .9 + ms * .1 : ms;
     if (this.tickEmaMs > this.targetTickMs * 1.25) this.current = Math.max(this.min, Math.floor(this.current * .8));
-    else if (this.tickEmaMs < this.targetTickMs * .7) this.current = Math.min(this.max, this.current + Math.max(1, Math.ceil(this.base * .04)));
+    else if (this.tickEmaMs < this.targetTickMs * .7) this.current = Math.min(this.pressureLimit, this.current + Math.max(1, Math.ceil(this.base * .04)));
+    this.current = Math.min(this.current, this.pressureLimit);
+    return this.current;
+  }
+  setPressure(status = 'healthy') {
+    const next = status === 'critical' ? 'critical' : status === 'degraded' ? 'degraded' : 'healthy';
+    const scale = next === 'critical' ? .35 : next === 'degraded' ? .65 : 1;
+    this.pressure = next;
+    this.pressureLimit = Math.max(this.min, Math.min(this.max, Math.floor(this.base * scale)));
+    this.current = Math.min(this.current, this.pressureLimit);
     return this.current;
   }
   noteSkipped(count = 1) { this.skipped += Math.max(0, count | 0); }
-  snapshot() { return { base: this.base, min: this.min, max: this.max, current: this.current, tickEmaMs: Number(this.tickEmaMs.toFixed(3)), skipped: this.skipped }; }
+  snapshot() { return { base: this.base, min: this.min, max: this.max, current: this.current, pressure: this.pressure,
+    pressureLimit: this.pressureLimit, tickEmaMs: Number(this.tickEmaMs.toFixed(3)), skipped: this.skipped }; }
 }
 
 export class TypedSpatialRegistry {
@@ -318,6 +550,7 @@ export const runtimeGovernor = Object.freeze({
   spatial: new TypedSpatialRegistry(),
   transactions: new TransactionJournal(),
   startup: new StartupProfiler(),
+  scheduler: new DeadlineScheduler(),
 });
 runtimeGovernor.health.set('startup', false, 'server is starting');
 
@@ -326,9 +559,12 @@ export function buildServerQualityReport({ world, diagnostics, commands, scripts
     generatedAt: new Date().toISOString(),
     health: runtimeGovernor.health.snapshot(),
     queues: { visibility: runtimeGovernor.visibility.snapshot(), background: runtimeGovernor.background.snapshot() },
+    scheduler: runtimeGovernor.scheduler.snapshot(),
     watchdog: runtimeGovernor.watchdog.snapshot(),
     cache: runtimeGovernor.visibilityCache.snapshot(),
     sectors: world?.sectors?.stats?.() ?? null,
+    hotMobiles: world?.hotMobiles?.snapshot?.() ?? null,
+    interest: world?.interest?.snapshot?.() ?? null,
     sectorIntegrity: world?.sectors?.validate?.(world) ?? null,
     commands: commandRegistryAudit(commands),
     scripts: scripts?.diagnostics?.() ?? runtimeGovernor.lifecycle.stats(),

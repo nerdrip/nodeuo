@@ -9,7 +9,10 @@
 // actions fall back to action 0 client-side.
 //
 // Output:
-//   mobiles-atlas-NN.png   atlas pages, RGBA, ARGB1555 → ARGB8888
+//   mobiles-atlas-NN.png   compatibility atlas pages, RGBA, ARGB1555 → ARGB8888
+//   mobiles-atlas-page-NNN-<hash>.png immutable pages used by the sharded index
+//   mobiles-atlas-index.json           global conversion tables and page/shard hashes
+//   mobiles-atlas-bodies-*.json        fixed-range lazy body metadata
 //   mobiles-atlas.json     {
 //                             schemaVersion, bodyConv, mobTypes,
 //                             pageCount, atlasW, atlasH,
@@ -29,9 +32,13 @@
 //                             }
 //                          }
 
-import { open, readdir, rename, unlink } from 'node:fs/promises';
-import { writeFile } from 'node:fs';
+import { open, readdir, unlink } from 'node:fs/promises';
+import { createWriteStream, writeFile } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { join } from 'node:path';
+import { Transform } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
+import { installImmutableFile, replaceFile } from './immutable-file.js';
 import sharp from './safe-sharp.js';
 import { loadBodyConfig, resolveIdxIndex, pickAnimFile } from './body-config.js';
 import { loadAnimUopFiles } from './anim-uop.js';
@@ -79,6 +86,7 @@ const LEGACY_ACTIONS = Array.from({ length: 35 }, (_v, i) => i);
 const UOP_ACTIONS = Array.from({ length: MAX_UOP_ACTIONS }, (_v, i) => i);
 const DIRECTIONS = 5;
 const USE_UOP_ANIMATION = 0x10000;
+const MOBILE_BODY_SHARD_SIZE = 64;
 
 export async function extractAnim(srcDir, outDir) {
   await cleanupAnimationTemps(outDir);
@@ -313,9 +321,8 @@ export async function extractAnim(srcDir, outDir) {
     sp.pixels = null;
   }
 
-  for (let i = 0; i < pages.length; i++) {
-    await writeAnimationPageTemp(pages[i], i, outDir);
-  }
+  const pageEntries = {};
+  for (let i = 0; i < pages.length; i++) pageEntries[i] = await writeAnimationPageTemp(pages[i], i, outDir);
 
   for (const [body, actionAliases] of actionAliasesByBody) {
     if (bodies[body]) bodies[body].actionAliases = actionAliases;
@@ -348,15 +355,19 @@ export async function extractAnim(srcDir, outDir) {
   for (const [body, value] of cfg.mobTypes) mobTypes[body] = value;
 
   const manifest = {
-    // v3 adds Bodyconv.def provenance. Consumers can now distinguish an
+    // v3 added Bodyconv.def provenance. v4 adds a content-addressed,
+    // independently cacheable body-shard index while retaining this complete
+    // manifest as a compatibility fallback for older clients and tools.
     // intentional converted animation source from an obsolete Body.def
     // alias that happens to target another valid body.
-    schemaVersion: 3,
+    schemaVersion: 4,
     pageCount: pages.length, atlasW: ATLAS_W, atlasH: ATLAS_H,
     actions: LEGACY_ACTIONS, uopActions: UOP_ACTIONS, directions: DIRECTIONS,
     aliases, bodyConv, equipConv, corpseConv, mobTypes, bodies,
   };
   const validation = validateAnimationManifest(manifest, { expectedBodyConv: cfg.bodyConv.size });
+  const sharded = buildAnimationShards(manifest, MOBILE_BODY_SHARD_SIZE, pageEntries);
+  validateAnimationShardIndex(sharded.index, sharded.payloads);
   console.log(`[anim]    validated bodies=${validation.bodies} frames=${validation.frames} pages=${validation.pages} bodyConv=${validation.bodyConv}`);
 
   // Do not touch the previous atlas until every temporary page and the full
@@ -364,16 +375,152 @@ export async function extractAnim(srcDir, outDir) {
   // extraction failure cannot publish coordinates for unfinished pages.
   const manifestTemp = join(outDir, 'mobiles-atlas.json.next');
   await writeFilePromise(manifestTemp, JSON.stringify(manifest));
+  const indexTemp = join(outDir, 'mobiles-atlas-index.json.next');
+  await writeFilePromise(indexTemp, JSON.stringify(sharded.index));
+  for (const [file, payload] of sharded.payloads) {
+    await writeFilePromise(join(outDir, `${file}.next`), payload);
+  }
   for (let i = 0; i < pages.length; i++) {
+    const page = pageEntries[i];
+    await installImmutableFile(animationPageTempPath(outDir, i), join(outDir, page.file), page);
     await replaceFile(
       animationPageTempPath(outDir, i),
       animationPagePath(outDir, i),
     );
   }
+  // Shard names include their content hash, therefore an existing index can
+  // continue using the previous generation while these files are committed.
+  for (const file of sharded.payloads.keys()) {
+    await replaceFile(join(outDir, `${file}.next`), join(outDir, file));
+  }
   await replaceFile(manifestTemp, join(outDir, 'mobiles-atlas.json'));
+  // The small index is the authoritative sharded entry point and is always
+  // published last. Readers either observe the complete old or complete new
+  // generation, never coordinates for unfinished shard/page files.
+  await replaceFile(indexTemp, join(outDir, 'mobiles-atlas-index.json'));
   await removeStaleAnimationPages(outDir, pages.length);
+  await removeStaleContentAddressedAnimationPages(outDir, new Set(Object.values(pageEntries).map((row) => row.file)));
+  await removeStaleAnimationShards(outDir, new Set(sharded.payloads.keys()));
 
-  return { count: bodiesSeen, sprites: sprites.length, pages: pages.length, validation };
+  return {
+    count: bodiesSeen, sprites: sprites.length, pages: pages.length, validation,
+    shards: sharded.payloads.size, revision: sharded.index.revision,
+  };
+}
+
+/**
+ * Split only the large per-body coordinate map. Global conversion tables stay
+ * in the small root index because body resolution must remain synchronous in
+ * the renderer. Shard filenames are content addressed, enabling immutable
+ * HTTP/IDB caching and atomic index publication.
+ */
+export function buildAnimationShards(manifest, shardSize = MOBILE_BODY_SHARD_SIZE, pages = null) {
+  if (!Number.isInteger(shardSize) || shardSize < 16 || shardSize > 512) {
+    throw new TypeError('animation shardSize must be an integer in [16, 512]');
+  }
+  const grouped = new Map();
+  for (const [bodyId, body] of Object.entries(manifest?.bodies ?? {})) {
+    const numericId = Number(bodyId);
+    if (!Number.isInteger(numericId) || numericId < 0) continue;
+    const group = Math.floor(numericId / shardSize);
+    let bodies = grouped.get(group);
+    if (!bodies) grouped.set(group, bodies = {});
+    bodies[bodyId] = body;
+  }
+  const payloads = new Map();
+  const shards = {};
+  const hash = (value) => createHash('sha256').update(value).digest('hex');
+  for (const [group, bodies] of [...grouped].sort((a, b) => a[0] - b[0])) {
+    const bodyIds = Object.keys(bodies).map(Number).sort((a, b) => a - b);
+    const payload = JSON.stringify({ schemaVersion: 1, group, shardSize, bodies });
+    const sha256 = hash(payload);
+    const groupId = group.toString(16).padStart(5, '0');
+    const file = `mobiles-atlas-bodies-${groupId}-${sha256.slice(0, 16)}.json`;
+    payloads.set(file, payload);
+    shards[group] = {
+      file, sha256, bytes: Buffer.byteLength(payload),
+      firstBody: bodyIds[0], lastBody: bodyIds.at(-1), bodyCount: bodyIds.length,
+      bodyIds,
+    };
+  }
+  const pageIndex = pages && Object.keys(pages).length ? pages : null;
+  const root = {
+    schemaVersion: 4,
+    format: 'nodeuo.mobile-atlas-shards',
+    shardSchemaVersion: 1,
+    shardSize,
+    pageCount: manifest.pageCount,
+    atlasW: manifest.atlasW,
+    atlasH: manifest.atlasH,
+    actions: manifest.actions,
+    uopActions: manifest.uopActions,
+    directions: manifest.directions,
+    aliases: manifest.aliases ?? {},
+    bodyConv: manifest.bodyConv ?? {},
+    equipConv: manifest.equipConv ?? {},
+    corpseConv: manifest.corpseConv ?? {},
+    mobTypes: manifest.mobTypes ?? {},
+    ...(pageIndex ? { pages: pageIndex } : {}),
+    shards,
+  };
+  root.revision = hash(JSON.stringify(root));
+  return { index: root, payloads };
+}
+
+export function validateAnimationShardIndex(index, payloads = null) {
+  const errors = [];
+  if (index?.format !== 'nodeuo.mobile-atlas-shards') errors.push('invalid shard format');
+  if ((index?.schemaVersion | 0) < 4) errors.push('index schemaVersion must be at least 4');
+  if (!Number.isInteger(index?.shardSize) || index.shardSize < 16) errors.push('invalid shardSize');
+  if (index?.pages && Object.keys(index.pages).length !== (index.pageCount | 0)) {
+    errors.push('content-addressed page count does not match pageCount');
+  }
+  for (const [page, row] of Object.entries(index?.pages ?? {})) {
+    if (!Number.isInteger(Number(page)) || !row?.file
+      || !/^mobiles-atlas-page-\d+-[a-f0-9]{16}\.png$/.test(row.file)
+      || !/^[a-f0-9]{64}$/.test(row.sha256 ?? '')
+      || !Number.isInteger(row.bytes) || row.bytes <= 0) errors.push(`invalid page metadata for page ${page}`);
+    if (row?.ktx2 && (!/^mobiles-atlas-page-\d+-[a-f0-9]{16}\.ktx2$/.test(row.ktx2.file ?? '')
+      || !/^[a-f0-9]{64}$/.test(row.ktx2.sha256 ?? '')
+      || !Number.isInteger(row.ktx2.bytes) || row.ktx2.bytes <= 0)) {
+      errors.push(`invalid KTX2 metadata for page ${page}`);
+    }
+  }
+  const rows = Object.entries(index?.shards ?? {});
+  if (rows.length === 0) errors.push('index contains no shards');
+  let bodies = 0;
+  for (const [groupKey, row] of rows) {
+    const group = Number(groupKey);
+    if (!Number.isInteger(group) || group < 0 || !row?.file
+      || !/^[a-z0-9-]+\.json$/i.test(row.file)
+      || !/^[a-f0-9]{64}$/.test(row.sha256 ?? '')
+      || !Number.isInteger(row.bytes) || row.bytes <= 0
+      || !Number.isInteger(row.bodyCount) || row.bodyCount <= 0
+      || !Array.isArray(row.bodyIds) || row.bodyIds.length !== row.bodyCount) {
+      errors.push(`invalid shard metadata for group ${groupKey}`);
+      continue;
+    }
+    bodies += row.bodyCount;
+    if (!payloads) continue;
+    const payload = payloads.get(row.file);
+    if (typeof payload !== 'string') {
+      errors.push(`missing payload ${row.file}`);
+      continue;
+    }
+    const actualHash = createHash('sha256').update(payload).digest('hex');
+    if (actualHash !== row.sha256 || Buffer.byteLength(payload) !== row.bytes) {
+      errors.push(`integrity mismatch for ${row.file}`);
+      continue;
+    }
+    let parsed;
+    try { parsed = JSON.parse(payload); } catch { errors.push(`invalid JSON in ${row.file}`); continue; }
+    if (parsed?.group !== group || parsed?.shardSize !== index.shardSize
+      || Object.keys(parsed?.bodies ?? {}).length !== row.bodyCount) {
+      errors.push(`metadata mismatch for ${row.file}`);
+    }
+  }
+  if (errors.length) throw new Error(`Invalid animation shard index:\n- ${errors.join('\n- ')}`);
+  return { shards: rows.length, bodies };
 }
 
 export function validateAnimationManifest(manifest, { expectedBodyConv = null } = {}) {
@@ -527,33 +674,52 @@ function animationPageTempPath(outDir, index) {
 }
 
 async function writeAnimationPageTemp(page, index, outDir) {
-  if (!page?.buf || page.tempWritten) return;
-  await sharp(page.buf, { raw: { width: ATLAS_W, height: ATLAS_H, channels: 4 } })
-    .png({ compressionLevel: 9 })
-    .toFile(animationPageTempPath(outDir, index));
+  if (page?.tempWritten) return page.output;
+  if (!page?.buf) throw new Error(`animation page ${index} has no pixel buffer`);
+  const digest = createHash('sha256');
+  const tap = new Transform({ transform(chunk, _encoding, done) {
+    digest.update(chunk); done(null, chunk);
+  } });
+  const output = createWriteStream(animationPageTempPath(outDir, index), { flags: 'wx' });
+  await pipeline(
+    sharp(page.buf, { raw: { width: ATLAS_W, height: ATLAS_H, channels: 4 } })
+      .png({ compressionLevel: 9 }),
+    tap,
+    output,
+  );
+  const sha256 = digest.digest('hex');
+  page.output = { file: `mobiles-atlas-page-${String(index).padStart(3, '0')}-${sha256.slice(0, 16)}.png`,
+    sha256, bytes: output.bytesWritten };
   page.tempWritten = true;
   page.buf = null;
-}
-
-async function replaceFile(from, to) {
-  try {
-    await rename(from, to);
-  } catch (error) {
-    // Windows may refuse rename-over-existing depending on filesystem and
-    // antivirus hooks. Retry after removing only the exact destination.
-    if (!['EEXIST', 'EPERM', 'EACCES'].includes(error?.code)) throw error;
-    await unlink(to).catch((e) => { if (e?.code !== 'ENOENT') throw e; });
-    await rename(from, to);
-  }
+  return page.output;
 }
 
 async function cleanupAnimationTemps(outDir) {
   const names = await readdir(outDir).catch(() => []);
   for (const name of names) {
     if (name === 'mobiles-atlas.json.next'
+      || name === 'mobiles-atlas-index.json.next'
+      || /^mobiles-atlas-bodies-[a-f0-9-]+\.json\.next$/i.test(name)
       || /^mobiles-atlas-\d+\.png\.next$/i.test(name)) {
       await unlink(join(outDir, name)).catch(() => {});
     }
+  }
+}
+
+async function removeStaleAnimationShards(outDir, active) {
+  const names = await readdir(outDir).catch(() => []);
+  for (const name of names) {
+    if (!/^mobiles-atlas-bodies-[a-f0-9-]+\.json$/i.test(name) || active.has(name)) continue;
+    await unlink(join(outDir, name)).catch(() => {});
+  }
+}
+
+async function removeStaleContentAddressedAnimationPages(outDir, active) {
+  const names = await readdir(outDir).catch(() => []);
+  for (const name of names) {
+    if (!/^mobiles-atlas-page-\d+-[a-f0-9]{16}\.png$/i.test(name) || active.has(name)) continue;
+    await unlink(join(outDir, name)).catch(() => {});
   }
 }
 

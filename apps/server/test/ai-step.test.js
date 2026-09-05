@@ -110,4 +110,20 @@ describe('AI stepMobile', () => {
     expect(seen).toEqual(mobs.slice(0, 4).map((mob) => mob.serial));
     expect(ai.schedulerDiagnostics.pulses).toBe(2);
   });
+
+  it('shares one bounded perception candidate scan across a nearby NPC pack', () => {
+    const world = new World();
+    const ai = new AIScheduler(world, {
+      mobileMovingPacket: () => new Uint8Array(),
+      unicodeSpeechPacket: () => new Uint8Array(),
+    });
+    const player = world.createMobile({ x: 20, y: 20, z: 0, map: 1, hp: 10 });
+    player.client = {};
+    const first = world.createMobile({ x: 16, y: 16, z: 0, map: 1 });
+    const second = world.createMobile({ x: 17, y: 16, z: 0, map: 1 });
+
+    expect(ai.nearestOnline(first, 12)?.target).toBe(player);
+    expect(ai.nearestOnline(second, 12)?.target).toBe(player);
+    expect(ai.runtimeSnapshot()).toMatchObject({ perceptionMisses: 1, perceptionHits: 1 });
+  });
 });
