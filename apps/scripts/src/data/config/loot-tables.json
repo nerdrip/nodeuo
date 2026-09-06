@@ -237,7 +237,8 @@
     { "template": "arcane-fragment-venom", "chance": 0.06 },
     { "template": "arcane-fragment-purification", "chance": 0.06 },
     { "template": "arcane-fragment-astral-clock", "chance": 0.025 },
-    { "template": "arcane-fragment-fate", "chance": 0.025 }
+    { "template": "arcane-fragment-fate", "chance": 0.025 },
+    { "template": "arcane-fragment-transmutation", "chance": 0.0125 }
   ]},
   { "name": "champion-hoard", "entries": [
     { "template": "ruby",     "chance": 0.7,  "amount": [2, 6] },

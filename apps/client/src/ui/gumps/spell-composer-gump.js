@@ -20,6 +20,7 @@ const NODE_COLORS = {
   start: 0xe6c85c, damage: 0xef735f, heal: 0x62cf85, modifier: 0xc48aff,
   mana: 0x5c8cff, stamina: 0xe9c45d, shield: 0x80aaff, poison: 0x5faf63,
   cleanse: 0xc8fff0, 'time-gate': 0xc890ff, 'chance-gate': 0xff9ed8,
+  transform: 0xffb85c,
   visual: 0x6db7ff, sound: 0x75d3d0, delay: 0xc1a58d,
 };
 
@@ -56,6 +57,7 @@ function nodeSummary(node) {
   if (node.type === 'cleanse') return 'remove poison';
   if (node.type === 'time-gate') return cfg.phase ?? 'night';
   if (node.type === 'chance-gate') return `${cfg.chance ?? 50}%`;
+  if (node.type === 'transform') return `item 0x${(cfg.artId ?? 0).toString(16)} hue ${cfg.hue ?? 0}`;
   if (node.type === 'modifier') return `${cfg.attribute ?? 'str'} ${cfg.amount >= 0 ? '+' : ''}${cfg.amount ?? 0}`;
   if (node.type === 'visual') return `gfx 0x${(cfg.graphic ?? 0).toString(16)}`;
   if (node.type === 'sound') return `sound 0x${(cfg.sound ?? 0).toString(16)}`;
@@ -270,6 +272,7 @@ export class SpellComposerGump extends WindowGump {
               : type === 'cleanse' ? { scope: 'target' }
                 : type === 'time-gate' ? { phase: 'night' }
                   : type === 'chance-gate' ? { chance: 50 }
+                    : type === 'transform' ? { artId: 0x0EED, hue: 0 }
           : type === 'visual' ? { scope: 'target', graphic: 0x36BD, hue: 0 }
             : type === 'sound' ? { scope: 'target', sound: 0x0207 }
               : { ms: 500 };
@@ -329,6 +332,9 @@ export class SpellComposerGump extends WindowGump {
     if (node.type === 'cleanse') node.config = { scope };
     if (node.type === 'time-gate') node.config = { phase: this._variant._value };
     if (node.type === 'chance-gate') node.config = { chance: this._number(this._amount) };
+    if (node.type === 'transform') node.config = {
+      artId: this._number(this._asset), hue: this._number(this._hue),
+    };
     this._status.setText(`Updated ${node.id}.`);
     this._rebuildGraph();
   }

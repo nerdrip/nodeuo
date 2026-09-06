@@ -6766,6 +6766,18 @@
     "movable": true
   },
   {
+    "definitionId": "arcane-schema-pedestal",
+    "artId": 4643,
+    "name": "Arcane Schema Pedestal",
+    "hue": 1153,
+    "script": "spell-schema-pedestal",
+    "kind": "addon",
+    "category": "spell-schema",
+    "stackable": false,
+    "weight": 40,
+    "movable": true
+  },
+  {
     "definitionId": "arcane-research-notes",
     "artId": 4081,
     "name": "Arcane Research Notes",
@@ -6970,6 +6982,20 @@
     "category": "spellcraft-knowledge",
     "spellcraftUnlock": "node:chance-gate",
     "spellcraftXp": 150,
+    "stackable": false,
+    "weight": 1,
+    "movable": true
+  },
+  {
+    "definitionId": "arcane-fragment-transmutation",
+    "artId": 7981,
+    "name": "Schema Fragment: World Transmutation",
+    "hue": 48,
+    "script": "spellcraft-knowledge",
+    "kind": "consumable",
+    "category": "spellcraft-knowledge",
+    "spellcraftUnlock": "node:transform",
+    "spellcraftXp": 250,
     "stackable": false,
     "weight": 1,
     "movable": true

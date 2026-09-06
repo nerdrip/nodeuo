@@ -61,11 +61,18 @@ describe('world persistence', () => {
       spellcraftUnlock: 'element:fire', spellcraftXp: 75,
       x: 103, y: 200, z: 5,
     });
+    const pedestal = createItem(w1, {
+      definitionId: 'arcane-schema-pedestal', itemId: 0x1223,
+      schemaOwnerAccount: 'alice', schemaSpellId: 10020, schemaSpellName: 'Night House',
+      schemaCharge: 275, schemaActive: true, schemaTargetSerial: torch.serial,
+      schemaNextRunAt: 123456,
+      x: 104, y: 200, z: 5,
+    });
 
     const snap = snapshotWorld(w1);
     expect(snap.version).toBe(1);
     expect(snap.mobiles).toHaveLength(1);
-    expect(snap.items).toHaveLength(3);
+    expect(snap.items).toHaveLength(4);
 
     // Round-trip via JSON.
     const json = JSON.parse(JSON.stringify(snap));
@@ -74,7 +81,7 @@ describe('world persistence', () => {
     restoreWorld(w2, json);
 
     expect(w2.mobiles.size).toBe(1);
-    expect(w2.items.size).toBe(3);
+    expect(w2.items.size).toBe(4);
     const restoredMob = w2.mobiles.get(mob.serial);
     expect(restoredMob.name).toBe('Alice');
     expect(restoredMob.x).toBe(100);
@@ -84,6 +91,11 @@ describe('world persistence', () => {
     expect(w2.items.get(sword.serial).hue).toBe(0x0058);
     expect(w2.items.get(fragment.serial)).toMatchObject({
       spellcraftUnlock: 'element:fire', spellcraftXp: 75,
+    });
+    expect(w2.items.get(pedestal.serial)).toMatchObject({
+      schemaOwnerAccount: 'alice', schemaSpellId: 10020, schemaSpellName: 'Night House',
+      schemaCharge: 275, schemaActive: true, schemaTargetSerial: torch.serial,
+      schemaNextRunAt: 123456,
     });
 
     // Serial allocator must not reuse existing serials.

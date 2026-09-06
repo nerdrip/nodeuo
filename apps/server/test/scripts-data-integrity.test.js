@@ -77,6 +77,13 @@ describe('content data integrity', () => {
     expect(codex.artId).not.toBe(spellbook.artId);
   });
 
+  it('publishes the charged pedestal and world-transmutation block as definitions', () => {
+    expect(items.find((item) => item.definitionId === 'arcane-schema-pedestal'))
+      .toMatchObject({ script: 'spell-schema-pedestal', artId: 0x1223 });
+    expect(items.find((item) => item.definitionId === 'arcane-fragment-transmutation'))
+      .toMatchObject({ script: 'spellcraft-knowledge', spellcraftUnlock: 'node:transform' });
+  });
+
   it('every loot table entry references an existing item template', () => {
     const itemNames = new Set(items.map((i) => i.definitionId));
     const tableNames = new Set(lootTables.map((t) => t.name));

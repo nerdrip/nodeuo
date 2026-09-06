@@ -494,6 +494,8 @@ const ITEM_EXT_KEYS = [
   'script', 'equipLayer', 'clothing', 'slot', 'weight', 'stackable',
   '_sigilTown', '_worldContentSeed',
   'blessed', 'newbied', 'accountBound', 'boundAccount', 'schemaDiscoveries',
+  'schemaOwnerAccount', 'schemaSpellId', 'schemaSpellName', 'schemaCharge',
+  'schemaActive', 'schemaTargetSerial', 'schemaNextRunAt',
   '_xmlAttach', '_xmlData', '_xmlSpawnerEntry',
   'spellSlug', 'linkSerial', 'owner', 'addonName', 'addonNames',
   'training', 'craftingStation', 'addonCraftSystem', 'addonToolTurnedOn',

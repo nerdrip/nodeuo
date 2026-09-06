@@ -387,6 +387,11 @@ export const VENDOR_KINDS = {
         kind: 'book', category: 'spell-schema', weight: 3,
         newbied: true, blessed: true, accountBound: true,
       },
+      {
+        itemId: 0x1223, hue: 0x0481, name: 'Arcane Schema Pedestal', price: 5000,
+        definitionId: 'arcane-schema-pedestal', script: 'spell-schema-pedestal',
+        kind: 'addon', category: 'spell-schema', weight: 40,
+      },
     ],
   },
   armorer: {

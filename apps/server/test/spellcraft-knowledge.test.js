@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { World } from '../src/world/world.js';
 import { createItem, setItemParent } from '../src/world/items.js';
 import {
-  buildCustomSpellScrollScript, buildSpellSchemaCodexScript, buildSpellcraftKnowledgeScript,
+  buildCustomSpellScrollScript, buildSpellSchemaCodexScript, buildSpellSchemaPedestalScript,
+  buildSpellcraftKnowledgeScript,
 } from '../../scripts/src/items/scripts/functional/spell-schema.js';
 
 describe('spellcraft knowledge items', () => {
@@ -89,6 +90,44 @@ describe('spellcraft knowledge items', () => {
     expect(learn).toHaveBeenCalledWith(user, 'node:shield', 110);
     expect(codex.schemaDiscoveries).toEqual(['node:shield']);
     expect(world.items.has(fragment.serial)).toBe(false);
+  });
+
+  it('loads and powers a persistent pedestal program with rubies', () => {
+    const world = new World();
+    const user = world.createMobile({ name: 'Architect', x: 1, y: 1, z: 0, map: 1 });
+    user.accountName = 'architect';
+    const pedestal = createItem(world, {
+      itemId: 0x1223, x: 1, y: 1, z: 0, map: 1, script: 'spell-schema-pedestal',
+    });
+    const decoration = createItem(world, {
+      itemId: 0x0EED, x: 2, y: 1, z: 0, map: 1, movable: false,
+    });
+    const scroll = createItem(world, {
+      itemId: 0x1F2D, customSpellId: 10020, script: 'custom-spell-scroll',
+    });
+    const rubies = createItem(world, {
+      itemId: 4217, definitionId: 'ruby', amount: 3,
+    });
+    const draft = {
+      spellId: 10020, name: 'Night House', mana: 25,
+      castTimeMs: 0, cooldownMs: 1000, graph: { nodes: [] },
+    };
+    const executePublished = vi.fn(() => ({ ok: true, draft }));
+    const api = {
+      spellComposer: { getPublished: () => draft, executePublished },
+      dayNight: { hourOfDay: () => 23 },
+    };
+    const script = buildSpellSchemaPedestalScript(api);
+    script.onCreate(world, pedestal);
+    expect(script.onDrop(world, pedestal, scroll, user)).toBe(true);
+    expect(script.onDrop(world, pedestal, rubies, user)).toBe(true);
+    pedestal.schemaTargetSerial = decoration.serial;
+    pedestal.schemaActive = true;
+    script.onTick(world, pedestal);
+    expect(executePublished).toHaveBeenCalledWith(10020, expect.objectContaining({
+      world, caster: user, target: decoration, gameHour: 23,
+    }));
+    expect(pedestal.schemaCharge).toBe(275);
   });
 
   it('enforces the published cooldown when schema scrolls are invoked directly', () => {

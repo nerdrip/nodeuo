@@ -1,5 +1,6 @@
 import { itemBySerial, mobileBySerial } from '../../../_entities.js';
 import { destroyItemBySerial } from '../../../_items.js';
+import { allMobiles } from '../../../_spatial.js';
 import { consumeOne } from '../_shared/consume.js';
 
 function castDeps(api) {
@@ -9,6 +10,7 @@ function castDeps(api) {
     animate: (world, mobile, action, options) => api.combat?.animate?.(world, mobile, action, options),
     playSoundNear: (world, mobile, sound) => api.combat?.playSoundNear?.(world, mobile, sound),
     broadcastSpellWords: () => {},
+    gameHour: () => api.dayNight?.hourOfDay?.(),
   };
 }
 
@@ -116,6 +118,141 @@ export function buildSpellSchemaCodexScript(api) {
       destroyItemBySerial({ ...api, world }, dropped.serial);
       discoveryMessage(user, result);
       return true;
+    },
+  };
+}
+
+const PEDESTAL_MAX_CHARGE = 1_000_000;
+const PEDESTAL_TARGET_RANGE = 12;
+
+function pedestalOwner(world, item) {
+  const ownerAccount = String(item.schemaOwnerAccount ?? '').toLowerCase();
+  if (!ownerAccount) return null;
+  return [...allMobiles({ world })].find((mobile) => (
+    accountOf(mobile) === ownerAccount
+      || accountOf({ client: mobile.client }) === ownerAccount
+  )) ?? null;
+}
+
+export function buildSpellSchemaPedestalScript(api) {
+  return {
+    name: 'spell-schema-pedestal',
+    hasTick: true,
+    onCreate(_world, item) {
+      item.schemaCharge ??= 0;
+      item.schemaActive ??= false;
+    },
+    onDrop(world, item, dropped, user) {
+      const account = accountOf(user);
+      if (item.schemaOwnerAccount && account && item.schemaOwnerAccount !== account) {
+        user?.client?.sendSystemMessage?.('This Arcane Schema Pedestal answers to another account.');
+        return { handled: true, consumeHeld: false };
+      }
+      if (account && !item.schemaOwnerAccount) item.schemaOwnerAccount = account;
+
+      if (dropped?.customSpellId || dropped?.script === 'custom-spell-scroll') {
+        const draft = api.spellComposer?.getPublished?.(dropped.customSpellId);
+        if (!draft) {
+          user?.client?.sendSystemMessage?.('That scroll does not contain a published schema.');
+          return { handled: true, consumeHeld: false };
+        }
+        item.schemaSpellId = draft.spellId;
+        item.schemaSpellName = draft.name;
+        item.schemaTargetSerial = 0;
+        item.schemaActive = false;
+        item.schemaNextRunAt = 0;
+        destroyItemBySerial({ ...api, world }, dropped.serial);
+        user?.client?.sendSystemMessage?.(
+          `${draft.name} is installed. Double-click the pedestal to choose its target.`,
+        );
+        return true;
+      }
+
+      const ruby = dropped?.definitionId === 'ruby' || (dropped?.itemId | 0) === 4217;
+      if (ruby) {
+        if ((item.schemaCharge ?? 0) >= PEDESTAL_MAX_CHARGE) {
+          user?.client?.sendSystemMessage?.('The pedestal is already fully charged.');
+          return { handled: true, consumeHeld: false };
+        }
+        const added = Math.max(1, dropped.amount | 0) * 100;
+        item.schemaCharge = Math.min(PEDESTAL_MAX_CHARGE, (item.schemaCharge ?? 0) + added);
+        destroyItemBySerial({ ...api, world }, dropped.serial);
+        user?.client?.sendSystemMessage?.(
+          `The rubies dissolve into the pedestal. Charge: ${item.schemaCharge}/${PEDESTAL_MAX_CHARGE} mana.`,
+        );
+        return true;
+      }
+
+      user?.client?.sendSystemMessage?.('The pedestal accepts Schema scrolls and rubies.');
+      return { handled: true, consumeHeld: false };
+    },
+    onUse(world, item, user) {
+      const account = accountOf(user);
+      if (item.schemaOwnerAccount && account && item.schemaOwnerAccount !== account) {
+        user?.client?.sendSystemMessage?.('This Arcane Schema Pedestal answers to another account.');
+        return true;
+      }
+      if (account && !item.schemaOwnerAccount) item.schemaOwnerAccount = account;
+      const draft = api.spellComposer?.getPublished?.(item.schemaSpellId);
+      if (!draft) {
+        user?.client?.sendSystemMessage?.(
+          `Arcane Schema Pedestal: no program installed; charge ${item.schemaCharge ?? 0}.`,
+        );
+        return true;
+      }
+      if (item.schemaTargetSerial) {
+        item.schemaActive = !item.schemaActive;
+        user?.client?.sendSystemMessage?.(
+          `${draft.name}: ${item.schemaActive ? 'running' : 'paused'}; charge ${item.schemaCharge ?? 0}.`,
+        );
+        return true;
+      }
+      if (!api.targeting?.request) {
+        user?.client?.sendSystemMessage?.('Targeting is currently unavailable.');
+        return true;
+      }
+      user?.client?.sendSystemMessage?.('Choose a nearby mobile or world decoration for this schema.');
+      api.targeting.request(user.client, (picked) => {
+        const serial = picked?.serial >>> 0;
+        const target = mobileBySerial({ ...api, world }, serial) ?? itemBySerial({ ...api, world }, serial);
+        if (!target || target.parent != null || target.map !== item.map
+            || Math.max(Math.abs(target.x - item.x), Math.abs(target.y - item.y)) > PEDESTAL_TARGET_RANGE) {
+          user.client?.sendSystemMessage?.(`Choose a world target within ${PEDESTAL_TARGET_RANGE} tiles.`);
+          return;
+        }
+        const hasTransform = draft.graph?.nodes?.some((node) => node.type === 'transform');
+        if (hasTransform && !itemBySerial({ ...api, world }, serial)) {
+          user.client?.sendSystemMessage?.('A transmutation schema must target a world decoration.');
+          return;
+        }
+        item.schemaTargetSerial = serial;
+        item.schemaActive = true;
+        item.schemaNextRunAt = 0;
+        user.client?.sendSystemMessage?.(`${draft.name} is now running from the pedestal.`);
+      }, { kind: 0 });
+      return true;
+    },
+    onTick(world, item) {
+      if (!item.schemaActive || !item.schemaSpellId) return;
+      const now = Date.now();
+      if ((item.schemaNextRunAt ?? 0) > now) return;
+      const draft = api.spellComposer?.getPublished?.(item.schemaSpellId);
+      if (!draft) { item.schemaActive = false; return; }
+      const cost = Math.max(1, draft.mana | 0);
+      if ((item.schemaCharge ?? 0) < cost) return;
+      const caster = pedestalOwner(world, item);
+      if (!caster || (caster.hp ?? 0) <= 0) return;
+      const target = mobileBySerial({ ...api, world }, item.schemaTargetSerial)
+        ?? itemBySerial({ ...api, world }, item.schemaTargetSerial);
+      if (!target || target.parent != null) { item.schemaActive = false; return; }
+      const result = api.spellComposer?.executePublished?.(draft.spellId, {
+        world, caster, target, deps: castDeps(api),
+        gameHour: api.dayNight?.hourOfDay?.(),
+      });
+      if (!result?.ok) return;
+      item.schemaCharge -= cost;
+      item.schemaNextRunAt = now + Math.max(1_000,
+        (draft.castTimeMs | 0) + (draft.cooldownMs | 0));
     },
   };
 }

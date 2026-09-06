@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   EffectKind, healthUpdate, huedEffect, playSound, removeEntity, containerContentUpdate,
+  worldItemSA,
 } from '@uo/protocol';
 import { NodeUOFeature, NodeUOSpellComposerMessage } from '@uo/nodeuo-protocol';
 import { sendNodeUOEvent } from '../../net/handlers/nodeuo-modern.js';
@@ -11,7 +12,7 @@ import { containerChildrenRecursive, destroyItem } from '../../world/items.js';
 const MAX_DRAFTS = 2048;
 const MAX_NODES = 64;
 const MAX_EDGES = 128;
-const MAX_EXECUTED_TARGETS = 512;
+const MAX_EXECUTED_TARGETS = 8192;
 const MAX_SCHEMA_RANGE = 1024;
 const MAX_SCHEMA_RADIUS = 1024;
 const CUSTOM_SPELL_ID_MIN = 10_000;
@@ -32,6 +33,7 @@ const NODE_TYPES = Object.freeze([
   { id: 'cleanse', label: 'Cleanse', category: 'effect', inputs: ['flow'], outputs: ['flow'], requiredRank: 3, unlock: 'node:cleanse' },
   { id: 'time-gate', label: 'Time gate', category: 'logic', inputs: ['flow'], outputs: ['flow'], requiredRank: 4, unlock: 'node:time-gate' },
   { id: 'chance-gate', label: 'Chance gate', category: 'logic', inputs: ['flow'], outputs: ['flow'], requiredRank: 4, unlock: 'node:chance-gate' },
+  { id: 'transform', label: 'Transform item', category: 'world', inputs: ['flow'], outputs: ['flow'], requiredRank: 5, unlock: 'node:transform' },
   { id: 'visual', label: 'Visual effect', category: 'presentation', inputs: ['flow'], outputs: ['flow'], requiredRank: 1 },
   { id: 'sound', label: 'Sound', category: 'presentation', inputs: ['flow'], outputs: ['flow'], requiredRank: 1 },
   { id: 'delay', label: 'Delay', category: 'flow', inputs: ['flow'], outputs: ['flow'], requiredRank: 1 },
@@ -59,9 +61,9 @@ const SPELLCRAFT_RANKS = Object.freeze([
     maxDamage: 500, maxHealing: 500, maxModifier: 100, maxRadius: 32,
     maxRange: 64, maxDurationMs: 3_600_000 }),
   Object.freeze({ level: 6, name: 'Archmage', xp: 2500, inscription: 120,
-    maxDrafts: 40, maxNodes: MAX_NODES, maxEdges: MAX_EDGES, maxImpact: 1_000_000,
-    maxDamage: 10_000, maxHealing: 10_000, maxModifier: 500, maxRadius: 256,
-    maxRange: 256, maxDurationMs: 7 * 24 * 60 * 60_000 }),
+    maxDrafts: 40, maxNodes: MAX_NODES, maxEdges: MAX_EDGES, maxImpact: 50_000_000_000,
+    maxDamage: 10_000, maxHealing: 10_000, maxModifier: 500, maxRadius: MAX_SCHEMA_RADIUS,
+    maxRange: MAX_SCHEMA_RANGE, maxDurationMs: 7 * 24 * 60 * 60_000 }),
 ]);
 
 const SPELLCRAFT_DISCOVERIES = Object.freeze({
@@ -74,6 +76,7 @@ const SPELLCRAFT_DISCOVERIES = Object.freeze({
   'node:cleanse': Object.freeze({ label: 'Purification block', requiredRank: 3 }),
   'node:time-gate': Object.freeze({ label: 'Astral clock block', requiredRank: 4 }),
   'node:chance-gate': Object.freeze({ label: 'Fate gate block', requiredRank: 4 }),
+  'node:transform': Object.freeze({ label: 'World transmutation block', requiredRank: 5 }),
   'scope:area': Object.freeze({ label: 'Area shaping', requiredRank: 3 }),
   'element:fire': Object.freeze({ label: 'Fire attunement', requiredRank: 2 }),
   'element:cold': Object.freeze({ label: 'Cold attunement', requiredRank: 2 }),
@@ -328,6 +331,10 @@ function sanitizeNode(raw, index, errors) {
     phase: ['day', 'night', 'dawn', 'dusk'].includes(String(cfg.phase)) ? String(cfg.phase) : 'night',
   };
   if (type === 'chance-gate') config = { chance: clampInt(cfg.chance ?? cfg.amount, 1, 100) };
+  if (type === 'transform') config = {
+    artId: clampInt(cfg.artId ?? cfg.graphic, 0, 0xffff),
+    hue: clampInt(cfg.hue, 0, 0xffff),
+  };
   if (type === 'visual') config = {
     scope,
     graphic: clampInt(cfg.graphic, 0, 0xffff),
@@ -483,6 +490,7 @@ function spellMetrics(draft) {
       maxModifier = Math.max(maxModifier, node.config.amount);
       maxDurationMs = Math.max(maxDurationMs, node.config.durationMs);
     }
+    if (node.type === 'transform') modifiers += 250;
     if (node.type === 'modifier') {
       modifiers += Math.abs(node.config.amount) * multiplier * Math.max(1, node.config.durationMs / 10_000);
       maxModifier = Math.max(maxModifier, Math.abs(node.config.amount));
@@ -743,6 +751,24 @@ function runGraphNode(draft, node, ctx) {
       target.poisoned = false;
       target.poisonLevel = 0;
     }
+  } else if (node.type === 'transform') {
+    // World mutation deliberately targets one explicitly selected item. Area
+    // transmutation would let a house automation rewrite a neighbour's
+    // decorations and is therefore not inferred from the graph area scope.
+    const item = ctx.target?.serial
+      ? ctx.world?.items?.get?.(ctx.target.serial >>> 0)
+      : (ctx.target?.itemId != null ? ctx.target : null);
+    if (item && item.parent == null) {
+      item.artId = node.config.artId;
+      item.itemId = node.config.artId;
+      item.hue = node.config.hue;
+      const packet = worldItemSA({
+        serial: item.serial, itemId: item.itemId, amount: item.amount ?? 1,
+        x: item.x, y: item.y, z: item.z, hue: item.hue,
+        flags: (item.movable ?? true) ? 0x20 : 0,
+      });
+      sendNear(ctx.world, item, packet);
+    }
   } else if (node.type === 'visual') {
     const visualTargets = targets.length ? targets : [pointOf(ctx.target, ctx.caster)];
     for (const target of visualTargets) {
@@ -784,7 +810,8 @@ export function executeSpellGraph(draft, ctx) {
     const active = enabled.get(id) !== false;
     let branchOpen = active;
     if (active && node.type === 'time-gate') {
-      const hour = Number(ctx.world?.gameTime?.hour ?? new Date().getUTCHours()) | 0;
+      const hour = Number(ctx.gameHour ?? ctx.deps?.gameHour?.()
+        ?? ctx.world?.gameTime?.hour ?? new Date().getUTCHours()) | 0;
       const phase = node.config.phase;
       branchOpen = phase === 'day' ? hour >= 6 && hour < 18
         : phase === 'night' ? hour < 6 || hour >= 18
@@ -1113,6 +1140,16 @@ export class SpellComposerService {
     const byDraft = this.drafts.get(String(id));
     if (byDraft?.published) return byDraft;
     return [...this.drafts.values()].find((draft) => draft.published && draft.spellId === (id | 0)) ?? null;
+  }
+
+  /** Execute a published graph from an external mana source such as an
+   * Arcane Schema Pedestal. The caller owns charge, cadence and target
+   * authorization; this method keeps graph semantics in one implementation. */
+  executePublished(id, ctx) {
+    const draft = this.getPublished(id);
+    if (!draft) return { ok: false, reason: 'missing-schema' };
+    executeSpellGraph(draft, ctx);
+    return { ok: true, draft };
   }
 
   scribeDraft(state, requestId, payload) {

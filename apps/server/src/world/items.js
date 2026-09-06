@@ -201,6 +201,8 @@ export function createItem(world, data) {
     'bandageHealingBonus',
     'firstAidBelt', 'firstAidMaxBandages', 'firstAidHealingBonus', 'firstAidWeightReduction',
     'blessed', 'newbied', 'accountBound', 'boundAccount', 'schemaDiscoveries',
+    'schemaOwnerAccount', 'schemaSpellId', 'schemaSpellName', 'schemaCharge',
+    'schemaActive', 'schemaTargetSerial', 'schemaNextRunAt',
     '_logs', '_nextResourceCount', 'waterSourceQuantity',
     'tagId', 'kind', 'category', 'resource', 'title', 'author', 'pages', 'writable',
     'readOnly', 'bookContentClilocs', 'bookPageDetails', 'noteString', 'servuoClass', 'servuoClasses', 'servuoPath',

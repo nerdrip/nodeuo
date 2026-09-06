@@ -234,9 +234,9 @@ describe('visual spell graph composer', () => {
 
   it('allows archmage-scale effects when their mana, recovery and materials pay for the footprint', () => {
     const worldSpell = validDraft({
-      name: 'Worldbreaker', mana: 10_000, range: 256,
+      name: 'Worldbreaker', mana: 10_000, range: 1024,
       castTimeMs: 60_000, cooldownMs: 7 * 24 * 60 * 60_000,
-      area: { shape: 'circle', radius: 256 },
+      area: { shape: 'circle', radius: 1024 },
     });
     worldSpell.graph.nodes[2].config = { scope: 'area', amount: 10_000, element: 'energy' };
     worldSpell.graph.edges = [
@@ -261,6 +261,34 @@ describe('visual spell graph composer', () => {
     executeSpellGraph(validated, { caster, target, world, deps: { damage } });
     expect(damage).toHaveBeenCalledOnce();
     expect(damage).toHaveBeenCalledWith(world, target, 20, expect.objectContaining({ attacker: caster }));
+  });
+
+  it('lets a time-gated schema persistently transform one selected world decoration', () => {
+    const raw = validDraft({ name: 'Night Decor', target: 'mobile' });
+    raw.graph.nodes = [
+      { id: 'start', type: 'start', x: 0, y: 0, config: {} },
+      { id: 'night', type: 'time-gate', x: 100, y: 0, config: { phase: 'night' } },
+      { id: 'decor', type: 'transform', x: 200, y: 0, config: { artId: 0x0EED, hue: 0x0481 } },
+    ];
+    raw.graph.edges = [
+      { from: 'start', to: 'night' },
+      { from: 'night', to: 'decor' },
+    ];
+    const result = validateSpellDraft(raw);
+    expect(result.ok).toBe(true);
+    const caster = { serial: 1, hp: 50, x: 10, y: 10, z: 0, map: 1 };
+    const decoration = {
+      serial: 0x400001, itemId: 1, artId: 1, hue: 0,
+      x: 11, y: 10, z: 0, map: 1, parent: null, movable: false,
+    };
+    const world = {
+      mobiles: new Map([[caster.serial, caster]]),
+      items: new Map([[decoration.serial, decoration]]),
+    };
+    executeSpellGraph(result.draft, {
+      caster, target: decoration, world, gameHour: 23, deps: {},
+    });
+    expect(decoration).toMatchObject({ itemId: 0x0EED, artId: 0x0EED, hue: 0x0481 });
   });
 
   it('requires a carried codex and blank scroll, then creates a bound scroll', () => {

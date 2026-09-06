@@ -12,6 +12,12 @@ const DEFINITIONS = [
     stackable: false, movable: true, weight: 1,
   },
   {
+    definitionId: 'arcane-schema-pedestal', artId: 0x1223,
+    name: 'Arcane Schema Pedestal', hue: 0x0481,
+    kind: 'addon', category: 'spell-schema', script: 'spell-schema-pedestal',
+    stackable: false, movable: true, weight: 40,
+  },
+  {
     definitionId: 'arcane-research-notes', artId: 0x0FF1,
     name: 'Arcane Research Notes', hue: 0x0481,
     kind: 'consumable', category: 'spellcraft-knowledge', script: 'spellcraft-knowledge',
@@ -70,6 +76,12 @@ const DEFINITIONS = [
     name: 'Schema Fragment: Fate Gate', hue: 0x048D,
     kind: 'consumable', category: 'spellcraft-knowledge', script: 'spellcraft-knowledge',
     spellcraftUnlock: 'node:chance-gate', spellcraftXp: 150, stackable: false, movable: true, weight: 1,
+  },
+  {
+    definitionId: 'arcane-fragment-transmutation', artId: 0x1F2D,
+    name: 'Schema Fragment: World Transmutation', hue: 0x0030,
+    kind: 'consumable', category: 'spellcraft-knowledge', script: 'spellcraft-knowledge',
+    spellcraftUnlock: 'node:transform', spellcraftXp: 250, stackable: false, movable: true, weight: 1,
   },
   {
     definitionId: 'arcane-fragment-area', artId: 0x1F2D,

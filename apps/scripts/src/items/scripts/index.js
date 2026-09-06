@@ -116,7 +116,8 @@ import buildSigilScript from './functional/sigil.js';
 import buildSoulforge   from './functional/soulforge.js';
 import buildHeartwoodRewardBag from './functional/heartwood-reward-bag.js';
 import {
-  buildSpellSchemaCodexScript, buildCustomSpellScrollScript, buildSpellcraftKnowledgeScript,
+  buildSpellSchemaCodexScript, buildSpellSchemaPedestalScript,
+  buildCustomSpellScrollScript, buildSpellcraftKnowledgeScript,
 } from './functional/spell-schema.js';
 import buildBraceletBinding from './equipment/bracelet-binding.js';
 import buildInteriorDecorator from './functional/interior-decorator.js';
@@ -248,7 +249,8 @@ const SCRIPT_BUILDERS = [
   buildSoulforge,
   // Server parity #8 #9 reward chain — Heartwood reward bag.
   buildHeartwoodRewardBag,
-  buildSpellSchemaCodexScript, buildCustomSpellScrollScript, buildSpellcraftKnowledgeScript,
+  buildSpellSchemaCodexScript, buildSpellSchemaPedestalScript,
+  buildCustomSpellScrollScript, buildSpellcraftKnowledgeScript,
   // Audit #35 P3 #16 — Bracelet of Binding artifact (recall jewelry).
   buildBraceletBinding,
   // "Missing" batch 2026-05-14 — ServUO content items previously
