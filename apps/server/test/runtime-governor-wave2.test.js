@@ -22,6 +22,17 @@ describe('wave 2 runtime governor', () => {
     expect(queue.snapshot()).toMatchObject({ coalesced: 1, completed: 2, pending: 0 });
   });
 
+  it('moves coalesced work to the promoted priority queue', () => {
+    let time = 0;
+    const queue = new CoalescingWorkQueue({ now: () => (time += 0.1) });
+    const seen = [];
+    queue.enqueue('slow', () => seen.push('stale'), { priority: 3 });
+    queue.enqueue('medium', () => seen.push('medium'), { priority: 1 });
+    queue.enqueue('slow', () => seen.push('promoted'), { priority: 0 });
+    queue.drain();
+    expect(seen).toEqual(['promoted', 'medium']);
+  });
+
   it('invalidates revision cache and bounds its LRU', () => {
     const cache = new RevisionCache({ max: 16 });
     cache.set('x', 1, [1]);
@@ -117,6 +128,32 @@ describe('wave 2 runtime governor', () => {
     expect(scheduler.snapshot().jobs[0].due).toBe(600);
     scheduler.stop();
     expect(scheduler.snapshot().activeJobs).toBe(0);
+  });
+
+  it('skips periods elapsed inside a slow callback and preserves replacement jobs', () => {
+    let now = 0;
+    let pending = null;
+    const scheduler = new DeadlineScheduler({
+      now: () => now,
+      monotonicNow: () => 0,
+      setTimer: (fn, delay) => { pending = { fn, delay, unref() {} }; return pending; },
+      clearTimer: () => { pending = null; },
+    });
+    const calls = [];
+    const oldHandle = scheduler.every('slow', 100, () => { calls.push(now); now += 350; });
+    now = 100;
+    pending.fn();
+    expect(calls).toEqual([100]);
+    expect(scheduler.snapshot()).toMatchObject({ callbacks: 1, skippedPeriods: 3 });
+    expect(scheduler.snapshot().jobs[0].due).toBe(500);
+    expect(pending.delay).toBe(50);
+    const replacement = scheduler.once('slow', 20, () => calls.push(now));
+    expect(oldHandle.cancel()).toBe(false);
+    now = 470;
+    pending.fn();
+    expect(calls).toEqual([100, 470]);
+    expect(replacement.cancel()).toBe(false);
+    scheduler.stop();
   });
 
   it('keeps a same-name one-shot rescheduled by its own callback', () => {

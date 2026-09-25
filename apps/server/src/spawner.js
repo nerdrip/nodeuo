@@ -1,6 +1,12 @@
 import { resolveStandingZ } from './world/movement.js';
 import { applySpawnDirectives } from './systems/xml-spawner.js';
 import { runtimeGovernor } from './systems/runtime-governor.js';
+
+// ServUO keeps runtime spawn ownership and its save/restart adapter in two
+// classes. NodeUO deliberately owns both capabilities in this single service:
+// world persistence stores `spawnerId`, then the constructor adopts restored
+// mobiles before any group can produce replacements.
+export const SERVUO_SPAWNER_CLASSES = Object.freeze(['Spawner', 'SpawnerPersistence']);
 // Spawner — periodically respawn hostile mobs inside rectangular areas.
 //
 // Each spawn-group declares: a rect {x1,y1,x2,y2,map}, a max count, a

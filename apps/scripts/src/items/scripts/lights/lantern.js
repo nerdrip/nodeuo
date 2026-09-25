@@ -22,7 +22,9 @@ export default function buildLanternScript(api) {
     },
     onTick(world, item, dt) {
       if (!item._lit) return;
-      item._burnRemainingMs = (item._burnRemainingMs ?? BURN_TIME_MS) - dt;
+      // Script ticks receive elapsed seconds; fuel state is stored in ms.
+      item._burnRemainingMs = (item._burnRemainingMs ?? BURN_TIME_MS)
+        - Math.max(0, Number(dt) || 0) * 1000;
       if (item._burnRemainingMs <= 0) {
         item._lit = false;
         item.itemId = item._unlitId ?? LANTERN_UNLIT_ID;

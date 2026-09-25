@@ -5,6 +5,7 @@ import { Assets, Texture, Rectangle, setKTXTranscoderPath } from 'pixi.js';
 import { bus } from '../core/event-bus.js';
 import { AsyncWorkPool, clientRuntimeProfile, ResourceTelemetry } from '../shared/runtime-governor.js';
 import { fetchBinary, fetchBinaryRange, fetchJsonVerified } from './asset-fetch.js';
+import { applyAssetOverrideManifest, loadCustomMobileFrame, loadGraphicOverride } from './asset-overrides.js';
 import { BODY_FALLBACK, GENERIC_ANIMAL, GENERIC_MONSTER, resolvedMobileBody } from './mobile-atlas.js';
 import {
   initializeCharacterCreation,
@@ -901,155 +902,11 @@ class AssetManager {
   /** Install same-id PNG replacements produced by the admin asset editor.
    * They remain separate from remaps so removing one restores atlas art. */
   applyAssetOverrides(manifest) {
-    if (!manifest || typeof manifest !== 'object') return;
-    // Restore the extracted TileData view before applying the next custom
-    // layer. The baseline JSON is never mutated on disk; this in-memory
-    // overlay lets a newly-added art ID carry walkability/height/equipment
-    // metadata and makes deleting the override reveal native behavior again.
-    for (const kind of ['land', 'static']) {
-      const collection = this.tiledata?.[kind === 'land' ? 'land' : 'statics'];
-      // A metadata hot reload replaces the whole TileData collection. Old
-      // baseline rows only belong to the previous object and must not be
-      // copied into the freshly extracted document.
-      if (collection && this._assetOverrideTiledataOwner[kind] === collection) {
-        for (const [id, base] of this._assetOverrideTiledataBase[kind]) {
-          if (base.exists) collection[id] = base.value;
-          else delete collection[id];
-        }
-      }
-      this._assetOverrideTiledataBase[kind].clear();
-      this._assetOverrideTiledataOwner[kind] = null;
-    }
-    const multis = this.multis?.multis;
-    if (multis && this._assetOverrideMultiOwner === multis) {
-      for (const [id, base] of this._assetOverrideMultiBase) {
-        if (base.exists) multis[id] = base.value;
-        else delete multis[id];
-      }
-    }
-    this._assetOverrideMultiBase.clear();
-    this._assetOverrideMultiOwner = null;
-    const cacheByKind = {
-      land: this._landTextures, static: this._staticTextures,
-      gump: this._gumpTextures, texmap: this._texmapTextures,
-    };
-    for (const kind of ['land', 'static', 'gump', 'texmap']) {
-      const target = this._assetOverrides[kind];
-      const changedIds = new Set(target.keys());
-      target.clear();
-      const source = manifest[kind];
-      for (const [rawId, rawValue] of Object.entries(source && typeof source === 'object' ? source : {})) {
-        const id = Number(rawId);
-        const file = typeof rawValue === 'string' ? rawValue : rawValue?.file;
-        if (!Number.isInteger(id) || id < 0 || typeof file !== 'string' || !file || file.includes('..')) continue;
-        changedIds.add(id);
-        target.set(id, {
-          file: file.replace(/^\/+/, ''),
-          width: Number(rawValue?.width) || 0,
-          height: Number(rawValue?.height) || 0,
-          revision: Number(rawValue?.updatedAt) || 0,
-          metadata: rawValue?.metadata && typeof rawValue.metadata === 'object'
-            ? { ...rawValue.metadata } : {},
-        });
-        if ((kind === 'land' || kind === 'static') && rawValue?.metadata && typeof rawValue.metadata === 'object') {
-          const collection = this.tiledata?.[kind === 'land' ? 'land' : 'statics'];
-          if (collection) {
-            this._assetOverrideTiledataOwner[kind] = collection;
-            this._assetOverrideTiledataBase[kind].set(id, {
-              exists: Object.prototype.hasOwnProperty.call(collection, id), value: collection[id],
-            });
-            collection[id] = { ...(collection[id] ?? {}), ...rawValue.metadata };
-          }
-        }
-      }
-      for (const id of changedIds) {
-        this._releaseCachedTexture(cacheByKind[kind].get(id));
-        cacheByKind[kind].delete(id);
-        this._overrideTextureLoads.delete(`${kind}:${id}`);
-      }
-    }
-    if (multis) {
-      for (const [rawId, rawValue] of Object.entries(manifest.multi && typeof manifest.multi === 'object'
-        ? manifest.multi : {})) {
-        const id = Number(rawId);
-        if (!Number.isInteger(id) || id < 0 || id > 0xffff || !Array.isArray(rawValue?.components)) continue;
-        this._assetOverrideMultiOwner = multis;
-        this._assetOverrideMultiBase.set(id, {
-          exists: Object.prototype.hasOwnProperty.call(multis, id), value: multis[id],
-        });
-        multis[id] = rawValue.components.map((part) => ({
-          id: Number(part?.id) || 0,
-          x: Number(part?.x) || 0,
-          y: Number(part?.y) || 0,
-          z: Number(part?.z) || 0,
-          visible: part?.visible !== false,
-        }));
-      }
-      this.multis.count = Object.keys(multis).length;
-    }
-    this._customMobileBodies.clear();
-    for (const [rawBody, rawValue] of Object.entries(manifest.animation && typeof manifest.animation === 'object'
-      ? manifest.animation : {})) {
-      const body = Number(rawBody);
-      if (!Number.isInteger(body) || body < 0 || body > 0xffff || !rawValue || typeof rawValue !== 'object') continue;
-      const actions = {};
-      for (const [rawAction, rawActionValue] of Object.entries(rawValue.actions ?? {})) {
-        const action = Number(rawAction);
-        if (!Number.isInteger(action) || action < 0 || action > 255) continue;
-        const dirs = {};
-        for (const [rawDirection, rawFrames] of Object.entries(rawActionValue?.dirs ?? {})) {
-          const direction = Number(rawDirection);
-          if (!Number.isInteger(direction) || direction < 0 || direction > 7 || !Array.isArray(rawFrames)) continue;
-          const frames = rawFrames.filter((frame) => frame?.file && !String(frame.file).includes('..')).map((frame) => ({
-            customFile: String(frame.file).replace(/^\/+/, ''),
-            customRevision: Number(rawValue.updatedAt) || 0,
-            w: Number(frame.w ?? frame.width) || 0,
-            h: Number(frame.h ?? frame.height) || 0,
-            cx: Number(frame.cx) || 0,
-            cy: Number(frame.cy) || 0,
-          })).filter((frame) => frame.w > 0 && frame.h > 0);
-          if (frames.length) dirs[direction] = frames;
-        }
-        if (Object.keys(dirs).length) actions[action] = { dirs };
-      }
-      if (Object.keys(actions).length) this._customMobileBodies.set(body, {
-        name: String(rawValue.name ?? `Custom mobile ${body}`),
-        type: String(rawValue.type ?? 'MONSTER').toUpperCase(),
-        actions,
-      });
-    }
-    for (const wrapped of this._mobileTextures.values()) this._releaseCachedTexture(wrapped);
-    this._mobileTextures.clear();
-    this._customMobileTextureLoads.clear();
+    return applyAssetOverrideManifest(this, manifest);
   }
 
   async _loadGraphicOverride(kind, id, cache, limit) {
-    const record = this._assetOverrides?.[kind]?.get(id | 0);
-    if (!record) return null;
-    const cached = cache.get(id | 0);
-    if (cached) return this._touchCache(cache, id | 0, cached);
-    const key = `${kind}:${id | 0}`;
-    const pending = this._overrideTextureLoads.get(key);
-    if (pending) return pending;
-    const load = this._decodePool.run(`override:${key}`, async () => {
-      try {
-        const url = `${BASE}/${record.file}${record.revision ? `?v=${record.revision}` : ''}`;
-        const texture = await Assets.load(url);
-        if (!texture?.source) return null;
-        texture.source.scaleMode = 'nearest';
-        texture._uoAssetOverride = true;
-        texture._uoAssetOverrideUrl = url;
-        cache.set(id | 0, texture);
-        this._capCache(cache, limit);
-        return texture;
-      } catch (error) {
-        console.warn(`[assets] override load failed ${key}:`, error?.message ?? error);
-        return null;
-      }
-    }, { priority: 0 });
-    this._overrideTextureLoads.set(key, load);
-    try { return await load; }
-    finally { if (this._overrideTextureLoads.get(key) === load) this._overrideTextureLoads.delete(key); }
+    return loadGraphicOverride(this, kind, id, cache, limit);
   }
 
   /** Audit #46 P2 — VerData applier. CUO `VerdataLoader.cs` reads each
@@ -1555,33 +1412,7 @@ class AssetManager {
   }
 
   async _loadCustomMobileFrame(info, key) {
-    const existing = this._mobileTextures.get(key);
-    if (existing) return existing;
-    let pending = this._customMobileTextureLoads.get(key);
-    if (!pending) {
-      pending = this._decodePool.run(`custom-animation:${key}`, async () => {
-        const url = `${BASE}/${info.meta.customFile}${info.meta.customRevision ? `?v=${info.meta.customRevision}` : ''}`;
-        const texture = await Assets.load(url);
-        if (!texture?.source) return null;
-        texture.source.scaleMode = 'nearest';
-        texture._uoCustomAnimation = true;
-        texture._uoAssetOverrideUrl = url;
-        const wrapped = {
-          texture,
-          cx: info.meta.cx, cy: info.meta.cy,
-          w: info.meta.w, h: info.meta.h,
-          frameCount: info.frameCount,
-        };
-        this._mobileTextures.set(key, wrapped);
-        this._capCache(this._mobileTextures, this._cacheLimit('mobile', MOBILE_FRAME_CACHE_MAX));
-        return wrapped;
-      }, { priority: 0 }).catch((error) => {
-        console.warn(`[assets] custom animation frame failed ${key}:`, error?.message ?? error);
-        return null;
-      }).finally(() => this._customMobileTextureLoads.delete(key));
-      this._customMobileTextureLoads.set(key, pending);
-    }
-    return pending;
+    return loadCustomMobileFrame(this, info, key, MOBILE_FRAME_CACHE_MAX);
   }
 
   /** Synchronous variant — returns `{ texture, cx, cy, w, h, frameCount }`

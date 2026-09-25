@@ -56,6 +56,44 @@ describe('wave 2 architecture gates', () => {
   it('validates ports, listener collisions and exposed development auth', () => {
     expect(validateConfig({ host: '127.0.0.1', port: 2593, tcpPort: 2594, tcpHost: '127.0.0.1', shardName: 'test', devAutoAccept: false }).ok).toBe(true);
     expect(validateConfig({ host: '0.0.0.0', port: -1, tcpPort: -1, tcpHost: '0.0.0.0', shardName: '', devAutoAccept: true }).ok).toBe(false);
+    const localDev = { host: '127.0.0.1', port: 2593, tcpPort: 2594,
+      tcpHost: '127.0.0.1', shardName: 'test', devAutoAccept: true };
+    expect(validateConfig(localDev).ok).toBe(true);
+    expect(validateConfig({ ...localDev, host: '0.0.0.0' }).errors).toContain(
+      'UO_DEV_AUTO_ACCEPT requires loopback-only WebSocket and TCP listeners');
+    expect(validateConfig({ ...localDev, tcpHost: '0.0.0.0' }).ok).toBe(false);
+    vi.stubEnv('NODE_ENV', 'production');
+    try { expect(validateConfig(localDev).ok).toBe(false); }
+    finally { vi.unstubAllEnvs(); }
+  });
+
+  it('rejects the default admin password on a public admin listener', () => {
+    const value = { host: '127.0.0.1', port: 2593, tcpPort: null,
+      shardName: 'test', devAutoAccept: false };
+    vi.stubEnv('UO_ADMIN_HOST', '0.0.0.0');
+    vi.stubEnv('UO_ADMIN_PORT', '2596');
+    vi.stubEnv('UO_ADMIN_PASS', 'admin');
+    try {
+      expect(validateConfig(value).ok).toBe(false);
+      vi.stubEnv('UO_ADMIN_PASS', 'long-private-secret');
+      expect(validateConfig(value).ok).toBe(false);
+      vi.stubEnv('UO_ADMIN_HTTPS_TERMINATED', '1');
+      expect(validateConfig(value).ok).toBe(true);
+    } finally { vi.unstubAllEnvs(); }
+  });
+
+  it('rejects a weak game bootstrap password on either public game listener', () => {
+    const value = { host: '0.0.0.0', port: 2593, tcpPort: null,
+      shardName: 'test', devAutoAccept: false };
+    vi.stubEnv('UO_BOOTSTRAP_ADMIN_PASSWORD', 'admin');
+    try {
+      expect(validateConfig(value).errors).toContain(
+        'public game listeners require UO_BOOTSTRAP_ADMIN_PASSWORD of at least 12 characters');
+      expect(validateConfig({ ...value, host: '127.0.0.1', tcpPort: 2594,
+        tcpHost: '0.0.0.0' }).ok).toBe(false);
+      vi.stubEnv('UO_BOOTSTRAP_ADMIN_PASSWORD', 'long-private-secret');
+      expect(validateConfig(value).ok).toBe(true);
+    } finally { vi.unstubAllEnvs(); }
   });
 
   it('bounds a 100k item tile benchmark and exposes query telemetry', () => {

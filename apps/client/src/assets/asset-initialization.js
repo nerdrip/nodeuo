@@ -89,7 +89,7 @@ export async function initializeWorld(manager, opts = {}) {
  * stage name (e.g. "tiledata", "atlas pages"). Splash screens use
  * this to drive a progress bar.
  *
- * @param {{ onProgress?: (pct:number, label:string) => void }} [opts]
+ * @param {{ onProgress?: (pct:number, label:string) => void, preloadAtlasPages?: boolean }} [opts]
  */
 export async function loadWorldAssets(manager, opts = {}) {
   const onProgress = opts.onProgress ?? (() => {});
@@ -339,6 +339,15 @@ export async function loadWorldAssets(manager, opts = {}) {
     }
   }
   onProgress(0.60, 'facet bins ready');
+
+  // Atlas pages are fetched by the initial-terrain warm-up and by renderers
+  // as needed. Eagerly decoding every land/texmap page here held a second
+  // client on the gateway for over 30 seconds in the multi-client E2E case.
+  // Keep the broader warm-up available as an explicit diagnostic option.
+  if (opts.preloadAtlasPages !== true) {
+    onProgress(1.0, 'ready');
+    return;
+  }
 
   // Pre-load atlas pages through a small idle queue so the first time a chunk
   // calls `landTexture(id)` / `staticTexture(id)` the await is

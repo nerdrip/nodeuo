@@ -22,7 +22,7 @@ cd /d "%~dp0..\..\"
 
 if "%UO_PORT%"=="" set "UO_PORT=2593"
 if "%UO_TCP_PORT%"=="" set "UO_TCP_PORT=2594"
-if "%UO_HOST%"=="" set "UO_HOST=0.0.0.0"
+if "%UO_HOST%"=="" set "UO_HOST=127.0.0.1"
 if "%UO_ADMIN_PASS%"=="" set "UO_ADMIN_PASS=admin"
 if "%UO_ADMIN_USER%"=="" set "UO_ADMIN_USER=admin"
 if "%UO_ADMIN_HOST%"=="" set "UO_ADMIN_HOST=127.0.0.1"
@@ -30,7 +30,7 @@ if "%UO_ADMIN_PORT%"=="" set "UO_ADMIN_PORT=2596"
 
 echo [server] WebSocket on %UO_HOST%:%UO_PORT%      (browser client)
 echo [server] Raw TCP    on %UO_HOST%:%UO_TCP_PORT% (CUO/Razor/OSI)
-echo [admin ] Panel      on http://%UO_ADMIN_HOST%:%UO_ADMIN_PORT%/  user=%UO_ADMIN_USER% pass=%UO_ADMIN_PASS%
+echo [admin ] Panel      on http://%UO_ADMIN_HOST%:%UO_ADMIN_PORT%/  user=%UO_ADMIN_USER%
 echo [admin ] CHANGE THE PASSWORD before exposing this port to LAN!
 echo [server] press Ctrl+C to stop.
 echo.

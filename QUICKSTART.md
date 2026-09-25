@@ -6,7 +6,7 @@ overview is in [README.md](README.md), and launcher details are in
 
 ## Requirements
 
-- Node.js `>=20.11`
+- Node.js `>=22.23` (`24.18.0` is pinned in `.nvmrc` and `.node-version`)
 - pnpm `9.12.x` through Corepack or a global install
 - A legal local installation of Ultima Online Classic if you need to extract
   client assets
@@ -100,7 +100,8 @@ tools\bats\run-all.bat
 ```
 
 `run-all` starts the server with TCP and admin enabled, then starts the browser
-client. The admin panel is local-only by default:
+client. The launchers bind the game and admin listeners to `127.0.0.1` by
+default. The admin panel is local-only unless you change its bind address:
 
 ```text
 http://127.0.0.1:2596/
@@ -108,7 +109,15 @@ user: admin
 pass: admin
 ```
 
-Change `UO_ADMIN_PASS` before exposing the admin panel outside your machine.
+The `admin` password above is for local development only. Set a strong
+`UO_ADMIN_PASS` and disable development account auto-creation with
+`UO_DEV_AUTO_ACCEPT=0` before intentionally binding the shard to a network
+interface with `UO_HOST`. If `UO_ADMIN_HOST` is non-loopback, the server also
+requires a password of at least 12 characters and
+`UO_ADMIN_HTTPS_TERMINATED=1` behind a TLS-terminating reverse proxy. The
+launchers do not print your configured admin password. For a new
+network-exposed shard, set `UO_BOOTSTRAP_ADMIN_PASSWORD` separately to create
+the first game Admin account.
 
 ## Optional: Native UO Clients
 

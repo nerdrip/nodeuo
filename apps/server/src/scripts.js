@@ -76,6 +76,7 @@ export class ScriptRuntime {
     /** @type {{ reason: string, emitEvent: boolean } | null} */
     this._pendingLoadRequest = null;
     this._watchQuietUntil = 0;
+    this._importSequence = 0;
     this._lastSuppressedWatchLogAt = 0;
     this._watchDebounceMs = positiveIntEnv('UO_SCRIPT_WATCH_DEBOUNCE_MS', 600);
     this._watchQuietMs = positiveIntEnv('UO_SCRIPT_WATCH_QUIET_MS', 1200);
@@ -298,7 +299,7 @@ export class ScriptRuntime {
     // Import and validate before touching the active implementation. Syntax
     // errors and missing exports therefore leave the live shard unchanged.
     let mod;
-    try { mod = await import(`${pathToFileURL(target).href}?t=${Date.now()}`); }
+    try { mod = await import(`${pathToFileURL(target).href}?t=${Date.now()}-${++this._importSequence}`); }
     catch (error) { return rememberReload({ ok: false, error: error.message, phase: 'import', rolledBack: false }); }
     const fn = mod.default;
     if (typeof fn !== 'function') return rememberReload({ ok: false, error: 'no default export', phase: 'validate', rolledBack: false });
@@ -315,6 +316,7 @@ export class ScriptRuntime {
       }
       this.loaded.splice(idx, 1);
     }
+    let candidateDisposer = null;
     try {
       const scoped = createScopedScriptApi(this.api, label);
       let initError = null;
@@ -326,27 +328,30 @@ export class ScriptRuntime {
       if (!initError && performance.now() - initStarted > this.initTimeoutMs) {
         initError = new Error(`initialization exceeded ${this.initTimeoutMs}ms budget`);
       }
-      const disposer = composeDisposer(maybeDisposer, scoped.lifecycle);
+      candidateDisposer = composeDisposer(maybeDisposer, scoped.lifecycle);
       if (initError) {
-        safeCall(disposer, undefined, () => {});
         throw initError;
       }
-      this.loaded.push({
+      this.audit.assertClean({ label });
+      const activeEntry = {
         file: target,
-        disposer,
+        disposer: candidateDisposer,
         initializer: fn,
         exports: Object.keys(mod),
         lifecycle: scoped.lifecycle,
-      });
+      };
+      if (idx >= 0) this.loaded.splice(idx, 0, activeEntry);
+      else this.loaded.push(activeEntry);
       this.api.log(`script reloaded: ${this._rel(target)}`);
       this._emitReloaded();
-      this.audit.assertClean({ label });
       return rememberReload({ ok: true, rel: this._rel(target), phase: 'activate',
         initMs: Math.round(performance.now() - initStarted), exports: Object.keys(mod) });
     } catch (e) {
       // Restore the previous initializer after a partial activation failure.
-      // Scoped lifecycle disposal above has already removed every command,
-      // listener and timer owned by the failed candidate.
+      // Release registrations and timers owned by the failed candidate before
+      // the previous initializer runs again.
+      if (candidateDisposer) safeCall(candidateDisposer, undefined, () => {});
+      this.audit.clearLabel(label);
       let rolledBack = false;
       if (typeof previous?.initializer === 'function') {
         try {
@@ -354,7 +359,8 @@ export class ScriptRuntime {
           let restoreError = null;
           const maybeDisposer = safeCall(previous.initializer, scoped.api, (error) => { restoreError = error; });
           if (restoreError) throw restoreError;
-          this.loaded.push({ ...previous, disposer: composeDisposer(maybeDisposer, scoped.lifecycle), lifecycle: scoped.lifecycle });
+          const restored = { ...previous, disposer: composeDisposer(maybeDisposer, scoped.lifecycle), lifecycle: scoped.lifecycle };
+          this.loaded.splice(idx, 0, restored);
           rolledBack = true;
         } catch (restoreError) {
           this.api.log(`script ${label} rollback failed: ${restoreError.message}`);

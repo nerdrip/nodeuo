@@ -6,7 +6,11 @@
 
 import { describe, it, expect } from 'vitest';
 import { _parseCreateCharacterForTest } from '../src/net/handlers.js';
+import { createStarterCodex } from '../src/net/starter-loadout.js';
 import { PacketWriter } from '@uo/protocol';
+import { World } from '../src/world/world.js';
+import { createItem } from '../src/world/items.js';
+import { unregisterTemplate } from '../src/world/templates.js';
 
 /** Build a synthetic CreateCharacter packet. Skill ids passed here use the
  * runtime's canonical 1..58 ids and are encoded as UO's zero-based wire ids. */
@@ -141,5 +145,26 @@ describe('parseCreateCharacter (PHASE BR / bugfix #34)', () => {
     });
     const c = _parseCreateCharacterForTest(pkt, false);
     expect(c.skills).toEqual({ 26: 30 });
+  });
+});
+
+describe('new-character starter loadout', () => {
+  it('creates a functional Codex before content templates are registered', () => {
+    unregisterTemplate('spell-schema-codex');
+    const world = new World();
+    const mobile = world.createMobile({ name: 'Mage', x: 1825, y: 2728, z: 0, map: 1 });
+    const backpack = createItem(world, {
+      itemId: 0x0E75, parent: mobile.serial, layer: 21,
+      x: mobile.x, y: mobile.y, z: mobile.z, map: mobile.map,
+    });
+
+    const codex = createStarterCodex(world, mobile, backpack);
+
+    expect(codex).toMatchObject({
+      definitionId: 'spell-schema-codex', artId: 0x0FF0,
+      script: 'spell-schema-codex', template: 'spell-schema-codex',
+      parent: backpack.serial, kind: 'book', category: 'spell-schema',
+      newbied: true, blessed: true, accountBound: true,
+    });
   });
 });

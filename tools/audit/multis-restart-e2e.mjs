@@ -263,7 +263,11 @@ async function loginClient(browser, webUrl, gamePort, user, generation) {
   });
   await clickTransition('#cs-play');
   try {
-    await page.waitForFunction(() => globalThis.__uo?.gc?.scene?._tiles, null, { timeout: 30_000 });
+    // Two simultaneous software-WebGL clients can delay RAF polling while
+    // the first scene uploads terrain. A short interval also catches a ready
+    // scene promptly when its ticker is temporarily paused by that upload.
+    await page.waitForFunction(() => globalThis.__uo?.gc?.scene?._tiles, null,
+      { polling: 100, timeout: 45_000 });
   } catch (error) {
     const diagnostics = await page.evaluate(() => ({
       url: location.href,

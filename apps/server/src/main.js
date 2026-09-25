@@ -15,6 +15,7 @@ import { NetState } from './net/net-state.js';
 import { startTcpListener } from './net/tcp-listener.js';
 import { TcpAdapter } from './net/tcp-adapter.js';
 import { AuthKeyRegistry } from './net/auth.js';
+import { createLocalControlHandler } from './net/local-control.js';
 import { buildHandlers, targeting, gumps, contextMenus, vendors, books, spellbooks, combat, buildScriptCombatApi, prompts, trade, properties, effects, quest, refreshSurroundings, dispatchCastFromMacro, handleNodeUOText, handleNodeUOFeatureRequest, cleanupNodeUOFeatureState } from './net/handlers.js';
 import { CommandRegistry } from './net/commands.js';
 import { AccountDB } from './net/accounts.js';
@@ -473,7 +474,9 @@ try {
 const accounts = new AccountDB(saveDir);
 try {
   accounts.load();
-  const bootstrapAdmin = accounts.ensureBootstrapAdmin();
+  // Config validation guarantees devAutoAccept only on loopback. Keep the
+  // one-click local admin workflow without reusing its UI password on LAN.
+  const bootstrapAdmin = accounts.ensureBootstrapAdmin({ allowLocalAdminFallback: config.devAutoAccept });
   if (bootstrapAdmin) console.log(`[uo-node] created bootstrap Admin account "${bootstrapAdmin.username}" in world.sqlite`);
   console.log(`[uo-node] loaded ${accounts.accounts.size} account(s)`);
 } catch (e) {
@@ -1175,11 +1178,15 @@ playerVendorTimer.unref();
 // Item + Mobile script tick — content registers `hasTick:true` to opt in.
 // Reverse indexes keep this proportional to active scripted entities rather
 // than the full persisted item/mobile population.
+let lastScriptTickAt = Date.now();
 const scriptTickTimer = every('script-ticks', 1000, () => {
   operational.measureTick('scripts', () => {
-    try { itemScriptRegistry.tickAllItemScripts(world, 1.0); }
+    const now = Date.now();
+    const dtSeconds = Math.max(0, (now - lastScriptTickAt) / 1000);
+    lastScriptTickAt = now;
+    try { itemScriptRegistry.tickAllItemScripts(world, dtSeconds); }
     catch (e) { console.error('[item-script tick]', e.message); }
-    try { tickAllMobileScripts(world, 1.0); }
+    try { tickAllMobileScripts(world, dtSeconds); }
     catch (e) { console.error('[mobile-script tick]', e.message); }
   });
 });
@@ -1543,7 +1550,12 @@ statusEffects.setListener((mob, action, eff) => {
   }
 });
 
+const handleLocalControl = createLocalControlHandler({
+  token: process.env.UO_CONTROL_TOKEN,
+  onShutdown: () => shutdown('CONTROL'),
+});
 const http_server = http.createServer((req, res) => {
+  if (handleLocalControl(req, res)) return;
   if (req.url === '/' || req.url === '/health' || req.url === '/health/live' || req.url === '/health/ready') {
     const health = runtimeGovernor.health.snapshot();
     const readiness = req.url === '/health/ready';
@@ -1681,11 +1693,12 @@ const spatialIndexTimer = every('spatial-index-audit', 1000, () => {
 spatialIndexTimer.unref?.();
 
 http_server.listen(config.port, config.host, () => {
+  const listeningPort = http_server.address()?.port ?? config.port;
   runtimeGovernor.health.set('world', true, `${world.mobiles.size} mobiles, ${world.items.size} items`);
   runtimeGovernor.health.set('scripts', (scriptRuntime.profile?.failed ?? 0) === 0, `${scriptRuntime.loaded.length} loaded`);
   runtimeGovernor.health.set('indexes', world.sectors.validate(world).ok, 'sector index validated');
   runtimeGovernor.health.set('startup', true, 'listening');
-  console.log(`[uo-node] listening on ws://${config.host}:${config.port} (/game)  (mode=${config.protocolMode}, shard="${config.shardName}", huffman=${config.huffmanOutgoing})`);
+  console.log(`[uo-node] listening on ws://${config.host}:${listeningPort} (/game)  (mode=${config.protocolMode}, shard="${config.shardName}", huffman=${config.huffmanOutgoing})`);
   console.log(`[uo-node] ready in ${Math.round(performance.now())}ms  (mobiles=${world.mobiles.size}, items=${world.items.size}, scripts=${scriptRuntime.loaded.length})`);
   operational.structuredEvent('server.ready', {
     startupMs: Math.round(performance.now()), mobiles: world.mobiles.size,

@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import net from 'node:net';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -37,9 +37,9 @@ function waitForLine(child, pattern) {
   });
 }
 
-function openWebSocket(url, protocols) {
+function openWebSocket(url, protocols, options = {}) {
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(url, protocols, { perMessageDeflate: false });
+    const ws = new WebSocket(url, protocols, { perMessageDeflate: false, ...options });
     ws.once('open', () => resolve(ws));
     ws.once('error', reject);
   });
@@ -53,6 +53,15 @@ afterEach(async () => {
 });
 
 describe('browser to classic-UO TCP bridge', () => {
+  it('requires a target allowlist before binding a public interface', () => {
+    const child = spawnSync(process.execPath, [bridgeMain], {
+      env: { ...process.env, UO_BRIDGE_HOST: '0.0.0.0', UO_BRIDGE_ALLOW: '' },
+      encoding: 'utf8', timeout: 5_000,
+    });
+    expect(child.status).not.toBe(0);
+    expect(child.stderr).toContain('Public bridge bind requires UO_BRIDGE_ALLOW');
+  });
+
   it('preserves client bytes, adds the ServUO seed and streams fragmented Huffman replies', async () => {
     const expectedReply = Uint8Array.of(0x82, 0x00, 0x1b, 0xff, 0x00, 0x73);
     const compressedReply = huffmanCompress(expectedReply);
@@ -83,6 +92,7 @@ describe('browser to classic-UO TCP bridge', () => {
         UO_BRIDGE_HOST: '127.0.0.1',
         UO_BRIDGE_PORT: String(bridgePort),
         UO_BRIDGE_DEFAULT: `127.0.0.1:${targetPort}`,
+        UO_BRIDGE_ALLOW: `127.0.0.1:${targetPort}`,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -91,7 +101,9 @@ describe('browser to classic-UO TCP bridge', () => {
 
     const url = `ws://127.0.0.1:${bridgePort}/bridge`;
     await expect(openWebSocket(url, ['unsupported.protocol'])).rejects.toThrow();
-    const ws = await openWebSocket(url);
+    await expect(openWebSocket(url, undefined, { origin: 'https://untrusted.example' })).rejects.toThrow();
+    await expect(openWebSocket(`${url}?target=127.0.0.1:1`)).rejects.toThrow();
+    const ws = await openWebSocket(url, undefined, { origin: 'http://localhost:5173' });
     expect(ws.protocol).toBe('');
     const reply = new Promise((resolve, reject) => {
       const chunks = [];
@@ -114,7 +126,7 @@ describe('browser to classic-UO TCP bridge', () => {
     expect(forwarded.subarray(4, 4 + gameLogin.length)).toEqual(gameLogin);
     expect(await reply).toEqual(Buffer.from(expectedReply));
     const health = await fetch(`http://127.0.0.1:${bridgePort}/health`).then((response) => response.json());
-    expect(health).toMatchObject({ ok: true, active: 1, opened: 1, rejected: 1 });
+    expect(health).toMatchObject({ ok: true, active: 1, opened: 1, rejected: 3 });
 
     ws.close();
     await new Promise((resolve) => target.close(resolve));

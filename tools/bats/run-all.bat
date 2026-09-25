@@ -5,7 +5,7 @@ REM
 REM What you get:
 REM   - WS  on 127.0.0.1:2593 (browser client)
 REM   - TCP on 127.0.0.1:2594 (CUO/Razor/OSI desktop clients)
-REM   - Admin panel on http://127.0.0.1:2596/  user=admin pass=admin
+REM   - Admin panel on http://127.0.0.1:2596/  (local development)
 REM   - Vite dev server on http://localhost:5173 (our browser client)
 REM
 REM Override env vars before calling for non-default ports / passwords.
@@ -34,5 +34,5 @@ echo Three terminals launched:
 echo   - server  (WebSocket 2593, raw TCP 2594, admin http://localhost:2596/)
 echo   - client  (Vite dev http://localhost:5173)
 echo.
-echo Admin login: admin / admin    -- change UO_ADMIN_PASS before LAN expose!
+echo Admin panel is local-only by default. Set a strong UO_ADMIN_PASS before LAN exposure.
 endlocal

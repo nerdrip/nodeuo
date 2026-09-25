@@ -1,6 +1,8 @@
 // AuthKeyRegistry — short-lived (30 second TTL) one-time auth keys issued by
 // 0x8C PlayServerAck and consumed by 0x91 GameLogin.
 
+import { randomInt } from 'node:crypto';
+
 export class AuthKeyRegistry {
   constructor(ttlMs = 30_000) {
     /** @type {Map<number, { account: string, expires: number }>} */
@@ -9,7 +11,11 @@ export class AuthKeyRegistry {
   }
 
   issue(account) {
-    const key = (Math.random() * 0xFFFFFFFF) >>> 0;
+    // The relay key is a temporary bearer credential, so it must be
+    // unpredictable and must not overwrite a still-live key on collision.
+    let key;
+    do { key = randomInt(1, 0x1_0000_0000); }
+    while (this.byKey.has(key));
     this.byKey.set(key, { account, expires: Date.now() + this.ttlMs });
     return key;
   }

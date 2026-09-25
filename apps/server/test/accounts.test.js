@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -20,18 +20,21 @@ describe('password hashing', () => {
 describe('AccountDB', () => {
   it('imports a legacy accounts.json exactly once into SQLite', () => {
     const dir = tmpDir();
+    const legacyHash = 'legacy-password-hash';
     fs.writeFileSync(path.join(dir, 'accounts.json'), JSON.stringify([{
-      username: 'legacy', hash: hashPassword('pw'), created: new Date(0).toISOString(),
+      username: 'legacy', hash: legacyHash, created: new Date(0).toISOString(),
       accessLevel: 'GM', banned: false,
     }]));
     const db = new AccountDB(dir);
     db.load();
-    expect(db.authenticate('legacy', 'pw').ok).toBe(true);
+    expect(db.accounts.get('legacy')).toMatchObject({
+      username: 'legacy', hash: legacyHash, accessLevel: 'GM', banned: false,
+    });
 
     fs.writeFileSync(path.join(dir, 'accounts.json'), '[]');
     const restarted = new AccountDB(dir);
     restarted.load();
-    expect(restarted.authenticate('legacy', 'pw').ok).toBe(true);
+    expect(restarted.accounts.get('legacy')).toEqual(db.accounts.get('legacy'));
   });
 
   it('replaces an existing accounts snapshot repeatedly on Windows-safe paths', () => {
@@ -86,6 +89,19 @@ describe('AccountDB', () => {
     loaded.load();
     expect(loaded.authenticate('operator', 'strong-test-secret').ok).toBe(true);
     expect(loaded.ensureBootstrapAdmin({ username: 'second', password: 'ignored' })).toBeNull();
+  });
+
+  it('uses the admin UI password for game bootstrap only with a local-dev opt-in', () => {
+    const db = new AccountDB(tmpDir());
+    vi.stubEnv('UO_ADMIN_PASS', 'admin');
+    vi.stubEnv('UO_BOOTSTRAP_ADMIN_PASSWORD', undefined);
+    try {
+      expect(db.ensureBootstrapAdmin()).toBeNull();
+      expect(db.accounts.size).toBe(0);
+      expect(db.ensureBootstrapAdmin({ allowLocalAdminFallback: true })).toMatchObject({
+        username: 'admin', accessLevel: 'Admin',
+      });
+    } finally { vi.unstubAllEnvs(); }
   });
 
   it('persists to disk and reloads', () => {

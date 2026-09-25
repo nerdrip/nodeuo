@@ -46,6 +46,8 @@
 
 /** @type {Map<string, ItemScript>} */
 const REGISTRY = new Map();
+let _anyScriptHasTick = false;
+let _tickCacheDirty = true;
 
 /** @param {ItemScript} script */
 export function registerItemScript(script) {
@@ -53,9 +55,12 @@ export function registerItemScript(script) {
     throw new Error('itemScript needs a name');
   }
   REGISTRY.set(script.name, script);
+  _tickCacheDirty = true;
 }
 
-export function unregisterItemScript(name) { REGISTRY.delete(name); }
+export function unregisterItemScript(name) {
+  if (REGISTRY.delete(name)) _tickCacheDirty = true;
+}
 
 export function getItemScript(name) { return REGISTRY.get(name); }
 
@@ -166,16 +171,14 @@ export function dispatchTileWalkEvents(world, mob, from, to) {
  * outer iteration alone burned ~10-30 ms of sync work per tick,
  * visible as a stutter that compounded with the post-TP packet flood.
  */
-let _anyScriptHasTick = false;
-let _tickCacheGen = -1;
 function _refreshTickCache() {
-  // REGISTRY mutates on `defineItemScript`. Cheap re-scan; it's only
-  // called when a script registration happens (size of REGISTRY changes).
+  // Replacement under the same name can change hasTick without changing the
+  // registry size, so the cache follows mutations rather than Map.size.
   _anyScriptHasTick = false;
   for (const s of REGISTRY.values()) {
     if (s?.hasTick) { _anyScriptHasTick = true; break; }
   }
-  _tickCacheGen = REGISTRY.size;
+  _tickCacheDirty = false;
 }
 /** Cheap predicate used by items.createItem to decide whether a new
  *  item should be added to `world._tickingItems`. Caller passes the
@@ -197,7 +200,7 @@ export function rebuildTickingItemIndex(world) {
 
 export function tickAllItemScripts(world, dt) {
   if (!world?.items) return;
-  if (_tickCacheGen !== REGISTRY.size) _refreshTickCache();
+  if (_tickCacheDirty) _refreshTickCache();
   if (!_anyScriptHasTick) return;
   // Fast path — walk `world._tickingItems` (maintained by items.js's
   // createItem/destroyItem hooks). Typical content has <50 ticking

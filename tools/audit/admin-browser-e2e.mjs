@@ -217,6 +217,28 @@ try {
     }
     await auditAccessibility(`admin:${tab}`);
   }
+  // Old #spawners bookmarks intentionally remain compatible even though the
+  // duplicate navigation tab moved into Content Studio. Mutations must refresh
+  // this hidden compatibility surface directly instead of clicking a button
+  // that no longer exists.
+  const legacyView = await page.evaluate(async () => {
+    await globalThis.activate('spawners');
+    return {
+      rows: globalThis.__spawnerRows?.length ?? 0,
+      cards: document.querySelectorAll('#spawners-list [data-spawner-select]').length,
+      status: document.querySelector('#main')?.innerText.slice(0, 300) ?? '',
+    };
+  });
+  assert.equal(legacyView.cards, 1,
+    `legacy spawner workbench failed to render: ${JSON.stringify({ legacyView, consoleErrors, serverErrors })}`);
+  const legacySpawner = page.locator('#spawners-list [data-spawner-select]').first();
+  assert.equal(await legacySpawner.inputValue(), 'browser-audit-town');
+  await legacySpawner.check();
+  await page.evaluate(() => globalThis.bulkSpawners('disable'));
+  await page.waitForSelector('.spawner-card.off');
+  assert.equal(spawnerGroups.get('browser-audit-town')?.enabled, false,
+    'legacy spawner workbench did not persist and refresh a bulk mutation');
+  await auditAccessibility('admin:legacy-spawners');
   await Promise.all([
     page.waitForURL(`${base}/docs`),
     page.click('[data-tab="docs"]'),

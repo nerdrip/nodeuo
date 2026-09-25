@@ -10,9 +10,8 @@
 // Each WS upgrade carries the desired TCP target as `?target=HOST:PORT` in
 // the URL query string, so a single bridge process can serve multiple game
 // servers without restart. Targets are validated against an allowlist if one
-// is configured (UO_BRIDGE_ALLOW), otherwise any host:port is allowed — the
-// default is open since the typical use case is a developer running this on
-// localhost.
+// is configured (UO_BRIDGE_ALLOW). Loopback is the default bind; a public bind
+// requires an explicit target allowlist.
 //
 // Env vars:
 //   UO_BRIDGE_HOST     bind interface (default 127.0.0.1 — local-only)
@@ -27,6 +26,8 @@
 //   UO_BRIDGE_DEFAULT  fallback target when client doesn't pass ?target=...
 //                      (host:port). Useful if you want to dedicate the bridge
 //                      to one shard.
+//   UO_BRIDGE_ORIGINS  optional comma-separated browser Origin allowlist.
+//                      By default only pages served from loopback may connect.
 //   UO_BRIDGE_DEBUG    when "1", dump first bytes of every decompressed
 //                      server→client chunk and every ws→tcp packet. Use this
 //                      to confirm what's actually on the wire when the client
@@ -66,6 +67,26 @@ const ALLOWLIST = (process.env.UO_BRIDGE_ALLOW ?? '')
   .split(',')
   .map((s) => s.trim())
   .filter(Boolean);
+const ORIGIN_ALLOWLIST = (process.env.UO_BRIDGE_ORIGINS ?? '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]', '::1']);
+if (!LOOPBACK_HOSTS.has(HOST) && ALLOWLIST.length === 0) {
+  throw new Error('Public bridge bind requires UO_BRIDGE_ALLOW with explicit target host:port entries.');
+}
+
+function allowedOrigin(rawOrigin) {
+  if (rawOrigin == null) return true; // Native WebSocket clients do not send Origin.
+  try {
+    const origin = new URL(rawOrigin);
+    if (!['http:', 'https:'].includes(origin.protocol)) return false;
+    if (ORIGIN_ALLOWLIST.length) return ORIGIN_ALLOWLIST.includes(origin.origin);
+    return LOOPBACK_HOSTS.has(origin.hostname);
+  } catch {
+    return false;
+  }
+}
 // Wire-level debug: when set, log the first bytes of each decompressed chunk
 // from server→client. Used to diagnose framing drift. Off by default — noisy.
 // Accepts both env var (UO_BRIDGE_DEBUG=1) and CLI flag (--debug) so it works
@@ -136,6 +157,12 @@ httpServer.on('upgrade', (req, socket, head) => {
   if (path !== PATH) {
     bridgeStats.rejected++;
     socket.write('HTTP/1.1 404 Not Found\r\n\r\n');
+    socket.destroy();
+    return;
+  }
+  if (!allowedOrigin(req.headers.origin)) {
+    bridgeStats.rejected++;
+    socket.write('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');
     socket.destroy();
     return;
   }

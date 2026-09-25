@@ -64,6 +64,8 @@ describe('global item content contract', () => {
     expect(omitted).toEqual([]);
   });
 
+  // Cold imports of every definition can exceed the default 5 s limit when
+  // the whole workspace runs concurrently with the client and tooling suites.
   it('resolves every scripted item definition to a registered runtime script', async () => {
     const registered = [];
     const failures = [];
@@ -85,7 +87,7 @@ describe('global item content contract', () => {
     expect(new Set(names).size).toBe(names.length);
     expect(registered.map((script) => script.name)).toEqual(names);
     expect(missing).toEqual([]);
-  });
+  }, 15_000);
 
   it('resolves literal item-script references across gameplay source files', () => {
     const names = registerAllItemScripts({

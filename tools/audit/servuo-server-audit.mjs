@@ -72,6 +72,11 @@ function printTable(rows, columns) {
   }
 }
 
+if (!exists('templates/ServUO/Server/Network/PacketHandlers.cs')
+    || countFiles('templates/ServUO/Scripts', '.cs') < 1000) {
+  throw new Error('ServUO reference tree missing or incomplete; see docs/reference-sources.md');
+}
+
 const servuoScripts = countImmediateDirs('templates/ServUO/Scripts', '.cs');
 const servuoServices = countImmediateDirs('templates/ServUO/Scripts/Services', '.cs');
 const oursTop = [

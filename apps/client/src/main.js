@@ -78,6 +78,10 @@ gc.prepareWorld = () => {
       worldServices = installWorldServices(bus);
       report(1, 'World services ready');
       return worldServices;
+    }).catch((error) => {
+      // A transient asset/network failure must not poison every later login.
+      worldServicesPromise = null;
+      throw error;
     });
   return worldServicesPromise;
 };

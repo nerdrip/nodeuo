@@ -13,14 +13,23 @@ let _worker = null;
 let _nextId = 1;
 const _pending = new Map();
 
+function _stopWorker(error) {
+  try { _worker?.terminate(); } catch { /* worker already gone */ }
+  _worker = null;
+  for (const { reject } of _pending.values()) reject(error);
+  _pending.clear();
+}
+
 function _ensureWorker() {
   if (_worker) return _worker;
   if (typeof Worker === 'undefined') return null;
   try {
     // Vite handles `new URL('./*.js', import.meta.url)` + `type:'module'`
     // workers natively — the build output has the worker chunk-split.
-    _worker = new Worker(new URL('./json-worker.js', import.meta.url), { type: 'module' });
-    _worker.onmessage = (e) => {
+    const worker = new Worker(new URL('./json-worker.js', import.meta.url), { type: 'module' });
+    _worker = worker;
+    worker.onmessage = (e) => {
+      if (_worker !== worker) return;
       const m = e.data;
       const cb = _pending.get(m.id);
       if (!cb) return;
@@ -28,8 +37,14 @@ function _ensureWorker() {
       if (m.ok) cb.resolve(m.data ?? null);
       else cb.reject(new Error(m.error ?? 'worker failed'));
     };
-    _worker.onerror = (err) => {
+    worker.onerror = (err) => {
+      if (_worker !== worker) return;
       console.warn('[worker-json] error:', err?.message ?? err);
+      _stopWorker(new Error(`JSON worker failed: ${err?.message ?? 'unknown error'}`));
+    };
+    worker.onmessageerror = () => {
+      if (_worker !== worker) return;
+      _stopWorker(new Error('JSON worker returned an unreadable message'));
     };
   } catch (e) {
     console.warn('[worker-json] failed to spawn:', e?.message ?? e);
@@ -69,14 +84,16 @@ export async function fetchJsonInWorker(url, opts = {}) {
   const id = _nextId++;
   return new Promise((resolve, reject) => {
     _pending.set(id, { resolve, reject });
-    w.postMessage({ id, url, etag: opts.etag, lastModified: opts.lastModified,
-      sha256: opts.sha256, bytes: opts.bytes });
+    try {
+      w.postMessage({ id, url, etag: opts.etag, lastModified: opts.lastModified,
+        sha256: opts.sha256, bytes: opts.bytes });
+    } catch (error) {
+      _stopWorker(error);
+    }
   });
 }
 
 /** Tear down the worker (test cleanup). */
 export function shutdownJsonWorker() {
-  try { _worker?.terminate(); } catch { /* ignore */ }
-  _worker = null;
-  _pending.clear();
+  _stopWorker(new Error('JSON worker shut down'));
 }

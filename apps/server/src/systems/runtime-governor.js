@@ -16,9 +16,17 @@ export class CoalescingWorkQueue {
     const id = String(key);
     const previous = this._pending.get(id);
     if (previous) {
-      previous.run = run;
-      previous.sector = sector;
-      previous.priority = Math.min(previous.priority, priority | 0);
+      const nextPriority = Math.max(0, Math.min(3, priority | 0));
+      if (nextPriority < previous.priority) {
+        // The queue position must move with the priority. Updating the field
+        // alone leaves urgent coalesced work stranded in its old queue.
+        const promoted = { ...previous, run, sector, priority: nextPriority };
+        this._pending.set(id, promoted);
+        this._queues[nextPriority].push(promoted);
+      } else {
+        previous.run = run;
+        previous.sector = sector;
+      }
       this.stats.coalesced++;
       return false;
     }
@@ -140,7 +148,7 @@ export class DeadlineScheduler {
     this._push({ id, due: job.due, version: job.version, sequence: job.sequence });
     this.stats.scheduled++;
     this._arm();
-    const handle = { id, cancel: () => this.cancel(id), unref: () => handle };
+    const handle = { id, cancel: () => this._jobs.get(id) === job && this.cancel(id), unref: () => handle };
     return Object.freeze(handle);
   }
 
@@ -243,7 +251,11 @@ export class DeadlineScheduler {
       this.stats.callbacks++;
       const currentJob = this._jobs.get(job.id);
       if (job.intervalMs > 0 && currentJob === job) {
-        const periods = Math.max(1, Math.floor((now - job.due) / job.intervalMs) + 1);
+        // Use the time after the callback. A slow script can cross several
+        // deadlines during its own execution; replaying them would stall the
+        // event loop again instead of letting the shard recover.
+        const finishedAt = this._now();
+        const periods = Math.max(1, Math.floor((finishedAt - job.due) / job.intervalMs) + 1);
         if (periods > 1) this.stats.skippedPeriods += periods - 1;
         job.due += periods * job.intervalMs;
         job.version++;

@@ -6,6 +6,13 @@ REM in the way of normal play sessions.
 setlocal
 cd /d "%~dp0..\..\"
 
+set "BRIDGE_TARGET=%~1"
+if not "%BRIDGE_TARGET%"=="" (
+  set "UO_BRIDGE_DEFAULT=%BRIDGE_TARGET%"
+  set "UO_BRIDGE_ALLOW=%BRIDGE_TARGET%"
+  echo [bridge] locked to target: %BRIDGE_TARGET%
+)
+
 echo [bridge] starting WS-TCP proxy on ws://127.0.0.1:2595/bridge  (debug=off)
 echo [bridge] press Ctrl+C to stop.
 echo.

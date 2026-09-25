@@ -8,8 +8,17 @@ class MiniElement {
     this.parentNode = null;
     this.style = {};
     this.attributes = {};
+    this.dataset = {};
     this.eventListeners = new Map();
-    this.classList = { add: (...names) => { this._classes = [...(this._classes ?? []), ...names]; } };
+    this._classes = new Set();
+    this.classList = {
+      add: (...names) => names.forEach((name) => this._classes.add(name)),
+      contains: (name) => this._classes.has(name),
+      toggle: (name, force) => {
+        if (force ?? !this._classes.has(name)) this._classes.add(name);
+        else this._classes.delete(name);
+      },
+    };
     this.textContent = '';
     this.value = '';
     this.id = '';
@@ -31,13 +40,15 @@ class MiniElement {
     root._idMap = this._idMap;
     this._indexElement(root, rootMatch?.[2] ?? '');
 
-    const tagRe = /<([a-zA-Z0-9-]+)([^>]*\sid="([^"]+)"[^>]*)>/g;
+    const tagRe = /<([a-zA-Z0-9-]+)([^>]*)>/g;
+    let first = true;
     for (const match of this._html.matchAll(tagRe)) {
+      if (first) { first = false; continue; }
       const el = new MiniElement(match[1]);
       el.parentNode = root;
       root.children.push(el);
       this._indexElement(el, match[2]);
-      this._idMap.set(el.id, el);
+      if (el.id) this._idMap.set(el.id, el);
     }
   }
 
@@ -48,8 +59,12 @@ class MiniElement {
     const id = /\sid="([^"]+)"/.exec(attrs)?.[1] ?? '';
     const value = /\svalue="([^"]*)"/.exec(attrs)?.[1];
     const type = /\stype="([^"]*)"/.exec(attrs)?.[1];
+    const classes = /\sclass="([^"]*)"/.exec(attrs)?.[1];
+    const slot = /\sdata-slot="([^"]*)"/.exec(attrs)?.[1];
     if (id) el.id = id;
     if (type) el.type = type;
+    if (classes) el.classList.add(...classes.split(/\s+/).filter(Boolean));
+    if (slot != null) el.dataset.slot = slot;
     if (value != null) el.value = value.replace(/&quot;/g, '"').replace(/&amp;/g, '&');
     if (el.tagName === 'SELECT' && id === 'm-mode' && !el.value) el.value = 'ws';
   }
@@ -89,10 +104,24 @@ class MiniElement {
 
   focus() { globalThis.document.activeElement = this; }
 
+  setAttribute(name, value) { this.attributes[name] = String(value); }
+
   querySelector(selector) {
     if (!selector?.startsWith('#')) return null;
     const id = selector.slice(1);
     return this._idMap?.get(id) ?? findById(this, id);
+  }
+
+  querySelectorAll(selector) {
+    if (!selector?.startsWith('.')) return [];
+    const className = selector.slice(1);
+    const found = [];
+    const visit = (el) => {
+      if (el.classList.contains(className)) found.push(el);
+      for (const child of el.children) visit(child);
+    };
+    visit(this);
+    return found;
   }
 }
 
@@ -190,9 +219,46 @@ assert.ok(scene._panel.querySelector('#m-login'), 'login screen should expose lo
 
 await scene._doConnect();
 assert.match(scene._panel.querySelector('#m-msg').textContent, /please fill/i);
+
+scene._characters = [{ name: 'First' }, { name: 'Second' }];
+scene._slotCount = 2;
+let selectedSlot = null;
+scene._doPlay = () => { selectedSlot = scene._chosenSlot; };
+scene._setStep(LoginSteps.CharacterSelection);
+const slots = scene._panel.querySelectorAll('.uo-char-slot');
+assert.equal(slots.length, 2);
+slots[1].dispatchEvent({ type: 'dblclick' });
+assert.equal(selectedSlot, 1, 'double-click should play the selected character');
+assert.equal(slots[1].attributes['aria-selected'], 'true');
+slots[0].dispatchEvent({ type: 'keydown', key: 'Enter', preventDefault() {} });
+assert.equal(selectedSlot, 0, 'keyboard Enter should play the focused character');
+
+const availableStorage = globalThis.localStorage;
+globalThis.localStorage = {
+  getItem() { throw new Error('storage disabled'); },
+  setItem() { throw new Error('storage disabled'); },
+};
+scene._setStep(LoginSteps.Main);
+assert.ok(scene._panel.querySelector('#m-login'), 'login should render when storage is unavailable');
+scene._panel.querySelector('#m-account').value = 'Player';
+scene._panel.querySelector('#m-port').value = '70000';
+await scene._doConnect();
+assert.match(scene._panel.querySelector('#m-msg').textContent, /port/i);
+globalThis.localStorage = availableStorage;
 scene.unload();
 assert.equal(scene._panel, null);
 assert.ok(mounted.length >= 1, 'DOM mount should be exercised');
+
+const ticker = {
+  started: true,
+  stop() { this.started = false; },
+  start() { this.started = true; },
+};
+const lifecycleScene = new LoginScene({ ...gc, app: { ticker } });
+await lifecycleScene.load();
+assert.equal(ticker.started, false, 'DOM login should not keep the WebGL ticker running');
+lifecycleScene.unload();
+assert.equal(ticker.started, true, 'world entry should resume the WebGL ticker');
 
 const gameSceneSource = readFileSync(new URL('../src/scenes/game-scene.js', import.meta.url), 'utf8');
 assert.ok(gameSceneSource.includes('this._net = net;'),

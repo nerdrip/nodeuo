@@ -217,6 +217,39 @@ describe('ScriptRuntime', () => {
     expect(rt.profile).toMatchObject({ rolledBack: true, loaded: 1, failed: 1 });
   });
 
+  it('releases a rejected single-script candidate before restoring the active script', async () => {
+    const dir = mkTempDir();
+    const file = path.join(dir, 'owned.js');
+    fs.writeFileSync(file, `export default (api) => {
+      api.lifecycle.command({ name: 'owned', help: 'test', run() {} });
+    };`);
+    const commands = new Set();
+    const events = [];
+    const api = {
+      ...stubApi(),
+      scriptAudit: { enabled: true, failOnWarnings: true },
+      world: { events: { emit: (name) => events.push(name) } },
+      commands: {
+        register(spec) { if (commands.has(spec.name)) throw new Error('duplicate command'); commands.add(spec.name); },
+        unregister(name) { commands.delete(name); },
+      },
+    };
+    const rt = new ScriptRuntime(dir, api);
+    await rt.load();
+    fs.writeFileSync(file, `export default (api) => {
+      api.lifecycle.command({ name: 'owned', help: 'test', run() {} });
+      api.log('engine API missing');
+    };`);
+    const result = await rt.reloadOne('owned.js');
+    expect(result).toMatchObject({ ok: false, phase: 'activate', rolledBack: true });
+    expect(commands).toEqual(new Set(['owned']));
+    expect(rt.loaded).toHaveLength(1);
+    expect(events).toEqual([]);
+    expect(rt.audit.report({ label: 'owned.js' }).summary).toEqual({ warnings: 0, missingCapabilities: 0 });
+    await rt.dispose();
+    expect(commands.size).toBe(0);
+  });
+
   it('skips modules without a default export', async () => {
     const dir = mkTempDir();
     fs.writeFileSync(path.join(dir, 'nodefault.js'), 'export const x = 1;');

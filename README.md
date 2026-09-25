@@ -74,8 +74,9 @@ Main rules:
   pipeline are built for the web.
 - PNG assets are always the fallback path. `.ktx2` is an optional faster path
   for VRAM/decode if you generate it with `toktx`.
-- `templates/` is reference material for audits and bug fixes, not runtime
-  code.
+- `templates/` is optional local reference material for audits and bug fixes,
+  not runtime code. It is Git-ignored; see
+  [reference source setup](docs/reference-sources.md) before running parity audits.
 
 ## Repository Layout
 
@@ -103,7 +104,7 @@ docs/
   server-scripting.md    guide for the current server Script API
 
 templates/
-  ClassicUO/ServUO reference code, for comparison only
+  ClassicUO/ServUO local reference code, ignored by Git
 
 saves/
   world.sqlite            world and account database (SQLite WAL)
@@ -237,7 +238,7 @@ Default ports:
 | Command | Purpose |
 | --- | --- |
 | `pnpm install` | install monorepo dependencies |
-| `pnpm server` | start the server with `node --watch` |
+| `pnpm server` | start the server |
 | `pnpm client` | start the Vite dev server |
 | `pnpm build` | build workspaces that define a build script |
 | `pnpm test` | run workspace tests |
@@ -362,6 +363,12 @@ generated world objects. A new shard therefore starts clean and is populated
 explicitly with `createworld`. When the account table is empty, set
 `UO_BOOTSTRAP_ADMIN_PASSWORD` (and optionally `UO_ADMIN_USER`) to create the
 first durable Admin account; the server never invents a default password.
+The admin launchers set `UO_ADMIN_PASS=admin` for local development unless
+overridden. On a loopback development shard with account auto-creation enabled,
+it may serve as the first-account bootstrap fallback. A network-exposed shard
+requires a separate `UO_BOOTSTRAP_ADMIN_PASSWORD` for first-account creation.
+Set your own admin UI password before using an admin launcher beyond a private
+machine.
 
 Locally generated assets live in:
 
@@ -452,7 +459,8 @@ Before opening a pull request:
   batching, caches, atlases, lazy loading, dirty regions, and fixed-row virtual
   lists are preferred.
 - `templates/` is for audits, comparisons, and bug fixing; it is not runtime
-  code.
+  code and is not shipped in a clean clone. Parity audits require the local
+  reference trees described in [docs/reference-sources.md](docs/reference-sources.md).
 
 ## License And Legal Notes
 

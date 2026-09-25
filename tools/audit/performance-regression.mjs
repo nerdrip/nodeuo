@@ -8,7 +8,9 @@ const root = path.resolve(here, '../..');
 const baselineFile = path.join(here, 'performance-baseline.json');
 const full = process.argv.includes('--full');
 const update = process.argv.includes('--update');
-const child = spawnSync(process.execPath, [path.join(here, 'server-load-soak.mjs'), ...(full ? ['--full'] : [])], {
+// Measure retained heap, not whichever young-generation allocations happen to
+// be waiting for V8's next non-deterministic collection cycle.
+const child = spawnSync(process.execPath, ['--expose-gc', path.join(here, 'server-load-soak.mjs'), ...(full ? ['--full'] : [])], {
   cwd: root, encoding: 'utf8', env: { ...process.env, NODEUO_SOAK_HOURS: '0' },
 });
 process.stdout.write(child.stdout || '');

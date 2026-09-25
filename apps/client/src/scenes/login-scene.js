@@ -13,15 +13,10 @@
 //   EnteringBritania        post-login warm-up (loading)
 //   PopUpMessage     blocking error / disclaimer dialog
 //
-// Every step renders its own gump (DOM panel — Pixi parity is a Phase-7
-// follow-up); the LoginBackdrop Pixi animation runs underneath. Step
-// transitions go through `_setStep(s)` so the disposer always tears
-// down the previous panel before the next one mounts.
 
 import { Scene } from '../core/scene.js';
 import { net } from '../net/net-client.js';
 import { bus } from '../core/event-bus.js';
-import { LoginBackdrop } from './login-backdrop.js';
 import {
   buildLoginSeed, buildAccountLogin, buildPlayServer, buildGameLogin,
   buildPlayCharacter, buildClientVersion, buildSystemInfo,
@@ -42,6 +37,16 @@ const LS_PREFIX = 'uo.login.';
 // slow on a cold disk/browser cache.
 const INITIAL_TERRAIN_WARMUP_BUDGET_MS = 4_000;
 let loginProfileCache;
+
+function loginStorageGet(key, fallback) {
+  try { return localStorage.getItem(LS_PREFIX + key) ?? fallback; }
+  catch { return fallback; }
+}
+
+function loginStorageSet(key, value) {
+  try { localStorage.setItem(LS_PREFIX + key, String(value)); }
+  catch { /* sign-in still works when storage is disabled */ }
+}
 
 // Login only needs four scalar preferences. Importing the full in-game
 // ProfileManager here pulled its large defaults, layout migration and gump
@@ -82,7 +87,7 @@ export class LoginScene extends Scene {
     // _step starts as null — the first `_setStep(Main)` from load() must
     // run the renderer. Pre-seeding it to Main here would trip the
     // `if (this._step === step) return` guard and the form would never
-    // mount (visible: only the LoginBackdrop sun glow, no DOM panel).
+    // mount (otherwise the account panel would never appear).
     this._step = null;
     this._popupOnDismiss = null;
     /** Account form state — survives across step transitions. */
@@ -123,27 +128,40 @@ export class LoginScene extends Scene {
   // Scene lifecycle
 
   async load() {
-    // The login backdrop is deliberately low-motion and does not benefit from
-    // driving Pixi at 60-240 Hz.  Keep the account flow responsive while
-    // avoiding a permanently hot GPU on the screen where users can idle for
-    // the longest time.  Preserve a stricter user cap and restore the exact
-    // game cap when the world scene takes over.
-    this._tickerMaxFpsBeforeLogin = this.gc.app.ticker.maxFPS || 0;
-    if (!this._tickerMaxFpsBeforeLogin || this._tickerMaxFpsBeforeLogin > 30) {
-      this.gc.app.ticker.maxFPS = 30;
-    }
+    // Login is drawn entirely in DOM. Keep the WebGL backbuffer idle while
+    // players fill the account form; even an empty Pixi frame is expensive
+    // with software WebGL and contributes no pixels to this screen.
+    this._tickerWasRunningBeforeLogin = this.gc.app.ticker.started;
+    this.gc.app.ticker.stop();
 
     // Re-read preferences after a logout; the Options gump may have changed
     // reconnect behaviour while the previous world scene was active.
     loginProfileCache = undefined;
-    this._backdrop = new LoginBackdrop(this.gc.ui);
     this._mountBg();
 
     this._sub('login:rejected',     (info) => this._onRejected(info));
     this._sub('login:server-list',  (info) => this._onServerList(info));
     this._sub('login:relay',        (info) => this._onRelay(info));
     this._sub('login:char-list',    (info) => this._onCharList(info));
-    this._sub('world:login-confirm',()     => this._onLoginConfirm());
+    this._sub('world:login-confirm', () => {
+      if (this._enterWorldPromise) return;
+      this._enterWorldPromise = this._onLoginConfirm()
+        .catch(async (error) => {
+          console.error('[login] world entry failed', error);
+          // GameScene.load may have failed after setScene unloaded this scene.
+          // Restore an interactive login screen before showing the error.
+          let active = this;
+          if (this.gc.scene !== this) {
+            const login = new LoginScene(this.gc);
+            await this.gc.setScene(login);
+            active = login;
+          }
+          active._showPopup('World resources could not be loaded. Check the server and try again.',
+            null, () => { net.close(); active._setStep(LoginSteps.Main); });
+        })
+        .catch((error) => console.error('[login] error recovery failed', error))
+        .finally(() => { this._enterWorldPromise = null; });
+    });
     this._sub('world:bootstrap-progress', (info) => this._onWorldBootstrapProgress(info));
     this._sub('net:close',          ()     => this._onSocketClosed());
     this._sub('net:ping',           (info) => this._onServerPing(info));
@@ -170,11 +188,8 @@ export class LoginScene extends Scene {
     this._unsubs.length = 0;
     this._panel?.remove(); this._panel = null;
     this._bg?.remove();    this._bg = null;
-    this._backdrop?.destroy(); this._backdrop = null;
-    if (this._tickerMaxFpsBeforeLogin != null) {
-      this.gc.app.ticker.maxFPS = this._tickerMaxFpsBeforeLogin;
-      this._tickerMaxFpsBeforeLogin = null;
-    }
+    if (this._tickerWasRunningBeforeLogin) this.gc.app.ticker.start();
+    this._tickerWasRunningBeforeLogin = null;
   }
 
   resize() { /* DOM panels centered via CSS */ }
@@ -250,11 +265,11 @@ export class LoginScene extends Scene {
 
   _renderMain() {
     const remembered = {
-      host: localStorage.getItem(LS_PREFIX + 'host')    ?? this._host,
-      port: localStorage.getItem(LS_PREFIX + 'port')    ?? String(this._port),
-      account: localStorage.getItem(LS_PREFIX + 'account') ?? this._account,
-      mode: localStorage.getItem(LS_PREFIX + 'mode')    ?? 'ws',
-      bridgeUrl: localStorage.getItem(LS_PREFIX + 'bridgeUrl') ?? 'ws://127.0.0.1:2595/bridge',
+      host: loginStorageGet('host', this._host),
+      port: loginStorageGet('port', String(this._port)),
+      account: loginStorageGet('account', this._account),
+      mode: loginStorageGet('mode', 'ws'),
+      bridgeUrl: loginStorageGet('bridgeUrl', 'ws://127.0.0.1:2595/bridge'),
     };
     const modeBridge = remembered.mode === 'bridge';
     this._mountPanel(`
@@ -347,15 +362,15 @@ export class LoginScene extends Scene {
     const mode = cached?.mode ?? this._panel.querySelector('#m-mode')?.value ?? 'ws';
     const bridgeUrl = cached?.bridgeUrl ?? this._panel.querySelector('#m-bridge')?.value?.trim()
                    ?? 'ws://127.0.0.1:2595/bridge';
-    if (!host || !port || !account) {
+    if (!host || !account || !Number.isInteger(port) || port < 1 || port > 65535) {
       this._setMainMsg('please fill server, port and account');
       return;
     }
-    localStorage.setItem(LS_PREFIX + 'host', host);
-    localStorage.setItem(LS_PREFIX + 'port', String(port));
-    localStorage.setItem(LS_PREFIX + 'account', account);
-    localStorage.setItem(LS_PREFIX + 'mode', mode);
-    localStorage.setItem(LS_PREFIX + 'bridgeUrl', bridgeUrl);
+    loginStorageSet('host', host);
+    loginStorageSet('port', port);
+    loginStorageSet('account', account);
+    loginStorageSet('mode', mode);
+    loginStorageSet('bridgeUrl', bridgeUrl);
     this._host = host; this._port = port;
     this._account = account; this._password = password;
     this._mode = mode;
@@ -398,7 +413,7 @@ export class LoginScene extends Scene {
   _renderServerSelection() {
     const pingText = () => this._serverPingMs == null ? '...' : `${this._serverPingMs} ms`;
     const rows = this._servers.map((s, i) => `
-      <div class="uo-server-row" data-idx="${i}" tabindex="0">
+      <div class="uo-server-row" data-idx="${i}" tabindex="0" role="option" aria-selected="false">
         <span class="uo-server-icon" aria-hidden="true">◆</span>
         <span class="uo-server-copy"><strong class="uo-server-name">${esc(s.name)}</strong><small>Online shard</small></span>
         <span class="uo-server-load"><b>${s.percent ?? 0}%</b><small>load</small></span>
@@ -419,7 +434,7 @@ export class LoginScene extends Scene {
             <h2>Available worlds</h2>
             <p>${this._servers.length} ${this._servers.length === 1 ? 'shard is' : 'shards are'} ready.</p>
           </header>
-          <div class="uo-server-list uo-choice-list">${rows}</div>
+          <div class="uo-server-list uo-choice-list" role="listbox" aria-label="Available shards">${rows}</div>
           <footer class="uo-actions">
             <button id="ss-back" class="uo-button uo-button--quiet">← Back</button>
             <button id="ss-next" class="uo-button primary">Connect <span>→</span></button>
@@ -430,24 +445,28 @@ export class LoginScene extends Scene {
     const rowsEl = [...this._panel.querySelectorAll('.uo-server-row')];
     const select = (i) => {
       this._serverIndex = i;     // Client audit #6 #2 — was hardcoded 0
-      rowsEl.forEach((r, j) => r.classList.toggle('selected', j === i));
+      rowsEl.forEach((r, j) => {
+        r.classList.toggle('selected', j === i);
+        r.setAttribute('aria-selected', String(j === i));
+      });
     };
     rowsEl.forEach((r, i) => {
       r.addEventListener('click', () => select(i));
       r.addEventListener('dblclick', () => { select(i); this._doSelectServer(); });
+      r.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        select(i);
+        if (event.key === 'Enter') this._doSelectServer();
+      });
     });
     select(0);
     this._panel.querySelector('#ss-back').addEventListener('click', () => this._goBackToMain());
     this._panel.querySelector('#ss-next').addEventListener('click', () => this._doSelectServer());
 
-    // Inject server-list styling once.
     this._injectStyles();
     this._startServerPingProbe();
 
-    // Client audit #6 #2: removed auto-select timeout. Single-server
-    // shards just need the user to click Connect (or double-click row);
-    // the previous unconditional 30 ms timer ignored the choice and
-    // always logged into server 0 for multi-server lists.
     if (this._servers.length === 1) {
       this._serverIndex = 0;
       setTimeout(() => this._doSelectServer(), 30);
@@ -573,6 +592,7 @@ export class LoginScene extends Scene {
   _onCharList(info) {
     this._characters = info.characters ?? [];
     this._cities = info.cities ?? [];
+    this._chosenSlot = null;
     // Audit #46 P2 — slot count derived from 0xA9 flags by incoming.js.
     // Falls back to MAX_CHAR_SLOTS (7) when the server didn't specify.
     this._slotCount = Math.min(MAX_CHAR_SLOTS, Math.max(1, info.slotCount | 0 || MAX_CHAR_SLOTS));
@@ -587,7 +607,7 @@ export class LoginScene extends Scene {
     const slots = this._characters.slice(0, slotCount).map((c, i) => {
       const empty = !c?.name || !c.name.trim();
       return `
-        <div class="uo-char-slot ${empty ? 'empty' : ''}" data-slot="${i}" tabindex="0">
+        <div class="uo-char-slot ${empty ? 'empty' : ''}" data-slot="${i}" tabindex="0" role="option" aria-selected="false">
           <div class="uo-slot-num">${String(i + 1).padStart(2, '0')}</div>
           <div class="uo-slot-avatar" aria-hidden="true">${empty ? '+' : '♟'}</div>
           <div class="uo-slot-copy">
@@ -613,7 +633,7 @@ export class LoginScene extends Scene {
             <h2>Character roster</h2>
             <p>Double-click a character to enter immediately.</p>
           </header>
-          <div class="uo-char-list uo-choice-list">${slots}</div>
+          <div class="uo-char-list uo-choice-list" role="listbox" aria-label="Characters">${slots}</div>
           <div id="cs-msg" class="uo-status-line" role="status"></div>
           <footer class="uo-actions uo-actions--roster">
             <button id="cs-back" class="uo-button uo-button--quiet">← Back</button>
@@ -630,7 +650,11 @@ export class LoginScene extends Scene {
     const playBtn = this._panel.querySelector('#cs-play');
     const delBtn  = this._panel.querySelector('#cs-delete');
     const refresh = () => {
-      slotsEl.forEach((r, j) => r.classList.toggle('selected', j === chosen));
+      this._chosenSlot = chosen >= 0 ? chosen : null;
+      slotsEl.forEach((r, j) => {
+        r.classList.toggle('selected', j === chosen);
+        r.setAttribute('aria-selected', String(j === chosen));
+      });
       const c = this._characters[chosen];
       const isEmpty = !c?.name || !c.name.trim();
       playBtn.disabled = chosen < 0 || isEmpty;
@@ -643,6 +667,15 @@ export class LoginScene extends Scene {
         const c = this._characters[chosen];
         if (c?.name?.trim()) this._doPlay();
         else this._beginCreation();
+      });
+      r.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        chosen = i; refresh();
+        if (event.key === 'Enter') {
+          if (this._characters[chosen]?.name?.trim()) this._doPlay();
+          else this._beginCreation();
+        }
       });
     });
     refresh();
@@ -670,8 +703,9 @@ export class LoginScene extends Scene {
   }
 
   _doPlay() {
-    const slot = this._chosenSlot ?? 0;
+    const slot = this._chosenSlot;
     const c = this._characters[slot];
+    if (!Number.isInteger(slot) || !c?.name?.trim()) return;
     // Diagnostic — surfaces the (slot, name) we're about to send so a
     // server-side "Invalid Character Selection" error is traceable
     // back to the wire payload without packet captures. Names dump
@@ -683,7 +717,9 @@ export class LoginScene extends Scene {
       console.log(`[login] PlayCharacter slot=${slot} name='${c?.name ?? ''}' | char list: ${allNames}`);
     }
     this._setStep(LoginSteps.EnteringBritania);
-    void this._prepareWorld();
+    void this._prepareWorld().catch((error) => {
+      console.warn('[login] world prefetch failed; next entry will retry', error?.message ?? error);
+    });
     net.send(buildPlayCharacter(c?.name ?? '', slot));
   }
 
@@ -691,7 +727,9 @@ export class LoginScene extends Scene {
   // Step: CharacterCreation — 4 sub-pages
 
   _beginCreation() {
-    void assets.initCharacterCreation?.();
+    void Promise.resolve().then(() => assets.initCharacterCreation?.()).catch((error) => {
+      console.warn('[login] character art preload failed', error?.message ?? error);
+    });
     this._creation = {
       name: '',
       sex: 0, race: 0,
@@ -751,7 +789,7 @@ export class LoginScene extends Scene {
       if (assets?.professions) _loadCustomProfessions(assets);
     } catch { /* noop */ }
     const profRows = PROFESSIONS.map((p) => `
-      <div class="uo-prof-row" data-id="${p.id}" tabindex="0">
+      <div class="uo-prof-row" data-id="${p.id}" tabindex="0" role="option" aria-selected="false">
         <div class="uo-prof-mark" aria-hidden="true">${esc(p.name.slice(0, 1))}</div>
         <div class="uo-prof-copy"><div class="uo-prof-name">${esc(p.name)}</div><div class="uo-prof-desc">${esc(p.desc)}</div></div>
         <span class="uo-choice-check">✓</span>
@@ -761,7 +799,7 @@ export class LoginScene extends Scene {
       <section class="uo-login-frame uo-login-frame--creation">
         ${this._creationHeader(1, 'Choose a profession', 'Start with a proven path or shape every skill yourself.')}
         <div class="uo-creation-content">
-          <div class="uo-prof-list uo-choice-grid">${profRows}</div>
+          <div class="uo-prof-list uo-choice-grid" role="listbox" aria-label="Professions">${profRows}</div>
         </div>
         <footer class="uo-actions uo-creation-actions">
           <button id="cc-back" class="uo-button uo-button--quiet">← Appearance</button>
@@ -772,14 +810,24 @@ export class LoginScene extends Scene {
     this._injectStyles();
     let chosen = this._creation.profession;
     const rows = [...this._panel.querySelectorAll('.uo-prof-row')];
-    const refresh = () => rows.forEach((r) => r.classList.toggle('selected', +r.dataset.id === chosen));
+    const refresh = () => rows.forEach((r) => {
+      const selected = +r.dataset.id === chosen;
+      r.classList.toggle('selected', selected);
+      r.setAttribute('aria-selected', String(selected));
+    });
+    const advance = () => {
+      this._commitProfession(chosen);
+      this._creationPage = this._creation.skipTrade ? 3 : 2;
+      this._setStep(LoginSteps.Main); this._setStep(LoginSteps.CharacterCreation);
+    };
     rows.forEach((r) => {
       r.addEventListener('click', () => { chosen = +r.dataset.id; refresh(); });
-      r.addEventListener('dblclick', () => {
-        chosen = +r.dataset.id;
-        this._commitProfession(chosen);
-        this._creationPage = this._creation.skipTrade ? 3 : 2;
-        this._setStep(LoginSteps.Main); this._setStep(LoginSteps.CharacterCreation);
+      r.addEventListener('dblclick', () => { chosen = +r.dataset.id; advance(); });
+      r.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        chosen = +r.dataset.id; refresh();
+        if (event.key === 'Enter') advance();
       });
     });
     refresh();
@@ -789,11 +837,7 @@ export class LoginScene extends Scene {
       this._creationPage = 0;
       this._setStep(LoginSteps.Main); this._setStep(LoginSteps.CharacterCreation);
     });
-    this._panel.querySelector('#cc-next').addEventListener('click', () => {
-      this._commitProfession(chosen);
-      this._creationPage = this._creation.skipTrade ? 3 : 2;
-      this._setStep(LoginSteps.Main); this._setStep(LoginSteps.CharacterCreation);
-    });
+    this._panel.querySelector('#cc-next').addEventListener('click', advance);
   }
 
   _commitProfession(id) {
@@ -1031,11 +1075,7 @@ export class LoginScene extends Scene {
       cc.beardId = +this._panel.querySelector('#cc-beard-id')?.value || 0;
       normalizeCreationAppearance(cc);
     };
-    const refreshPreview = () => {
-      try {
-        readAppearanceForm();
-        this._renderCcPreview(previewEl);
-      } catch (err) {
+    const showPreviewError = (err) => {
         console.warn('[login] character preview failed', err);
         if (previewEl) {
           previewEl.innerHTML = `
@@ -1043,6 +1083,13 @@ export class LoginScene extends Scene {
             <div class="uo-preview-caption">Preview temporarily unavailable</div>
           `;
         }
+    };
+    const refreshPreview = () => {
+      try {
+        readAppearanceForm();
+        void this._renderCcPreview(previewEl).catch(showPreviewError);
+      } catch (err) {
+        showPreviewError(err);
       }
     };
     ['cc-skin', 'cc-hair-id', 'cc-hair-hue', 'cc-beard-id', 'cc-shirt-hue', 'cc-pants-hue']
@@ -1221,7 +1268,7 @@ export class LoginScene extends Scene {
     const rows = cities.map((city, i) => {
       const blurb = city.description ?? city.descTrue ?? CITY_LORE[city.name] ?? '';
       return `
-      <div class="uo-city-row" data-i="${i}" tabindex="0">
+      <div class="uo-city-row" data-i="${i}" tabindex="0" role="option" aria-selected="false">
         <div class="uo-city-pin" aria-hidden="true">⌖</div>
         <div class="uo-city-copy">
           <div class="uo-city-name">${esc(city.name)}</div>
@@ -1235,7 +1282,7 @@ export class LoginScene extends Scene {
       <section class="uo-login-frame uo-login-frame--creation">
         ${this._creationHeader(3, 'Choose a starting city', 'Select where your first chapter in Britannia begins.')}
         <div class="uo-creation-content">
-          <div class="uo-city-list uo-city-grid">${rows}</div>
+          <div class="uo-city-list uo-city-grid" role="listbox" aria-label="Starting cities">${rows}</div>
         </div>
         <footer class="uo-actions uo-creation-actions">
           <button id="cc-back" class="uo-button uo-button--quiet">← Previous step</button>
@@ -1246,10 +1293,19 @@ export class LoginScene extends Scene {
     this._injectStyles();
     let chosen = Math.max(0, cities.findIndex((cc) => cc.index === c.city));
     const rowsEl = [...this._panel.querySelectorAll('.uo-city-row')];
-    const refresh = () => rowsEl.forEach((r, j) => r.classList.toggle('selected', j === chosen));
+    const refresh = () => rowsEl.forEach((r, j) => {
+      r.classList.toggle('selected', j === chosen);
+      r.setAttribute('aria-selected', String(j === chosen));
+    });
     rowsEl.forEach((r, i) => {
       r.addEventListener('click', () => { chosen = i; refresh(); });
       r.addEventListener('dblclick', () => { chosen = i; this._submitCreation(cities[chosen].index); });
+      r.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        chosen = i; refresh();
+        if (event.key === 'Enter') this._submitCreation(cities[chosen].index);
+      });
     });
     refresh();
     this._panel.querySelector('#cc-back').addEventListener('click', () => {
@@ -1263,7 +1319,9 @@ export class LoginScene extends Scene {
     const c = this._creation;
     c.city = cityIndex;
     this._setStep(LoginSteps.CharacterCreationDone);
-    void this._prepareWorld();
+    void this._prepareWorld().catch((error) => {
+      console.warn('[login] world prefetch failed; next entry will retry', error?.message ?? error);
+    });
     net.send(buildCreateCharacter({
       name: c.name, sex: c.sex, race: c.race, profession: c.profession,
       str: c.str, dex: c.dex, int: c.int,
@@ -1478,7 +1536,7 @@ export class LoginScene extends Scene {
    *  from _load() after the initial _setStep(Main). */
   _tryAutoLogin() {
     if (!loginProfileSetting('login.autoLogin', false)) return false;
-    const acc = localStorage.getItem(LS_PREFIX + 'account');
+    const acc = loginStorageGet('account', '');
     if (!acc) return false;
     // Wait one tick so the Main panel is fully mounted, then submit.
     setTimeout(() => { try { this._doConnect?.(); } catch { /* ignore */ } }, 80);
@@ -1590,7 +1648,10 @@ export class LoginScene extends Scene {
     this._gameSceneModulePromise ??= Promise.all([
       this.gc.prepareWorld?.(),
       import('./game-scene.js'),
-    ]).then(([, gameSceneModule]) => gameSceneModule);
+    ]).then(([, gameSceneModule]) => gameSceneModule).catch((error) => {
+      this._gameSceneModulePromise = null;
+      throw error;
+    });
     return this._gameSceneModulePromise;
   }
 

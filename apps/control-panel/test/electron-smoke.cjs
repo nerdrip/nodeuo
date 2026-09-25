@@ -5,7 +5,10 @@ const electron = require('electron');
 const appRoot = path.resolve(__dirname, '..');
 const childEnv = { ...process.env, UO_CONTROL_PANEL_SMOKE: '1' };
 delete childEnv.ELECTRON_RUN_AS_NODE;
-const result = spawnSync(electron, ['.'], {
+// The smoke closes Electron immediately after DOM verification. Disabling the
+// unused GPU process avoids shutdown-time command-buffer warnings which can
+// otherwise hide real renderer errors in CI output.
+const result = spawnSync(electron, ['--disable-gpu', '.'], {
   cwd: appRoot,
   env: childEnv,
   encoding: 'utf8',

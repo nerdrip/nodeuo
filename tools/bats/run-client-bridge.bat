@@ -22,15 +22,17 @@ REM the wire - invaluable when the client reports "unknown opcode" errors.
 REM Switch the bridge invocation to `start` (without :debug) once stable.
 
 setlocal
-set "ROOT=%~dp0.."
+set "ROOT=%~dp0..\.."
 set "BRIDGE_TARGET=%~1"
 
-REM Locking the bridge to a single target (UO_BRIDGE_DEFAULT) makes the
-REM browser side just open ws://.../bridge with no ?target= query - useful
+REM Locking the bridge to a single target (UO_BRIDGE_DEFAULT and
+REM UO_BRIDGE_ALLOW) lets the browser open ws://.../bridge without ?target=.
+REM This is useful
 REM when distributing the client to other people who shouldn't have to know
 REM your shard's host:port.
 if not "%BRIDGE_TARGET%"=="" (
   set "UO_BRIDGE_DEFAULT=%BRIDGE_TARGET%"
+  set "UO_BRIDGE_ALLOW=%BRIDGE_TARGET%"
   echo [bridge] locked to target: %BRIDGE_TARGET%
 )
 
@@ -38,7 +40,7 @@ REM `start /D` sets the working directory of the new console BEFORE cmd /k
 REM runs - without it the new window inherits its parent's CWD (typically
 REM system32 when launched from Explorer / Windows Terminal) and any relative
 REM lookup fails silently, leaving a black empty terminal.
-start "UO Bridge" /D "%ROOT%" cmd /k "set UO_BRIDGE_DEFAULT=%BRIDGE_TARGET%&& pnpm --filter @uo/bridge start:debug"
+start "UO Bridge" /D "%ROOT%" cmd /k pnpm --filter @uo/bridge start:debug
 timeout /t 2 >NUL
 start "UO Client" /D "%ROOT%" cmd /k pnpm --filter @uo/client dev
 

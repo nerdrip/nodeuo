@@ -1757,9 +1757,10 @@ export class GameScene extends Scene {
       camera.resetPan?.();
     };
     window.addEventListener('blur', this._onBlur);
-    document.addEventListener('visibilitychange', () => {
+    this._onVisibilityChange = () => {
       if (document.hidden) this._onBlur();
-    });
+    };
+    document.addEventListener('visibilitychange', this._onVisibilityChange);
 
     this._refreshHud();
     this.gc.setStatus(`in world — serial 0x${(world.player?.serial ?? 0).toString(16)}`);
@@ -1768,6 +1769,10 @@ export class GameScene extends Scene {
   unload() {
     camera.resetPan?.();
     if (this._onBlur) window.removeEventListener('blur', this._onBlur);
+    if (this._onVisibilityChange) document.removeEventListener('visibilitychange', this._onVisibilityChange);
+    clearTimeout(this._touchLongPressTimer);
+    this._touchLongPressTimer = null;
+    this._touchState = null;
     document.removeEventListener('keydown', this._onKey);
     document.removeEventListener('keyup',   this._onKeyUp);
     document.removeEventListener('mousemove',  this._onMouseMove);

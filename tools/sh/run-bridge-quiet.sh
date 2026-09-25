@@ -6,6 +6,7 @@ load_node_pnpm
 
 if [ "${1:-}" != "" ]; then
   export UO_BRIDGE_DEFAULT=$1
+  export UO_BRIDGE_ALLOW=$1
 fi
 export UO_BRIDGE_PORT=${UO_BRIDGE_PORT:-2595}
 

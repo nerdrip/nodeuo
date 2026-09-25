@@ -650,7 +650,9 @@
     <div class="settings-row"><label>Admin host</label><input id="env-UO_ADMIN_HOST" /></div>
     <div class="settings-row"><label>Admin port</label><input id="env-UO_ADMIN_PORT" /></div>
     <div class="settings-row"><label>Admin user</label><input id="env-UO_ADMIN_USER" /></div>
-    <div class="settings-row"><label>Admin password</label><input id="env-UO_ADMIN_PASS" /></div>
+    <div class="settings-row"><label>Admin password</label><input id="env-UO_ADMIN_PASS" type="password" /></div>
+    <div class="settings-row"><label>Bootstrap game Admin password</label><input id="env-UO_BOOTSTRAP_ADMIN_PASSWORD" type="password" placeholder="required for a new LAN shard" /></div>
+    <div class="settings-row"><label>Admin behind HTTPS proxy (1)</label><input id="env-UO_ADMIN_HTTPS_TERMINATED" /></div>
     <div class="settings-row"><label>Bridge port</label><input id="env-UO_BRIDGE_PORT" /></div>
     <div class="settings-row"><label>Bridge target</label><input id="env-UO_BRIDGE_DEFAULT" placeholder="host:port (lock bridge)" /></div>
     <div class="settings-row"><label>Shard name</label><input id="env-UO_SHARD_NAME" /></div>
@@ -1162,7 +1164,13 @@ async function onServiceClick(id) {
   // virtual server-side "Bridge" tab below.
   if (id === 'client' && document.getElementById('tcp-enable-client')?.checked) {
     if (!SERVICES_INFO['bridge-out']?.running) {
-      await uo.startService('bridge-out', {});
+      const bridgeResult = await uo.startService('bridge-out', {});
+      if (bridgeResult?.ok === false) {
+        showModal('Cannot start TCP bridge', esc(bridgeResult.error || 'Unknown launcher error.'), [
+          { label: 'OK', action: closeModal },
+        ]);
+        return;
+      }
       ensureTab('bridge-out');
     }
   }
@@ -1216,7 +1224,13 @@ function confirmCloseTab(id) {
     <br/><br/>Continue?
   `, [
     { label: 'Stop & close', danger: true, action: async () => {
-        await uo.stopService(id);
+        const result = await uo.stopService(id);
+        if (result?.ok === false) {
+          showModal('Cannot stop service', esc(result.error || 'Unknown launcher error.'), [
+            { label: 'OK', action: closeModal },
+          ]);
+          return false;
+        }
         closeTab(id);
         setTimeout(refreshButtonStates, 300);
       } },
@@ -1279,9 +1293,20 @@ async function restartActiveTab() {
     ]);
     return;
   }
-  try { await uo.stopService(id); } catch { /* ignore */ }
-  // Brief pause so taskkill has time to release ports before respawn.
-  await new Promise((r) => setTimeout(r, 400));
+  try {
+    const stopped = await uo.stopService(id);
+    if (stopped?.ok === false) {
+      showModal('Cannot restart service', esc(stopped.error || 'Graceful shutdown failed.'), [
+        { label: 'OK', action: closeModal },
+      ]);
+      return;
+    }
+  } catch (error) {
+    showModal('Cannot restart service', esc(error.message || 'Shutdown failed.'), [
+      { label: 'OK', action: closeModal },
+    ]);
+    return;
+  }
   // Wipe the pane before the fresh process starts spitting lines so
   // the operator's not staring at the previous run's stack trace
   // mingled with the new boot log.
@@ -1368,7 +1393,17 @@ function renderPane(id) {
 
 function confirmStopAll() {
   showModal('Stop EVERY running service?', 'All started services will be terminated. Logs are kept.', [
-    { label: 'Stop all', danger: true, action: () => uo.stopAll() },
+    { label: 'Stop all', danger: true, action: async () => {
+      const result = await uo.stopAll();
+      if (result?.ok === false) {
+        const failed = result.results?.filter((entry) => !entry.ok).map((entry) => entry.error).join('\n')
+          || 'One or more services did not stop.';
+        showModal('Some services are still running', esc(failed), [
+          { label: 'OK', action: closeModal },
+        ]);
+        return false;
+      }
+    } },
     { label: 'Cancel', action: () => {} },
   ]);
 }
@@ -1505,8 +1540,10 @@ uo.onState(({ id, running }) => {
 const SETTINGS_FIELDS = [
   'UO_SRC', 'UO_HOST', 'UO_PORT',
   'UO_ADMIN_HOST', 'UO_ADMIN_PORT', 'UO_ADMIN_USER', 'UO_ADMIN_PASS',
+  'UO_BOOTSTRAP_ADMIN_PASSWORD', 'UO_ADMIN_HTTPS_TERMINATED',
   'UO_BRIDGE_PORT', 'UO_BRIDGE_DEFAULT', 'UO_SHARD_NAME', 'KTX2_TOKTX',
 ];
+const SECRET_SETTINGS_FIELDS = new Set(['UO_ADMIN_PASS', 'UO_BOOTSTRAP_ADMIN_PASSWORD']);
 
 // Per-service-group field allowlist. Without this, the settings drawer
 // auto-fills DEFAULTS for every field (UO_ADMIN_PASS=admin, etc.) and
@@ -1521,9 +1558,10 @@ const SETTINGS_FIELDS = [
 //   assets  → UO_SRC + optional toktx path for KTX2 conversion
 //   bridge-out → bridge fields only
 const SERVICE_FIELD_WHITELIST = {
-  server:  ['UO_SRC', 'UO_HOST', 'UO_PORT', 'UO_SHARD_NAME'],
+  server:  ['UO_SRC', 'UO_HOST', 'UO_PORT', 'UO_SHARD_NAME', 'UO_BOOTSTRAP_ADMIN_PASSWORD'],
   admin:   ['UO_SRC', 'UO_HOST', 'UO_PORT', 'UO_SHARD_NAME',
-            'UO_ADMIN_HOST', 'UO_ADMIN_PORT', 'UO_ADMIN_USER', 'UO_ADMIN_PASS'],
+            'UO_ADMIN_HOST', 'UO_ADMIN_PORT', 'UO_ADMIN_USER', 'UO_ADMIN_PASS',
+            'UO_BOOTSTRAP_ADMIN_PASSWORD', 'UO_ADMIN_HTTPS_TERMINATED'],
   client:  [],
   extract: ['UO_SRC', 'KTX2_TOKTX'],
   assets:  ['UO_SRC', 'KTX2_TOKTX'],
@@ -1573,17 +1611,23 @@ function applySettings(values) {
 function loadSettings() {
   const values = {};
   for (const k of SETTINGS_FIELDS) {
-    values[k] = localStorage.getItem('uo-' + k) ?? DEFAULTS[k] ?? '';
+    if (SECRET_SETTINGS_FIELDS.has(k)) {
+      localStorage.removeItem('uo-' + k);
+      values[k] = DEFAULTS[k] ?? '';
+    } else {
+      values[k] = localStorage.getItem('uo-' + k) ?? DEFAULTS[k] ?? '';
+    }
   }
   applySettings(values);
 }
 function saveSettings() {
   for (const k of SETTINGS_FIELDS) {
     const v = document.getElementById('env-' + k)?.value ?? '';
-    if (v) localStorage.setItem('uo-' + k, v);
+    if (SECRET_SETTINGS_FIELDS.has(k)) localStorage.removeItem('uo-' + k);
+    else if (v) localStorage.setItem('uo-' + k, v);
     else   localStorage.removeItem('uo-' + k);
   }
-  flashSettings('saved');
+  flashSettings('saved; passwords stay in this session only');
   refreshPreflightStatus();
 }
 function resetSettings() {

@@ -43,7 +43,8 @@ page.on('pageerror', (error) => pageErrors.push(String(error?.stack ?? error)));
 const heaps = [];
 try {
   for (let i = 0; i < cycles; i++) {
-    await page.goto(`${baseUrl}${optionsAudit ? '?runtimeAudit=1' : ''}`, { waitUntil: 'networkidle', timeout: 30_000 });
+    await page.goto(`${baseUrl}${optionsAudit ? '?runtimeAudit=1' : ''}`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+    await page.waitForSelector('[data-login-step="Main"]', { timeout: 30_000 });
     await page.waitForTimeout(250);
     const state = await page.evaluate(() => ({
       bodyText: document.body?.innerText ?? '',

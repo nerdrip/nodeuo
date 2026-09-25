@@ -316,8 +316,11 @@ function table(rows, headers) {
   for (const row of rows) console.log(`| ${headers.map((key, i) => String(row[key] ?? '').padEnd(widths[i])).join(' | ')} |`);
 }
 
-if (!fs.existsSync(CUO_ROOT)) throw new Error(`ClassicUO template not found: ${CUO_ROOT}`);
+if (!fs.existsSync(path.join(CUO_ROOT, 'ClassicUO.Client', 'Game', 'Managers', 'SeasonManager.cs'))) {
+  throw new Error(`ClassicUO reference tree missing or incomplete: ${CUO_ROOT}. See docs/reference-sources.md`);
+}
 const records = build();
+if (records.length < 100) throw new Error(`ClassicUO reference source is incomplete (${records.length} classes): ${CUO_ROOT}. See docs/reference-sources.md`);
 if (args.json) {
   const target = path.resolve(ROOT, args.json);
   fs.mkdirSync(path.dirname(target), { recursive: true });

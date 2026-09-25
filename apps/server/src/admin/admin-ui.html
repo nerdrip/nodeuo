@@ -196,18 +196,19 @@ function activate(name) {
   if (name !== 'animations' && animTimer) { clearInterval(animTimer); animTimer = null; }
   if (name !== 'characters' && liveFollowTimer) { clearInterval(liveFollowTimer); liveFollowTimer = null; }
   if (name !== 'operations' && opsTestPoll) { clearInterval(opsTestPoll); opsTestPoll = null; }
-  AdminCore.beginView();
+  const viewSignal = AdminCore.beginView();
   for (const b of document.querySelectorAll('nav button'))
     b.classList.toggle('active', b.dataset.tab === name);
   document.getElementById('main').innerHTML = '';
-  Promise.resolve(tabs[name]?.()).catch((error) => {
-    if (error?.name === 'AbortError') return;
+  const rendered = Promise.resolve().then(() => tabs[name]?.()).catch((error) => {
+    if (viewSignal.aborted || error?.name === 'AbortError') return;
     console.error(`[admin-ui] tab ${name} failed`, error);
     AdminCore.renderState(document.getElementById('main'), 'error', {
       message: error?.message || `Could not load ${name}.`, retry: () => activate(name),
     });
   });
   location.hash = name;
+  return rendered;
 }
 document.querySelectorAll('nav button').forEach((b) =>
   b.addEventListener('click', () => activate(b.dataset.tab)));
@@ -962,7 +963,7 @@ function setSpawnerKindWeight(formId,index,value){const row=spawnerSelections.ge
 async function deleteSpawner(id) {
   if (!confirm(`Delete spawner "${id}"? Active mobs survive; only the spawn-group is removed.`)) return;
   await api('DELETE', `/api/spawners/${encodeURIComponent(id)}`);
-  document.querySelector('[data-tab="spawners"]')?.click();
+  activate('spawners');
 }
 
 async function saveSpawner(formId, existingId) {
@@ -1006,7 +1007,7 @@ async function saveSpawner(formId, existingId) {
   const res = await api('POST', '/api/spawners', payload);
   if (res?.error) { alert('save failed: ' + res.error); return; }
   closeModal();
-  document.querySelector('[data-tab="spawners"]')?.click();
+  activate('spawners');
 }
 
 function spawnerForm(formId, existing) {
@@ -1140,14 +1141,14 @@ async function simulateSpawner(formId, existingId) {
   const host=document.getElementById(`${formId}-simulation`); if(!host)return;
   host.innerHTML=`${[...(r.errors??[]),...(r.warnings??[])].map(x=>`<div class="${r.errors?.includes(x)?'error':'muted'}">${esc(x)}</div>`).join('')}<table><thead><tr><th>Kind</th><th>Weight</th><th>Expected</th><th>Observed</th></tr></thead><tbody>${(r.simulation?.outcomes??[]).map(o=>`<tr><td>${esc(o.kind)}</td><td>${o.weight}</td><td>${o.expectedPct}%</td><td>${o.actualPct}%</td></tr>`).join('')}</tbody></table>`;
 }
-async function respawnSpawner(id){await api('POST',`/api/spawners/${encodeURIComponent(id)}/respawn`,{});document.querySelector('[data-tab="spawners"]')?.click();}
+async function respawnSpawner(id){await api('POST',`/api/spawners/${encodeURIComponent(id)}/respawn`,{});activate('spawners');}
 async function bulkSpawners(action){
   const ids=[...document.querySelectorAll('[data-spawner-select]:checked')].map(el=>el.value);
   if(!ids.length){window.AdminCore?.toast?.('Select at least one spawner.','warn');return;}
   const body={ids,action};
   if(action==='move'){body.dx=+document.getElementById('sp-bulk-dx').value||0;body.dy=+document.getElementById('sp-bulk-dy').value||0;const map=document.getElementById('sp-bulk-map').value;if(map!=='')body.map=+map;}
   if(action==='delete'&&!confirm(`Delete ${ids.length} selected spawner groups?`))return;
-  const r=await api('POST','/api/spawners/bulk',body);window.AdminCore?.toast?.(`${r.changed??0} spawners: ${action}`,r.ok?'ok':'warn');document.querySelector('[data-tab="spawners"]')?.click();
+  const r=await api('POST','/api/spawners/bulk',body);window.AdminCore?.toast?.(`${r.changed??0} spawners: ${action}`,r.ok?'ok':'warn');return activate('spawners');
 }
 function applySpawnerTemplate(formId,index){
   const t=window.__spawnerTemplates?.[index]?.value;if(!t)return;const f=document.getElementById(formId);if(!f)return;

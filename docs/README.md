@@ -11,6 +11,7 @@ This directory keeps documentation that is larger than the root quickstart.
 | [../CONTRIBUTING.md](../CONTRIBUTING.md) | contribution rules and review checklist |
 | [../LICENSE](../LICENSE) | project license summary and SPDX identifier |
 | [../tools/README.md](../tools/README.md) | Windows/Linux launchers, ports, environment variables |
+| [reference-sources.md](reference-sources.md) | local ServUO/ClassicUO trees and reproducible parity audits |
 
 ## Engine And Scripting
 

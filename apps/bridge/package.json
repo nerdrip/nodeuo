@@ -16,6 +16,6 @@
     "ws": "^8.21.0"
   },
   "devDependencies": {
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.11"
   }
 }

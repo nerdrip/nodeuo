@@ -5,7 +5,7 @@ SCRIPT_NAME=server
 load_node_pnpm
 
 export UO_PORT=${UO_PORT:-2593}
-export UO_HOST=${UO_HOST:-0.0.0.0}
+export UO_HOST=${UO_HOST:-127.0.0.1}
 
 echo "[server] WebSocket: ws://$UO_HOST:$UO_PORT/game"
 echo "[server] press Ctrl+C to stop"

@@ -189,6 +189,17 @@ function buildPlayCharacter(slot = 0) {
 }
 
 describe('login flow', () => {
+  it('rejects a direct game login without a relay key in local dev mode', async () => {
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/game`);
+    ws.binaryType = 'arraybuffer';
+    const incoming = makeCollector(ws);
+    await new Promise((resolve, reject) => { ws.once('open', resolve); ws.once('error', reject); });
+    const closed = new Promise((resolve) => ws.once('close', resolve));
+    ws.send(buildGameLogin(0, 'alice'));
+    expect((await waitFor(incoming, (packet) => packet[0] === 0x82))[0]).toBe(0x82);
+    await closed;
+  });
+
   it('drives the full login handshake', async () => {
     const ws = new WebSocket(`ws://127.0.0.1:${port}/game`);
     ws.binaryType = 'arraybuffer';

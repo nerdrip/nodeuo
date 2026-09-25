@@ -10,6 +10,7 @@ const ticks = full ? 20_000 : 2_000;
 const soakHours = Math.max(0, Number(process.env.NODEUO_SOAK_HOURS) || 0);
 const deadline = soakHours > 0 ? Date.now() + soakHours * 60 * 60 * 1000 : 0;
 const world = new World();
+globalThis.gc?.();
 const heapBefore = process.memoryUsage().heapUsed;
 
 for (let i = 0; i < mobileCount; i++) {
@@ -40,6 +41,7 @@ assert.equal(integrity.ok, true, JSON.stringify(integrity.issues.slice(0, 5)));
 assert.equal(world.mobiles.size, mobileCount);
 assert.equal(world.items.size, itemCount);
 
+globalThis.gc?.();
 const heapGrowth = process.memoryUsage().heapUsed - heapBefore;
 const maxHeapGrowth = full ? 512 * 1024 * 1024 : 128 * 1024 * 1024;
 assert.ok(heapGrowth < maxHeapGrowth, `heap grew ${(heapGrowth / 1024 / 1024).toFixed(1)} MiB`);

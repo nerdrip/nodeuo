@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  workspace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm audit
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm build
+      - run: pnpm --filter @uo/client run smoke:startup-ui
+      - run: pnpm --filter @uo/client run smoke:outgoing
+      - run: pnpm --filter @uo/client run smoke:incoming-coverage
+      - run: pnpm --filter @uo/client run smoke:net-handlers
+      - run: pnpm --filter @uo/client run smoke:perf-budgets

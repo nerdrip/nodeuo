@@ -66,7 +66,7 @@ root, checks Node/pnpm, and supplies a few default paths.
 
 `tools/run-control-panel.bat` and `tools/run-control-panel.sh` start the
 Electron control panel. Its status header validates the configured UO source,
-the in-repository ServUO tree, and the optional KTX2 encoder before work starts.
+the optional local ServUO reference tree, and the optional KTX2 encoder before work starts.
 It provides focused service groups for:
 
 - the server, optional admin backend, and opt-in classic TCP listener;
@@ -92,7 +92,7 @@ UO_SRC="/path/to/Ultima Online Classic" tools/sh/extract-assets.sh
 ```
 
 ```powershell
-set "UO_SRC=C:\Program Files (x86)\Electronic Arts\Ultima Online Classic"
+$env:UO_SRC="C:\Program Files (x86)\Electronic Arts\Ultima Online Classic"
 tools\bats\extract-assets.bat
 ```
 
@@ -126,15 +126,20 @@ speeches,multimap,unifont
 | Variable | Used by | Default |
 | --- | --- | --- |
 | `UO_SRC` | asset extraction | platform-specific guess |
-| `UO_HOST` | server bind host | `0.0.0.0` |
+| `UO_HOST` | server bind host | `127.0.0.1`; set explicitly for LAN |
 | `UO_PORT` | server WebSocket port | `2593` |
 | `UO_TCP_PORT` | raw TCP listener | unset except TCP launchers, then `2594` |
 | `UO_ADMIN_HOST` | admin bind host | `127.0.0.1` |
 | `UO_ADMIN_PORT` | admin port | `2596` |
 | `UO_ADMIN_USER` | admin auth | `admin` |
 | `UO_ADMIN_PASS` | admin auth | set by admin launchers, change for real use |
+| `UO_ADMIN_HTTPS_TERMINATED` | external admin bind guard | set to `1` only behind a TLS-terminating reverse proxy |
+| `UO_DEV_AUTO_ACCEPT` | development account auto-creation | disable (`0`) when accepting network connections |
+| `UO_BRIDGE_HOST` | bridge bind host | `127.0.0.1` |
 | `UO_BRIDGE_PORT` | bridge WebSocket port | `2595` |
-| `UO_BRIDGE_DEFAULT` | locked bridge target | empty |
+| `UO_BRIDGE_DEFAULT` | fallback target when URL omits `?target=` | empty |
+| `UO_BRIDGE_ALLOW` | comma-separated allowed `host:port` targets | empty; required for a non-loopback bind |
+| `UO_BRIDGE_ORIGINS` | comma-separated allowed browser origins | loopback origins only |
 | `KTX2_TOKTX` | optional `toktx` path | auto-detected |
 
 ## Bridge Modes
@@ -156,6 +161,13 @@ or:
 ```powershell
 tools\bats\run-client-bridge.bat my.shard.example:2593
 ```
+
+Passing `host:port` to a bridge launcher sets both the fallback target and a
+single-target allowlist. A browser page with a non-loopback Origin needs an
+explicit `UO_BRIDGE_ORIGINS` entry such as `https://client.example`; a
+non-loopback `UO_BRIDGE_HOST` also requires `UO_BRIDGE_ALLOW`. Origin checks
+apply to browsers, while the target allowlist also constrains native WebSocket
+clients that do not send an Origin header.
 
 ## KTX2
 

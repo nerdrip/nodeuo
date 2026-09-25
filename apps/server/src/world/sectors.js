@@ -42,7 +42,7 @@ function tileKey(map, x, y) {
 
 export class SectorIndex {
   constructor() {
-    /** @type {Map<number, { mobiles: Set<number>, items: Set<number>, players: Set<number> }>} */
+    /** @type {Map<number, { mobiles: Set<number>, mobileSnapshot: (number | null)[] | null, mobileReaders: number, mobileSnapshotDirty: boolean, items: Set<number>, players: Set<number> }>} */
     this._buckets = new Map();
     // Per-entity reverse index so we can de-register on move without a
     // bucket scan. Stores the LAST sector key the entity was placed in.
@@ -84,7 +84,8 @@ export class SectorIndex {
     const k = key(map, sx, sy);
     let b = this._buckets.get(k);
     if (!b && create) {
-      b = { mobiles: new Set(), items: new Set(), players: new Set() };
+      b = { mobiles: new Set(), mobileSnapshot: null, mobileReaders: 0,
+        mobileSnapshotDirty: false, items: new Set(), players: new Set() };
       this._buckets.set(k, b);
     }
     return b;
@@ -94,6 +95,26 @@ export class SectorIndex {
     if (b && b.mobiles.size === 0 && b.items.size === 0 && b.players.size === 0) {
       this._buckets.delete(k);
     }
+  }
+
+  _addMobileSerial(b, serial) {
+    if (b.mobiles.has(serial)) return false;
+    b.mobiles.add(serial);
+    if (b.mobileReaders) {
+      b.mobileSnapshot.push(serial); // Live Set iterators also see appended entries.
+      b.mobileSnapshotDirty = true;
+    } else b.mobileSnapshot = null;
+    return true;
+  }
+
+  _removeMobileSerial(b, serial) {
+    if (!b.mobiles.delete(serial)) return false;
+    if (b.mobileReaders) {
+      const index = b.mobileSnapshot.indexOf(serial);
+      if (index >= 0) b.mobileSnapshot[index] = null;
+      b.mobileSnapshotDirty = true;
+    } else b.mobileSnapshot = null;
+    return true;
   }
 
   // ---------- Mobile membership -----------------------------------------
@@ -115,8 +136,7 @@ export class SectorIndex {
     const old = this._mobAt.get(mob.serial);
     if (old === k) {
       const existing = this._bucket(mob.map | 0, sx, sy, true);
-      if (!existing.mobiles.has(mob.serial)) {
-        existing.mobiles.add(mob.serial);
+      if (this._addMobileSerial(existing, mob.serial)) {
         this._bump(k);
       }
       if (this._onlineAt.has(mob.serial) || mob.client) this.markMobileOnline(mob);
@@ -125,14 +145,14 @@ export class SectorIndex {
     if (old !== undefined) {
       const ob = this._buckets.get(old);
       if (ob) {
-        ob.mobiles.delete(mob.serial);
+        this._removeMobileSerial(ob, mob.serial);
         ob.players.delete(mob.serial);
         this._bump(old);
         this._dropBucketIfEmpty(old, ob);
       }
     }
     const b = this._bucket(mob.map | 0, sx, sy, true);
-    b.mobiles.add(mob.serial);
+    this._addMobileSerial(b, mob.serial);
     this._mobAt.set(mob.serial, k);
     if (this._onlineAt.has(mob.serial) || mob.client) {
       b.players.add(mob.serial);
@@ -155,7 +175,7 @@ export class SectorIndex {
     if (k === undefined) return;
     const b = this._buckets.get(k);
     if (b) {
-      b.mobiles.delete(serial);
+      this._removeMobileSerial(b, serial);
       b.players.delete(serial);
       this._bump(k);
       this._dropBucketIfEmpty(k, b);
@@ -298,11 +318,38 @@ export class SectorIndex {
   *mobileSerialsNear(map, x, y, range) {
     const started = this._beginQuery('mobileCalls');
     let candidates = 0;
+    // Most AOI reads revisit the same sectors many times between membership
+    // changes. A lazily rebuilt array avoids Set-iterator work on every read.
+    // Active readers use the same array as changes mark deletions and append
+    // additions, matching live Set iteration even between consecutive yields.
+    const sx0 = Math.max(0, (x - range) | 0) >> SECTOR_BITS;
+    const sy0 = Math.max(0, (y - range) | 0) >> SECTOR_BITS;
+    const sx1 = Math.min(7167, (x + range) | 0) >> SECTOR_BITS;
+    const sy1 = Math.min(4095, (y + range) | 0) >> SECTOR_BITS;
+    const mapBits = ((map | 0) & 0x0f) << 22;
     try {
-      for (const k of this._sectorKeysInRange(map, x, y, range)) {
-        const b = this._buckets.get(k);
-        if (!b) continue;
-        for (const s of b.mobiles) { candidates++; yield s; }
+      for (let sx = sx0; sx <= sx1; sx++) {
+        const columnBits = mapBits | ((sx & 0x7ff) << 11);
+        for (let sy = sy0; sy <= sy1; sy++) {
+          const b = this._buckets.get(columnBits | (sy & 0x7ff));
+          if (!b) continue;
+          const serials = b.mobileSnapshot ?? (b.mobileSnapshot = [...b.mobiles]);
+          b.mobileReaders++;
+          try {
+            for (let index = 0; index < serials.length; index++) {
+              const serial = serials[index];
+              if (serial === null) continue;
+              candidates++;
+              yield serial;
+            }
+          } finally {
+            b.mobileReaders--;
+            if (b.mobileReaders === 0 && b.mobileSnapshotDirty) {
+              b.mobileSnapshot = null;
+              b.mobileSnapshotDirty = false;
+            }
+          }
+        }
       }
     } finally { this._finishQuery(started, candidates); }
   }

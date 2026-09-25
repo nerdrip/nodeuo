@@ -12,6 +12,8 @@ const { spawn, spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const http = require('node:http');
 const https = require('node:https');
+const net = require('node:net');
+const { randomBytes } = require('node:crypto');
 
 // Repo root = three dirs above this file (apps/control-panel/src/main.cjs).
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
@@ -23,13 +25,15 @@ const CONTROL_PANEL_SMOKE = process.env.UO_CONTROL_PANEL_SMOKE === '1';
 // form (placeholder + value); user overrides flow back via env-override.
 const DEFAULTS = Object.freeze({
   UO_SRC:             'D:\\Games\\Electronic Arts\\Ultima Online Classic',
-  UO_HOST:            '0.0.0.0',
+  UO_HOST:            '127.0.0.1',
   UO_PORT:            '2593',
   UO_TCP_PORT:        '2594',
   UO_ADMIN_HOST:      '127.0.0.1',
   UO_ADMIN_PORT:      '2596',
   UO_ADMIN_USER:      'admin',
   UO_ADMIN_PASS:      'admin',
+  UO_ADMIN_HTTPS_TERMINATED: '0',
+  UO_BOOTSTRAP_ADMIN_PASSWORD: '',
   UO_BRIDGE_HOST:     '127.0.0.1',
   UO_BRIDGE_PORT:     '2595',
   UO_BRIDGE_DEFAULT:  '',                 // empty = open relay; client picks target
@@ -44,12 +48,8 @@ const DEFAULTS = Object.freeze({
  * command to run, env vars to inject, and `ports` (TCP ports the service
  * will bind). `group` puts the button into a labelled toolbar section.
  *
- * `ports` is the source of truth for two safety features:
- *   1. PRE-KILL: before spawning, force-free every listed port (kills any
- *      leftover/orphan process that's still holding it — Vite is the
- *      classic offender, it detaches from process tree on Windows).
- *   2. MUTUAL EXCLUSION: if a different running service shares ANY port
- *      with the one we're starting, auto-stop it first. This is what
+ * `ports` is the source of truth for mutual exclusion: if another tracked
+ * service shares a port with the one we're starting, stop it first. This is what
  *      makes `server` and `admin` (both UO_PORT) feel like radio buttons
  *      in the UI — clicking either silently swaps the other off without
  *      the operator having to chase down a port-in-use error.
@@ -64,9 +64,7 @@ const SERVICES = {
   // narrow ("no surprise listeners") while still letting native clients
   // connect with one extra click.
   //
-  // Note: ports list includes 2594 defensively so pre-start sweeps and
-  // stop-time port-kills cover the TCP listener whenever the checkbox
-  // happens to be enabled. If 2594 isn't bound, killByPort is a no-op.
+  // The optional raw TCP port is added only when the checkbox enables it.
   'server': {
     group: 'server',
     label: 'Start Server',
@@ -75,7 +73,7 @@ const SERVICES = {
       UO_HOST: DEFAULTS.UO_HOST,
       UO_PORT: DEFAULTS.UO_PORT,
     },
-    ports: [Number(DEFAULTS.UO_PORT), Number(DEFAULTS.UO_TCP_PORT)],
+    ports: [Number(DEFAULTS.UO_PORT)],
     info: `WS ${DEFAULTS.UO_PORT}. Browser play. Tick "TCP ${DEFAULTS.UO_TCP_PORT}" in the toolbar to also accept ClassicUO/Razor/OSI clients. Mutually exclusive with "Server + Admin" — they share UO_PORT.`,
   },
   // ---- ADMIN (hidden — co-started by CLIENT's "+ Admin" toggle) ------
@@ -105,8 +103,8 @@ const SERVICES = {
       UO_ADMIN_USER: DEFAULTS.UO_ADMIN_USER,
       UO_ADMIN_PASS: DEFAULTS.UO_ADMIN_PASS,
     },
-    ports: [Number(DEFAULTS.UO_PORT), Number(DEFAULTS.UO_TCP_PORT), Number(DEFAULTS.UO_ADMIN_PORT)],
-    info: `Co-started by Browser Client when "+ Admin" is ticked. Admin panel at http://${DEFAULTS.UO_ADMIN_HOST}:${DEFAULTS.UO_ADMIN_PORT}/ (user=${DEFAULTS.UO_ADMIN_USER}, pass=${DEFAULTS.UO_ADMIN_PASS}).`,
+    ports: [Number(DEFAULTS.UO_PORT), Number(DEFAULTS.UO_ADMIN_PORT)],
+    info: `Co-started by Browser Client when "+ Admin" is ticked. Admin panel at http://${DEFAULTS.UO_ADMIN_HOST}:${DEFAULTS.UO_ADMIN_PORT}/.`,
   },
   // ---- CLIENT ---------------------------------------------------------
   // Co-starts the `admin` service so an admin account that logs into
@@ -206,6 +204,7 @@ const SERVICES = {
 const running = new Map();
 
 let mainWin = null;
+let quittingAfterServices = false;
 
 function createWindow() {
   mainWin = new BrowserWindow({
@@ -259,8 +258,17 @@ function createWindow() {
   // Stop every running service when the window closes — avoids orphaned
   // node processes hanging around after the launcher quits.
   mainWin.on('closed', () => {
-    for (const id of [...running.keys()]) stopService(id);
+    void stopAll().then((result) => {
+      if (!result.ok && process.platform === 'darwin') reportStopFailure(result);
+    });
   });
+}
+
+function reportStopFailure(result) {
+  const reasons = result.results?.filter((entry) => !entry.ok).map((entry) => entry.error).join('\n')
+    || result.error || 'One or more services did not stop.';
+  if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  dialog.showErrorBox('Services are still running', reasons);
 }
 
 app.whenReady().then(() => {
@@ -271,8 +279,22 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
-  for (const id of [...running.keys()]) stopService(id);
   if (process.platform !== 'darwin') app.quit();
+});
+
+app.on('before-quit', (event) => {
+  if (quittingAfterServices || running.size === 0) return;
+  event.preventDefault();
+  void stopAll().then((result) => {
+    if (!result.ok) {
+      reportStopFailure(result);
+      return;
+    }
+    quittingAfterServices = true;
+    app.quit();
+  }, (error) => {
+    reportStopFailure({ error: error.message });
+  });
 });
 
 // ---- IPC -------------------------------------------------------------------
@@ -302,19 +324,16 @@ ipcMain.handle('start-service', (_e, { id, envOverride, options }) => {
   return startService(id, envOverride || {}, options || {});
 });
 
-ipcMain.handle('stop-service', (_e, { id }) => {
-  stopService(id);
-  return { ok: true };
-});
+ipcMain.handle('stop-service', (_e, { id }) => stopService(id));
 
-ipcMain.handle('stop-all', () => {
-  stopAll();
-  return { ok: true };
-});
+ipcMain.handle('stop-all', () => stopAll());
 
 ipcMain.handle('kill-port', (_e, { port }) => {
-  killByPort(Number(port));
-  return { ok: true };
+  const number = Number(port);
+  if (!Number.isInteger(number) || number < 1 || number > 65_535) {
+    return { ok: false, error: 'Invalid TCP port.' };
+  }
+  return { ok: true, killed: killByPort(number) };
 });
 
 ipcMain.handle('open-url', async (_e, { url }) => {
@@ -408,12 +427,55 @@ function getPreflightStatus(sourcePath, toktxPath) {
   };
 }
 
-function startService(id, envOverride, options = {}) {
+async function startService(id, envOverride, options = {}) {
   const s = SERVICES[id];
   if (!s) return { ok: false, error: `Unknown service: ${id}` };
   if (running.has(id)) return { ok: false, error: `${s.label} is already running.` };
+  if (id !== 'extract' && Array.isArray(options.extraArgs) && options.extraArgs.length) {
+    return { ok: false, error: 'Extra command arguments are supported only by the extractor.' };
+  }
   const env = { ...process.env, ...(s.env || {}), ...envOverride };
+  if (id === 'server' || id === 'admin') {
+    env.UO_CONTROL_TOKEN = randomBytes(32).toString('hex');
+    const local = (host) => ['127.0.0.1', '::1', 'localhost'].includes(String(host).toLowerCase());
+    const publicGameBind = !local(env.UO_HOST)
+      || (env.UO_TCP_PORT && !local(env.UO_TCP_HOST ?? env.UO_HOST));
+    if (publicGameBind) {
+      env.UO_DEV_AUTO_ACCEPT = '0';
+      emitLog(id, '[launcher] LAN bind disables automatic account creation. Use an existing account or set a bootstrap Admin password.\n');
+    }
+  }
+  if (id === 'bridge-out' && env.UO_BRIDGE_DEFAULT) {
+    const target = String(env.UO_BRIDGE_DEFAULT).trim().replace(/^tcp:\/\//i, '');
+    const match = /^([^:/]+):(\d+)$/.exec(target);
+    const port = Number(match?.[2]);
+    if (!match || !Number.isInteger(port) || port < 1 || port > 65_535) {
+      return { ok: false, error: 'UO_BRIDGE_DEFAULT must be a target in host:port form.' };
+    }
+    env.UO_BRIDGE_DEFAULT = target;
+    env.UO_BRIDGE_ALLOW = target;
+  }
+  const portSettings = id === 'server' || id === 'admin'
+    ? ['UO_PORT', 'UO_TCP_PORT', ...(id === 'admin' ? ['UO_ADMIN_PORT'] : [])]
+    : id === 'bridge-out' ? ['UO_BRIDGE_PORT'] : [];
+  for (const name of portSettings) {
+    if (env[name] == null || env[name] === '') continue;
+    const port = Number(env[name]);
+    if (!Number.isInteger(port) || port < 1 || port > 65_535) {
+      return { ok: false, error: `${name} must be a TCP port from 1 to 65535.` };
+    }
+  }
   const servicePorts = resolveServicePorts(id, s, env);
+
+  // Check ports unrelated to tracked services before stopping a running
+  // server. A blocked admin port must not take down a healthy game server.
+  const trackedPorts = new Set([...running.values()].flatMap((entry) => entry.ports));
+  for (const port of servicePorts) {
+    if (trackedPorts.has(port)) continue;
+    if (!await portIsAvailable(port)) {
+      return { ok: false, error: `Port ${port} is already in use. Stop its owner or use the explicit Kill stray action.` };
+    }
+  }
 
   if (s.exclusiveGroup) {
     for (const otherId of running.keys()) {
@@ -429,7 +491,7 @@ function startService(id, envOverride, options = {}) {
   // admina" — Browser Client lists `admin` here so the panel is live on
   // :2596 by the time the player logs in and the in-game UI surfaces
   // the "Open Admin Panel" link. Each co-start runs through this same
-  // entrypoint so mutual exclusion + port pre-kill apply normally.
+  // entrypoint so mutual exclusion and port checks apply normally.
   //
   // `options.skipCoStart` lets the renderer override the default per
   // click — the CLIENT group's "+ Admin" checkbox passes
@@ -457,7 +519,8 @@ function startService(id, envOverride, options = {}) {
         continue;
       }
       emitLog(id, `[launcher] co-start: bringing up "${otherId}" alongside "${id}"`);
-      startService(otherId, envOverride);
+      const started = await startService(otherId, envOverride);
+      if (!started.ok) return started;
     }
   }
 
@@ -482,17 +545,19 @@ function startService(id, envOverride, options = {}) {
     const overlap = otherPorts.some((p) => wantPorts.has(p));
     if (overlap) {
       emitLog(id, `[launcher] auto-stopping "${otherId}" (port conflict on ${otherPorts.filter((p) => wantPorts.has(p)).join(', ')})`);
-      stopService(otherId);
+      const stopped = await stopService(otherId);
+      if (!stopped.ok) return { ok: false, error: `${other.label} did not stop: ${stopped.error}` };
     }
   }
 
-  // Pre-kill known ports — sweeps any orphaned listener (typically Vite
-  // detaching from the process tree on Windows + surviving a panel
-  // close) BEFORE the spawn so the new process gets a clean bind.
-  // Without this, restarting Browser Client after the previous run
-  // crashed would always fail with "Port 5173 already in use".
+  // An untracked listener might belong to an unrelated app. The renderer
+  // offers an explicit "Kill stray" action if the operator wants that.
   for (const port of servicePorts) {
-    killByPort(port);
+    if (!await portIsAvailable(port)) {
+      const error = `Port ${port} is already in use. Stop its owner or use the explicit Kill stray action.`;
+      emitLog(id, `[launcher] ${error}\n`, true);
+      return { ok: false, error };
+    }
   }
 
   if (Array.isArray(s.requiresUoSource)) {
@@ -573,32 +638,18 @@ function startService(id, envOverride, options = {}) {
     args = [...args, ...options.extraArgs];
     emitLog(id, `[launcher] extraArgs from renderer: [${options.extraArgs.join(', ')}]`);
   }
-  // pnpm.cmd on Windows is a .cmd shim; spawning needs shell:true so cmd
-  // resolves it. shell:true also handles env-var-based PATH lookup
-  // (npm/pnpm aren't always in process.env.PATH for GUI-launched apps).
-  //
-  // BUT shell:true also splits args on whitespace, so a path like
-  //   D:\Games\Electronic Arts\Ultima Online Classic
-  // gets parsed as four separate args by the shell. Quote each arg
-  // that contains a space using the platform-native syntax (Windows
-  // cmd.exe accepts double quotes, POSIX sh accepts the same +
-  // backslash-escaping). The simple `"…"` wrapping below is the same
-  // strategy npm/yarn use when invoking child commands.
-  const quotedArgs = args.map((a) => {
-    if (typeof a !== 'string') return String(a);
-    if (!/[\s"]/.test(a)) return a;             // no whitespace, no quotes needed
-    // Escape any embedded double quotes (rare; UO paths don't contain them
-    // but keep the helper general).
-    return `"${a.replace(/"/g, process.platform === 'win32' ? '\\"' : '\\"')}"`;
-  });
-  const proc = spawn(s.cmd, quotedArgs, {
+  // Only pnpm's Windows .cmd shim needs a shell, and its arguments are fixed
+  // service definitions. User-selected paths and extraction flags go to node
+  // directly, so cmd.exe cannot reinterpret them as shell commands.
+  const shell = process.platform === 'win32' && s.cmd === 'pnpm';
+  const proc = spawn(s.cmd, args, {
     cwd: REPO_ROOT,
     env,
-    shell: true,
+    shell,
     windowsHide: true,
   });
   running.set(id, { proc, env, ports: servicePorts });
-  emitLog(id, `[launcher] starting ${s.cmd} ${quotedArgs.join(' ')} (cwd=${REPO_ROOT})`);
+  emitLog(id, `[launcher] starting ${s.cmd} ${args.join(' ')} (cwd=${REPO_ROOT})`);
   emitLog(id, `[launcher] env override: ${Object.keys(envOverride).join(', ') || '(none)'}`);
 
   proc.stdout.setEncoding('utf8');
@@ -698,99 +749,127 @@ function findFileLimited(root, fileName, depth) {
   return null;
 }
 
-function stopService(id) {
-  const e = running.get(id);
-  if (!e) return;
-  emitLog(id, `[launcher] stopping pid=${e.proc.pid}...`);
-  // Try a GRACEFUL shutdown first via the admin HTTP endpoint —
-  // ServUO-style. This triggers our SIGINT handler, runs final
-  // `saveWorldSync` + `saveHousesSync` + `saveBazaarSync`, then
-  // exits cleanly. On Windows, `taskkill /f` (used below as a
-  // fallback) is equivalent to SIGKILL and SKIPS the SIGINT
-  // handler — user report 2026-05-18 "przedmioty z plecaka nie
-  // zachowują się po wyłączeniu servera" was the symptom of that.
-  const adminPort = (e.env?.UO_ADMIN_PORT)
-                 ?? (SERVICES[id]?.env?.UO_ADMIN_PORT)
-                 ?? (SERVICES[id]?.coStartEnv?.UO_ADMIN_PORT)
-                 ?? DEFAULTS.UO_ADMIN_PORT;
-  const adminUser = e.env?.UO_ADMIN_USER ?? SERVICES[id]?.env?.UO_ADMIN_USER ?? DEFAULTS.UO_ADMIN_USER;
-  const adminPass = e.env?.UO_ADMIN_PASS ?? SERVICES[id]?.env?.UO_ADMIN_PASS ?? DEFAULTS.UO_ADMIN_PASS;
-  const isServer = SERVICES[id]?.group === 'server' || SERVICES[id]?.group === 'admin';
-  const finishKill = () => {
-    if (running.get(id)?.proc !== e.proc || e.proc.exitCode != null || e.proc.signalCode != null) return;
-    if (process.platform === 'win32') {
-      try {
-        spawn('taskkill', ['/pid', String(e.proc.pid), '/f', '/t'], { windowsHide: true });
-        // Best-effort port kill — vite et al. occasionally detach.
-        for (const port of (e.ports ?? SERVICES[id]?.ports ?? [])) {
-          killByPort(port);
-        }
-      } catch (err) {
-        emitLog(id, `[launcher] taskkill failed: ${err.message}`, true);
-      }
-    } else {
-      try { e.proc.kill('SIGTERM'); } catch { /* ignore */ }
-    }
-  };
-  if (isServer && adminPort) {
-    const auth = Buffer.from(`${adminUser}:${adminPass}`).toString('base64');
-    emitLog(id, `[launcher] graceful POST /api/world/shutdown (admin:${adminPort})`);
-    try {
-      const req = require('node:http').request({
-        host: '127.0.0.1', port: Number(adminPort), method: 'POST',
-        path: '/api/world/shutdown', timeout: 1500,
-        headers: { 'Authorization': `Basic ${auth}`, 'Content-Length': 0 },
-      }, (res) => {
-        emitLog(id, `[launcher] graceful shutdown ack (HTTP ${res.statusCode}). Waiting 5s for final save…`);
-        // Final save can take a few seconds on a populated shard.
-        // taskkill /f kicks in afterwards as a safety net in case the
-        // shutdown handler hangs.
-        setTimeout(finishKill, 5_000);
-      });
-      req.on('error', () => {
-        emitLog(id, '[launcher] graceful endpoint unreachable — falling back to taskkill');
-        finishKill();
-      });
-      req.on('timeout', () => { try { req.destroy(); } catch { /* ignore */ } });
-      req.end();
-      return;     // finishKill scheduled by HTTP callback
-    } catch (err) {
-      emitLog(id, `[launcher] graceful attempt threw: ${err.message} — taskkill`, true);
-    }
-  }
-  finishKill();
+async function portIsAvailable(port) {
+  if (!Number.isInteger(port) || port < 1 || port > 65_535) return false;
+  const hasListener = (host) => new Promise((resolve) => {
+    const socket = net.connect({ port, host });
+    socket.once('connect', () => { socket.destroy(); resolve(true); });
+    socket.once('error', () => resolve(false));
+    socket.setTimeout(500, () => { socket.destroy(); resolve(false); });
+  });
+  if (await hasListener('127.0.0.1') || await hasListener('::1')) return false;
+  const canBind = (host, ipv6Only = false) => new Promise((resolve) => {
+    const probe = net.createServer();
+    probe.once('error', (error) => resolve(error.code === 'EAFNOSUPPORT'));
+    probe.listen({ port, host, ipv6Only }, () => probe.close(() => resolve(true)));
+  });
+  return await canBind('0.0.0.0') && await canBind('::', true);
 }
 
-/** Force-kill any process holding `port` (Windows only). Synchronous —
- *  the start path needs the kill to complete BEFORE the new spawn so
- *  the new process gets a clean bind. The async netstat pipe used to
- *  race the spawn and the new process would still see "EADDRINUSE". */
-function killByPort(port) {
-  if (process.platform !== 'win32') return;
-  const { execSync } = require('node:child_process');
-  let buf = '';
-  try {
-    buf = execSync(`netstat -ano | findstr :${port}`, {
-      windowsHide: true, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+function waitForProcessExit(proc, timeoutMs) {
+  if (proc.exitCode != null || proc.signalCode != null) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => finish(false), timeoutMs);
+    const finish = (exited) => {
+      clearTimeout(timer);
+      proc.off('exit', onExit);
+      proc.off('close', onExit);
+      resolve(exited);
+    };
+    const onExit = () => finish(true);
+    proc.once('exit', onExit);
+    proc.once('close', onExit);
+  });
+}
+
+function requestControlShutdown(env) {
+  return new Promise((resolve) => {
+    const configuredHost = String(env.UO_HOST ?? '127.0.0.1').trim();
+    const host = configuredHost === '0.0.0.0' ? '127.0.0.1'
+      : configuredHost === '::' ? '::1' : configuredHost;
+    const request = http.request({
+      host,
+      port: Number(env.UO_PORT),
+      method: 'POST',
+      path: '/internal/shutdown',
+      timeout: 3_000,
+      headers: {
+        Authorization: `Bearer ${env.UO_CONTROL_TOKEN}`,
+        'Content-Length': 0,
+      },
+    }, (response) => {
+      response.resume();
+      resolve(response.statusCode === 202
+        ? { ok: true }
+        : { ok: false, error: `control endpoint returned HTTP ${response.statusCode}` });
     });
-  } catch {
-    return;                  // findstr exits 1 when no match — that's the happy path
-  }
-  const pids = new Set();
-  for (const line of buf.split('\n')) {
-    const m = /LISTENING\s+(\d+)/.exec(line);
-    if (m) pids.add(m[1]);
-  }
-  for (const pid of pids) {
-    try {
-      execSync(`taskkill /pid ${pid} /f /t`, { windowsHide: true, stdio: 'ignore' });
-    } catch { /* PID already gone — fine */ }
-  }
+    request.on('error', (error) => resolve({ ok: false, error: error.message }));
+    request.on('timeout', () => request.destroy(new Error('control endpoint timed out')));
+    request.end();
+  });
 }
 
-/** Kill EVERY tracked service. UI exposes a "Stop all" button. */
-function stopAll() {
-  for (const id of [...running.keys()]) stopService(id);
+async function stopService(id) {
+  const entry = running.get(id);
+  if (!entry) return { ok: true };
+  if (entry.stopPromise) return entry.stopPromise;
+  entry.stopPromise = (async () => {
+    emitLog(id, `[launcher] stopping pid=${entry.proc.pid}...`);
+    if (id === 'server' || id === 'admin') {
+      const reply = await requestControlShutdown(entry.env);
+      if (!reply.ok) {
+        const error = `Graceful shutdown failed: ${reply.error}. Server remains running to protect world data.`;
+        emitLog(id, `[launcher] ${error}\n`, true);
+        return { ok: false, error };
+      }
+      if (!await waitForProcessExit(entry.proc, 30_000)) {
+        const error = 'Server did not exit within 30 seconds after accepting shutdown.';
+        emitLog(id, `[launcher] ${error}\n`, true);
+        return { ok: false, error };
+      }
+      return { ok: true };
+    }
+    if (process.platform === 'win32') {
+      const killer = spawn('taskkill', ['/pid', String(entry.proc.pid), '/f', '/t'], { windowsHide: true });
+      killer.on('error', (error) => emitLog(id, `[launcher] taskkill failed: ${error.message}\n`, true));
+    } else {
+      try { entry.proc.kill('SIGTERM'); } catch { /* ignore */ }
+    }
+    const exited = await waitForProcessExit(entry.proc, 8_000);
+    return exited ? { ok: true } : { ok: false, error: `${SERVICES[id].label} did not exit.` };
+  })();
+  try { return await entry.stopPromise; }
+  finally { entry.stopPromise = null; }
+}
+
+/** Kill an untracked listener only after the operator selects "Kill stray". */
+function killByPort(port) {
+  if (process.platform !== 'win32') return 0;
+  const result = spawnSync('netstat', ['-ano', '-p', 'TCP'], {
+    windowsHide: true, encoding: 'utf8', timeout: 5_000,
+  });
+  if (result.error || result.status !== 0) return 0;
+  const pids = new Set();
+  for (const line of result.stdout.split(/\r?\n/)) {
+    const columns = line.trim().split(/\s+/);
+    if (columns.length < 5 || columns[0] !== 'TCP' || columns[3] !== 'LISTENING') continue;
+    const localPort = Number(columns[1].slice(columns[1].lastIndexOf(':') + 1));
+    if (localPort === port && /^\d+$/.test(columns[4])) pids.add(columns[4]);
+  }
+  let killed = 0;
+  for (const pid of pids) {
+    const outcome = spawnSync('taskkill', ['/pid', pid, '/f', '/t'], {
+      windowsHide: true, stdio: 'ignore', timeout: 5_000,
+    });
+    if (outcome.status === 0) killed++;
+  }
+  return killed;
+}
+
+/** Stop every tracked service. UI exposes a "Stop all" button. */
+async function stopAll() {
+  const results = await Promise.all([...running.keys()].map((id) => stopService(id)));
+  return { ok: results.every((result) => result.ok), results };
 }
 
 function emitLog(id, chunk, isErr = false) {

@@ -298,6 +298,8 @@ export class GameController {
   destroy() {
     clearInterval(this._memorySampleTimer);
     this._memorySampleTimer = null;
+    clearTimeout(this._inactiveTrimTimer);
+    this._inactiveTrimTimer = null;
     this._longTaskObserver?.disconnect?.();
     this._longTaskObserver = null;
     this._loafObserver?.disconnect?.();
@@ -402,8 +404,6 @@ export class GameController {
         }
       }
     }
-    clearTimeout(this._inactiveTrimTimer);
-    this._inactiveTrimTimer = null;
     this._lastTickAt = now;
     tickClock(now);
     // Frame heartbeat for managers/UI that need a per-frame timer (e.g.

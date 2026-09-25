@@ -41,6 +41,7 @@ import {
 } from '../systems/skill-use.js';
 import { Stage } from './net-state.js';
 import { SKILL_TO_COMMAND } from './skill-actions.js';
+import { createStarterCodex } from './starter-loadout.js';
 import { trace } from '../trace.js';
 import { verifyPassword } from './accounts.js';
 import { displayGumpPacked, PACKED_GUMP_THRESHOLD } from './gump-packed.js';
@@ -959,22 +960,25 @@ function handleAccountLogin(state, pkt) {
     return;
   }
 
-  // Authenticate against AccountDB. devAutoAccept toggles auto-creation of
-  // unknown accounts (handy during local development).
+  // Authenticate against AccountDB. The configuration validator permits
+  // auto-creation only when every game listener is bound to loopback.
   const accounts = state.ctx.accounts;
-  if (accounts) {
-    const res = accounts.authenticate(user, password, { autoCreate: state.ctx.config.devAutoAccept });
-    if (!res.ok) {
-      attackLimiter.recordFailure(limiterKey);
-      const reason = res.reason === 'bad password' ? LoginRejectReason.BadPassword
-        : res.reason === 'banned' ? LoginRejectReason.Blocked
-        : LoginRejectReason.Invalid;
-      state.send(loginReject(reason));
-      state.close();
-      return;
-    }
-    state.account = res.account;
+  if (!accounts) {
+    state.send(loginReject(LoginRejectReason.Invalid));
+    state.close();
+    return;
   }
+  const res = accounts.authenticate(user, password, { autoCreate: state.ctx.config.devAutoAccept });
+  if (!res.ok) {
+    attackLimiter.recordFailure(limiterKey);
+    const reason = res.reason === 'bad password' ? LoginRejectReason.BadPassword
+      : res.reason === 'banned' ? LoginRejectReason.Blocked
+      : LoginRejectReason.Invalid;
+    state.send(loginReject(reason));
+    state.close();
+    return;
+  }
+  state.account = res.account;
   attackLimiter.recordSuccess(limiterKey);
   state.accountName = user;
 
@@ -1012,37 +1016,29 @@ function handleGameLogin(state, pkt) {
   r.readU8();
   const authKey = r.readU32();
   const user = r.readAsciiFixed(30);
-  r.readAsciiFixed(30); // password
+  r.readAsciiFixed(30); // The 0x80 step already verified the password.
 
   const resolved = state.ctx.authKeys.consume(authKey);
-  // Bug-hunt #9 #10 (security P1): devAutoAccept fallthrough used to
-  // accept ANY username when `resolved == null` (bad/expired auth key)
-  // — a reconnecting attacker could impersonate any account by name in
-  // a deploy where the dev flag was accidentally left on. Hard-fail if
-  // we're in production OR if the account name doesn't match.
-  const inProd = process.env.NODE_ENV === 'production';
-  const devOk = !!state.ctx.config.devAutoAccept && !inProd;
-  if (!resolved || (state.accountName && resolved !== state.accountName)) {
-    if (!devOk) {
-      state.send(loginReject(LoginRejectReason.BadCommunication));
-      state.close();
-      return;
-    }
-    // In dev-accept, only let the original 0x80 binding through — never
-    // a free-form claim of someone else's account name.
-    if (state.accountName && resolved && resolved !== state.accountName) {
-      state.send(loginReject(LoginRejectReason.BadCommunication));
-      state.close();
-      return;
-    }
+  // A relay key is mandatory even for local development. A fresh TCP socket
+  // can carry 0x91, so accepting a missing key here grants access to any
+  // account name without the password checked by 0x80.
+  if (!resolved || !user || resolved.toLowerCase() !== user.toLowerCase()
+      || (state.accountName && resolved.toLowerCase() !== state.accountName.toLowerCase())) {
+    state.send(loginReject(LoginRejectReason.BadCommunication));
+    state.close();
+    return;
   }
-  state.accountName = resolved ?? user;
+  state.accountName = resolved;
   // On a fresh-socket reconnect we never saw 0x80, so `state.account` is still
   // null — rebind it from the account DB so downstream code (access-level
   // checks on commands, persistence bindings) can see it.
-  if (!state.account && state.ctx.accounts) {
-    const acc = state.ctx.accounts.accounts.get(state.accountName.toLowerCase());
-    if (acc) state.account = acc;
+  if (!state.account) {
+    state.account = state.ctx.accounts?.accounts?.get(state.accountName.toLowerCase()) ?? null;
+    if (!state.account || state.account.banned) {
+      state.send(loginReject(LoginRejectReason.Blocked));
+      state.close();
+      return;
+    }
   }
 
   // CRITICAL: flip the stage to CharList BEFORE the two sends below.
@@ -1824,10 +1820,7 @@ function bringIntoWorld(state, nameOrChoice) {
         });
         // Every player may research custom spells. The codex is an editor
         // key, while progression and discoveries remain server-authoritative.
-        spawnTemplate(world, 'spell-schema-codex', {
-          x: mob.x, y: mob.y, z: mob.z, map: mob.map,
-          parent: backpack.serial,
-        });
+        createStarterCodex(world, mob, backpack);
         // Spellbook for mage / necromancer starters.
         if (presetName === 'mage' || presetName === 'necromancer') {
           createItem(world, {

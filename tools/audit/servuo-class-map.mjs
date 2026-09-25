@@ -224,6 +224,9 @@ function stripCSharpComments(text) {
 
 function collectServuoClasses() {
   const files = walk(SERVUO_ROOT, (file) => file.endsWith('.cs'));
+  if (files.length < 1000) {
+    throw new Error(`ServUO reference scripts missing or incomplete (${files.length} C# files): ${SERVUO_ROOT}. See docs/reference-sources.md`);
+  }
   const records = [];
   for (const file of files) {
     const csRel = rel(file);

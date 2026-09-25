@@ -10,7 +10,7 @@ REM keeps connecting to the WS port unchanged.
 REM
 REM Override ports per-call:
 REM   set "UO_PORT=2593"        WebSocket port
-REM   set "UO_TCP_PORT=2594"    raw TCP port (set "" to disable)
+REM   set "UO_TCP_PORT=2594"    raw TCP port
 REM   set "UO_HOST=0.0.0.0"     bind interface (LAN visibility)
 REM   call tools\run-server-tcp.bat
 REM
@@ -27,7 +27,7 @@ cd /d "%~dp0..\..\"
 
 if "%UO_PORT%"=="" set "UO_PORT=2593"
 if "%UO_TCP_PORT%"=="" set "UO_TCP_PORT=2594"
-if "%UO_HOST%"=="" set "UO_HOST=0.0.0.0"
+if "%UO_HOST%"=="" set "UO_HOST=127.0.0.1"
 
 echo [server] WebSocket on %UO_HOST%:%UO_PORT% (path /game)  - browser client
 echo [server] Raw TCP    on %UO_HOST%:%UO_TCP_PORT%          - native UO clients (CUO/Razor/OSI)

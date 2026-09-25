@@ -13,10 +13,10 @@
   "dependencies": {
     "@uo/nodeuo-protocol": "workspace:*",
     "@uo/protocol": "workspace:*",
-    "sharp": "^0.35.3",
+    "sharp": "^0.35.4",
     "ws": "^8.21.0"
   },
   "devDependencies": {
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.11"
   }
 }

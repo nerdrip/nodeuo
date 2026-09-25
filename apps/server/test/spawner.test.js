@@ -123,7 +123,7 @@ describe('Spawner', () => {
     expect(spawner.validateIndex()).toMatchObject({ ok: true });
   });
 
-  it('adopts persisted spawned mobiles on boot instead of duplicating them', () => {
+  it('implements SpawnerPersistence by adopting restored mobiles without duplicates', () => {
     const world = new World();
     const restored = world.createMobile({ name: 'restored rat', x: 1, y: 1, z: 0, map: 1 });
     restored.spawnerId = 'persisted-group';

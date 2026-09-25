@@ -118,10 +118,15 @@ export class AccountDB {
 
   /** Create the first durable shard administrator from deployment secrets.
    * No built-in password is ever generated or logged. Without an explicit
-   * secret the existing first-game-login rule remains the development path. */
+   * game-account secret the first-game-login rule remains the development
+   * path. Local dev may explicitly opt into the old admin UI password
+   * fallback; network-exposed shards must never use it for game login. */
   ensureBootstrapAdmin({
     username = process.env.UO_ADMIN_USER ?? 'admin',
-    password = process.env.UO_BOOTSTRAP_ADMIN_PASSWORD ?? process.env.UO_ADMIN_PASS ?? '',
+    allowLocalAdminFallback = false,
+    password = process.env.UO_BOOTSTRAP_ADMIN_PASSWORD
+      ?? (allowLocalAdminFallback ? process.env.UO_ADMIN_PASS : '')
+      ?? '',
   } = {}) {
     if (this.accounts.size > 0 || !password) return null;
     return this.createAccount(String(username).trim() || 'admin', String(password), 'Admin');

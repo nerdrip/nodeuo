@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const {
-  clientPerfStats, isSuspendedFrameGap, recordClientLongTask,
+  GameController, clientPerfStats, isSuspendedFrameGap, recordClientLongTask,
 } = await import('../src/core/game-controller.js');
 
 assert.equal(isSuspendedFrameGap(16.7, false), false, 'normal rendered frames feed performance adaptation');
@@ -23,6 +23,15 @@ assert.equal(entry.ms, 72.5);
 assert.equal(entry.frameMs, 72.5);
 assert.equal(entry.lagMs, 18.25);
 assert.equal(clientPerfStats.longTaskHistory[beforeHead % clientPerfStats.longTaskHistory.length], entry);
+
+let inactiveTrimRan = false;
+const controller = Object.create(GameController.prototype);
+controller._lastTickAt = 0;
+controller.scene = null;
+controller._inactiveTrimTimer = setTimeout(() => { inactiveTrimRan = true; }, 10);
+controller._tick();
+await new Promise((resolve) => setTimeout(resolve, 25));
+assert.equal(inactiveTrimRan, true, 'a hidden-tab frame must not cancel inactive asset trimming');
 
 const mobileRenderer = readFileSync(new URL('../src/renderer/mobile-renderer.js', import.meta.url), 'utf8');
 assert.ok(mobileRenderer.includes('let sortDirty = false'), 'MobileRenderer should separate z-order dirtiness from visibility changes');
